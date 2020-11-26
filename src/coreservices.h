@@ -68,6 +68,10 @@ class CoreServices : public QObject {
     }
 #endif
 
+    std::shared_ptr<NotificationManager> getNotificationManager() const {
+        return m_pNotificationManager;
+    }
+
     std::shared_ptr<ControllerManager> getControllerManager() const {
         return m_pControllerManager;
     }
