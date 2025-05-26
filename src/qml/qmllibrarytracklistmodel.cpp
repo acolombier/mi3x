@@ -45,6 +45,7 @@ QmlLibraryTrackListModel::QmlLibraryTrackListModel(
         QObject* pParent)
         : QIdentityProxyModel(pParent),
           m_columns() {
+    setObjectName(pModel->objectName());
     m_columns.reserve(librarySource.size());
     for (const auto* pColumn : std::as_const(librarySource)) {
         m_columns.emplace_back(make_parented<QmlLibraryTrackListColumn>(this,
