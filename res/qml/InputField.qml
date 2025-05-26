@@ -6,13 +6,16 @@ import "Theme"
 FocusScope {
     id: root
 
+    property alias background: backgroundInput
     property alias input: inputField
 
     Rectangle {
         id: backgroundInput
-        radius: 4
-        color: '#232323'
+
         anchors.fill: parent
+        color: '#232323'
+        radius: 4
+
         border {
             color: '#353535'
             width: 1
@@ -20,20 +23,21 @@ FocusScope {
     }
     MultiEffect {
         anchors.fill: parent
-        source: backgroundInput
-        shadowEnabled: true
-        shadowColor: "#000000"
         shadowBlur: 0.15
+        shadowColor: "#000000"
+        shadowEnabled: true
+        source: backgroundInput
     }
     TextInput {
         id: inputField
+
         anchors.fill: parent
-        anchors.verticalCenter: parent.verticalCenter
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.margins: 7
-        focus: true
+        anchors.verticalCenter: parent.verticalCenter
         clip: true
         color: acceptableInput ? "#FFFFFF" : "#7D3B3B"
+        focus: true
         horizontalAlignment: TextInput.AlignLeft
     }
 }

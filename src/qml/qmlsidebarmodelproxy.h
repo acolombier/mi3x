@@ -11,13 +11,12 @@
 
 #include "library/libraryfeature.h"
 #include "library/sidebarmodel.h"
+#include "qml/qmllibrarysource.h"
 #include "qmllibrarytracklistmodel.h"
 #include "util/parented_ptr.h"
 
 namespace mixxx {
 namespace qml {
-
-class QmlLibraryAbstractSource;
 
 class QmlSidebarModelProxy : public ::SidebarModel {
     Q_OBJECT
@@ -25,8 +24,10 @@ class QmlSidebarModelProxy : public ::SidebarModel {
     QML_ANONYMOUS
   public:
     enum Roles {
-        LabelRole = Qt::UserRole,
+        LabelRole = SidebarModel::DataRole + 1,
         IconRole,
+        ItemNameRole,
+        CapabilitiesRole,
     };
     Q_ENUM(Roles);
     Q_DISABLE_COPY_MOVE(QmlSidebarModelProxy)
@@ -37,9 +38,11 @@ class QmlSidebarModelProxy : public ::SidebarModel {
         return m_tracklist.get();
     }
 
+    QVariant data(const QModelIndex& index,
+            int role = Qt::DisplayRole) const override;
     void update(const QList<QmlLibraryAbstractSource*>& sources);
     QHash<int, QByteArray> roleNames() const override;
-    Q_INVOKABLE QVariant get(int row) const;
+    Q_INVOKABLE mixxx::qml::QmlLibraryAbstractSource* get(const QModelIndex& index) const;
     Q_INVOKABLE void activate(const QModelIndex& index);
   signals:
     void tracklistChanged();
@@ -49,6 +52,7 @@ class QmlSidebarModelProxy : public ::SidebarModel {
 
   private:
     std::shared_ptr<QmlLibraryTrackListModel> m_tracklist;
+    QList<QmlLibraryAbstractSource*> m_pQmlFeatures;
 };
 
 } // namespace qml

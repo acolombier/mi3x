@@ -16,7 +16,6 @@ Rectangle {
     }
     required property var model
 
-    property var currentSelectedIndex: null
     color: Theme.backgroundColor
 
     Component.onCompleted: {
@@ -42,22 +41,24 @@ Rectangle {
                 TreeView {
                     id: featureView
 
+                    // Used for testing
+                    function getSelectedPath() {
+                        return featureSelection.currentIndex.row;
+                    }
+
                     Layout.fillWidth: true
                     clip: true
                     model: root.model
+                    objectName: "featureTree"
                     selectionModel: featureSelection
 
-                    Connections {
-                        target: featureSelection
-                        function onSelectionChanged(selected, deselected) {
-                            if (!selected.length) return;
-                            root.currentSelectedIndex = selected[0]
-                        }
-                    }
-
                     delegate: FocusScope {
+                        id: treeItem
+
+                        readonly property bool canAddTrack: capabilities & Mixxx.LibraryAbstractSource.Capability.AddTrack
+                        readonly property bool canCreate: capabilities & Mixxx.LibraryAbstractSource.Capability.Create
                         required property int column
-                        required property bool current
+                        readonly property bool current: row === treeView.currentRow
                         required property int depth
                         required property bool expanded
                         required property int hasChildren
@@ -76,6 +77,7 @@ Rectangle {
                             to: expanded ? 90 : 0
                         }
                         required property bool isTreeNode
+                        required property string itemName
                         required property string label
                         readonly property real padding: 5
                         required property int row
@@ -85,6 +87,7 @@ Rectangle {
 
                         implicitHeight: depth == 0 ? 42 : 35
                         implicitWidth: treeView.width
+                        objectName: `index${row}`
 
                         TableView.onPooled: indicatorAnimation.complete()
                         TableView.onReused: if (current)
@@ -95,7 +98,7 @@ Rectangle {
                             id: background
 
                             anchors.fill: parent
-                            color: depth == 0 ? Theme.midGray2 : 'transparent'
+                            color: row == 0 ? Theme.midGray : depth == 0 ? Theme.darkGray2 : 'transparent'
 
                             MouseArea {
                                 id: rowMouseArea
@@ -105,21 +108,25 @@ Rectangle {
                                 hoverEnabled: true
 
                                 onClicked: event => {
-                                    treeView.selectionModel.select(treeView.selectionModel.model.index(row, 0), ItemSelectionModel.Rows | ItemSelectionModel.Select | ItemSelectionModel.Clear | ItemSelectionModel.Current);
+                                    let index = treeView.index(row, column);
                                     treeView.model.activate(index);
-                                    if (isTreeNode && hasChildren) {
+                                    if (isTreeNode && hasChildren && (!expanded || current)) {
                                         treeView.toggleExpanded(row);
                                     }
+                                    treeView.selectionModel.setCurrentIndex(index, ItemSelectionModel.NoUpdate);
                                     event.accepted = true;
                                 }
                             }
                             Rectangle {
+                                anchors.fill: parent
+                                color: current ? Theme.midGray : 'transparent'
+                            }
+                            Item {
                                 anchors.bottom: parent.bottom
                                 anchors.left: parent.left
                                 anchors.leftMargin: 10 + 15 * depth
                                 anchors.right: parent.right
                                 anchors.top: parent.top
-                                color: current ? Theme.midGray : 'transparent'
                                 width: 25
 
                                 Repeater {
@@ -141,6 +148,7 @@ Rectangle {
 
                                     Layout.preferredWidth: indicator.implicitWidth
                                     color: Theme.textColor
+                                    objectName: "indicator"
                                     text: "▶"
                                     visible: isTreeNode && hasChildren
 
@@ -159,23 +167,24 @@ Rectangle {
                                     color: Theme.textColor
                                     font.pixelSize: 14
                                     font.weight: depth == 0 ? Font.Bold : Font.Medium
+                                    objectName: "label"
                                     text: label
                                 }
                                 Item {
                                     id: newItem
 
                                     height: parent.height
-                                    visible: rowMouseArea.containsMouse && isTreeNode && hasChildren
+                                    objectName: "newItem"
+                                    visible: (rowMouseArea.containsMouse || popup.opened || treeItem.current) && isTreeNode && depth == 0 && canCreate
+                                    width: 30
 
                                     anchors {
                                         right: parent.right
-                                        rightMargin: 10
+                                        // rightMargin: 10
                                         verticalCenter: parent.verticalCenter
                                     }
                                     Rectangle {
-                                        anchors.centerIn: parent
-                                        height: parent.height
-                                        width: 30
+                                        anchors.fill: parent
 
                                         gradient: Gradient {
                                             orientation: Gradient.Horizontal
@@ -192,7 +201,7 @@ Rectangle {
                                     }
                                     Rectangle {
                                         anchors.right: parent.right
-                                        anchors.rightMargin: 5
+                                        anchors.rightMargin: 10
                                         anchors.verticalCenter: parent.verticalCenter
                                         border.color: Theme.white
                                         border.width: 2
@@ -235,6 +244,102 @@ Rectangle {
                                                 PathLine {
                                                     x: 8
                                                     y: 6
+                                                }
+                                            }
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+
+                                            onPressed: {
+                                                popup.x = parent.width;
+                                                popup.y = parent.height / 2 - popup.height / 2;
+                                                popup.open();
+                                                popup.forceActiveFocus(Qt.PopupFocusReason);
+                                            }
+                                        }
+                                        Skin.ActionPopup {
+                                            id: popup
+
+                                            readonly property var feature: featureView.model.get(treeItem.index)
+                                            property var lastError: null
+
+                                            function submit() {
+                                                let result = popup.feature.create(newItemName.input.text);
+                                                if (result == Mixxx.LibraryAbstractSource.ItemCreateResult.Ok) {
+                                                    newItemName.input.text = "";
+                                                    popup.close();
+                                                    return;
+                                                }
+                                                popup.lastError = result;
+                                                newItemName.input.forceActiveFocus();
+                                            }
+
+                                            contentItem.objectName: "createFeaturePopup"
+                                            focus: true
+                                            padding: 6
+
+                                            SequentialAnimation on x {
+                                                running: popup.lastError != null
+
+                                                NumberAnimation {
+                                                    duration: 1000
+                                                    easing.type: Easing.OutQuad
+                                                    to: popup.parent.width + 20
+                                                }
+                                                NumberAnimation {
+                                                    duration: 1000
+                                                    easing.type: Easing.OutQuad
+                                                    to: popup.parent.width // Bounce up
+                                                }
+                                            }
+
+                                            Text {
+                                                Layout.alignment: Qt.AlignHCenter
+                                                color: Theme.white
+                                                font.pixelSize: 14
+                                                font.weight: Font.Bold
+                                                text: qsTr("New %1").arg(itemName)
+                                            }
+                                            Skin.InputField {
+                                                id: newItemName
+
+                                                readonly property bool hasError: popup.lastError != null
+
+                                                Layout.fillWidth: true
+                                                Layout.margins: 4
+                                                Layout.preferredHeight: 36
+                                                background.border.color: hasError ? 'red' : null
+                                                focus: true
+                                                objectName: "name"
+
+                                                input.onAccepted: popup.submit()
+                                                input.onTextEdited: {
+                                                    popup.lastError = null;
+                                                }
+                                            }
+                                            RowLayout {
+                                                Layout.fillWidth: true
+                                                Layout.preferredHeight: 36
+
+                                                Skin.ActionButton {
+                                                    Layout.fillWidth: true
+                                                    label.text: qsTr("Cancel")
+                                                    objectName: "cancel"
+
+                                                    onPressed: {
+                                                        newItemName.input.text = "";
+                                                        popup.close();
+                                                    }
+                                                }
+                                                Skin.ActionButton {
+                                                    Layout.fillWidth: true
+                                                    category: Skin.ActionButton.Action
+                                                    label.text: qsTr("Create")
+                                                    objectName: "create"
+                                                    opacity: !popup.lastError && newItemName.input.text ? 1 : 0.4
+
+                                                    onPressed: popup.submit()
                                                 }
                                             }
                                         }
