@@ -821,6 +821,9 @@ the same string anywhere in the item's ancestor and descendant files.
 | `Library/TrackList.qml` | `<display value>` | Column header delegate: `objectName: display` |
 | `Library/Track.qml` | `"trackContextMenu"` | Right-click context `Menu` (contentItem) |
 | `Library/Cell.qml` | `"trackRow_" + row` | Row `Rectangle`, dynamic per-row |
+| `Deck/Toolbar.qml` | `"beatgridPopupContent"` | Beatgrid popup `contentItem` declaring node: opens inside the deck's item tree |
+| `HotcuePopup.qml` | `"hotcuePopupContent" + uid` | Hotcue popup content node (`uid = Channel{deck}-{hotcue}`) |
+| `HotcuePopup.qml` | `"hotcuePopupSwatch_" + index` | Hotcue popup color swatches |
 
 ### Path Constants (from `mixxx_steps.py` and the feature step modules)
 
