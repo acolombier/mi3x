@@ -13,6 +13,7 @@ SpinBox {
     property real realValue: 0
     property double step: 1 / decimalFactor
     property string suffix: ""
+    implicitWidth: 140
 
     function decimalToInt(decimal) {
         return decimal * decimalFactor;
@@ -33,7 +34,7 @@ SpinBox {
     }
 
     background: Item {
-        implicitWidth: 140
+        implicitWidth: root.implicitWidth
     }
     contentItem: Item {
         width: root.textWidth + 2 * root.spacing
