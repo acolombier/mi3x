@@ -327,6 +327,29 @@ def _wait_for_hidden(rpc, path, timeout=10):
     return False
 
 
+def _wait_for_clickable(rpc, path, timeout=5):
+    """Wait until an item is visible and its bounding box is non-degenerate.
+
+    spix's `existsAndVisible` reports an item as visible as soon as its
+    `visible` chain is true, before its layout has settled. For items that
+    are revealed by a state change (e.g. the remove button appearing when a
+    music directory row is selected), the first few bounding-box reads can
+    return stale/negative coordinates. Clicking such a stale position can
+    land on the settings popup's modal overlay and dismiss the whole popup.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            if rpc.existsAndVisible(path):
+                x, y, width, height = rpc.getBoundingBox(path)
+                if x >= 0 and y >= 0 and width > 0 and height > 0:
+                    return True
+        except Exception:
+            pass
+        time.sleep(0.3)
+    return False
+
+
 def _click(rpc, path):
     rpc.mouseClick(path)
 
@@ -613,7 +636,7 @@ def step_click_action(context, button):
 def step_select_music_directory(context, row):
     s = _rpc(context)
     path = MUSIC_DIRECTORY_ROW % row
-    assert _wait_for_visible(s, path), f"Music directory row {row} is not visible"
+    assert _wait_for_clickable(s, path), f"Music directory row {row} is not visible"
     _click(s, path)
     time.sleep(0.3)
 
@@ -622,7 +645,7 @@ def step_select_music_directory(context, row):
 def step_click_remove_music_directory(context, row):
     s = _rpc(context)
     path = SOURCE_REMOVE_BUTTON % row
-    assert _wait_for_visible(s, path), (
+    assert _wait_for_clickable(s, path), (
         f"Remove button for music directory row {row} is not visible"
     )
     _click(s, path)
@@ -637,7 +660,7 @@ def step_choose_track_handling(context, action, row):
     except ValueError:
         raise ValueError(f"Unknown track handling action '{action}'")
     path = f"{SOURCE_REMOVE_MODE_SELECTOR % row}/option{option_index}"
-    assert _wait_for_visible(s, path), (
+    assert _wait_for_clickable(s, path), (
         f"Track handling option '{action}' for music directory row {row} is not visible"
     )
     _click(s, path)
@@ -1151,7 +1174,7 @@ def step_library_state_matches(context):
 def step_source_button_visible(context, button, row):
     s = _rpc(context)
     path = SOURCE_REMOVE_BUTTON % row if button == "remove" else SOURCE_RELINK_BUTTON % row
-    assert _wait_for_visible(s, path), (
+    assert _wait_for_clickable(s, path), (
         f"The {button} button for music directory row {row} is not visible"
     )
 
