@@ -209,6 +209,12 @@ def counts_suffix(counts, took=None):
     return f" ({', '.join(parts)})" if parts else ""
 
 
+def section_mark(counts):
+    if counts[OutcomeCategory.FAILED] or counts[OutcomeCategory.ERROR]:
+        return ":x:"
+    return ":white_check_mark:"
+
+
 def summarize_counts(scenarios_by_name, seen=None):
     """Tally the final outcome per scenario (last attempt by start time).
 
@@ -396,7 +402,7 @@ def build_comment_body(all_results, job_urls, repo):
             ]
         )
         stat_suffix = counts_suffix(plat_counts, plat_took)
-        title_text = f"{slug_name}{stat_suffix}"
+        title_text = f"{section_mark(plat_counts)} {slug_name}{stat_suffix}"
         title_html = (
             f'<a href="{job_url}">{title_text}</a>' if job_url else title_text
         )
@@ -423,16 +429,18 @@ def build_comment_body(all_results, job_urls, repo):
                     for a in att_list
                 ]
             )
-            feat_suffix = counts_suffix(
-                summarize_counts(scenarios_by_name)[0], feat_took
-            )
+            feat_counts = summarize_counts(scenarios_by_name)[0]
+            feat_suffix = counts_suffix(feat_counts, feat_took)
             if job_url:
                 feat_summary = (
-                    f'<strong>- <a href="{job_url}">{feature}</a>'
-                    f"{feat_suffix}</strong>"
+                    f"<strong>{section_mark(feat_counts)} - "
+                    f'<a href="{job_url}">{feature}</a>{feat_suffix}</strong>'
                 )
             else:
-                feat_summary = f"<strong>- {feature}{feat_suffix}</strong>"
+                feat_summary = (
+                    f"<strong>{section_mark(feat_counts)} - "
+                    f"{feature}{feat_suffix}</strong>"
+                )
             feature_lines.append("<details>")
             feature_lines.append(f"<summary>{feat_summary}</summary>")
             feature_lines.append("")

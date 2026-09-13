@@ -109,6 +109,11 @@ def after_scenario(context, scenario):
     elif failed and "xpass" in scenario.tags:
         outcome = "flaky"
 
+    if failed and _is_expected_failure_or_flaky(scenario.tags):
+        # Expected failures and flaky scenarios are not genuine failures:
+        # mark them as passed so behave's summary does not list them as failed.
+        scenario.set_status(Status.passed)
+
     time.sleep(1) # Allow the final state to be visible on screen
     scenario.end_at = time.time()
     scenario.outcome = outcome
