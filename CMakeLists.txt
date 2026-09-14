@@ -3836,6 +3836,7 @@ if(QML)
   list(APPEND QT_EXTRA_COMPONENTS "QuickControls2")
   list(APPEND QT_EXTRA_COMPONENTS "QuickControls2Impl")
   list(APPEND QT_EXTRA_COMPONENTS "QuickDialogs2")
+  list(APPEND QT_EXTRA_COMPONENTS "QuickEffects")
   list(APPEND QT_EXTRA_COMPONENTS "QuickLayouts")
   list(APPEND QT_EXTRA_COMPONENTS "QuickShapesPrivate")
   list(APPEND QT_EXTRA_COMPONENTS "QuickTemplates2")
@@ -4002,7 +4003,7 @@ if(QML)
       src/qml/qmlmixxxcontrollerscreen.cpp
       src/qml/qmlplayermanagerproxy.cpp
       src/qml/qmlplayerproxy.cpp
-      src/qml/qmlrecordingproxy.cpp
+      src/qml/qmlcoreservices.cpp
       src/qml/qmlsidebarmodelproxy.cpp
       src/qml/qmllibrarytracklistcolumn.cpp
       src/qml/qmltrackproxy.cpp
@@ -4046,6 +4047,10 @@ if(QML)
 
   # qt_finalize_target takes care that the resources :/mixxx.org/imports/Mixxx/
   # and :/mixxx.org/imports/Mixxx/Controls are placed into beginning of the binary
+  # Set QT_QML_MODULE_NO_IMPORT_SCAN to avoid warnings about missing QML plugin
+  # targets. The plugins are loaded dynamically at runtime from the system Qt
+  # installation on Linux.
+  set_target_properties(mixxx PROPERTIES QT_QML_MODULE_NO_IMPORT_SCAN ON)
   qt_finalize_target(mixxx)
 
   install(
@@ -4352,6 +4357,15 @@ else()
           applocal
       )
 
+      install(
+        IMPORTED_RUNTIME_ARTIFACTS
+          Qt${QT_VERSION_MAJOR}::QuickEffects
+          DESTINATION
+          "${MIXXX_INSTALL_DATADIR}"
+          COMPONENT
+          applocal
+      )
+
       #install qml6-module-qt5compat-graphicaleffects
       install(
         DIRECTORY
@@ -4371,6 +4385,14 @@ else()
       install(
         FILES
           "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}$<$<CONFIG:Debug>:/debug>/bin/Qt6MultimediaQuick$<$<CONFIG:Debug>:d>${CMAKE_SHARED_LIBRARY_SUFFIX}"
+        DESTINATION "${MIXXX_INSTALL_DATADIR}"
+        COMPONENT applocal
+      )
+
+      # Qt6QuickEffect doesn't seem to be included in any defined target but it is required.
+      install(
+        FILES
+          "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}$<$<CONFIG:Debug>:/debug>/bin/Qt6QuickEffects$<$<CONFIG:Debug>:d>${CMAKE_SHARED_LIBRARY_SUFFIX}"
         DESTINATION "${MIXXX_INSTALL_DATADIR}"
         COMPONENT applocal
       )
@@ -4395,6 +4417,14 @@ else()
       install(
         DIRECTORY
           "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}$<$<CONFIG:Debug>:/debug>/Qt6/qml/QtQuick/Dialogs"
+        DESTINATION "${MIXXX_INSTALL_DATADIR}/Qt6/qml/QtQuick"
+        COMPONENT applocal
+      )
+
+      # install qml6-module-quick-effects
+      install(
+        DIRECTORY
+          "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}$<$<CONFIG:Debug>:/debug>/Qt6/qml/QtQuick/Effects"
         DESTINATION "${MIXXX_INSTALL_DATADIR}/Qt6/qml/QtQuick"
         COMPONENT applocal
       )
