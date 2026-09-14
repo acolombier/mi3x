@@ -393,6 +393,27 @@ def _mixxx_running(context):
     return False
 
 
+def _device_signature(context):
+    devices = getattr(context, "_soundMockDevices", None)
+    if not devices:
+        return None
+    return tuple(
+        sorted(
+            (
+                d["name"],
+                d.get("api", "Mock"),
+                d.get("outputChannels", 0),
+                d.get("inputChannels", 0),
+            )
+            for d in devices
+        )
+    )
+
+
+def _session_key(context):
+    return (getattr(context, "profile_dir", None), _device_signature(context))
+
+
 def _ensure_profile(context, profile_type, force=False):
     session = context._session
     if not force and session.get("active_profile_type") == profile_type and _mixxx_running(context):
@@ -406,6 +427,7 @@ def _ensure_profile(context, profile_type, force=False):
         context.mixxx.stop()
         session["mixxx"] = None
         session["rpc"] = None
+        session["ready_key"] = None
     profile_dir = profile.make_temp_profile(profile_type)
     context.profile_dir = profile_dir
     context.active_profile_type = profile_type
@@ -423,6 +445,10 @@ def step_new_empty_profile(context, profile_type):
 
 @given("Mixxx is open and ready to operate")
 def step_open_and_ready(context):
+    session = context._session
+    if session.get("ready_key") == _session_key(context) and _mixxx_running(context):
+        return
+
     tracks_dir = context.config.userdata["tracks_dir"]
     is_running = _mixxx_running(context)
     if not is_running:
@@ -434,8 +460,8 @@ def step_open_and_ready(context):
         context.mixxx = profile.MixxxProcess(binary, context.profile_dir)
         context.mixxx.start()
         context.mixxx_rpc = RobustRpcProxy()
-        context._session["mixxx"] = context.mixxx
-        context._session["rpc"] = context.mixxx_rpc
+        session["mixxx"] = context.mixxx
+        session["rpc"] = context.mixxx_rpc
         _wait_for_hidden(context.mixxx_rpc, "mainWindow/splashScreen")
         if context.active_profile_type == "library-ready":
             _library_command(context.mixxx_rpc, "addDirectory", tracks_dir, scan=True)
@@ -468,6 +494,7 @@ def step_open_and_ready(context):
     _wait_for_visible(context.mixxx_rpc, "mainWindow/library")
     _wait_for_hidden(context.mixxx_rpc, "mainWindow/splashScreen")
     context.mixxx_rpc.setStringProperty("mainWindow", "enableDiagnosticClick", "true")
+    session["ready_key"] = _session_key(context)
 
 
 # --- When: window/button steps ---
@@ -480,6 +507,20 @@ def step_window_width_is(context, width):
 @given("the window's height is {height:d}px")
 def step_window_height_is(context, height):
     step_resize_window_height(context, height)
+
+
+@given("the window size is default")
+def step_window_size_default(context):
+    s = context.mixxx_rpc
+    _set_property(s, "mainWindow", "width", 1792)
+    _set_property(s, "mainWindow", "height", 1008)
+    time.sleep(0.5)
+
+
+@given("the library columns are in their default state")
+def step_library_columns_default(context):
+    context.mixxx_rpc.invokeMethod(TRACKLIST_PATH, "resetColumns", [])
+    time.sleep(0.5)
 
 
 @when("I resize the window's width to {width:d}px")

@@ -19,6 +19,20 @@ Rectangle {
 
     property var movedColumn: new Object()
 
+    // Restore the library columns to their default order, visibility and sort
+    // state. Used by the E2E test harness to reset state between scenarios
+    // that share a running Mixxx instance, without a full QML reload.
+    function resetColumns() {
+        root.movedColumn = new Object()
+        view.clearColumnReordering()
+        horizontalHeader.sortingColumn = -1
+        horizontalHeader.sortingOrder = Qt.DescendingOrder
+        for (let i = 0; i < view.model.columns.length; i++) {
+            view.model.columns[i].display = Mixxx.TrackListColumn.Display.Auto
+        }
+        view.clearColumnWidths()
+    }
+
     color: Theme.darkGray
 
     LibraryComponent.Control {
