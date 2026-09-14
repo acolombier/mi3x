@@ -14,13 +14,18 @@ Item {
     property alias handleSource: handleSourceEdge
     property var metaType: null
     required property string name
+    objectName: "entity_" + name.replace('/','') // '/' is used as separator on Spix
+
+    Component.onCompleted: {
+        console.log("AudioEntity", objectName)
+    }
 
     signal connect(var entity)
     signal disconnect(var entity)
     signal gatewayReady(string address, Item node)
     signal scrolled
 
-    implicitHeight: 45 + 28 * gatewayRepeater.visibleChannels
+    implicitHeight: 52 + 26 * gatewayRepeater.visibleChannels
     width: 105
     z: 10
 
@@ -70,6 +75,7 @@ Item {
 
                 Repeater {
                     id: node
+                    objectName: "node"
 
                     readonly property string address: root.gateways[index].address || root.gateways[index].name
                     readonly property bool advanced: root.gateways[index].advanced || false
@@ -103,12 +109,14 @@ Item {
 
                     model: node.channels.length / 2 * instances
 
-                    Component.onCompleted: {
-                        root.gatewayReady(address, node);
-                    }
-
                     Item {
                         id: channel
+
+                        Component.onCompleted: {
+                            if (channel.index === 0) {
+                                root.gatewayReady(address, node);
+                            }
+                        }
 
                         property bool counted: channel.index == 0
                         property alias edgeItem: edge
@@ -141,7 +149,7 @@ Item {
                                 elide: Text.ElideRight
                                 font.pixelSize: 10
                                 fontSizeMode: Text.Fit
-                                text: node.instances == 1 ? label : `${label} #${index + 1}`
+                                text: index == 0 ? label : `${label} #${index + 1}`
                                 verticalAlignment: Text.AlignVCenter
                             }
                             // Item {
@@ -153,6 +161,7 @@ Item {
                                 property int previousIndex: node.channelAssignation[channel.index] ?? 0
 
                                 Layout.minimumWidth: implicitWidth
+                                implicitWidth: 66
                                 clip: true
                                 currentIndex: node.channelAssignation[channel.index] ?? 0
                                 font.pixelSize: 12
@@ -161,6 +170,7 @@ Item {
                                 }
                                 spacing: 2
                                 visible: node.count > 1 && node.channels.length > 2
+                                indicator.visible: false
 
                                 onActivated: activatedIndex => {
                                     let alreadyAssigned = node.channelAssignation.indexOf(activatedIndex);
@@ -171,6 +181,16 @@ Item {
                         }
                         Rectangle {
                             id: edge
+                            objectName: "edge_" + node.address + index
+
+                            Component.onCompleted: {
+                                console.log(objectName)
+                            }
+
+                            // Used for testing
+                            function connectionObjectName(){
+                                return edge.connection?.objectName
+                            }
 
                             property var address: node.address
                             property var advanced: node.advanced
@@ -200,10 +220,6 @@ Item {
 
                             states: [
                                 State {
-                                    name: "idle"
-                                    when: !edge.connecting && !edge.connection
-                                },
-                                State {
                                     name: "warning"
                                     when: (!edge.connection && node.required) || (edge.connection && edge.connection.state == "warning")
 
@@ -211,6 +227,10 @@ Item {
                                         edge.color: Theme.warningColor
                                         edge.width: 20
                                     }
+                                },
+                                State {
+                                    name: "idle"
+                                    when: !edge.connecting && !edge.connection
                                 },
                                 State {
                                     name: "hidden"
@@ -228,6 +248,10 @@ Item {
                                         edge.color: Theme.accentColor
                                         edge.width: 15
                                     }
+                                },
+                                State {
+                                    name: "existing"
+                                    when: edge.connection && edge.connection.existing
                                 },
                                 State {
                                     name: "creating"

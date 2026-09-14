@@ -28,11 +28,8 @@ Item {
 
     readonly property bool _showLibrary: maximizeLibrary || height - mixer.height >= 400
 
-    // color: Theme.backgroundColor
-    // height: isMobile ? Screen.height : designHeight
-    // visible: true
-    // width: isMobile ? Screen.width : designWidth
-    // visibility: Mixxx.Config.configStartInFullscreenKey || isMobile ? Window.FullScreen : Window.Windowed
+    // Used to show click interaction on the Window. Mainly relevant on automated testing
+    property bool enableDiagnosticClick: false
 
 
     Mixxx.ControlProxy {
@@ -92,6 +89,7 @@ Item {
 
                 Skin.Button {
                     id: show4DecksButton
+                    objectName: "show4DecksButton"
 
                     activeColor: Theme.white
                     checkable: true
@@ -100,6 +98,7 @@ Item {
                 }
                 Skin.Button {
                     id: maximizeLibraryButton
+                    objectName: "library"
 
                     activeColor: Theme.white
                     checkable: true
@@ -146,6 +145,7 @@ Item {
                 }
                 Skin.Button {
                     id: editDeckButton
+                    objectName: "editDeckButton"
 
                     activeColor: Theme.white
                     checkable: true
@@ -175,6 +175,7 @@ Item {
                 }
                 Skin.Button {
                     id: showPreferencesButton
+                    objectName: "showPreferencesButton"
 
                     activeColor: Theme.white
                     checked: settingsPopup.opened
@@ -353,6 +354,7 @@ Item {
 
                 Deck {
                     id: deck1
+                    objectName: "deck1"
 
                     editMode: root.editDeck
                     group: "[Channel1]"
@@ -476,6 +478,7 @@ Item {
                 }
                 Deck {
                     id: deck2
+                    objectName: "deck2"
 
                     editMode: root.editDeck
                     group: "[Channel2]"
@@ -514,6 +517,7 @@ Item {
                 }
                 Loader {
                     id: deck3
+                    objectName: "deck3Loader"
 
                     readonly property string group: "[Channel3]"
 
@@ -531,6 +535,7 @@ Item {
                     }
                     sourceComponent: Component {
                         Deck {
+                            objectName: "deck3"
                             anchors.bottom: parent.bottom
                             anchors.left: parent.left
                             editMode: root.editDeck
@@ -557,6 +562,7 @@ Item {
                 }
                 Loader {
                     id: deck4
+                    objectName: "deck4Loader"
 
                     readonly property string group: "[Channel4]"
 
@@ -574,8 +580,9 @@ Item {
                     }
                     sourceComponent: Component {
                         Deck {
+                            objectName: "deck4"
                             anchors.bottom: parent.bottom
-                            anchors.right: parent.right
+                            anchors.left: parent.left
                             editMode: root.editDeck
                             group: deck4.group
                             minimized: root.maximizeLibrary
@@ -625,6 +632,7 @@ Item {
 
                     sourceComponent: Component {
                         Skin.Library {
+                            objectName: "libraryContent"
                             anchors.fill: parent
                         }
                     }
@@ -671,6 +679,7 @@ Item {
         width: Math.min(1400, parent.width)
         x: Math.round((parent.width - width) / 2)
         y: Math.round((parent.height - height) / 2)
+        enableDiagnosticClick: parent.enableDiagnosticClick
 
         Overlay.modal: Rectangle {
             id: overlayModal

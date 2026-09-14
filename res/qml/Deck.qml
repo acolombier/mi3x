@@ -249,6 +249,8 @@ Item {
             roleValue: "beatjump"
 
             LayoutItem {
+                objectName: "beatjump"
+
                 Layout.preferredWidth: 120
                 editLabel.color: Theme.white
                 editLabel.font.capitalization: Font.AllUppercase
@@ -266,6 +268,8 @@ Item {
             roleValue: "waveformOverview"
 
             LayoutItem {
+                objectName: "overview"
+
                 Layout.fillHeight: true
                 Layout.fillWidth: true
                 blurRadius: 4
@@ -306,6 +310,8 @@ Item {
             roleValue: "tempo"
 
             LayoutItem {
+                objectName: "rateSlider"
+
                 Layout.fillHeight: true
                 Layout.preferredWidth: 75
                 blurRadius: 4
@@ -324,6 +330,8 @@ Item {
             roleValue: "play"
 
             LayoutItem {
+                objectName: "playButtonItem"
+
                 Layout.preferredHeight: root.minimized ? 32 : 60
                 Layout.preferredWidth: 60
                 editLabel.color: Theme.white
@@ -334,6 +342,8 @@ Item {
                 editOverlay.color: Theme.darkGray2
 
                 DeckComponent.PlayButton {
+                    objectName: "playButton"
+
                     anchors.fill: parent
                     group: root.group
                     minimized: root.minimized
@@ -344,6 +354,8 @@ Item {
             roleValue: "cue"
 
             LayoutItem {
+                objectName: "cueButton"
+
                 Layout.preferredHeight: root.minimized ? 32 : 60
                 Layout.preferredWidth: 60
                 editLabel.color: Theme.white
@@ -364,6 +376,8 @@ Item {
             roleValue: "spinny"
 
             LayoutItem {
+                objectName: "spinny"
+
                 Layout.alignment: Qt.AlignTop
                 editLabel.color: Theme.midGray
                 editLabel.font.pixelSize: 14
@@ -417,6 +431,8 @@ Item {
             roleValue: "hotcueAndStem"
 
             LayoutItem {
+                objectName: "hotcueAndStem"
+
                 Layout.fillWidth: true
                 Layout.minimumWidth: 250
                 blurRadius: 4
@@ -557,7 +573,6 @@ Item {
                         cardinality: cardinality,
                         completed: false
                     };
-                    return true;
                 }
 
                 if (candidate.completed) {
@@ -590,7 +605,7 @@ Item {
                 let currentParent = drag.source.parent;
                 let reverse = [];
                 while (currentParent != topParent) {
-                    reverse.push(currentParent.index);
+                    reverse.push(currentParent.parent.children.indexOf(currentParent));
                     currentParent = currentParent.parent;
                 }
                 let modelRef = root.minimized ? minimizedItemModel : itemModel;
@@ -634,19 +649,13 @@ Item {
                 return;
             }
 
-            if (!drag.source.parent.items) {
-                console.error(`No items list on the parent of ${drag.source}`);
+            if (!drag.source.parent.itemsModel) {
+                console.error(`No items list on the parent of ${drag.source} (${drag.source.parent}: ${drag.source.parent.itemsModel})`);
                 candidate = null;
                 return;
             }
-            let sourceIdx;
-            for (let i = 0; i < drag.source.parent.children.length; i++) {
-                if (drag.source.parent.children[i] == drag.source) {
-                    sourceIdx = i;
-                    break;
-                }
-            }
-            if (sourceIdx === null) {
+            let sourceIdx = drag.source.parent.children.indexOf(drag.source);
+            if (sourceIdx === -1) {
                 console.error("Cannot find the source item in the parent's children");
                 candidate = null;
                 return;
@@ -669,6 +678,8 @@ Item {
         property alias editOverlay: overlay
         property var move: null
         property bool selected: false
+
+        readonly property var itemsModel: items
 
         function complete() {
             if (item.move) {
@@ -698,7 +709,7 @@ Item {
 
         Drag.active: mouseArea.drag.active
         Drag.hotSpot: Qt.point(width / 2, height / 2)
-        columns: disposition == GridLayout.TopToBottom ? 1 : items.count
+        columns: disposition == GridLayout.TopToBottom ? 1 : itemsModel.rowCount()
         visible: typeof minWidth !== 'number' || root.width <= 0 || minWidth < root.width
 
         Behavior on x {
@@ -751,6 +762,8 @@ Item {
         }
         Rectangle {
             id: overlay
+
+            objectName: visible ? "selectedGroupOverlay" : "groupOverlay"
 
             color: Qt.alpha(Theme.accentColor, 0.2)
             parent: root
@@ -841,6 +854,8 @@ Item {
         Rectangle {
             id: overlayItem
 
+            objectName: "overlayItem"
+
             anchors.fill: layoutItem
             color: Qt.alpha("black", 0.4)
             visible: root.editMode
@@ -871,20 +886,28 @@ Item {
 
         function selectParent() {
             let currentParent = target.parent;
+            let currentlySelected = 0;
+            let nestedGroups = [];
             while (currentParent != root) {
-                if (currentParent.selected === false) {
-                    let updatedRecursive = children => {
-                        for (let i = 1; i < children.length; i++) {
-                            if (children[i].selected === true)
-                                children[i].selected = false;
-                            updatedRecursive(children[i].children);
-                        }
-                    };
-                    updatedRecursive(currentParent.children);
-                    currentParent.selected = true;
-                    break;
+                if (typeof currentParent.selected === "boolean"){
+                    nestedGroups.push(currentParent);
+                    if (currentParent.selected) {
+                        currentlySelected = nestedGroups.length;
+                    }
                 }
                 currentParent = currentParent.parent;
+            }
+            let updatedRecursive = children => {
+                print(`updatedRecursive: ${children} ${children.length}`)
+                for (let i = 1; i < children.length; i++) {
+                    if (children[i].selected === true)
+                        children[i].selected = false;
+                    updatedRecursive(children[i].children);
+                }
+            };
+            updatedRecursive(root.children);
+            for (let i = 0; i < nestedGroups.length; i++){
+                nestedGroups[i].selected = currentlySelected === i;
             }
         }
 

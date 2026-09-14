@@ -53,6 +53,9 @@ endif()
 if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
 endif()
+if(POLICY CMP0177)
+  cmake_policy(SET CMP0177 NEW)
+endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL Android)
   if(NOT DEFINED ENV{JAVA_HOME})
@@ -1593,6 +1596,7 @@ add_library(
   src/soundio/soundmanager.cpp
   src/soundio/soundmanagerconfig.cpp
   src/soundio/soundmanagerutil.cpp
+  src/soundio/sounddevicemock.cpp
   src/sources/audiosource.cpp
   src/sources/audiosourcestereoproxy.cpp
   src/sources/metadatasource.cpp
@@ -2765,6 +2769,96 @@ elseif(BUILD_BENCH AND NOT BUILD_TESTING)
   message(FATAL_ERROR "Benchmark needs Unittests (-DBUILD_TESTING=ON)")
 endif()
 
+default_option(BUILD_UI_TEST "Build Mixxx QML UI/E2E tests" "QML")
+if(BUILD_UI_TEST)
+  set(ANYRPC_INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/lib/libanyrpc-install")
+  set(
+    ANYRPC_LIBRARY
+    "lib/${CMAKE_STATIC_LIBRARY_PREFIX}anyrpc${CMAKE_STATIC_LIBRARY_SUFFIX}"
+  )
+  ExternalProject_Add(
+    libanyrpc
+    GIT_REPOSITORY https://github.com/sgieseking/anyrpc.git
+    GIT_TAG b1949b3d40849229055ae75cf5334b9d08579502
+    INSTALL_DIR ${ANYRPC_INSTALL_DIR}
+    LIST_SEPARATOR "|"
+    CMAKE_ARGS
+      -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DBUILD_WITH_LOG4CPLUS=OFF
+      -DCMAKE_INSTALL_PREFIX=${ANYRPC_INSTALL_DIR} -DBUILD_EXAMPLES=OFF
+      -DBUILD_PROTOCOL_MESSAGEPACK=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+      -DANYRPC_LIB_BUILD_SHARED=OFF
+      -$<IF:$<BOOL:${CMAKE_TOOLCHAIN_FILE}>,D,U>CMAKE_TOOLCHAIN_FILE:PATH=${CMAKE_TOOLCHAIN_FILE}
+      -$<IF:$<BOOL:${CMAKE_OSX_DEPLOYMENT_TARGET}>,D,U>CMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
+      -$<IF:$<BOOL:${CMAKE_OSX_ARCHITECTURES}>,D,U>CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
+      -DCMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}
+      -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
+    BUILD_BYPRODUCTS <INSTALL_DIR>/${ANYRPC_LIBRARY}
+    EXCLUDE_FROM_ALL TRUE
+  )
+  set(SPIX_INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/lib/libspix-install")
+  set(
+    SPIX_QTQUICK_LIBRARY
+    "${CMAKE_STATIC_LIBRARY_PREFIX}SpixCore${CMAKE_STATIC_LIBRARY_SUFFIX}"
+  )
+  set(
+    SPIX_CORE_LIBRARY
+    "${CMAKE_STATIC_LIBRARY_PREFIX}SpixQtQuick${CMAKE_STATIC_LIBRARY_SUFFIX}"
+  )
+  if(MSVC)
+    file(
+      WRITE
+      "${CMAKE_CURRENT_BINARY_DIR}/spix_uint_compat.h"
+      "#pragma once\n#ifdef _MSC_VER\ntypedef unsigned int uint;\n#endif\n"
+    )
+    set(
+      SPIX_CXX_FLAGS
+      "-DCMAKE_CXX_FLAGS=/FI${CMAKE_CURRENT_BINARY_DIR}/spix_uint_compat.h"
+    )
+  endif()
+  string(
+    REPLACE
+    ";"
+    "|"
+    PIPE_DELIMITED_CMAKE_PREFIX_PATH
+    "${CMAKE_PREFIX_PATH}"
+  )
+
+  ExternalProject_Add(
+    libspix
+    GIT_REPOSITORY https://github.com/faaxm/spix.git
+    GIT_TAG 73ed4d0880e8434815a82a5ad876d03a51eaa1db
+    INSTALL_DIR ${SPIX_INSTALL_DIR}
+    LIST_SEPARATOR "|"
+    CMAKE_ARGS
+      -DSPIX_BUILD_EXAMPLES=OFF -DSPIX_CMAKE_CONFIG_DIR=${SPIX_INSTALL_DIR}
+      -DSPIX_QT_MAJOR=6 -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+      -DCMAKE_INSTALL_PREFIX=${SPIX_INSTALL_DIR}
+      -DCMAKE_INSTALL_BINDIR=${SPIX_INSTALL_DIR}
+      -DCMAKE_INSTALL_LIBDIR=${SPIX_INSTALL_DIR}
+      -DCMAKE_INSTALL_DATADIR=${SPIX_INSTALL_DIR}
+      -DCMAKE_INSTALL_INCLUDEDIR=${SPIX_INSTALL_DIR}
+      -DAnyRPC_INCLUDE_DIRS=${ANYRPC_INSTALL_DIR}/include
+      -DAnyRPC_LIBRARIES=${ANYRPC_INSTALL_DIR}/lib -DQt6Core_DIR=${Qt6Core_DIR}
+      -DQt6Gui_DIR=${Qt6Gui_DIR} -DQt6_DIR=${Qt6_DIR}
+      -DCMAKE_PREFIX_PATH=${PIPE_DELIMITED_CMAKE_PREFIX_PATH}
+      -DCMAKE_MODULE_PATH=${CMAKE_MODULE_PATH} ${SPIX_CXX_FLAGS}
+      -$<IF:$<BOOL:${CMAKE_TOOLCHAIN_FILE}>,D,U>CMAKE_TOOLCHAIN_FILE:PATH=${CMAKE_TOOLCHAIN_FILE}
+      -$<IF:$<BOOL:${CMAKE_OSX_DEPLOYMENT_TARGET}>,D,U>CMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
+      -$<IF:$<BOOL:${CMAKE_OSX_ARCHITECTURES}>,D,U>CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
+      -DCMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}
+      -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
+    BUILD_BYPRODUCTS
+      <INSTALL_DIR>/${SPIX_QTQUICK_LIBRARY}
+      <INSTALL_DIR>/${SPIX_CORE_LIBRARY}
+    EXCLUDE_FROM_ALL TRUE
+    PATCH_COMMAND
+      ${CMAKE_COMMAND} -DPATCH_FILE=${CMAKE_CURRENT_LIST_DIR}/spix.patch
+      -DWORKING_DIR=<SOURCE_DIR> -P
+      ${CMAKE_CURRENT_LIST_DIR}/cmake/ApplyPatch.cmake
+  )
+  add_dependencies(libspix libanyrpc)
+endif()
+
 # FFmpeg support
 # FFmpeg is multimedia library that can be found http://ffmpeg.org/
 find_package(FFmpeg COMPONENTS AVCODEC AVFORMAT AVUTIL SWRESAMPLE)
@@ -3049,6 +3143,41 @@ if(BUILD_TESTING)
     PRIVATE mixxx-lib mixxx-gitinfostore mixxx-xwax GTest::gtest GTest::gmock
   )
 
+  if(BUILD_UI_TEST)
+    add_compile_definitions(USE_TEST_UI)
+    add_dependencies(mixxx-test libspix)
+    target_sources(mixxx-test PRIVATE src/test/servemode.cpp)
+    target_include_directories(
+      mixxx-test
+      PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/lib/libspix-install/
+    )
+
+    file(MAKE_DIRECTORY "${ANYRPC_INSTALL_DIR}/include")
+    add_library(AnyRpc STATIC IMPORTED)
+    set_target_properties(
+      AnyRpc
+      PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${ANYRPC_INSTALL_DIR}/include"
+        IMPORTED_LOCATION "${ANYRPC_INSTALL_DIR}/${ANYRPC_LIBRARY}"
+    )
+
+    add_library(SpixCore STATIC IMPORTED)
+    set_target_properties(
+      SpixCore
+      PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${SPIX_INSTALL_DIR}"
+        IMPORTED_LOCATION "${SPIX_INSTALL_DIR}/${SPIX_QTQUICK_LIBRARY}"
+    )
+    add_library(SpixQtQuick STATIC IMPORTED)
+    set_target_properties(
+      SpixQtQuick
+      PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${SPIX_INSTALL_DIR}"
+        IMPORTED_LOCATION "${SPIX_INSTALL_DIR}/${SPIX_CORE_LIBRARY}"
+    )
+
+    target_link_libraries(mixxx-test PRIVATE AnyRpc SpixCore SpixQtQuick)
+  endif()
   if(BUILD_BENCH)
     add_compile_definitions(USE_BENCH)
     target_link_libraries(mixxx-test PRIVATE benchmark::benchmark)
@@ -3089,6 +3218,105 @@ if(BUILD_TESTING)
     TEST_LIST testsuite
     DISCOVERY_MODE PRE_TEST
   )
+
+  if(BUILD_UI_TEST)
+    find_program(PYTHON3_EXECUTABLE python3)
+    if(NOT PYTHON3_EXECUTABLE)
+      find_program(PYTHON3_EXECUTABLE python)
+    endif()
+    if(NOT PYTHON3_EXECUTABLE)
+      message(
+        FATAL_ERROR
+        "Python executable could not be found. Make sure to install it if you wish to run the UI tests"
+      )
+    endif()
+    set(MIXXX_BEHAVE_VENV "${CMAKE_CURRENT_SOURCE_DIR}/src/test/behave/.venv")
+    if(WIN32)
+      set(MIXXX_BEHAVE_PYTHON "${MIXXX_BEHAVE_VENV}/Scripts/python.exe")
+    else()
+      set(MIXXX_BEHAVE_PYTHON "${MIXXX_BEHAVE_VENV}/bin/python")
+    endif()
+    execute_process(
+      COMMAND ${PYTHON3_EXECUTABLE} -m venv "${MIXXX_BEHAVE_VENV}"
+      RESULT_VARIABLE VENV_RESULT
+    )
+    if(NOT VENV_RESULT EQUAL 0)
+      message(
+        FATAL_ERROR
+        "Failed to create Python venv at ${MIXXX_BEHAVE_VENV}"
+      )
+    endif()
+    execute_process(
+      COMMAND "${MIXXX_BEHAVE_PYTHON}" -m pip install behave
+      RESULT_VARIABLE PIP_RESULT
+    )
+    if(NOT PIP_RESULT EQUAL 0)
+      message(
+        FATAL_ERROR
+        "Failed to pip install behave into ${MIXXX_BEHAVE_VENV}"
+      )
+    endif()
+    file(
+      GLOB BEHAVE_FEATURE_FILES
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/test/behave/features/*.feature"
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/test/behave/features/**/*.feature"
+    )
+    # TODO add option to control these args via CMake
+    default_option(MIXXX_BEHAVE_HEADLESS "Run the UI test in headless mode. On non-Linux platform, headless is incompatible with recording." "LINUX")
+    option(
+      MIXXX_BEHAVE_RECORD
+      "Run the UI test in headless mode. On non-Linux platform, headless is incompatible with recording."
+      OFF
+    )
+    set(
+      MIXXX_BEHAVE_RETRY
+      "3"
+      CACHE STRING
+      "Max retry attempts for autoretry per scenario"
+    )
+    if(
+      NOT CMAKE_SYSTEM_NAME STREQUAL Linux
+      AND MIXXX_BEHAVE_RECORD
+      AND MIXXX_BEHAVE_HEADLESS
+    )
+      message(
+        FATAL_ERROR
+        "Headless and record is incompatible for UI tests on non-Linux platform?"
+      )
+    endif()
+    set(MIXXX_BEHAVE_ARGS "")
+    if(MIXXX_BEHAVE_HEADLESS)
+      list(APPEND MIXXX_BEHAVE_ARGS "--headless")
+    endif()
+    if(MIXXX_BEHAVE_RECORD)
+      list(APPEND MIXXX_BEHAVE_ARGS "--record")
+    endif()
+    list(APPEND MIXXX_BEHAVE_ARGS "--retry" "${MIXXX_BEHAVE_RETRY}")
+    list(JOIN MIXXX_BEHAVE_ARGS " " MIXXX_BEHAVE_ARGS_JOINED)
+    foreach(FEATURE_FILE ${BEHAVE_FEATURE_FILES})
+      string(
+        REGEX REPLACE
+        ".+src\/test\/behave\/features\/(.+)\.feature$"
+        "\\1"
+        FEATURE_RAW_NAME
+        ${FEATURE_FILE}
+      )
+      string(REPLACE "/" "-" FEATURE_NAME ${FEATURE_RAW_NAME})
+      add_test(
+        NAME "mixxx-behave-${FEATURE_NAME}"
+        COMMAND
+          "${MIXXX_BEHAVE_PYTHON}"
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/test/behave/mixxx_test_runner.py
+          ${MIXXX_BEHAVE_ARGS} --binary "$<TARGET_FILE:mixxx-test>" --label
+          "${FEATURE_NAME}" ${FEATURE_FILE}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      )
+      set_tests_properties(
+        "mixxx-behave-${FEATURE_NAME}"
+        PROPERTIES LABELS "e2e;ui;qml" DEPENDS mixxx-test
+      )
+    endforeach()
+  endif()
 
   if(BUILD_BENCH)
     # Benchmarking
@@ -3760,7 +3988,7 @@ target_link_libraries(mixxx-lib PRIVATE PortAudioRingBuffer)
 
 # PipeWire
 find_package(PipeWire)
-default_option(PIPEWIRE "Enable the PipeWire backend" "PipeWire_FOUND")
+option(PIPEWIRE "Enable the PipeWire backend" OFF)
 if(PIPEWIRE)
   target_link_libraries(mixxx-lib PUBLIC PipeWire::PipeWire)
   target_compile_definitions(mixxx-lib PUBLIC __PIPEWIRE__)
@@ -4172,6 +4400,40 @@ if(Qt_IS_STATIC)
       )
     endif()
   endif()
+
+  if(QML)
+    #install qml6-module-qt5compat-graphicaleffects
+    target_link_libraries(
+      mixxx-qml-lib
+      PRIVATE
+        Qt${QT_VERSION_MAJOR}::qtgraphicaleffectsprivate
+        Qt${QT_VERSION_MAJOR}::qtgraphicaleffectsplugin
+    )
+    install(
+      DIRECTORY
+        "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}$<$<CONFIG:Debug>:/debug>/Qt6/qml/Qt5Compat/GraphicalEffects"
+      DESTINATION "${MIXXX_INSTALL_DATADIR}/Qt6/qml/Qt5Compat"
+      COMPONENT applocal
+    )
+    install(
+      DIRECTORY
+        "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}$<$<CONFIG:Debug>:/debug>/Qt6/qml/Qt5Compat/GraphicalEffects/private"
+      DESTINATION "${MIXXX_INSTALL_DATADIR}/Qt6/qml/Qt5Compat/GraphicalEffects"
+      COMPONENT applocal
+    )
+
+    # install qml6-module-qtmultimedia
+    target_link_libraries(
+      mixxx-qml-lib
+      PRIVATE Qt${QT_VERSION_MAJOR}::quickmultimedia
+    )
+    install(
+      DIRECTORY
+        "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}$<$<CONFIG:Debug>:/debug>/Qt6/qml/QtMultimedia"
+      DESTINATION "${MIXXX_INSTALL_DATADIR}/Qt6/qml"
+      COMPONENT applocal
+    )
+  endif()
 else()
   if(QT6 AND (WIN32 OR APPLE))
     # Qt6 does not automatically install plugins like in Qt 5
@@ -4482,6 +4744,26 @@ else()
         DIRECTORY
           "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}$<$<CONFIG:Debug>:/debug>/Qt6/qml/Qt/labs/qmlmodels"
         DESTINATION "${MIXXX_INSTALL_DATADIR}/Qt6/qml/Qt/labs"
+        COMPONENT applocal
+      )
+      install(
+        DIRECTORY
+          "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}$<$<CONFIG:Debug>:/debug>/Qt6/qml/QtQml/Models"
+        DESTINATION "${MIXXX_INSTALL_DATADIR}/Qt6/qml/QtQml"
+        COMPONENT applocal
+      )
+      install(
+        DIRECTORY
+          "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}$<$<CONFIG:Debug>:/debug>/Qt6/qml/QtCore"
+        DESTINATION "${MIXXX_INSTALL_DATADIR}/Qt6/qml"
+        COMPONENT applocal
+      )
+
+      # Qt6QmlCore doesn't seem to be included in any defined target but it is required.
+      install(
+        FILES
+          "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}$<$<CONFIG:Debug>:/debug>/bin/Qt6QmlCore$<$<CONFIG:Debug>:d>${CMAKE_SHARED_LIBRARY_SUFFIX}"
+        DESTINATION "${MIXXX_INSTALL_DATADIR}"
         COMPONENT applocal
       )
 
@@ -5686,6 +5968,20 @@ if(APPLOCAL_COMPONENT_DEFINED)
     COMMENT
       "Install applocal components to allow Mixxx to be run from the build directory."
   )
+
+  if(BUILD_UI_TEST)
+    # In order to run mixxx-test from the build directory install applocal components
+    add_custom_command(
+      TARGET mixxx-test
+      POST_BUILD
+      COMMAND
+        "${CMAKE_COMMAND}" -DCOMPONENT=applocal
+        -DCMAKE_INSTALL_PREFIX="${CMAKE_CURRENT_BINARY_DIR}" -P
+        cmake_install.cmake
+      COMMENT
+        "Install applocal components to allow mixxx-test to be run from the build directory."
+    )
+  endif()
 endif()
 
 if(APPLE AND MACOS_BUNDLE)

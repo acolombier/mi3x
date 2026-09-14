@@ -12,10 +12,26 @@ import "../Theme"
 Rectangle {
     id: root
 
+    objectName: "trackList"
+
     required property var model
     property var sidebar: model.sidebar()
 
     property var movedColumn: new Object()
+
+    // Restore the library columns to their default order, visibility and sort
+    // state. Used by the E2E test harness to reset state between scenarios
+    // that share a running Mixxx instance, without a full QML reload.
+    function resetColumns() {
+        root.movedColumn = new Object()
+        view.clearColumnReordering()
+        horizontalHeader.sortingColumn = -1
+        horizontalHeader.sortingOrder = Qt.DescendingOrder
+        for (let i = 0; i < view.model.columns.length; i++) {
+            view.model.columns[i].display = Mixxx.TrackListColumn.Display.Auto
+        }
+        view.clearColumnWidths()
+    }
 
     color: Theme.darkGray
 
@@ -42,8 +58,22 @@ Rectangle {
     Menu {
         id: columnSelectionMenu
 
+        contentItem.objectName: "columnPickerMenu"
+
         Instantiator {
             model: root.sidebar.tracklist.columns
+
+            property int readyCount: 0
+
+            onReadyCountChanged: {
+                if (readyCount !== root.sidebar.tracklist.columns.length) return
+                for (let action = columnSelectionMenu.actionAt(0); action; action = columnSelectionMenu.actionAt(0)) {
+                    columnSelectionMenu.removeAction(action)
+                }
+                for (let i = 0; i < readyCount; i++){
+                    columnSelectionMenu.insertAction(i, objectAt(i))
+                }
+            }
 
             delegate: Action {
                 property var data: view.getColumn(index)
@@ -70,8 +100,14 @@ Rectangle {
                 }
             }
 
-            onObjectAdded: (index, object) => columnSelectionMenu.insertAction(index, object)
-            onObjectRemoved: (index, object) => columnSelectionMenu.removeAction(object)
+            onObjectAdded: (index, object) => {
+                if (readyCount >= root.sidebar.tracklist.columns.length) return
+                readyCount += 1
+            }
+            onObjectRemoved: (index, object) => {
+                if (readyCount <= 0) return
+                readyCount -= 1
+            }
         }
 
         Connections {
@@ -86,6 +122,8 @@ Rectangle {
     HorizontalHeaderView {
         id: horizontalHeader
 
+        objectName: "columnHeader"
+
         property int sortingColumn: -1
         property var sortingOrder: Qt.Descending
 
@@ -99,6 +137,8 @@ Rectangle {
 
         delegate: Item {
             id: column
+
+            objectName: display
 
             required property string display
             required property int index
@@ -203,6 +243,8 @@ Rectangle {
     }
     TableView {
         id: view
+
+        objectName: "trackTableView"
 
         onColumnMoved: (logicalIndex, oldVisualIndex, newVisualIndex) => {
             if (root.movedColumn[newVisualIndex] !== undefined && logicalIndex === newVisualIndex){
@@ -342,6 +384,8 @@ Rectangle {
             }
         }
         selectionModel: ItemSelectionModel {
+            objectName: "selectionModel"
+
             function moveSelectionVertical(value) {
                 if (value == 0)
                     return;

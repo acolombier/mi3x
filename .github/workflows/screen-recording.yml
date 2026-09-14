@@ -1,0 +1,30 @@
+name: Screen Recording Test
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  record:
+    runs-on: macos-15-intel
+
+    steps:
+      - name: Install FFmpeg
+        run: brew install ffmpeg
+
+      - name: Record screen for 15 seconds
+        run: |
+          ffmpeg -f avfoundation \
+            -video_size 1920x1080 \
+            -r 30 \
+            -i "0:none" \
+            -codec:v mpeg4 \
+            -b:v 10000k \
+            -t 15 \
+            screen_recording.mp4
+
+      - name: "Upload video artifact"
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          path: screen_recording.mp4
+          archive: "false"
