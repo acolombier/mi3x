@@ -151,6 +151,29 @@ def _is_visible(rpc, path):
     return rpc.existsAndVisible(path) and width * height > 0
 
 
+def _wait_for_clickable(rpc, path, timeout=5):
+    """Wait until an item is visible with a non-degenerate bounding box.
+
+    spix's ``existsAndVisible`` reports an item as visible as soon as its
+    ``visible`` chain is true, before its layout has settled, and a recycled
+    table cell can briefly report a stale/zero-sized box. Clicking such a stale
+    position silently misses because spix records "Item not found" without
+    raising (see ``getErrors``). Only return once the item has a real on-screen
+    box.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            if rpc.existsAndVisible(path):
+                x, y, width, height = rpc.getBoundingBox(path)
+                if x >= 0 and y >= 0 and width > 0 and height > 0:
+                    return
+        except Exception:
+            pass
+        time.sleep(0.3)
+    raise AssertionError(f"Timed out waiting for '{path}' to be clickable")
+
+
 def _is_column_visible(rpc, col, stabilize_duration=1):
     # Letting time for UI to stabilize
     time.sleep(stabilize_duration)
@@ -180,14 +203,23 @@ def _scroll_tableview_to_row(rpc, row):
     flickable ``contentY`` scrolls the list the way a user would.
     """
     deadline = time.time() + 15
+    last_error = None
     while time.time() < deadline:
         try:
+            table_visible = rpc.existsAndVisible(TRACK_TABLE_PATH)
             y = float(rpc.getStringProperty(TRACK_TABLE_PATH, "contentY"))
             height = float(rpc.getStringProperty(TRACK_TABLE_PATH, "contentHeight"))
             viewport = float(rpc.getStringProperty(TRACK_TABLE_PATH, "height")) or 0
-        except Exception:
-            return
-        if viewport <= 0 or height <= viewport:
+        except Exception as e:
+            last_error = e
+            time.sleep(0.3)
+            continue
+        if not table_visible or viewport <= 0:
+            raise AssertionError(
+                "The track table is not visible; the library must be open to "
+                "interact with tracks"
+            )
+        if height <= viewport:
             return
         target = row * _ROW_HEIGHT
         if y <= target and y + viewport >= target + _ROW_HEIGHT:
@@ -196,6 +228,10 @@ def _scroll_tableview_to_row(rpc, row):
         new_y = max(0.0, min(new_y, height - viewport))
         rpc.setStringProperty(TRACK_TABLE_PATH, "contentY", str(new_y))
         time.sleep(0.3)
+    raise AssertionError(
+        f"Failed to scroll track table so row {row} is in view"
+        + (f" (last error: {last_error})" if last_error else "")
+    )
 
 
 _ROW_HEIGHT = 30
@@ -211,7 +247,9 @@ def _track_row_is_on_screen(rpc, row):
     y = float(rpc.getStringProperty(TRACK_TABLE_PATH, "contentY"))
     height = float(rpc.getStringProperty(TRACK_TABLE_PATH, "contentHeight"))
     viewport = float(rpc.getStringProperty(TRACK_TABLE_PATH, "height")) or 0
-    if viewport <= 0 or height <= viewport:
+    if viewport <= 0:
+        return False
+    if height <= viewport:
         return True
     target = row * _ROW_HEIGHT
     return y <= target and y + viewport >= target + _ROW_HEIGHT
@@ -694,9 +732,12 @@ def step_toggle_column(context, column):
 
 @when("I {action} the track at row {row:d}")
 def step_track_action(context, action, row):
-    _scroll_tableview_to_row(context.mixxx_rpc, row)
+    s = context.mixxx_rpc
+    _scroll_tableview_to_row(s, row)
+    path = _track_row_path(row)
+    _wait_for_clickable(s, path)
     time.sleep(0.5)
-    TRACK_ACTIONS[action](context.mixxx_rpc, _track_row_path(row))
+    TRACK_ACTIONS[action](s, path)
     time.sleep(0.3)
 
 @when('I select {path} on the track menu')
@@ -926,6 +967,12 @@ def step_library_visible(context, assertion):
 def step_library_not_maximized(context):
     _set_control_value(context.mixxx_rpc, "[Skin]", "show_maximized_library", 0)
     time.sleep(0.5)
+
+
+@given("the library is maximized")
+def step_library_maximized(context):
+    _set_control_value(context.mixxx_rpc, "[Skin]", "show_maximized_library", 1)
+    _wait_for_visible(context.mixxx_rpc, LIBRARY_CONTENT)
 
 
 @then('the "{button}" button in the main toolbar should {assertion} visible')

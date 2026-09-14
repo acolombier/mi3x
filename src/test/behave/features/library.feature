@@ -49,7 +49,8 @@ Feature: Library
     Then the track at row 1 should be selected
 
   Scenario: Track below the fold can be scrolled into view
-    Given the window's height is 500px
+    Given the library is maximized
+    And the window's height is 500px
     When I click the track at row 40
     Then the track at row 40 should be visible on screen
 
