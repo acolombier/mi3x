@@ -11,6 +11,7 @@
 #include "library/scanner/libraryscanner.h"
 #include "qml/qmllibrarysource.h"
 #include "qml/qmllibrarytracklistmodel.h"
+#include "qml/qmlsearchsuggestionmodel.h"
 #include "util/parented_ptr.h"
 
 class Library;
@@ -87,33 +88,24 @@ class QmlLibraryScannerProxy : public QObject {
 class QmlLibraryProxy : public QObject {
     Q_OBJECT
     Q_PROPERTY(mixxx::qml::QmlLibraryTrackListModel* model MEMBER m_pModelProperty CONSTANT)
-    Q_PROPERTY(QQmlListProperty<QmlLibrarySource> sources READ sources CONSTANT)
+    Q_PROPERTY(QQmlListProperty<mixxx::qml::QmlLibrarySource> sources READ sources CONSTANT)
     Q_PROPERTY(mixxx::qml::QmlLibraryScannerProxy* scanner MEMBER m_pScanner CONSTANT)
+    Q_PROPERTY(mixxx::qml::QmlSearchSuggestionModel* searchSuggestions MEMBER
+                    m_pSearchSuggestions CONSTANT)
     QML_NAMED_ELEMENT(Library)
     QML_SINGLETON
 
   public:
-    enum class AddResult {
+    enum class Result {
         Ok,
+        NotFound,
         AlreadyWatching,
         InvalidOrMissingDirectory,
         UnreadableDirectory,
         SqlError,
+        Unknown
     };
-    Q_ENUM(AddResult);
-    enum class RemoveResult {
-        Ok,
-        NotFound,
-        SqlError,
-    };
-    Q_ENUM(RemoveResult);
-    enum class RelocateResult {
-        Ok,
-        InvalidOrMissingDirectory,
-        UnreadableDirectory,
-        SqlError,
-    };
-    Q_ENUM(RelocateResult);
+    Q_ENUM(Result);
     enum class SourceRemovalType {
         KeepTracks,
         HideTracks,
@@ -133,7 +125,7 @@ class QmlLibraryProxy : public QObject {
         return s_pLibrary.get();
     }
 
-    QQmlListProperty<QmlLibrarySource> sources() {
+    QQmlListProperty<mixxx::qml::QmlLibrarySource> sources() {
         return {this,
                 nullptr,
                 nullptr,
@@ -142,9 +134,12 @@ class QmlLibraryProxy : public QObject {
                 &QmlLibraryProxy::sources_clear};
     }
 
-    Q_INVOKABLE AddResult addSource(const QUrl& newPath);
-    Q_INVOKABLE RemoveResult removeSource(const QUrl& oldPath, SourceRemovalType type);
-    Q_INVOKABLE RelocateResult relinkSource(const QUrl& oldPath, const QUrl& newPath);
+    Q_INVOKABLE mixxx::qml::QmlLibraryProxy::Result addSource(const QUrl& newPath);
+    Q_INVOKABLE mixxx::qml::QmlLibraryProxy::Result removeSource(
+            const QUrl& oldPath,
+            mixxx::qml::QmlLibraryProxy::SourceRemovalType type);
+    Q_INVOKABLE mixxx::qml::QmlLibraryProxy::Result relinkSource(
+            const QUrl& oldPath, const QUrl& newPath);
 
     static void registerKeyboardEventFilter(std::shared_ptr<KeyboardEventFilter> pKeyboard) {
         s_pKeyboard = std::move(pKeyboard);
@@ -180,6 +175,7 @@ class QmlLibraryProxy : public QObject {
     /// This needs to be a plain pointer because it's used as a `Q_PROPERTY` member variable.
     QmlLibraryTrackListModel* m_pModelProperty;
     QmlLibraryScannerProxy* m_pScanner;
+    QmlSearchSuggestionModel* m_pSearchSuggestions;
 
     static qsizetype sources_count(QQmlListProperty<QmlLibrarySource>* property);
     static QmlLibrarySource* sources_at(
