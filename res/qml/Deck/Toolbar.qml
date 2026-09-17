@@ -59,7 +59,7 @@ Item {
     Skin.Button {
         id: beatgridButton
 
-        anchors.right: keylockButton.left
+        anchors.right: quantizeButton.left
         anchors.rightMargin: 5
         implicitHeight: 22
         text: "Beatgrid"
@@ -349,14 +349,84 @@ Item {
             }
         }
     }
-    Skin.Button {
-        id: keylockButton
+    Skin.ControlButton {
+        id: quantizeButton
+
+        activeColor: Theme.deckActiveColor
+        toggleable: true
 
         anchors.right: ejectButton.left
         anchors.rightMargin: 5
+        group: root.group
         implicitHeight: 22
-        text: "Keylock"
-        visible: root.width > 165
+        implicitWidth: 22
+        key: "quantize"
+
+        contentItem: Item {
+            anchors.fill: parent
+
+            Shape {
+                property int multiSamplingLevel: Mixxx.Config.multiSamplingLevel
+
+                antialiasing: true
+                height: 17
+                width: 15
+
+                anchors {
+                    horizontalCenter: parent.horizontalCenter
+                    top: parent.top
+                    topMargin: 2
+                }
+
+                layer.enabled: multiSamplingLevel > 1
+                layer.samples: multiSamplingLevel
+
+                // Body
+                ShapePath {
+                    fillColor: root.buttonColor
+                    strokeColor: "transparent"
+
+                    startX: 2
+                    startY: 10
+
+                    PathLine { x: 13.5; y: 10 }
+                    PathLine { x: 13.5; y: 16 }
+                    PathLine { x: 2; y: 16 }
+                    PathLine { x: 2; y: 10 }
+                }
+
+                // Shackle
+                ShapePath {
+                    fillColor: "transparent"
+                    strokeColor: root.buttonColor
+                    strokeWidth: 2
+                    capStyle: ShapePath.RoundCap
+                    joinStyle: ShapePath.RoundJoin
+
+                    startX: 4
+                    startY: quantizeButton.highlight ? 11 : 7
+
+                    PathLine {
+                        x: 4
+                        y: 5
+                    }
+
+                    PathCubic {
+                        control1X: 4
+                        control1Y: 1.5
+                        control2X: 11
+                        control2Y: 1.5
+                        x: 12
+                        y: 5
+                    }
+
+                    PathLine {
+                        x: 12
+                        y: 11
+                    }
+                }
+            }
+        }
     }
     Skin.ControlButton {
         id: ejectButton
