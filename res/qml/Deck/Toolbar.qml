@@ -62,7 +62,7 @@ Item {
     Skin.Button {
         id: beatgridButton
 
-        anchors.right: keylockButton.left
+        anchors.right: quantizeButton.left
         anchors.rightMargin: 5
         enabled: trackLoadedControl.value == 1
         implicitHeight: 22
@@ -452,6 +452,7 @@ Item {
         activeColor: Theme.deckActiveColor
         anchors.right: ejectButton.left
         anchors.rightMargin: 5
+        group: root.group
         implicitHeight: 22
         implicitWidth: 22
         key: "quantize"
