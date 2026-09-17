@@ -65,6 +65,7 @@ Category {
                 totalMinute: Math.round(source.totalSecond / 60)
             });
         }
+        print(`loadSources: ${JSON.stringify(rootDirs)}`)
         sourceListView.model = rootDirs;
     }
     function reset() {
@@ -74,47 +75,36 @@ Category {
         let changed = false;
 
         for (let source of requestedDirs) {
+            let result;
             if (source.trackCount === undefined) {
                 // Handle addition
-                switch (Mixxx.Library.addSource(source.path)) {
-                case Mixxx.Library.AddResult.AlreadyWatching:
-                    errorMessage.text = qsTr("This or a parent directory is already in your library.");
-                    return;
-                case Mixxx.Library.AddResult.InvalidOrMissingDirectory:
-                    errorMessage.text = qsTr("This or a listed directory does not exist or is inaccessible.\nAborting the operation to avoid library inconsistencies");
-                    return;
-                case Mixxx.Library.AddResult.UnreadableDirectory:
-                    errorMessage.text = qsTr("This directory can not be read.");
-                    return;
-                case Mixxx.Library.AddResult.SqlError:
-                    errorMessage.text = qsTr("An unknown error occurred.\nAborting the operation to avoid library inconsistencies");
-                    return;
-                }
+                result = Mixxx.Library.addSource(source.path);
             } else if (source.deleting !== undefined) {
                 // Handle removal
-                switch (Mixxx.Library.removeSource(source.path, source.deleting)) {
-                case Mixxx.Library.RemoveResult.NotFound:
-                    errorMessage.text = qsTr("This directory can not be found.");
-                    return;
-                case Mixxx.Library.RemoveResult.SqlError:
-                    errorMessage.text = qsTr("An unknown error occurred.\nAborting the operation to avoid library inconsistencies");
-                    return;
-                }
+                result = Mixxx.Library.removeSource(source.path, source.deleting);
             } else if (source.relink) {
                 // Handle relinking
-                switch (Mixxx.Library.relinkSource(source.path, source.relink)) {
-                case Mixxx.Library.RelocateResult.InvalidOrMissingDirectory:
-                    errorMessage.text = qsTr("This or a listed directory does not exist or is inaccessible.\nAborting the operation to avoid library inconsistencies");
-                    return;
-                case Mixxx.Library.RelocateResult.UnreadableDirectory:
-                    errorMessage.text = qsTr("This directory can not be read.");
-                    return;
-                case Mixxx.Library.RelocateResult.SqlError:
-                    errorMessage.text = qsTr("An unknown error occurred.\nAborting the operation to avoid library inconsistencies");
-                    return;
-                }
+                result = Mixxx.Library.relinkSource(source.path, source.relink);
             } else {
                 continue;
+            }
+            // Handle addition
+            switch (result) {
+            case Mixxx.Library.Result.AlreadyWatching:
+                errorMessage.text = qsTr("This or a parent directory is already in your library.");
+                return;
+            case Mixxx.Library.Result.SqlError:
+                errorMessage.text = qsTr("An unknown error occurred.\nAborting the operation to avoid library inconsistencies");
+                return;
+            case Mixxx.Library.Result.NotFound:
+                errorMessage.text = qsTr("This directory can not be found.");
+                return;
+            case Mixxx.Library.Result.InvalidOrMissingDirectory:
+                errorMessage.text = qsTr("This or a listed directory does not exist or is inaccessible.\nAborting the operation to avoid library inconsistencies");
+                return;
+            case Mixxx.Library.Result.UnreadableDirectory:
+                errorMessage.text = qsTr("This directory can not be read.");
+                return;
             }
             changed = true;
         }
@@ -176,8 +166,7 @@ Category {
             }
             Mixxx.SettingGroup {
                 Layout.bottomMargin: 6
-                anchors.left: parent.left
-                anchors.right: parent.right
+                implicitWidth: scrollView.width
                 implicitHeight: sources.implicitHeight
                 label: qsTr("Sources")
 
@@ -190,8 +179,6 @@ Category {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        // anchors.left: parent.left
-                        // anchors.right: parent.right
                         Layout.minimumWidth: sourcePane.implicitWidth
                         color: '#0E0E0E'
                         implicitHeight: sourcePane.implicitHeight + 20
@@ -233,7 +220,7 @@ Category {
                                         sourceListView.model = model;
                                     }
                                 }
-                                SettingComponents.FormButton {
+                                Skin.FormButton {
                                     activeColor: "#999999"
                                     backgroundColor: "#3F3F3F"
                                     opacity: enabled ? 1.0 : 0.5
@@ -250,12 +237,6 @@ Category {
                                 clip: true
                                 focus: true
                                 model: []
-
-                                // anchors.fill: parent
-                                // anchors.topMargin: 10
-                                // anchors.bottomMargin: 10
-                                // anchors.leftMargin: 17
-                                // anchors.rightMargin: 17
 
                                 delegate: MouseArea {
                                     id: mouse
@@ -321,7 +302,7 @@ Category {
                                                     sourceListView.model = model;
                                                 }
                                             }
-                                            SettingComponents.FormButton {
+                                            Skin.FormButton {
                                                 id: relinkButton
 
                                                 activeColor: "#999999"
@@ -349,7 +330,7 @@ Category {
                                                     }
                                                 }
 
-                                                SettingComponents.FormButton {
+                                                Skin.FormButton {
                                                     id: actionButton
 
                                                     activeColor: "#999999"
@@ -381,6 +362,7 @@ Category {
                                                     visible: removeButton.confirming
 
                                                     onSelectedChanged: {
+                                                        if (!removeButton.confirming) return;
                                                         let model = sourceListView.model;
                                                         switch (options.indexOf(selected)) {
                                                         case 0:
@@ -457,7 +439,7 @@ Category {
                                     target: Mixxx.Library.scanner
                                 }
                             }
-                            SettingComponents.FormButton {
+                            Skin.FormButton {
                                 activeColor: "#999999"
                                 backgroundColor: Mixxx.Library.scanner.cancelling ? "#999999" : "#3a60be"
                                 enabled: !Mixxx.Library.scanner.cancelling
@@ -478,8 +460,6 @@ Category {
                     ColumnLayout {
                         Rectangle {
                             Layout.preferredWidth: root.width * (sources.columns == 2 ? 0.35 : 1)
-                            anchors.left: parent.left
-                            anchors.right: parent.right
                             color: Theme.darkGray2
                             implicitHeight: integrationPane.implicitHeight + 20
 
@@ -538,8 +518,7 @@ Category {
             Mixxx.SettingGroup {
                 Layout.bottomMargin: 6
                 Layout.topMargin: 40
-                anchors.left: parent.left
-                anchors.right: parent.right
+                implicitWidth: scrollView.width
                 implicitHeight: metadataColumn.height
                 label: qsTr("Metadata")
 
@@ -672,8 +651,7 @@ Category {
             Mixxx.SettingGroup {
                 Layout.bottomMargin: 6
                 Layout.topMargin: 40
-                anchors.left: parent.left
-                anchors.right: parent.right
+                implicitWidth: scrollView.width
                 implicitHeight: historyColumn.height
                 label: qsTr("History")
 
@@ -783,8 +761,7 @@ Category {
             Mixxx.SettingGroup {
                 Layout.bottomMargin: 6
                 Layout.topMargin: 40
-                anchors.left: parent.left
-                anchors.right: parent.right
+                implicitWidth: scrollView.width
                 implicitHeight: searchColumn.height
                 label: qsTr("Search")
 
@@ -956,7 +933,7 @@ Category {
         anchors.right: parent.right
         height: 20
 
-        SettingComponents.FormButton {
+        Skin.FormButton {
             activeColor: "#999999"
             anchors.left: parent.left
             backgroundColor: "#7D3B3B"
@@ -979,7 +956,7 @@ Category {
                 color: "#7D3B3B"
                 text: ""
             }
-            SettingComponents.FormButton {
+            Skin.FormButton {
                 activeColor: "#999999"
                 backgroundColor: "#3F3F3F"
                 opacity: enabled ? 1.0 : 0.5
@@ -990,7 +967,7 @@ Category {
                     root.load();
                 }
             }
-            SettingComponents.FormButton {
+            Skin.FormButton {
                 activeColor: "#999999"
                 backgroundColor: root.dirty ? "#3a60be" : "#3F3F3F"
                 enabled: root.dirty
