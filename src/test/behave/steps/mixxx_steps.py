@@ -254,6 +254,22 @@ def _track_row_is_on_screen(rpc, row):
     return y <= target and y + viewport >= target + _ROW_HEIGHT
 
 
+def _last_track_row(rpc, timeout=5):
+    """Index of the last row in the track table, derived from its content height.
+
+    Keeps the "below the fold" scenario independent of the number of tracks
+    that happen to be in the database.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        height = float(rpc.getStringProperty(TRACK_TABLE_PATH, "contentHeight"))
+        row = int(height // _ROW_HEIGHT) - 1
+        if row >= 0:
+            return row
+        time.sleep(0.3)
+    raise AssertionError("The track table has no rows")
+
+
 def _set_property(rpc, path, prop, value):
     rpc.setStringProperty(path, prop, str(value))
 
@@ -743,8 +759,7 @@ def step_toggle_column(context, column):
 
 # --- When: track steps ---
 
-@when("I {action} the track at row {row:d}")
-def step_track_action(context, action, row):
+def _perform_track_action(context, action, row):
     s = context.mixxx_rpc
     _scroll_tableview_to_row(s, row)
     path = _track_row_path(row)
@@ -752,6 +767,18 @@ def step_track_action(context, action, row):
     time.sleep(0.5)
     TRACK_ACTIONS[action](s, path)
     time.sleep(0.3)
+
+
+@when("I {action} the track at row {row:d}")
+def step_track_action(context, action, row):
+    _perform_track_action(context, action, row)
+
+
+@when("I click a track below the fold")
+def step_click_track_below_fold(context):
+    row = _last_track_row(context.mixxx_rpc)
+    context._fold_track_row = row
+    _perform_track_action(context, "click", row)
 
 @when('I select {path} on the track menu')
 def step_select_track_menu(context, path):
@@ -946,6 +973,16 @@ def step_track_selected(context, row):
 
 @then("the track at row {row:d} should be visible on screen")
 def step_track_on_screen(context, row):
+    s = context.mixxx_rpc
+    assert _track_row_is_on_screen(s, row), (
+        f"Track at row {row} was not scrolled into the visible viewport"
+    )
+
+
+@then("the track below the fold should be visible on screen")
+def step_fold_track_on_screen(context):
+    row = getattr(context, "_fold_track_row", None)
+    assert row is not None, "No track below the fold was clicked"
     s = context.mixxx_rpc
     assert _track_row_is_on_screen(s, row), (
         f"Track at row {row} was not scrolled into the visible viewport"

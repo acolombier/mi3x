@@ -443,6 +443,7 @@ LOOP_BUTTONS = {
 | `I open the column picker menu` | Right-clicks on Title column header, waits for menu |
 | `I toggle the column "{column}" in the column picker` | Use the keyboard to choose the nth item, based on column index |
 | `I {action} the track at row {row:d}` | Looks up in `TRACK_ACTIONS` dict (`click`, `double-click`, `right-click`, `long-press`) |
+| `I click a track below the fold` | Picks the last row via `_last_track_row` (from `contentHeight`), remembers it, scrolls and clicks it — keeps the scenario independent of the track count |
 | `I select {path} on the track menu` | Keyboard-navigates context menu using `enterKey` |
 | `I move the "{component}" component in deck {deck:d} after the "{target}" component` | `mouseDrag` from component to target position |
 | `I move the selected group in deck {deck:d} after the "{target}" component` | `mouseDrag` from selected group overlay to target position |
@@ -459,6 +460,7 @@ LOOP_BUTTONS = {
 | `the column "{column}" should appear before the column "{other}"` | Compares `x` positions of headers |
 | `the results should be sorted by "{column}" in "{order}" order` | Reads `sortingColumn`/`sortingOrder` from `columnHeader` |
 | `the track at row {row:d} should be selected` | Reads `selected` property from Cell |
+| `the track below the fold should be visible on screen` | Reuses `_track_row_is_on_screen` on the row remembered by `I click a track below the fold` |
 | `the track context menu should be visible` | `existsAndVisible` on `trackContextMenu` path |
 | `the deck for "{group}" should {assertion} visible` | `_wait_for_visible`/`_wait_for_hidden` on `DECK_PATH_MAP` |
 | `the deck {deck:d} should be {playing\|stopped}` | Reads `play` CO via `_get_control_value` |
