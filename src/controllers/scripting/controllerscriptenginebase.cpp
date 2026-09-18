@@ -1,6 +1,7 @@
 #include "controllers/scripting/controllerscriptenginebase.h"
 
 #include <QJSEngine>
+#include <QQuickStyle>
 
 #include "controllers/controller.h"
 #include "controllers/scripting/colormapperjsproxy.h"
@@ -64,6 +65,7 @@ bool ControllerScriptEngineBase::initialize() {
         m_pJSEngine->installExtensions(QJSEngine::ConsoleExtension);
 #ifdef MIXXX_USE_QML
     } else {
+        QQuickStyle::setStyle("Basic");
         auto pQmlEngine = std::make_shared<QQmlEngine>(this);
         pQmlEngine->addImportPath(QStringLiteral(":/mixxx.org/imports"));
         if (s_pTrackCollectionManager) {

@@ -13,6 +13,7 @@ SpinBox {
     property real realValue: 0
     property double step: 1 / decimalFactor
     property string suffix: ""
+    implicitWidth: 140
 
     function decimalToInt(decimal) {
         return decimal * decimalFactor;
@@ -33,7 +34,7 @@ SpinBox {
     }
 
     background: Item {
-        implicitWidth: 140
+        implicitWidth: root.implicitWidth
     }
     contentItem: Item {
         width: root.textWidth + 2 * root.spacing
@@ -61,10 +62,12 @@ SpinBox {
         }
     }
     down.indicator: Indicator {
+        objectName: "downButton"
         text: "-"
         x: root.mirrored ? parent.width - width : 0
     }
     up.indicator: Indicator {
+        objectName: "upButton"
         text: "+"
         x: root.mirrored ? 0 : parent.width - width
     }
@@ -76,7 +79,7 @@ SpinBox {
     }
 
     onValueChanged: {
-        root.value = value;
+        root.realValue = root.value / root.decimalFactor;
     }
 
     component Indicator: Item {

@@ -8,6 +8,8 @@ import "../Theme"
 Category {
     id: root
 
+    objectName: "soundHardware"
+
     property bool committing: false
     property bool hasChanges: router.hasChanges
 
@@ -47,7 +49,7 @@ Category {
     }
     function save() {
         const manager = Mixxx.SoundManager;
-        mainEnabled.value = mainMixEnabled.options.indexOf(mainMixEnabled.selected);
+        mainEnabled.value = mainMixEnabled.selected == "on";
         monoMix.value = !mainOutputMode.options.indexOf(mainOutputMode.selected);
         manager.setForceNetworkClock(soundClock.options[1] == soundClock.selected);
         manager.setSampleRate(parseInt(sampleRate.selected));
@@ -205,6 +207,14 @@ Category {
         anchors.fill: parent
         ScrollView {
             id: scrollView
+
+            ScrollBar.vertical: ScrollBar {
+                anchors.bottom: parent.bottom
+                anchors.right: parent.right
+                anchors.top: parent.top
+                objectName: "soundSettingsScrollBar"
+                policy: ScrollBar.AsNeeded
+            }
             Layout.fillWidth: true
             Layout.fillHeight: true
 
@@ -217,9 +227,9 @@ Category {
                     Layout.preferredHeight: root.selectedIndex == 0 ? engine.height : delays.height
 
                     Mixxx.SettingGroup {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
+                        anchors.fill: parent
                         label: "Engine"
+                        objectName: "engineSection"
                         visible: root.selectedIndex == 0
 
                         onActivated: {
@@ -250,6 +260,7 @@ Category {
                                     }
                                     RatioChoice {
                                         id: mainMixEnabled
+                                        objectName: "setting_MainMix"
 
                                         options: ["on", "off"]
                                         selected: options[mainEnabled.value ? 0 : 1]
@@ -272,6 +283,7 @@ Category {
                                     }
                                     RatioChoice {
                                         id: mainOutputMode
+                                        objectName: "setting_MainOutputMode"
 
                                         maxWidth: tabSection.width * 0.18
                                         options: ["mono", "stereo"]
@@ -295,6 +307,7 @@ Category {
                                     }
                                     RatioChoice {
                                         id: soundClock
+                                        objectName: "setting_SoundClock"
 
                                         maxWidth: tabSection.width * 0.28
                                         options: ["soundcard", "network"]
@@ -313,6 +326,7 @@ Category {
                                     }
                                     RatioChoice {
                                         id: keylock
+                                        objectName: "setting_KeylockEngine"
 
                                         function update() {
                                             let options = [];
@@ -364,6 +378,7 @@ Category {
                                     }
                                     RatioChoice {
                                         id: soundApi
+                                        objectName: "setting_SoundAPI"
 
                                         maxWidth: tabSection.width * 0.4
                                         options: []
@@ -392,6 +407,7 @@ Category {
                                     }
                                     RatioChoice {
                                         id: sampleRate
+                                        objectName: "setting_SampleRate"
 
                                         function update(api) {
                                             let data = [];
@@ -486,9 +502,9 @@ Category {
                         }
                     }
                     Mixxx.SettingGroup {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
+                        anchors.fill: parent
                         label: "Delays"
+                        objectName: "delaysSection"
                         visible: root.selectedIndex == 1
 
                         onActivated: {
@@ -587,7 +603,9 @@ Category {
                         }
                     }
                     Mixxx.SettingGroup {
+                        anchors.fill: parent
                         label: "Stats"
+                        objectName: "statsSection"
                         visible: root.selectedIndex == 2
 
                         onActivated: {
@@ -611,6 +629,7 @@ Category {
                     Layout.minimumHeight: Math.max(router.mode == AudioRouter.Mode.Advanced ? 450 : 250, scrollView.height - tabSection.height - buttons.height - 15)
                     Layout.minimumWidth: Math.max(600, scrollView.width)
                     label: "Router"
+                    objectName: "routerSection"
 
                     AudioRouter {
                         id: router
@@ -620,6 +639,7 @@ Category {
                     Rectangle {
                         anchors.fill: parent
                         color: Qt.alpha('grey', 0.3)
+                        objectName: "committingOverlay"
                         visible: root.committing
 
                         MouseArea {
@@ -644,6 +664,7 @@ Category {
                 activeColor: "#999999"
                 backgroundColor: "#7D3B3B"
                 enabled: !root.committing
+                objectName: "soundCancelButton"
                 opacity: enabled ? 1.0 : 0.5
                 text: "Cancel"
                 visible: root.hasChanges
@@ -667,6 +688,7 @@ Category {
                 activeColor: "#999999"
                 backgroundColor: root.hasChanges ? "#3a60be" : Theme.darkGray3
                 enabled: root.hasChanges && !root.committing
+                objectName: "soundSaveButton"
                 opacity: enabled ? 1.0 : 0.5
                 text: "Save"
 

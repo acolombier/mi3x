@@ -7,6 +7,8 @@ import "../Theme"
 Rectangle {
     id: root
 
+    objectName: "trackRow_" + row
+
     required property bool selected
 
     property alias track: trackData
@@ -104,8 +106,9 @@ Rectangle {
         onActiveChanged: {
             root.Drag.imageSource = cover_art
             root.Drag.active = true
-            console.log(`dragHandler: ${root.Drag.active}`)
-        //     if (active) {
+            console.log(`dragHandler: ${root.Drag.active} ${dragHandler.active}`)
+            if (active) {
+                trackData.view.selectionModel.selectRow(row);
         //         dragImageSource.grabToImage(function(result) {
         //             console.log(`dragHandler: ${result}`)
         //             parent.Drag.imageSource = result.url
@@ -113,7 +116,7 @@ Rectangle {
         //         }, Qt.size(dragImageSource.width, dragImageSource.height))
         //     } else {
         //         parent.Drag.active = false
-            // }
+            }
         }
     }
     Rectangle {

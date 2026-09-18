@@ -8,6 +8,8 @@ Item {
 
     readonly property int decimalFactor: Math.pow(10, decimals)
     property int decimals: 0
+    property int margins: 7
+    property bool showTextInput: true
     property list<double> markers: []
     property double max: markers.length ? markers[markers.length - 1] : 1
     property double min: markers.length ? markers[0] : 0
@@ -79,18 +81,19 @@ Item {
         id: control
 
         anchors.left: root.left
-        anchors.right: textInputSection.left
-        anchors.rightMargin: 10
+        anchors.right: root.showTextInput ? textInputSection.left : root.right
+        anchors.rightMargin: root.showTextInput ? 10 : 0
         anchors.verticalCenter: root.verticalCenter
         from: 0
+        objectName: root.objectName ? "Track" : ""
         to: 1
 
         background: Item {
             height: control.availableHeight
             implicitHeight: 4
             implicitWidth: 200
-            width: control.availableWidth - 14
-            x: control.leftPadding + 7
+            width: control.availableWidth - 2 * root.margins
+            x: control.leftPadding + root.margins
 
             Rectangle {
                 color: "#181818"
@@ -144,6 +147,7 @@ Item {
         }
         handle: Item {
             height: 14
+            objectName: root.objectName ? "Handler" : ""
             width: 14
             x: control.leftPadding + control.visualPosition * (control.availableWidth - width)
             y: -5
@@ -190,6 +194,7 @@ Item {
         anchors.right: root.right
         height: 30
         width: fontMetrics.advanceWidth + 8
+        visible: root.showTextInput
 
         Rectangle {
             id: backgroundInput
@@ -222,6 +227,7 @@ Item {
                 color: Qt.alpha(acceptableInput ? Theme.white : Theme.warningColor, root.enabled ? 1 : 0.5)
                 focus: true
                 horizontalAlignment: TextInput.AlignRight
+                objectName: root.objectName ? "Value" : ""
                 text: textFromValue(root.value, control.locale)
 
                 validator: DoubleValidator {

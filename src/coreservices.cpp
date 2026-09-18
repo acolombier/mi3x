@@ -8,6 +8,8 @@
 #include <QtGlobal>
 #include <gsl/pointers>
 
+#include "util/cmdlineargs.h"
+
 #ifdef __BROADCAST__
 #include "broadcast/broadcastmanager.h"
 #endif
@@ -647,7 +649,10 @@ void CoreServices::initialize(QApplication* pApp) {
 
     bool musicDirAdded = false;
 
-    if (m_pTrackCollectionManager->internalCollection()->loadRootDirs().isEmpty()) {
+    if (m_pTrackCollectionManager->internalCollection()
+                    ->loadRootDirs()
+                    .isEmpty() &&
+            !CmdlineArgs::Instance().getDeveloper()) {
 #if defined(Q_OS_IOS) || defined(Q_OS_WASM)
         // On the web and iOS, we are running in a sandbox (a virtual file
         // system on the web). Since we are generally limited to paths within
