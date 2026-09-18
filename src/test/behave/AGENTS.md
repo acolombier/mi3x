@@ -392,7 +392,8 @@ LOOP_BUTTONS = {
 | `_right_click(rpc, path)` | `rpc.mouseClickWithButton(path, QT_RIGHT_BUTTON, 0)` |
 | `_long_press(rpc, path, button=QT_LEFT_BUTTON, hold_ms=1000)` | `rpc.mouseClickAndHold(path, button, 0, hold_ms)` |
 | `_is_visible(rpc, path)` | `existsAndVisible` + bounding box area > 0 |
-| `_is_column_visible(rpc, col)` | Checks header `index` property + `columnWidth` via `invokeMethod` |
+| `_is_column_visible(rpc, col)` | Resolves the model column index via `trackList.columnLabels` (see `_column_index`) + `columnWidth` via `invokeMethod` |
+| `_column_index(rpc, col)` | Parses `trackList.columnLabels` (JSON array of labels in model order) and returns the index, or `-1`. Works for hidden columns whose header delegates do not exist |
 | `_get_bb(rpc, path)` | `getBoundingBox` normalized to dict |
 | `_get_control_value(rpc, group, key)` | Custom command: reads ControlObject via `command("getControlValue", ...)` + `getStringProperty("mainWindow", "lastControlValue")` |
 | `_set_control_value(rpc, group, key, value)` | Custom command: writes ControlObject via `command("setControlValue", ...)` |

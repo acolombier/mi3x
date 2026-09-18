@@ -177,12 +177,11 @@ def _wait_for_clickable(rpc, path, timeout=5):
 def _is_column_visible(rpc, col, stabilize_duration=1):
     # Letting time for UI to stabilize
     time.sleep(stabilize_duration)
-    columnPath = _column_header_path(col)
-    index = rpc.getStringProperty(columnPath, "index")
-    if not index and index != 0:
+    index = _column_index(rpc, col)
+    if index < 0:
         return False
     columnWidth = float(rpc.invokeMethod(TRACK_TABLE_PATH, "columnWidth", [index]) or 0)
-    return rpc.existsAndVisible(columnPath) and columnWidth > 0
+    return columnWidth > 0
 
 
 def _get_bb(rpc, path):
@@ -321,6 +320,21 @@ def _button_path(name):
 
 def _column_header_path(column):
     return f"{COLUMN_HEADER_PATH}/{column}"
+
+
+def _column_index(rpc, column):
+    """Return the model column index for a display label, or -1 if unknown.
+
+    Resolved from the column model rather than the header delegate, because a
+    hidden column has no header delegate to read ``index`` from.
+    """
+    raw = rpc.getStringProperty(TRACKLIST_PATH, "columnLabels")
+    if not raw:
+        return -1
+    try:
+        return json.loads(raw).index(column)
+    except (ValueError, json.JSONDecodeError):
+        return -1
 
 
 def _track_row_path(row):
@@ -679,10 +693,10 @@ def step_drag_column(context, column, target):
 
     # FIXME not working with column, using bare "moveColumn" instead
     s = context.mixxx_rpc
-    column_idx = s.getStringProperty(_column_header_path(column), "index")
-    assert column_idx, f"Column '{column}' cannot be found ({column_idx})"
-    target_idx = s.getStringProperty(_column_header_path(target), "index")
-    assert target_idx, f"Column '{target}' cannot be found ({target_idx})"
+    column_idx = _column_index(s, column)
+    assert column_idx >= 0, f"Column '{column}' cannot be found ({column_idx})"
+    target_idx = _column_index(s, target)
+    assert target_idx >= 0, f"Column '{target}' cannot be found ({target_idx})"
     s.invokeMethod(TRACK_TABLE_PATH, "moveColumn", [column_idx, target_idx])
     time.sleep(0.5)
 
@@ -697,9 +711,8 @@ def step_open_column_picker(context):
 @when('I toggle the column "{column}" in the column picker')
 def step_toggle_column(context, column):
     s = context.mixxx_rpc
-    # index = context._column_idx[column]
-    index = s.getStringProperty(_column_header_path(column), "index")
-    if index != 0 and not index:
+    index = _column_index(s, column)
+    if index < 0:
         raise KeyError(f'column {column} unknown')
     _get_current_action = lambda: int(s.getStringProperty(COLUMN_PICKER_MENU_PATH, "currentIndex"))
     # Needed if QPA == xcb

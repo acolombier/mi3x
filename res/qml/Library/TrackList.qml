@@ -19,6 +19,22 @@ Rectangle {
 
     property var movedColumn: new Object()
 
+    // Display labels of every column in model order, as a JSON array. Exposed
+    // for the E2E test harness: unlike a header delegate, this also covers
+    // columns that are hidden and therefore have no delegate to read ``index``
+    // from.
+    readonly property string columnLabels: {
+        if (!root.sidebar) {
+            return "[]";
+        }
+        const columns = root.sidebar.tracklist.columns;
+        let labels = [];
+        for (let i = 0; i < columns.length; i++) {
+            labels.push(columns[i].label);
+        }
+        return JSON.stringify(labels);
+    }
+
     // Restore the library columns to their default order, visibility and sort
     // state. Used by the E2E test harness to reset state between scenarios
     // that share a running Mixxx instance, without a full QML reload.
