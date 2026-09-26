@@ -92,11 +92,27 @@ Category {
         root.dirty = false;
         errorMessage.text = "";
     }
+    // "file://" + a local path is not a valid file URL on Windows: a native
+    // path is "C:/Users/...", so the concatenation yields "file://C:/Users/..."
+    // (two slashes, and Qt reads "C:" as the authority). Qt then hands back an
+    // empty url, so the add is silently dropped. These two helpers are the
+    // only supported way to move between the two forms.
+    function localPathToFileUrl(localPath) {
+        // Windows needs a third slash; POSIX paths already start with one.
+        let p = localPath.replace(/\\/g, "/");
+        return /^\//.test(p) ? "file://" + p : "file:///" + p;
+    }
+    function fileUrlToLocalPath(fileUrl) {
+        // file:///C:/Users/x -> C:/Users/x   (Windows)
+        // file:///home/x    -> /home/x      (POSIX)
+        let p = fileUrl.toString().replace(/^file:\/\//, "");
+        return decodeURIComponent(p.replace(/^\/([A-Za-z]:)/, "$1"));
+    }
     function addSourceFromFolder(folderUrl) {
-        let path = folderUrl.toString().replace(/^file:\/{2,3}/, ""); // FIXME does this work on Windows ?
+        let path = fileUrlToLocalPath(folderUrl);
         let model = sourceListView.model;
         model.push({
-            path: decodeURIComponent(path)
+            path: path
         });
         root.dirty = true;
         sourceListView.model = model;
@@ -126,13 +142,13 @@ Category {
             let result;
             if (source.trackCount === undefined) {
                 // Handle addition
-                result = Mixxx.Library.addSource("file://" + source.path);
+                result = Mixxx.Library.addSource(localPathToFileUrl(source.path));
             } else if (source.deleting !== undefined) {
                 // Handle removal
-                result = Mixxx.Library.removeSource("file://" + source.path, source.deleting);
+                result = Mixxx.Library.removeSource(localPathToFileUrl(source.path), source.deleting);
             } else if (source.relink) {
                 // Handle relinking
-                result = Mixxx.Library.relinkSource("file://" + source.path, "file://" + source.relink);
+                result = Mixxx.Library.relinkSource(localPathToFileUrl(source.path), localPathToFileUrl(source.relink));
             } else {
                 continue;
             }
@@ -369,8 +385,7 @@ Category {
                                                 title: qsTr("Relink music directory to new location")
 
                                                 onAccepted: {
-                                                    let path = selectedFolder.toString().replace(/^(file:\/\/)/, ""); // FIXME does this work on Windows ?
-                                                    sourceListView.relinkSourceAt(mouse.index, decodeURIComponent(path));
+                                                    sourceListView.relinkSourceAt(mouse.index, fileUrlToLocalPath(selectedFolder));
                                                 }
                                             }
                                             Skin.FormButton {

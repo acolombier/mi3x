@@ -508,7 +508,16 @@ def _ensure_profile(context, profile_type, force=False):
 
 @given("a {profile_type} profile")
 def step_new_empty_profile(context, profile_type):
-    _ensure_profile(context, profile_type.split(' ')[-1], force=profile_type.startswith("a fresh"))
+    # The Gherkin text is "a fresh new empty profile", so {profile_type} binds
+    # to "fresh new empty" -- the leading "a " belongs to the pattern, not the
+    # capture. Testing for "a fresh" here could therefore never match, which
+    # silently disabled the fresh-profile opt-out and made every scenario
+    # reuse the first scenario's profile and library.
+    _ensure_profile(
+        context,
+        profile_type.split(" ")[-1],
+        force=profile_type.startswith("fresh"),
+    )
 
 
 @given("Mixxx is open and ready to operate")

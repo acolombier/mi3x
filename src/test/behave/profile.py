@@ -204,6 +204,7 @@ class MixxxProcess:
             "--log-level",
             "debug",
         ]
+        RPC_PORT = 9000
         self.process = subprocess.Popen(
             args,
             env=env,
@@ -229,7 +230,7 @@ class MixxxProcess:
             try:
                 s = socket.socket()
                 s.settimeout(1)
-                s.connect(("localhost", 9000))
+                s.connect(("localhost", RPC_PORT))
                 s.close()
                 return
             except (OSError, ConnectionRefusedError):
@@ -242,7 +243,17 @@ class MixxxProcess:
                     f"mixxx-test exited early with code {self.process.returncode}"
                 )
             time.sleep(1)
-        raise RuntimeError("Timed out waiting for Mixxx RPC on port 9000")
+        # The process is still alive but never opened the RPC port. Dump the
+        # tail of its output: it is the only clue to whether it is hung on a
+        # database/lock migration, blocked on the audio device, or retrying the
+        # port bind. Without this the timeout is completely opaque.
+        tail = "".join(output_lines[-40:])
+        if tail:
+            print(tail, file=sys.stderr)
+        raise RuntimeError(
+            f"Timed out waiting for Mixxx RPC on port {RPC_PORT} "
+            f"after {timeout}s (process still running, pid {self.process.pid})"
+        )
 
     def stop(self):
         if self.process is None:

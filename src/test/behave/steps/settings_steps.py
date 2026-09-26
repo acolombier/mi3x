@@ -4,6 +4,8 @@ import os
 import re
 import shutil
 import time
+from pathlib import Path
+
 from behave import given, when, then
 from mixxx_steps import _library_command
 
@@ -236,17 +238,23 @@ def _get_library_state(s):
 
 
 def _wait_for_music_directory_count(rpc, expected, timeout=10):
+    """Wait for the settings list to hold `expected` entries.
+
+    Returns (ok, last_seen_count) so a failure message can report what the
+    model actually contained instead of just "does not".
+    """
     deadline = time.time() + timeout
+    last = None
     while time.time() < deadline:
         try:
             if _is_visible(rpc, MUSIC_DIRECTORY_LIST):
-                actual = int(rpc.getStringProperty(MUSIC_DIRECTORY_LIST, "count"))
-                if actual == expected:
-                    return True
+                last = int(rpc.getStringProperty(MUSIC_DIRECTORY_LIST, "count"))
+                if last == expected:
+                    return True, last
         except Exception:
             pass
         time.sleep(0.3)
-    return False
+    return False, last
 
 
 def _parse_library_state_expectation(value):
@@ -673,9 +681,15 @@ def step_add_test_music_directory(context, directory_id):
     path = context.music_dirs[directory_id]
     before = int(s.getStringProperty(MUSIC_DIRECTORY_LIST, "count"))
     # Route the "Add" button to the test dialog mock and inject the folder,
-    # emulating a real folder picker selection.
+    # emulating a real folder picker selection. selectedFolder is a QML `url`,
+    # so it needs a real file URL: "file://" + a native path is rejected by Qt
+    # on Windows (backslashes and only two slashes), which silently yields an
+    # empty url and makes the mock's accept() a no-op. Path.as_uri() produces
+    # the correct, percent-encoded file:// URL on every platform.
     s.setStringProperty(ADD_FOLDER_DIALOG_TEST, "testMode", "true")
-    s.setStringProperty(ADD_FOLDER_DIALOG_TEST, "selectedFolder", "file://" + path)
+    s.setStringProperty(
+        ADD_FOLDER_DIALOG_TEST, "selectedFolder", Path(path).as_uri()
+    )
     _click(s, ADD_SOURCE_BUTTON)
     deadline = time.time() + 10
     while time.time() < deadline:
@@ -687,8 +701,10 @@ def step_add_test_music_directory(context, directory_id):
         time.sleep(0.3)
     else:
         raise AssertionError("The Add button did not open the dialog")
-    assert _wait_for_music_directory_count(s, before + 1), (
-        f"Music directory '{directory_id}' did not appear in the list"
+    ok, actual = _wait_for_music_directory_count(s, before + 1)
+    assert ok, (
+        f"Music directory '{directory_id}' did not appear in the list "
+        f"(count stayed at {actual}, expected {before + 1})"
     )
 
 
@@ -818,7 +834,6 @@ def step_button_enabled(context, button, state):
         value = s.getStringProperty(path, "enabled") != "true"
     else:
         raise ValueError(f"Unknown property: {prop}")
-    print(repr(button), repr(state), repr(expected), repr(prop), repr(value), path, repr(s.getStringProperty(path, "enabled") ))
     assert value is expected, f"{button.title()} button is {'' if not state else 'not '}{state}"
 
 @then('the "{setting}" setting should be "{value}"')
@@ -1145,8 +1160,9 @@ def step_not_overlap(context, item, target):
 @then("the music directory list should be empty")
 def step_music_directory_list_empty(context):
     s = _rpc(context)
-    assert _wait_for_music_directory_count(s, 0), (
-        "The music directory list should be empty but is not"
+    ok, actual = _wait_for_music_directory_count(s, 0)
+    assert ok, (
+        f"The music directory list should be empty but contains {actual}"
     )
 
 
@@ -1154,8 +1170,10 @@ def step_music_directory_list_empty(context):
 @then("the music directory list should contain {count:d} sources")
 def step_music_directory_list_count(context, count):
     s = _rpc(context)
-    assert _wait_for_music_directory_count(s, count), (
-        f"The music directory list should contain {count} sources but does not"
+    ok, actual = _wait_for_music_directory_count(s, count)
+    assert ok, (
+        f"The music directory list should contain {count} sources but "
+        f"contains {actual}"
     )
 
 

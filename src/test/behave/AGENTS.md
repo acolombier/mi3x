@@ -103,9 +103,14 @@ MIXXX_BEHAVE_RETRY=5 ctest -R mixxx-behave- --output-on-failure
 
 ### Tips for iterating
 
-- **Real-time logs**: `MixxxProcess` streams mixxx-test stdout/stderr to the
-  terminal in real-time via a daemon thread. All `qDebug()` output from the
-  custom command handlers (e.g. `getControlValue`) appears inline.
+- **Real-time logs**: `MixxxProcess` captures mixxx-test stdout/stderr with a
+  daemon thread, but it does **not** print it live — the `sys.stderr.write`
+  call in `_pipe_logger` is commented out and the lines only go to an
+  in-memory list, printed only if the process dies during startup. So
+  `qDebug()` output from the custom command handlers (e.g. `getControlValue`)
+  is **not** in your terminal by default. Uncomment that line when you need it
+  (and revert before committing); on Windows the same output already arrives via
+  the launcher — see the Debugging section.
 - **Video recording**: When `--record` is passed (or `MIXXX_TEST_RECORD=1`),
   the active display backend's recorder captures the screen: ffmpeg `x11grab`
   for the `xvfb` backend, `wf-recorder` (libavcodec) for the `xwayland` backend
@@ -127,12 +132,331 @@ MIXXX_BEHAVE_RETRY=5 ctest -R mixxx-behave- --output-on-failure
 - If spix patches fail to apply during build, delete
   `build/libspix-prefix` and `build/lib/libspix-install`, then reconfigure.
 
+## Running the Tests on Windows
+
+> *This section was drafted autonomously by an AI agent (for a human reviewer
+> to check, amend, and submit).*
+
+Everything above assumes a POSIX shell and a real terminal. Windows needs a
+launcher, and the invocation is different enough to be worth its own section.
+
+### Why a launcher is required
+
+`mixxx-test` is a GUI application. An SSH session on Windows lands in session 0
+(non-interactive), where no window station/desktop exists, so the process either
+fails to start or starts with no usable display.
+`tools/Start-InteractiveProcessOnWindows.ps1` works around this: it registers
+a temporary scheduled task with `-LogonType Interactive` and the currently
+logged-on user's identity, which runs the child on the real desktop, then
+streams the child's stdout/stderr back to the caller while polling for exit.
+
+Consequences worth remembering:
+
+- A human must be **logged in on the console**. If the machine is locked or
+  nobody is logged in, the launcher throws
+  `No interactive desktop user is currently logged in.` Check with
+  `query session` — the `console` row must show `Active`.
+- `-WaitMode Exit` blocks until the run finishes (correct for CI/SSH).
+  `-WaitMode Start` detaches and is only useful for interactive tinkering.
+- **Killing the SSH connection orphans the run.** The launcher cleans up its
+  scheduled task and temp dir in `finally`, which only runs if the launcher
+  itself survives. Drop the SSH connection (Ctrl-C, network blip, closing the
+  terminal) and both leak, and they accumulate:
+
+  ```powershell
+  # Find leftovers
+  Get-ScheduledTask -TaskName 'SSH-Interactive-Launcher-*'
+  Get-ChildItem "$env:TEMP\SSHLauncher"
+
+  # Remove them
+  Get-ScheduledTask -TaskName 'SSH-Interactive-Launcher-*' |
+      Unregister-ScheduledTask -Confirm:$false
+  Remove-Item "$env:TEMP\SSHLauncher\*" -Recurse -Force
+  ```
+
+  A dropped connection means **no result** — re-run it, and check the leftovers
+  before the next run so you are not looking at a stale screen.
+
+### Prerequisites
+
+| Requirement | Path / check |
+| --- | --- |
+| Behave venv | `src\test\behave\.venv\Scripts\python.exe` (note: `Scripts`, not `bin`) |
+| Test binary | `build\mixxx-test.exe`, built from the `mixxx-test` target |
+| Launcher | `tools/Start-InteractiveProcessOnWindows.ps1` |
+| Wrapper | `tools/Run-BehaveScenariosOnWindows.ps1` |
+| Console session | `query session` shows `console ... Active` |
+| ffmpeg (only for `-Record`) | resolved by the wrapper, see below |
+
+ffmpeg is usually **not on `PATH`** on a Windows build machine, and the wrapper
+does not look for it unless you ask. `-FfmpegBin` defaults to the empty string,
+which short-circuits the lookup entirely, so a plain `-Record` run leaves
+`MIXXX_FFMPEG_BIN` unset and the runner has to find ffmpeg itself. Pass
+`-FfmpegBin` to change that; the resolution order is:
+
+1. If `-FfmpegBin` is a path that exists, use it.
+2. Otherwise `ffmpeg.exe` on `PATH`.
+3. Otherwise the first `ffmpeg.exe` found by a recursive glob of
+   `<repo>\buildenv`, where `buildenv` puts the Mixxx dependencies (this is
+   where it usually turns up, and the glob costs well under a second).
+4. Otherwise the wrapper warns `ffmpeg not found; -Record will fail` and sets
+   nothing, leaving the failure to the runner.
+
+So a literal path is not required — any non-empty placeholder is enough to
+trigger the PATH/buildenv search, and the common case on a Mixxx build machine
+is just `-FfmpegBin ffmpeg`. Passing `-FfmpegBin ""` disables the search
+entirely. This matters because the `buildenv` glob is the wrapper's alone: the
+runner's own `_find_ffmpeg` checks only an explicit path and then `PATH`, so
+without `-FfmpegBin` a machine that has ffmpeg solely under `buildenv` fails
+with `ffmpeg not found. Cannot perform video recording!` and exit 1.
+
+There is no usable headless story on Windows. `--headless` and
+`--display-backend` are Linux-only: on any other platform the runner prints
+`--headless is Linux-only (current platform: win32) - using offscreen
+platform` and then **sets `QT_QPA_PLATFORM=offscreen`**. That is not a no-op
+— spix cannot see an offscreen widget tree, so passing `--headless` on Windows
+breaks the very interactions the tests are driving. Combining `--headless`
+with `--record` fails outright (`Using offscreen QPA. Cannot perform video
+recording!`, exit 1). Just omit both flags. The tests drive the real desktop
+through the `windows` QPA platform, so whatever is on screen is what spix sees.
+A resolution change, a scaling change, or a different skin will affect results
+— match the machine you validated on when comparing runs.
+
+### Running (preferred): `Run-BehaveScenariosOnWindows.ps1`
+
+`tools/Run-BehaveScenariosOnWindows.ps1` is the supported entry point. It
+builds the runner argv as an array, applies the defaults, and calls the
+launcher:
+
+```powershell
+# Defaults: the eight library-settings scenarios, retry 3
+.\tools\Run-BehaveScenariosOnWindows.ps1
+
+# One scenario — fastest iteration loop
+.\tools\Run-BehaveScenariosOnWindows.ps1 -Name 'An empty music directory can be removed'
+
+# Several scenarios at once
+.\tools\Run-BehaveScenariosOnWindows.ps1 -Name 'A single directory with tracks can be added and saved','An empty music directory can be removed'
+
+# A different feature file. The path is passed straight to behave and is
+# resolved against the working directory, which the wrapper sets to the repo
+# root — so it must include the src\test\behave prefix.
+.\tools\Run-BehaveScenariosOnWindows.ps1 -Feature src\test\behave\features\settings\library.feature -Name 'History cleanup threshold can be changed'
+
+# Capture video into src\test\behave\artifacts
+# NOTE: needs -FfmpegBin (see above), and on Windows the run currently ends
+# with a KeyboardInterrupt during teardown even when every scenario passed.
+.\tools\Run-BehaveScenariosOnWindows.ps1 -Name 'An empty music directory can be removed' -Record -FfmpegBin ffmpeg
+
+# Keep this run's artifacts separate from a concurrent/previous run
+.\tools\Run-BehaveScenariosOnWindows.ps1 -Label wip -Name 'An empty music directory can be removed'
+
+# Point at a checkout in another location
+.\tools\Run-BehaveScenariosOnWindows.ps1 -RepoRoot D:\other\mixxx -Name 'An empty music directory can be removed'
+```
+
+`-Name` takes scenario *names*, not line numbers, and is passed through as
+behave `-n`. `-Label` only affects artifact filenames.
+
+> **Feature paths are not repo-relative.** A path like
+> `-Feature features/settings/library.feature` looks reasonable and fails:
+> `behave.exception.ConfigError: No steps directory in
+> 'D:\dev\mixxx\features\settings\library.feature'`. Use
+> `src\test\behave\features\...`, which is also what the wrapper's own default
+> uses.
+
+### Running (raw): `Start-InteractiveProcessOnWindows.ps1` directly
+
+Equivalent, and useful when you want flags the wrapper does not expose:
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File .\tools\Start-InteractiveProcessOnWindows.ps1 `
+    -Program "D:\dev\mixxx\src\test\behave\.venv\Scripts\python.exe" `
+    -Arguments "src\test\behave\mixxx_test_runner.py --no-capture --retry 3 --binary build\mixxx-test.exe src\test\behave\features\settings\library.feature -n 'An empty music directory can be removed'" `
+    -WorkingDirectory "D:\dev\mixxx" `
+    -WaitMode Exit -TimeoutSeconds 1800
+```
+
+> **Quoting trap.** `-Arguments` is a single string that is re-parsed by the
+> Windows C runtime when the child starts. Scenario names **must** be quoted or
+> every word of the name becomes its own argument and behave fails with
+> `unrecognized arguments:`. The launcher rewrites `'` to `"` for you, so use
+> single quotes in `-Arguments`.
+>
+> Build this string **in PowerShell only**. Typing it in `cmd.exe`, or
+> generating it from a bash/SSH wrapper, strips the quotes before they reach
+> PowerShell and the failure is silent and confusing. That is why
+> `Run-BehaveScenariosOnWindows.ps1` exists — prefer it, and keep the quoting
+> inside PowerShell.
+
+### Driving a Windows host from Linux
+
+When the checkout you are editing is on Linux but the test machine is Windows,
+`tools/win_ssh_run.py` carries the invocation over SSH and leaves the actual
+GUI launch to the interactive scheduled task. It needs `paramiko`, which is
+**not** in the `src/test/behave/.venv` — run it with a `python3` that has
+`paramiko` installed. Credentials come from the environment only, never from a
+file in the repo:
+
+```bash
+export MIXXX_WIN_HOST=192.168.1.10
+export MIXXX_WIN_USER=someuser
+export MIXXX_WIN_PASSWORD=...
+export MIXXX_WIN_ROOT='D:\dev\mixxx'   # optional, only for relative paths
+```
+
+```bash
+# Run the wrapper remotely, mirroring the remote output into a local log
+python3 tools/win_ssh_run.py run /tmp/behave.log 1800 -q -- \
+    'powershell -NoProfile -ExecutionPolicy Bypass -File D:\dev\mixxx\tools\Run-BehaveScenariosOnWindows.ps1 -Name "An empty music directory can be removed"'
+
+# Push edited sources during a debug loop, then fetch the artifacts back
+python3 tools/win_ssh_run.py sync src/test/behave
+python3 tools/win_ssh_run.py get 'D:\dev\mixxx\src\test\behave\artifacts\behave-output-default.txt' /tmp/out.txt
+```
+
+Subcommands are `run LOG TIMEOUT -- COMMAND`, `put LOCAL REMOTE`, `get REMOTE
+LOCAL` and `sync LOCAL_DIR`. Two properties matter when scripting against it:
+
+- **`run` returns the remote exit status,** or `124` if the local timeout fires
+  first. Output is written to `LOG` and streamed unless `-q`; a UTF-8 character
+  split across a chunk boundary is carried over instead of being mangled, which
+  matters because the logs are UTF-8 and may contain non-ASCII titles.
+- **`sync` is one-directional and does overwrite.** It creates directories as
+  needed, and skips a file only when the remote mtime already matches the local
+  mtime to within one second. Otherwise it uploads — including over a remote
+  file that is *newer* than the local one. Nothing is ever deleted, but nothing
+  is protected either, so do not point it at a tree with local work you care
+  about, and commit before syncing a file you may need back. Symlinks are
+  skipped, and so are `.venv`, `venv`, `__pycache__`, `.git` and `*.pyc` —
+  uploading a Linux virtualenv over the Windows one replaces `pyvenv.cfg` with
+  `home = /usr/bin` and the remote interpreter stops resolving
+  (`did not find executable at '/usr/bin\python.exe'`, exit 103).
+
+Host keys are refused unless already known. `--trust-new-host` accepts an
+unknown key without verification; use it only on a lab network you control,
+where the win32-OpenSSH service generates a fresh `ssh_host_*` key pair on
+first boot and a legitimate first connection would otherwise be blocked.
+
+### Exit codes
+
+`Run-BehaveScenariosOnWindows.ps1` and `Start-InteractiveProcessOnWindows.ps1`
+both propagate the child's exit status, so `echo %ERRORLEVEL%` /
+`$LASTEXITCODE` is trustworthy:
+
+| Code | Meaning | Source |
+| --- | --- | --- |
+| `0` | All selected scenarios passed | runner |
+| `1` | A scenario failed, **or** the run never got as far as running one | runner |
+| `3` | The child exited but never wrote its exit code — a harness failure, not a pass | launcher |
+| `58` | Windows `cmd.exe` truncation of `0xC000013A` — the runner was killed by Ctrl-C. See the `-Record` note under Debugging | runner |
+| `124` | `TimeoutSeconds` elapsed; the child was killed | launcher |
+
+`mixxx_test_runner.py` only ever returns `0` or `1` — there is no separate code
+for a bad command line. An argument or feature-path mistake surfaces as `1`
+with a `ConfigError` traceback, so read the traceback rather than the number
+when a run fails instantly.
+
+Code `3` exists so that a broken launcher can never masquerade as a green run.
+The launcher writes the child's exit code to `exitcode.txt` in its temp dir and
+refuses to guess when that file is missing or empty. If you ever see it, the
+launcher's `finally` block keeps the temp dir (check `Write-Verbose` output) —
+its `stdout.log` / `stderr.log` are the only record.
+
+### Reading the results
+
+Everything lands in `src\test\behave\artifacts\`:
+
+- `behave-output-<label>.txt` — the full behave transcript, identical to stdout.
+  Written even when the live stream is lost (locked screen, killed SSH), so
+  **always check this file** before concluding a run produced nothing.
+- `results-<label>.json` — per-scenario `outcome`, `tags`, `error`, and
+  `start_time`/`end_time`. The quickest way to see which scenarios failed and
+  how long each attempt took.
+- `mixxx-ui-test-<label>-<timestamp>.mkv` — video, only with `-Record`. Chapters
+  are muxed from the scenario timings, so the timecode in a failure's
+  `# src/test/behave/steps/...` source comment seeks straight to it.
+
+### Debugging
+
+- **mixxx-test's own logs come free on Windows, but not on Linux.** On Windows
+  the launcher's captured stream already contains the full
+  `--log-level debug` output — roughly 2500 `debug [Main] ...` lines for a
+  single short scenario, because `src/util/console.cpp` reattaches Mixxx to
+  the parent console. On Linux `profile.py`'s `MixxxProcess._pipe_logger`
+  swallows the same output (`# sys.stderr.write(line)` is commented out; lines
+  only go to an in-memory list that is printed if the process dies during
+  startup). So the "uncomment it to see logs" trick is a **Linux-only** step.
+  Expect the Windows log to be dominated by this noise; grep it rather than
+  reading it.
+- **Unbuffered output is mandatory over SSH.** The launcher sets
+  `PYTHONUNBUFFERED=1` for the child. Without it CPython block-buffers a
+  redirected stdout, so a run can sit silent for minutes and then dump
+  everything at exit. If output ever looks frozen, check that variable first.
+- **The launcher also pins `PYTHONIOENCODING=utf-8`.** Without it a redirected
+  stdout makes CPython encode with the machine's ANSI codepage, so any
+  non-ASCII text in a scenario name, step failure message or track title is
+  mangled into replacement characters when read as UTF-8. This does not affect
+  Mixxx's own C++ output. Override `-Environment` if you need to.
+- **Narrow to one scenario** with `-Name`; the eight-scenario default retries
+  each scenario up to three times, which multiplies wall-clock time by up to 4x
+  when things fail.
+- **Timestamps are in the log**: each `Scenario:` block is followed by
+  `start_time`/`end_time` in `results-<label>.json`. A scenario that never
+  appears there died before behave recorded it — usually a launcher or
+  `mixxx-test` startup problem rather than a test problem.
+- **Stuck processes**: `taskkill /IM mixxx-test.exe /F`, then re-run. The
+  launcher reuses a session only within one process, so a leftover from a
+  killed run will not be reused but will still hold the profile directory.
+- **Video is the ground truth** for spix interaction bugs. If a click "did
+  nothing", re-run with `-Record` before changing the step. On Windows the
+  recorder is ffmpeg `gdigrab` capturing the `desktop` input, hardcoded to
+  `1920x1080` at 30 fps, so the video is letterboxed/scaled on any other
+  resolution — judge timing and cursor position, not pixel geometry.
+- **`-Record` currently dies during teardown on Windows, after the scenarios
+  have already passed.** `_stop_recorder` in `mixxx_test_runner.py` calls
+  `recorder_proc.send_signal(signal.CTRL_C_EVENT)`, but the ffmpeg child is
+  started without `creationflags=CREATE_NEW_PROCESS_GROUP`, so it shares the
+  runner's console. `GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)` targets group
+  0 — *every* process attached to that console — so the runner receives the
+  Ctrl-C too, raises `KeyboardInterrupt` out of `recorder_proc.wait(timeout=5)`,
+  and dies with `0xC000013A` (reported as exit 58 through `cmd.exe`). The
+  behave transcript in that run says `1 scenario passed, 0 failed`, so **the
+  video is usually fine and the exit code is the misleading part.** Reproduced
+  with a minimal probe: a plain `Popen` child plus `send_signal(CTRL_C_EVENT)`
+  raises `KeyboardInterrupt` in the parent whenever a real console is attached,
+  and does nothing at all in session 0 (no console), which is why it only
+  shows up through the launcher. Until this is fixed, treat a `-Record` run's
+  video as valid and ignore its exit code.
+
+### Extending coverage on Windows
+
+Adding features and steps is platform-independent — write the Gherkin, add the
+step definitions, add `objectName`s in QML, rebuild `mixxx-test`. Specifically:
+
+- **Steps are shared.** `steps/mixxx_steps.py` is the same file on both
+  platforms; do not add Windows-only branches to a step. Platform differences
+  belong in the feature's tags.
+- **Tag platform-specific scenarios** (`@xpass` for environment flakiness,
+  `@xfail(gh_issue=N)` for known bugs) rather than skipping them, so the Linux
+  CI still exercises them. Note that autoretry applies to tagged scenarios too.
+- **The QML under test is the same**, so a step that works on Linux should work
+  on Windows. If it does not, suspect one of the known limitations above
+  (`TapHandler`, `Menu` overlays, `TableView` drag) or a geometry/theme
+  difference, and confirm with video before changing the step.
+- **Keep new scenarios cheap to iterate on.** Anything you add to the
+  `Run-BehaveScenariosOnWindows.ps1` default `-Name` list multiplies everyone's
+  Windows feedback loop; add it to the feature file first and promote it only
+  once it is stable.
+
+> *End of autonomously AI-generated section.*
+
 ## How Tests Run
 
 1. **CMake** finds `python3` + `behave`, globs `features/*.feature`, registers
    each as `mixxx-behave-<name>`.
 2. `mixxx_test_runner.py` sets up a global tracks
-   cache at `/tmp/mixxx-test-tracks/` (downloading if needed), optionally
+   cache at `<tempdir>/mixxx-test-tracks/` (downloading if needed), optionally
    starts a headless display + recorder (Xvfb+ffmpeg, or cage+wf-recorder for
    the Xwayland backend) for CI, then invokes `behave` with the feature
    file.
@@ -244,9 +568,11 @@ result = rpc.getStringProperty("mainWindow", "myResult")
 ### `MixxxProcess` class
 
 - `start()`: spawns `mixxx-test --serve --settings-path <dir> --developer
-  --log-level warn`
-- Stdout streamed via `subprocess.PIPE` + daemon thread writing with
-  `sys.stdout.write()` for real-time logging
+  --log-level debug`
+- Stdout captured via `subprocess.PIPE` + daemon thread; lines go to an
+  in-memory list, and `sys.stderr.write(line)` is commented out, so nothing is
+  printed live except on early startup failure. See the Debugging section for
+  why Windows still shows this output.
 - Waits up to 60s for port 9000 to be reachable
 - `stop()`: terminate with 15s grace, then kill
 
@@ -255,8 +581,11 @@ result = rpc.getStringProperty("mainWindow", "myResult")
 - Manifest in `test_tracks.json` — each entry has `url`, `title`, `artist`,
   `tags`, `bpm`, `first_beat`, `samplerate`, and optionally `artwork` (URL to
   cover image)
-- Downloaded on first run to `/tmp/mixxx-test-tracks/` (global cache, shared
-  across all CTest invocations)
+- Downloaded on first run to `os.path.join(tempfile.gettempdir(),
+  "mixxx-test-tracks")` — a global cache, shared across all CTest invocations.
+  On Linux that is `/tmp/mixxx-test-tracks`, on Windows
+  `%TEMP%\mixxx-test-tracks`. Set `MIXXX_TEST_TRACKS_DIR` to relocate it (e.g.
+  to a pre-seeded directory on a machine without outbound network).
 
 ## Spix RPC API (`TestServer.h`)
 
