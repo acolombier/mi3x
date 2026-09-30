@@ -1441,6 +1441,7 @@ add_library(
   src/library/librarycontrol.cpp
   src/library/libraryfeature.cpp
   src/library/librarytablemodel.cpp
+  src/library/searchqueriesstorage.cpp
   src/library/missing_hidden/dlghidden.cpp
   src/library/missing_hidden/dlghidden.ui
   src/library/missing_hidden/dlgmissing.cpp
@@ -2964,6 +2965,7 @@ if(BUILD_TESTING)
     src/test/savitzkygolaytest.cpp
     src/test/schemamanager_test.cpp
     src/test/searchqueryparsertest.cpp
+    src/test/searchqueriesstorage_test.cpp
     src/test/seratobeatgridtest.cpp
     src/test/seratomarkerstest.cpp
     src/test/seratomarkers2test.cpp
@@ -3035,6 +3037,7 @@ if(BUILD_TESTING)
         src/test/controllerrenderingengine_test.cpp
         src/test/qmlcontrolproxytest.cpp
         src/test/qmlkeyutilstest.cpp
+        src/test/qmlrecentsearchtest.cpp
         src/test/themeqml_test.cpp
     )
   endif()

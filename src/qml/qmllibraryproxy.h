@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QQmlEngine>
 #include <QString>
+#include <QVariantMap>
 #include <Qt>
 #include <memory>
 
@@ -140,6 +141,8 @@ class QmlLibraryProxy : public QObject {
             mixxx::qml::QmlLibraryProxy::SourceRemovalType type);
     Q_INVOKABLE mixxx::qml::QmlLibraryProxy::Result relinkSource(
             const QUrl& oldPath, const QUrl& newPath);
+
+    Q_INVOKABLE QVariantMap parseRecentSearchQuery(const QString& query) const;
 
     static void registerKeyboardEventFilter(std::shared_ptr<KeyboardEventFilter> pKeyboard) {
         s_pKeyboard = std::move(pKeyboard);
