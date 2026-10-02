@@ -17,9 +17,11 @@
 #include "mixer/basetrackplayer.h"
 #include "moc_qmlwaveformdisplay.cpp"
 #include "qml/qmlplayerproxy.h"
+#include "qml/qmlsoundmanagerproxy.h"
 #include "qmllibraryproxy.h"
 #include "rendergraph/context.h"
 #include "rendergraph/node.h"
+#include "src/soundio/soundmanager.h"
 #include "util/assert.h"
 #include "waveform/visualplayposition.h"
 
@@ -38,7 +40,8 @@ QmlWaveformDisplay::QmlWaveformDisplay(QQuickItem* parent)
           m_syncInterval(kDefaultSyncInternalMs),
           m_pPlayer(nullptr),
           m_pTrack(nullptr),
-          m_visualPlayPosition(QSharedPointer<VisualPlayPosition>::create()) {
+          m_visualPlayPosition(QSharedPointer<VisualPlayPosition>::create()),
+          m_manualPosition(0) {
     m_visualPlayPosition->set(0.0,
             0.0,
             0.0,
@@ -88,6 +91,10 @@ void QmlWaveformDisplay::setPosition(double value) {
     if (!m_pTrack || !m_pTrack->internal()) {
         return;
     }
+    m_manualPosition = value;
+    if (m_manualPosition < 0 || m_manualPosition > 1) {
+        return;
+    }
     m_visualPlayPosition->set(std::clamp(value, 0.0, 1.0),
             1.0,
             0,
@@ -119,11 +126,9 @@ void QmlWaveformDisplay::setStaticTrack(QmlTrackProxy* track) {
         emit QmlLibraryProxy::get() -> analyzeTracks({track->internal()->getId()});
     }
     setVisualPlayPosition(m_visualPlayPosition);
-    m_visualPlayPosition->set(0.0,
-            1.0,
-            1024. /
-                    static_cast<double>(m_pTrack->internal()->getBitrate()) *
-                    m_pTrack->internal()->getDuration(),
+    m_visualPlayPosition->set(std::fmax(m_manualPosition, 0),
+            0,
+            0,
             0.0,
             0.0,
             SlipModeState::Disabled,
@@ -133,8 +138,7 @@ void QmlWaveformDisplay::setStaticTrack(QmlTrackProxy* track) {
             0,
             0,
             m_pTrack->internal()->getDuration(),
-            1024. / static_cast<double>(mixxx::kEngineChannelOutputCount) /
-                    static_cast<double>(m_pTrack->internal()->getSampleRate()) * 1000000.0);
+            0);
     setCurrentTrack(track->internal());
     emit trackChanged(track);
     emit groupChanged("");
@@ -347,7 +351,20 @@ void QmlWaveformDisplay::setCurrentTrack(TrackPointer pTrack) {
 }
 
 void QmlWaveformDisplay::slotWaveformUpdated() {
+    updateAudioVisualRatio();
     update();
+}
+
+void QmlWaveformDisplay::updateAudioVisualRatio() {
+    TrackPointer pCurrentTrack = getTrackInfo();
+    double audioVisualRatio = 0.0;
+    if (pCurrentTrack && pCurrentTrack->getWaveform()) {
+        audioVisualRatio = pCurrentTrack->getWaveform()->getAudioVisualRatio();
+    }
+    if (m_audioVisualRatio != audioVisualRatio) {
+        m_audioVisualRatio = audioVisualRatio;
+        emit audioVisualRatioChanged();
+    }
 }
 
 QQmlListProperty<QmlWaveformRendererFactory> QmlWaveformDisplay::renderers() {
