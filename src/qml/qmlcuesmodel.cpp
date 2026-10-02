@@ -158,6 +158,25 @@ bool QmlCuesModel::convertTypeByHotcueNumber(
     return true;
 }
 
+bool QmlCuesModel::swapPositionsByHotcueNumber(int hotcueNumber) {
+    const int row = findIndexByHotcueNumber(hotcueNumber);
+    VERIFY_OR_DEBUG_ASSERT(row >= 0) {
+        return false;
+    }
+    const CuePointer& pCue = m_cues.at(row);
+    VERIFY_OR_DEBUG_ASSERT(pCue.get()) {
+        return false;
+    }
+    const auto positions = pCue->getStartAndEndPosition();
+    if (!positions.endPosition.isValid()) {
+        return false;
+    }
+    // The model will be reset whenever the track emits cuesUpdated in
+    // response to the cue change (-> revisionChanged).
+    pCue->setStartAndEndPosition(positions.endPosition, positions.startPosition);
+    return true;
+}
+
 void QmlCuesModel::bumpRevision() {
     ++m_revision;
     emit revisionChanged();

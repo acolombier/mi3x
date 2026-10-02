@@ -152,7 +152,8 @@ void WaveformWidgetRenderer::onPreRender(VSyncTimeProvider* vsyncThread) {
     // For a valid track to render we need
     m_trackSamples = m_pTrackSamplesControlObject
             ? m_pTrackSamplesControlObject->get()
-            : m_pTrack->getSampleRate() * m_pTrack->getDuration();
+            : m_pTrack->getSampleRate() * m_pTrack->getDuration() *
+                    mixxx::kEngineChannelOutputCount;
     if (m_trackSamples <= 0) {
         return;
     }

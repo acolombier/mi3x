@@ -48,9 +48,10 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
     Q_PROPERTY(double position READ getPosition WRITE setPosition NOTIFY positionChanged)
     Q_PROPERTY(QQmlListProperty<mixxx::qml::QmlWaveformRendererFactory> renderers READ renderers)
     Q_PROPERTY(double zoom READ getZoom WRITE setZoom NOTIFY zoomChanged)
+    Q_PROPERTY(double audioVisualRatio READ getAudioVisualRatio NOTIFY
+                    audioVisualRatioChanged)
     Q_PROPERTY(QColor backgroundColor READ getBackgroundColor WRITE
                     setBackgroundColor NOTIFY backgroundColorChanged)
-    Q_PROPERTY(WaveformRendererSignalBaseOptions options READ
                     options WRITE setOptions NOTIFY optionsChanged)
     Q_CLASSINFO("DefaultProperty", "renderers")
     QML_NAMED_ELEMENT(WaveformDisplay)
@@ -101,9 +102,10 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
         WaveformWidgetRenderer::setZoom(zoom);
         emit zoomChanged();
     }
+    double getAudioVisualRatio() const {
+        return m_audioVisualRatio;
+    }
 
-    std::chrono::microseconds fromTimerToNextSync(const PerformanceTimer& timer) override;
-    std::chrono::microseconds getSyncInterval() const override {
         return m_syncInterval;
     }
 
@@ -111,7 +113,6 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
 
     QQmlListProperty<mixxx::qml::QmlWaveformRendererFactory> renderers();
     static void renderers_append(
-            QQmlListProperty<mixxx::qml::QmlWaveformRendererFactory>* property,
             mixxx::qml::QmlWaveformRendererFactory* value);
     static qsizetype renderers_count(
             QQmlListProperty<mixxx::qml::QmlWaveformRendererFactory>* property);
@@ -139,6 +140,7 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
   signals:
     void playerChanged();
     void zoomChanged();
+    void audioVisualRatioChanged();
     void groupChanged(const QString& group);
     void trackChanged(mixxx::qml::QmlTrackProxy* track);
     void positionChanged(double);
@@ -147,6 +149,7 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
 
   private:
     void setCurrentTrack(TrackPointer pTrack);
+    void updateAudioVisualRatio();
 
     // Properties
     QPointer<QmlPlayerProxy> m_pPlayer;
@@ -154,7 +157,9 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
 
     PerformanceTimer m_timer;
     QmlTrackProxy* m_pTrack;
+    double m_audioVisualRatio = 0.0;
     QSharedPointer<VisualPlayPosition> m_visualPlayPosition;
+    double m_manualPosition;
 
     std::chrono::milliseconds m_syncInterval;
     enum class DirtyFlag : int {
