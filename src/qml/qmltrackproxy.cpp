@@ -153,6 +153,8 @@ void QmlTrackProxy::slotHotcuesChanged() {
         return;
     }
 
+    m_pHotcuesModel->setTrack(m_pTrack);
+
     QList<CuePointer> hotcues;
 
     if (m_pTrack) {

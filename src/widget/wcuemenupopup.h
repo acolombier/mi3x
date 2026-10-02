@@ -29,8 +29,11 @@ class CueMenuPushButton : public QPushButton {
     void rightClicked();
 };
 
+// TODO: consider merging this with the hotcue popup logic in
+// track/cueconversion.h, which should be kept in sync with this popup
 class WCueMenuPopup : public QWidget {
     Q_OBJECT
+
   public:
     WCueMenuPopup(UserSettingsPointer pConfig, QWidget* parent = nullptr);
 
