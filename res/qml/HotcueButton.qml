@@ -7,6 +7,7 @@ import QtQuick.Controls 2
 Item {
     id: root
 
+    required property var currentTrack
     required property string group
     required property int hotcueNumber
     required property var label
@@ -26,6 +27,7 @@ Item {
     Skin.HotcuePopup {
         id: popup
 
+        currentTrack: root.currentTrack
         hotcue: hotcue
     }
     Rectangle {
@@ -41,10 +43,8 @@ Item {
             anchors.fill: parent
 
             onClicked: mouse => {
-                if (hotcue.isSet && mouse.button != Qt.LeftButton) {
-                    popup.x = mouse.x;
-                    popup.y = mouse.y;
-                    popup.open();
+                if (mouse.button === Qt.RightButton) {
+                    popup.openFrom(root);
                 }
             }
         }

@@ -1616,6 +1616,7 @@ add_library(
   src/track/beatutils.cpp
   src/track/bpm.cpp
   src/track/cue.cpp
+  src/track/cueconversion.cpp
   src/track/cueinfo.cpp
   src/track/cueinfoimporter.cpp
   src/track/globaltrackcache.cpp

@@ -116,9 +116,15 @@ Item {
                         Layout.fillHeight: true
                         Layout.fillWidth: true
                         Layout.row: parseInt(index / 4)
+                        currentTrack: root.currentTrack
                         group: root.group
                         hotcueNumber: index + 1
-                        label: root.currentTrack.hotcuesModel.get(index)?.label
+                        label: {
+                            // Referenced to re-evaluate the binding when the
+                            // cue data changes (e.g. label edited via popup)
+                            root.currentTrack?.hotcuesModel.revision;
+                            return root.currentTrack?.hotcuesModel.get(index)?.label;
+                        }
                     }
                 }
             }

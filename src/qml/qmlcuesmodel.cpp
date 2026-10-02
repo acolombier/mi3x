@@ -3,7 +3,9 @@
 #include <QModelIndex>
 
 #include "moc_qmlcuesmodel.cpp"
+#include "qml/qmlconfigproxy.h"
 #include "track/cue.h"
+#include "track/cueconversion.h"
 
 namespace mixxx {
 namespace qml {
@@ -14,6 +16,7 @@ const QHash<int, QByteArray> kRoleNames = {
         {QmlCuesModel::LabelRole, "label"},
         {QmlCuesModel::IsLoopRole, "isLoop"},
         {QmlCuesModel::HotcueNumberRole, "hotcueNumber"},
+        {QmlCuesModel::TypeRole, "type"},
 };
 }
 
@@ -22,10 +25,15 @@ QmlCuesModel::QmlCuesModel(
         : QAbstractListModel(pParent) {
 }
 
+void QmlCuesModel::setTrack(TrackPointer pTrack) {
+    m_pTrack = pTrack;
+}
+
 void QmlCuesModel::setCues(QList<CuePointer> cues) {
     beginResetModel();
     m_cues = QList<CuePointer>(std::move(cues));
     endResetModel();
+    bumpRevision();
 }
 
 QVariant QmlCuesModel::data(const QModelIndex& index, int role) const {
@@ -53,6 +61,8 @@ QVariant QmlCuesModel::data(const QModelIndex& index, int role) const {
         return pCue->getType() == CueType::Loop;
     case QmlCuesModel::HotcueNumberRole:
         return pCue->getHotCue();
+    case QmlCuesModel::TypeRole:
+        return static_cast<int>(pCue->getType());
     default:
         return QVariant();
     }
@@ -77,6 +87,80 @@ QVariant QmlCuesModel::get(int row) const {
         dataMap.insert(it.value(), data(idx, it.key()));
     }
     return dataMap;
+}
+
+int QmlCuesModel::findIndexByHotcueNumber(int hotcueNumber) const {
+    for (int row = 0; row < m_cues.size(); ++row) {
+        const CuePointer& pCue = m_cues.at(row);
+        if (pCue && pCue->getHotCue() == hotcueNumber) {
+            return row;
+        }
+    }
+    return -1;
+}
+
+QMap<QString, QVariant> QmlCuesModel::getByHotcueNumber(int hotcueNumber) const {
+    const int row = findIndexByHotcueNumber(hotcueNumber);
+    if (row < 0) {
+        return {};
+    }
+
+    QModelIndex idx = index(row, 0);
+    QMap<QString, QVariant> dataMap;
+    for (auto it = kRoleNames.constBegin(); it != kRoleNames.constEnd(); it++) {
+        dataMap.insert(it.value(), data(idx, it.key()));
+    }
+    return dataMap;
+}
+
+void QmlCuesModel::setLabelByHotcueNumber(
+        int hotcueNumber, const QString& label) {
+    const int row = findIndexByHotcueNumber(hotcueNumber);
+    VERIFY_OR_DEBUG_ASSERT(row >= 0) {
+        return;
+    }
+    const CuePointer& pCue = m_cues.at(row);
+    VERIFY_OR_DEBUG_ASSERT(pCue.get()) {
+        return;
+    }
+    // The model will be reset whenever the track emits cuesUpdated in
+    // response to the cue change (-> revisionChanged).
+    pCue->setLabel(label);
+}
+
+bool QmlCuesModel::convertTypeByHotcueNumber(
+        int hotcueNumber, int newType, const QString& playerGroup) {
+    const int row = findIndexByHotcueNumber(hotcueNumber);
+    VERIFY_OR_DEBUG_ASSERT(row >= 0) {
+        return false;
+    }
+    const CuePointer& pCue = m_cues.at(row);
+    VERIFY_OR_DEBUG_ASSERT(pCue.get()) {
+        return false;
+    }
+
+    VERIFY_OR_DEBUG_ASSERT(m_pTrack) {
+        return false;
+    }
+
+    const auto config = mixxx::qml::QmlConfigProxy::get();
+    VERIFY_OR_DEBUG_ASSERT(config) {
+        return false;
+    }
+
+    // The model will be reset whenever the track emits cuesUpdated in
+    // response to the cue change (-> revisionChanged).
+    mixxx::cueconversion::convertCueType(m_pTrack,
+            pCue,
+            playerGroup,
+            config,
+            static_cast<CueType>(newType));
+    return true;
+}
+
+void QmlCuesModel::bumpRevision() {
+    ++m_revision;
+    emit revisionChanged();
 }
 
 } // namespace qml
