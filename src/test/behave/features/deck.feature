@@ -485,7 +485,6 @@ Feature: Deck
     And the hotcue popup is open for hotcue 1 on deck 1
     When I click the "previous type" arrow in the popup
     Then the hotcue type name of hotcue 1 on deck 1 should be "JUMP"
-    When I zoom the hotcue popup waveform in by 9 steps
     Then the hotcue popup should be in split view
     And the skip shade above the split should be visible
     And the skip shade below the split should be visible

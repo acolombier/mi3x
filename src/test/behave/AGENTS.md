@@ -600,7 +600,7 @@ The `--serve` mode registers a custom handler via
 |-------------------|-----------------------|------------------------------------------------------------------------|-----------------------------------------------------------|
 | `getControlValue` | `"[Group],key"`       | `double` value stored in `mainWindow.lastControlValue` window property | `rpc.getStringProperty("mainWindow", "lastControlValue")` |
 | `setControlValue` | `"[Group],key,value"` | Sets a ControlObject value                                             | None                                                      |
-| `setHotcueLabel`  | JSON (see below)      | Sets a hotcue's label on the track loaded into the group               | None                                                      |
+| `setHotcue`       | JSON (see below)      | Sets a hotcue's label and/or type on the track loaded into the group   | None                                                      |
 | `loadTrack`       | `"deck,filepath"`     | Loads a track file onto the specified deck                             | None                                                      |
 | `library`         | JSON (see below)      | Adds/removes library directories, optionally triggers a scan           | None                                                      |
 | `getLibraryState` | (empty)               | Returns a JSON snapshot of the library state (see below)               | `rpc.getStringProperty("mainWindow", "lastLibraryState")` |
@@ -623,7 +623,7 @@ JSON payload:
 - `removeDirectory`: calls `TrackCollectionManager::removeDirectory()`.
 - `scan`: when `true`, calls `startLibraryScan()` after the operation.
 
-### `setHotcueLabel` command
+### `setHotcue` command
 
 JSON payload:
 
@@ -631,7 +631,8 @@ JSON payload:
 {
   "group": "[Channel1]",
   "hotcueNumber": 1,
-  "label": "Hallo"
+  "label": "Hallo",
+  "type": "loop"
 }
 ```
 

@@ -21,9 +21,11 @@
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #include "library/trackset/crate/cratesummary.h"
+#include "mixer/basetrackplayer.h"
 #include "mixer/playermanager.h"
 #include "qml/qmlapplication.h"
 #include "soundio/soundmanager.h"
+#include "track/cue.h"
 #include "track/track.h"
 #include "util/assert.h"
 #include "util/cmdlineargs.h"
@@ -404,6 +406,53 @@ RpcServe::RpcServe(
                 } else if (command == "reloadQml") {
                     pQmlApplication->loadQml(pQmlApplication->mainFilePath());
                     qDebug() << "reloadQml: QML engine reloaded";
+                } else if (command == "setHotcue") {
+                    // Payload: {"group": "[Channel1]", "hotcueNumber": 1,
+                    // "label": "Hallo"} — hotcueNumber is 1-based, matching
+                    // the API exposed by the hotcue popup.
+                    QJsonDocument doc =
+                            QJsonDocument::fromJson(
+                                    QByteArray::fromStdString(payload));
+                    QJsonObject obj = doc.object();
+                    QString group = obj["group"].toString();
+                    int hotcueNumber = obj["hotcueNumber"].toInt();
+                    if (group.isEmpty() || hotcueNumber <= 0) {
+                        qWarning() << "setHotcue: invalid payload, expected "
+                                      "'{\"group\",\"hotcueNumber\",\"label\", \"type\"}', got:"
+                                   << payload;
+                        return;
+                    }
+                    auto* pPlayer = pPlayerManager->getPlayer(group);
+                    TrackPointer pTrack =
+                            pPlayer ? pPlayer->getLoadedTrack() : nullptr;
+                    CuePointer pCue;
+                    if (pTrack) {
+                        pCue = pTrack->findHotcueByIndex(hotcueNumber - 1);
+                    }
+                    if (!pCue.get()) {
+                        qWarning() << "setHotcue: hotcue" << hotcueNumber
+                                   << "is not set on" << group;
+                        return;
+                    }
+                    if (obj.contains("label")) {
+                        QString label = obj["label"].toString();
+                        pCue->setLabel(label);
+                    }
+                    if (obj.contains("type")) {
+                        QString type = obj["type"].toString().toLower();
+                        if (type == "cue") {
+                            pCue->setType(mixxx::CueType::HotCue);
+                        } else if (type == "loop") {
+                            pCue->setType(mixxx::CueType::Loop);
+                        } else if (type == "jump") {
+                            pCue->setType(mixxx::CueType::Jump);
+                        } else {
+                            qWarning() << "setHotcue:" << group << "hotcue"
+                                       << hotcueNumber << " unknown type" << type;
+                        }
+                    }
+                    qDebug() << "setHotcue:" << group << "hotcue"
+                             << hotcueNumber << "=" << pCue->getLabel() << pCue->getType();
                 } else {
                     qWarning() << "Unknown generic command:" << QString::fromStdString(command);
                 }
