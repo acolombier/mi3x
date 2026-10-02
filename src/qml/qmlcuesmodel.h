@@ -48,6 +48,10 @@ class QmlCuesModel : public QAbstractListModel {
     Q_INVOKABLE bool convertTypeByHotcueNumber(
             int hotcueNumber, int newType, const QString& playerGroup);
 
+    /// Swaps the start and end positions of the cue with the given
+    /// hotcue number (used to invert a jump).
+    Q_INVOKABLE bool swapPositionsByHotcueNumber(int hotcueNumber);
+
     int getRevision() const {
         return m_revision;
     }
