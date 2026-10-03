@@ -31,22 +31,6 @@ Item {
     function setColor(newColor) {
         hotcueColorControl.value = (parseInt(newColor.r * 255) << 16) | (parseInt(newColor.g * 255) << 8) | parseInt(newColor.b * 255);
     }
-
-    function swapJumpPoints() {
-        if (hotcueTypeControl.value !== typeJump) return;
-
-        let swap = (a, b) => {
-            a.value += b.value;
-            b.value = a.value - b.value;
-            a.value -= b.value;
-        }
-        if (hotcuePositionControl > hotcueEndPositionControl)  {
-            swap(hotcuePositionControl, hotcueEndPositionControl);
-        } else {
-            swap(hotcueEndPositionControl, hotcuePositionControl);
-        }
-    }
-
     Mixxx.ControlProxy {
         id: hotcueColorControl
 
