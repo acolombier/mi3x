@@ -12,6 +12,9 @@ Item {
     required property int hotcueNumber
     required property var label
 
+    /// String mirror of the (possibly unset) label, for UI tests
+    readonly property string labelText: label === undefined || label === null ? "" : String(label)
+
     Skin.Hotcue {
         id: hotcue
 
@@ -96,6 +99,7 @@ Item {
             Layout.alignment: Qt.AlignHCenter
             color: "#626262"
             font.pixelSize: 12
+            objectName: "hotcueButtonLabel" + root.hotcueNumber
             text: root.label ?? ""
             visible: !!root.label
         }
