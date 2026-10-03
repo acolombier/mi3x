@@ -32,7 +32,7 @@ Popup {
             return null;
         // Referenced to trigger re-evaluation on cue data changes
         currentTrack.hotcuesModel.revision;
-        return currentTrack.hotcuesModel.getByHotcueNumber(hotcue.hotcueNumber);
+        return currentTrack.hotcuesModel.getByHotcueNumber(hotcue.hotcueNumber - 1);
     }
     required property var currentTrack
     readonly property bool forwardSpan: cueEndPosition >= cuePosition
@@ -53,7 +53,12 @@ Popup {
         return 0;
     }
 
+    /// Unique id of the popup instance in the scene object tree, used to
+    /// disambiguate objectNames for UI tests
+    readonly property string uid: hotcue.group + "-" + hotcue.hotcueNumber
+
     function convertTo(type) {
+        console.log("HOTCUEPOPUP convertTo requested", type);
         if (!currentTrack || type === hotcue.type)
             return;
         currentTrack.hotcuesModel.convertTypeByHotcueNumber(hotcue.hotcueNumber - 1, type, hotcue.group);
@@ -77,6 +82,7 @@ Popup {
     dim: false
     focus: true
     modal: true
+    objectName: "hotcuePopup" + root.uid
     padding: 0
 
     background: Item {
@@ -88,6 +94,8 @@ Popup {
         // Used to convert between cue positions (engine samples) and
         // waveform pixels together with the waveform's zoom value.
         readonly property real audioVisualRatio: waveformPreviewFull.audioVisualRatio
+
+        objectName: "hotcuePopupContent" + root.uid
 
         Shape {
             property int multiSamplingLevel: Mixxx.Config.multiSamplingLevel
@@ -202,10 +210,11 @@ Popup {
 
                     Layout.fillWidth: true
                     Layout.preferredHeight: 48
+                    objectName: "hotcuePopupWaveform"
 
                     Behavior on zoom {
                         SmoothedAnimation {
-                            duration: 500
+                            duration: 100
                             velocity: -1
                         }
                     }
@@ -221,11 +230,12 @@ Popup {
                             id: waveformPreviewFull
 
                             anchors.fill: parent
+                            objectName: "hotcuePopupWaveformFull"
                             position: {
                                 if (root.trackSamples <= 0)
                                     return 0;
                                 if (waveformPreview.splitView)
-                                    return root.spanStart / root.trackSamples;
+                                    return Math.max(0, root.cuePosition) / root.trackSamples;
                                 if (root.spanCenterPosition < 0)
                                     return 0;
                                 return root.spanCenterPosition / root.trackSamples;
@@ -245,11 +255,12 @@ Popup {
                             id: waveformPreviewPartial
 
                             anchors.fill: parent
+                            objectName: "hotcuePopupWaveformPartial"
                             position: {
                                 if (root.trackSamples <= 0)
                                     return 0;
                                 if (waveformPreview.splitView)
-                                    return root.spanEnd / root.trackSamples;
+                                    return Math.max(0, root.cueEndPosition) / root.trackSamples;
                                 return root.spanCenterPosition / root.trackSamples;
                             }
                             track: root.currentTrack
@@ -263,6 +274,7 @@ Popup {
                         anchors.bottom: parent.bottom
                         anchors.top: parent.top
                         color: hotcue.type === hotcue.typeJump ? Qt.alpha("grey", 0.6) : Qt.alpha(root.hotcue.color, 0.3)
+                        objectName: "hotcuePopupSpanFiller"
                         visible: root.hasSpan && !(waveformPreview.jumpSplitView)
                         width: waveformPreview.splitView ? waveformPreview.width / 2 : waveformPreview.spanWidth
                         x: waveformPreview.splitView ? waveformPreview.width / 4 : parent.width / 2 - width / 2
@@ -273,6 +285,7 @@ Popup {
                         anchors.bottom: parent.bottom
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.top: parent.top
+                        objectName: "hotcuePopupLoopSeam"
                         visible: waveformPreview.splitView && !waveformPreview.jumpSplitView
                         width: 10
 
@@ -300,6 +313,7 @@ Popup {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         height: 3
+                        objectName: "hotcuePopupJumpDivider"
                         visible: waveformPreview.jumpSplitView
 
                         gradient: Gradient {
@@ -326,6 +340,7 @@ Popup {
                     Rectangle {
                         color: loopOrJumpRect.color
                         height: waveformPreview.height / 2
+                        objectName: "hotcuePopupSkipShadeTop"
                         visible: waveformPreview.jumpSplitView
                         width: waveformPreview.width / 2
                         x: parent.width / 2
@@ -334,6 +349,7 @@ Popup {
                     Rectangle {
                         color: loopOrJumpRect.color
                         height: waveformPreview.height / 2
+                        objectName: "hotcuePopupSkipShadeBottom"
                         visible: waveformPreview.jumpSplitView
                         width: waveformPreview.width / 2
                         x: 0
@@ -347,6 +363,7 @@ Popup {
                         height: waveformPreview.jumpSplitView ? parent.height / 2 : parent.height
                         layer.enabled: true
                         layer.samples: 16
+                        objectName: "hotcuePopupStartNotch"
                         visible: root.hotcue.isSet
                         width: 12
                         x: {
@@ -419,6 +436,7 @@ Popup {
                         height: waveformPreview.jumpSplitView ? parent.height / 2 : parent.height
                         layer.enabled: true
                         layer.samples: 16
+                        objectName: "hotcuePopupEndNotch"
                         visible: root.hotcue.isSet && root.hasSpan
                         width: 12
                         x: {
@@ -499,6 +517,7 @@ Popup {
                         anchors.verticalCenter: parent.verticalCenter
                         implicitHeight: 36
                         implicitWidth: 20
+                        objectName: "hotcuePopupSwapButton"
                         visible: waveformPreview.jumpSplitView
 
                         contentItem: Item {
@@ -544,7 +563,7 @@ Popup {
                         }
 
                         onPressed: {
-                            root.hotcue.swapJumpPoints();
+                            root.currentTrack.hotcuesModel.swapPositionsByHotcueNumber(root.hotcue.hotcueNumber - 1);
                         }
                     }
                 }
@@ -554,7 +573,10 @@ Popup {
                     spacing: 1
 
                     Repeater {
+                        id: swatchRepeater
+
                         model: Mixxx.Config.hotcueColorPalette
+                        objectName: "hotcuePopupSwatches"
 
                         Rectangle {
                             id: swatch
@@ -566,12 +588,14 @@ Popup {
 
                                 return Qt.color(currentColor).toString() === Qt.color(swatch.modelData).toString();
                             }
+                            required property int index
                             required property color modelData
 
                             border.color: Theme.hotcuePopupTextColor
                             border.width: checked ? 2 : 0
                             color: swatch.modelData
                             height: 24
+                            objectName: "hotcuePopupSwatch_" + index
                             radius: 1
                             width: 24
 
@@ -581,9 +605,14 @@ Popup {
                                 size: 6
                                 visible: checked
                             }
-                            TapHandler {
-                                onTapped: {
-                                    root.hotcue.setColor(swatch.modelData);
+                            MouseArea {
+                                acceptedButtons: Qt.LeftButton
+                                anchors.fill: parent
+
+                                onClicked: mouse => {
+                                    if (mouse.button === Qt.LeftButton) {
+                                        root.hotcue.setColor(swatch.modelData);
+                                    }
                                 }
                             }
                         }
@@ -605,6 +634,7 @@ Popup {
                                 activeColor: Theme.deckActiveColor
                                 implicitHeight: 22
                                 implicitWidth: 20
+                                objectName: "hotcuePopupTypePrev"
 
                                 contentItem: Item {
                                     anchors.fill: parent
@@ -645,12 +675,11 @@ Popup {
                             Skin.Button {
                                 id: typeLabel
 
-                                highlight: controlBehavior.isActive
-
                                 Layout.fillWidth: true
                                 Layout.leftMargin: 0
                                 Layout.rightMargin: 0
                                 implicitHeight: 22
+                                objectName: "hotcuePopupTypeLabel"
                                 text: root.cueTypes[root.typeIndex].name
                             }
                             Skin.Button {
@@ -659,6 +688,7 @@ Popup {
                                 activeColor: Theme.deckActiveColor
                                 implicitHeight: 22
                                 implicitWidth: 20
+                                objectName: "hotcuePopupTypeNext"
 
                                 contentItem: Item {
                                     anchors.fill: parent
@@ -711,11 +741,12 @@ Popup {
                         property string pendingLabel: ""
 
                         function commit() {
-                            if (pendingLabel === "") {
+                            const label = pendingLabel !== "" ? pendingLabel : text;
+                            if (label === "") {
                                 return;
                             }
                             if (root.currentTrack) {
-                                root.currentTrack.hotcuesModel.setLabelByHotcueNumber(root.hotcue.hotcueNumber - 1, pendingLabel);
+                                root.currentTrack.hotcuesModel.setLabelByHotcueNumber(root.hotcue.hotcueNumber - 1, label);
                             }
                             pendingLabel = "";
                         }
@@ -730,6 +761,7 @@ Popup {
                         // then the placeholder asks for confirmation and
                         // Enter (or clicking away inside the popup) commits
                         color: "#111111"
+                        objectName: "hotcuePopupLabelField"
                         placeholderText: pendingLabel !== "" ? qsTr("Click to confirm") : (root.currentCue?.label ?? qsTr("Label..."))
                         selectedTextColor: "#000000"
                         selectionColor: Theme.hotcuePopupInputSelectionBackgroundColor
@@ -760,6 +792,7 @@ Popup {
 
                         Layout.preferredHeight: 24
                         Layout.preferredWidth: 24
+                        objectName: "hotcuePopupDeleteButton"
 
                         background: Rectangle {
                             color: deleteButton.hovered ? Theme.hotcuePopupDeleteHoverColor : "transparent"
