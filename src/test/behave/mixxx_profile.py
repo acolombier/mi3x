@@ -273,7 +273,7 @@ class MixxxProcess:
         # 0xC0000005, an access violation); the hex form makes them readable.
         return f"{code} (0x{code & 0xFFFFFFFF:08X})"
 
-    def start(self, timeout=20):
+    def start(self, timeout=45):
         env = os.environ.copy()
         if self.display:
             env["DISPLAY"] = self.display
