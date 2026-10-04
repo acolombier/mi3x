@@ -37,12 +37,6 @@ void updateTypeAndColorIfDefault(
         Cue* pCue,
         CueType newType);
 
-/// The index of the "default" color for the given cue type, or an empty
-/// optional when no custom default color is configured.
-std::optional<int> getDefaultColorIndex(
-        UserSettingsPointer pConfig,
-        CueType type);
-
 } // namespace cueconversion
 
 } // namespace mixxx
