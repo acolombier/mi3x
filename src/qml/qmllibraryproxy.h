@@ -5,6 +5,7 @@
 #include <QQmlEngine>
 #include <QString>
 #include <QUrl>
+#include <QVariantMap>
 #include <Qt>
 #include <memory>
 
@@ -12,6 +13,7 @@
 #include "library/scanner/libraryscanner.h"
 #include "qml/qmllibrarysource.h"
 #include "qml/qmllibrarytracklistmodel.h"
+#include "qml/qmlsearchsuggestionmodel.h"
 #include "util/parented_ptr.h"
 
 class Library;
@@ -90,6 +92,8 @@ class QmlLibraryProxy : public QObject {
     Q_PROPERTY(mixxx::qml::QmlLibraryTrackListModel* model MEMBER m_pModelProperty CONSTANT)
     Q_PROPERTY(QQmlListProperty<mixxx::qml::QmlLibrarySource> sources READ sources CONSTANT)
     Q_PROPERTY(mixxx::qml::QmlLibraryScannerProxy* scanner MEMBER m_pScanner CONSTANT)
+    Q_PROPERTY(mixxx::qml::QmlSearchSuggestionModel* searchSuggestions MEMBER
+                    m_pSearchSuggestions CONSTANT)
     QML_NAMED_ELEMENT(Library)
     QML_SINGLETON
 
@@ -145,6 +149,7 @@ class QmlLibraryProxy : public QObject {
     Q_INVOKABLE static QString urlToLocalPath(const QUrl& url) {
         return url.toLocalFile();
     }
+    Q_INVOKABLE QVariantMap parseRecentSearchQuery(const QString& query) const;
 
     static void registerKeyboardEventFilter(std::shared_ptr<KeyboardEventFilter> pKeyboard) {
         s_pKeyboard = std::move(pKeyboard);
@@ -180,6 +185,7 @@ class QmlLibraryProxy : public QObject {
     /// This needs to be a plain pointer because it's used as a `Q_PROPERTY` member variable.
     QmlLibraryTrackListModel* m_pModelProperty;
     QmlLibraryScannerProxy* m_pScanner;
+    QmlSearchSuggestionModel* m_pSearchSuggestions;
 
     static qsizetype sources_count(QQmlListProperty<QmlLibrarySource>* property);
     static QmlLibrarySource* sources_at(
