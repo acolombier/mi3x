@@ -20,9 +20,7 @@ const ConfigKey kHotcueDefaultColorIndexConfigKey("[Controls]", "HotcueDefaultCo
 const ConfigKey kLoopDefaultColorIndexConfigKey("[Controls]", "LoopDefaultColorIndex");
 const ConfigKey kJumpDefaultColorIndexConfigKey("[Controls]", "jump_default_color_index");
 
-} // namespace
-
-std::optional<int> cueconversion::getDefaultColorIndex(
+std::optional<int> getDefaultColorIndex(
         UserSettingsPointer pConfig, CueType type) {
     switch (type) {
     case CueType::Loop:
@@ -33,6 +31,8 @@ std::optional<int> cueconversion::getDefaultColorIndex(
         return pConfig->getValue(kHotcueDefaultColorIndexConfigKey, -1);
     }
 }
+
+} // namespace
 
 void updateTypeAndColorIfDefault(
         UserSettingsPointer pConfig, Cue* pCue, CueType newType) {
