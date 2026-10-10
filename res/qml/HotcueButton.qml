@@ -18,7 +18,7 @@ Item {
     Skin.Hotcue {
         id: hotcue
 
-        activate: activator.pressedButtons == Qt.LeftButton
+        activate: activator.pressed
         group: root.group
         hotcueNumber: root.hotcueNumber
 
@@ -39,17 +39,15 @@ Item {
         anchors.fill: parent
         color: hotcue.isSet ? hotcue.color : '#2B2B2B'
 
-        MouseArea {
+        TapHandler {
+            acceptedButtons: Qt.RightButton
+            onTapped: (eventPoint, button) => popup.openFrom(root)
+            onLongPressed: () => popup.openFrom(root)
+        }
+
+        TapHandler {
             id: activator
-
-            acceptedButtons: Qt.LeftButton | Qt.RightButton
-            anchors.fill: parent
-
-            onClicked: mouse => {
-                if (mouse.button === Qt.RightButton) {
-                    popup.openFrom(root);
-                }
-            }
+            acceptedButtons: Qt.LeftButton
         }
     }
     DropShadow {

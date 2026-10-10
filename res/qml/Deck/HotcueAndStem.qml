@@ -361,6 +361,7 @@ Item {
         anchors.top: parent.top
         spacing: 10
         width: stemCountControl.value > 0 ? 36 : 0
+        visible: width > 0
 
         Behavior on width {
             SpringAnimation {
