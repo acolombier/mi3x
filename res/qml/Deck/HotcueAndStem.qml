@@ -108,7 +108,7 @@ Item {
                 Repeater {
                     model: 8
 
-                    Item {
+                    Skin.HotcueButton {
                         required property int index
                         objectName: "hotcue_" + (index + 1)
 
@@ -116,56 +116,14 @@ Item {
                         Layout.fillHeight: true
                         Layout.fillWidth: true
                         Layout.row: parseInt(index / 4)
-
-                        Skin.Hotcue {
-                            id: hotcue
-
-                            readonly property var label: isSet ? root.currentTrack.hotcuesModel.get(index).label : null
-
-                            activate: activator.pressedButtons == Qt.LeftButton
-                            // onIsSetChanged: {
-                            //     if (!isSet)
-                            //         popup.close();
-                            // }
-                            group: root.group
-                            hotcueNumber: index + 1
-                        }
-                        Rectangle {
-                            id: backgroundImage
-
-                            anchors.fill: parent
-                            color: hotcue.isSet ? hotcue.color : '#2B2B2B'
-                            radius: 1
-                            border {
-                                color: '#1C1C1C'
-                                width: 1
-                            }
-
-                            MouseArea {
-                                id: activator
-
-                                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                anchors.fill: parent
-                            }
-                        }
-                        ColumnLayout {
-                            anchors.centerIn: backgroundImage
-                            spacing: 0
-
-                            Label {
-                                Layout.alignment: Qt.AlignHCenter
-                                color: "#626262"
-                                font.pixelSize: 14
-                                font.weight: Font.Bold
-                                text: `${index + 1}`
-                            }
-                            Label {
-                                Layout.alignment: Qt.AlignHCenter
-                                color: "#626262"
-                                font.pixelSize: 12
-                                text: hotcue.label ?? ""
-                                visible: hotcue.label
-                            }
+                        currentTrack: root.currentTrack
+                        group: root.group
+                        hotcueNumber: index + 1
+                        label: {
+                            // Referenced to re-evaluate the binding when the
+                            // cue data changes (e.g. label edited via popup)
+                            root.currentTrack?.hotcuesModel.revision;
+                            return root.currentTrack?.hotcuesModel.get(index)?.label;
                         }
                     }
                 }
@@ -403,6 +361,7 @@ Item {
         anchors.top: parent.top
         spacing: 10
         width: stemCountControl.value > 0 ? 36 : 0
+        visible: width > 0
 
         Behavior on width {
             SpringAnimation {
