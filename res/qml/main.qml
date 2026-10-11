@@ -1,5 +1,6 @@
 import "." as Skin
 import Mixxx 1.0 as Mixxx
+import Mixxx.Controls 1.0 as MixxxControls
 import QtQuick 2.12
 import QtQuick.Controls
 import QtQuick.Window 2.12
@@ -10,6 +11,11 @@ ApplicationWindow {
 
     readonly property int designHeight: 1008
     readonly property int designWidth: 1792
+
+    // Window-wide gesture router, reachable from anywhere via
+    // Window.window.touchHub. It lives at the bottom of the scene so it only
+    // sees presses that nothing else accepted.
+    readonly property alias touchHub: touchHubArea
 
     // Used to show click interaction on the Window. Mainly relevant on automated testing
     property bool enableDiagnosticClick: false
@@ -33,6 +39,12 @@ ApplicationWindow {
         }
 
         target: Mixxx.Core
+    }
+    MixxxControls.TouchHub {
+        id: touchHubArea
+
+        anchors.fill: parent
+        z: -1
     }
     Loader {
         id: content
