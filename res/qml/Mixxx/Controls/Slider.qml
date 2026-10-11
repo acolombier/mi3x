@@ -36,11 +36,11 @@ Item {
     readonly property real availableWidth: Math.max(0, width - leftPadding - rightPadding)
     readonly property bool horizontal: orientation === Qt.Horizontal
     readonly property real position: valueToPosition(displayValue)
-    readonly property bool pressed: dragHandler.active
+    readonly property bool pressed: dragHandler.active || dragArea.active
     readonly property bool vertical: orientation === Qt.Vertical
     readonly property real visualPosition: vertical ? 1 - position : position
 
-    readonly property real displayValue: dragHandler.active ? dragHandler.value : value
+    readonly property real displayValue: dragArea.active ? dragArea.dragValue : dragHandler.active ? dragHandler.value : value
 
     signal moved(real value)
 
@@ -79,9 +79,11 @@ Item {
     }
 
     function applyInteractiveValue(targetValue, isFinal) {
-        dragHandler.value = clamp(snapValue(targetValue, isFinal));
+        value = clamp(snapValue(targetValue, isFinal));
+        dragHandler.value = value;
+        dragArea.dragValue = value;
         if (root.live || isFinal) {
-            root.moved(dragHandler.value);
+            root.moved(value);
         }
     }
 
@@ -140,6 +142,8 @@ Item {
         }
     }
 
+    // Mouse-only gesture path; finger touches are routed through the
+    // window-wide TouchHub reached via the TouchClient below.
     DragHandler {
         id: dragHandler
 
@@ -150,6 +154,7 @@ Item {
         acceptedButtons: Qt.LeftButton
         enabled: root.enabled && !Mixxx.Core.hasPopup
         target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         dragThreshold: 0
         maximumPointCount: 1
         minimumPointCount: 1
@@ -178,6 +183,50 @@ Item {
     Binding on value {
         value: dragHandler.value
         when: dragHandler.active && root.live
+    }
+    TouchClient {
+        id: dragArea
+
+        property real dragValue
+        property bool dragged: false
+
+        anchors.fill: parent
+        gestureEnabled: root.enabled && !Mixxx.Core.hasPopup
+        sourceItem: root
+
+        onGestureCancelled: {
+            if (dragged && (!root.live || root.snapMode === Slider.SnapOnRelease)) {
+                root.applyInteractiveValue(dragValue, true);
+            }
+            dragged = false;
+        }
+        onMovedAt: (dx, dy, x, y) => {
+            const diff = root.horizontal ? dx : -dy;
+            if (diff === 0) {
+                return;
+            }
+            dragged = true;
+            const length = Math.max(1, root.horizontal ? root.availableWidth : root.availableHeight);
+            dragValue = root.clamp(root.snapValue(dragValue + (diff / length) * (root.to - root.from), false));
+            if (root.live) {
+                root.moved(dragValue);
+            }
+        }
+        onPressedAt: (x, y) => {
+            root.forceActiveFocus();
+            dragValue = root.value;
+            dragged = false;
+        }
+        onReleasedAt: (x, y) => {
+            if (dragged && (!root.live || root.snapMode === Slider.SnapOnRelease)) {
+                root.applyInteractiveValue(dragValue, true);
+            }
+            dragged = false;
+        }
+    }
+    Binding on value {
+        value: dragArea.dragValue
+        when: dragArea.active && root.live
     }
 
     MouseArea {
