@@ -51,7 +51,7 @@ Item {
         let data = {
             "mixxx/player": group
         };
-        const trackLocationUrl = currentTrack.trackLocationUrl;
+        const trackLocationUrl = currentTrack?.trackLocationUrl;
         if (trackLocationUrl)
             data["text/uri-list"] = trackLocationUrl;
 

@@ -41,6 +41,12 @@ ApplicationWindow {
 
         active: Mixxx.Core.ready
         asynchronous: true
+        onStatusChanged: {
+            if (status === Loader.Error) {
+                console.error("Failed to load the Mixxx main window")
+                Qt.quit()
+            }
+        }
         sourceComponent: Component {
             MainWindow {
                 enableDiagnosticClick: root.enableDiagnosticClick

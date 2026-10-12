@@ -104,7 +104,7 @@ Rectangle {
         // enabled: false
         enabled: Qt.platform.os !== "android" && !Mixxx.Core.hasPopup
         onActiveChanged: {
-            root.Drag.imageSource = cover_art
+            root.Drag.imageSource = cover_art ?? ""
             root.Drag.active = true
             if (active) {
                 trackData.view.selectionModel.selectRow(row);
