@@ -159,7 +159,7 @@ Category {
                         onSelect: {
                             console.log("[Broadcast] select:", modelData); // TEMP probe
                             if (String(modelData) == root.selectedProfileId) {
-                                root.selectedProfileId = null
+                                root.selectedProfileId = null;
                             } else {
                                 root.selectedProfileId = String(modelData);
                             }
@@ -468,13 +468,13 @@ Category {
                 anchors.bottomMargin: 16
                 anchors.right: parent.right
                 anchors.rightMargin: 12
+                checkable: true
+                checked: cardRoot.focused
                 icon.height: 16
                 icon.source: "images/gear.svg"
                 icon.width: 16
                 implicitWidth: implicitHeight
                 objectName: "broadcastProfileGear_" + cardRoot.profile?.name
-                checked: cardRoot.focused
-                checkable: true
 
                 onPressed: {
                     cardRoot.select();
@@ -547,201 +547,202 @@ Category {
                                 rowSpacing: 15
                                 uniformCellWidths: true
 
-
-                        RowLayout {Mixxx.SettingParameter {
-                                    Layout.alignment: Qt.AlignVCenter
-                                    Layout.minimumWidth: hostLabel.implicitWidth
-                                    label: "Host"
-
-                                    Text {
-                                        id: hostLabel
-
-                                        anchors.bottom: parent.bottom
-                                        anchors.top: parent.top
-                                        color: Theme.white
-                                        elide: Text.ElideRight
-                                        font.pixelSize: 14
-                                        font.weight: Font.Medium
-                                        horizontalAlignment: Text.AlignLeft
-                                        text: parent.label
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-                                Skin.InputField {
-                                    Layout.fillWidth: true
-                                    Layout.minimumHeight: 26
-                                    input.text: cardRoot.profile?.host ?? ""
-                                    objectName: "broadcastHost"
-
-                                    input.onAccepted: {
-                                        root.setProfileValue(cardRoot.profile, "host", input.text);
-                                        input.focus = false;
-                                    }
-                                }
-                            }
-
-                        RowLayout {Mixxx.SettingParameter {
-                                    Layout.alignment: Qt.AlignVCenter
-                                    Layout.minimumWidth: portLabel.implicitWidth
-                                    label: "Port"
-
-                                    Text {
-                                        id: portLabel
-
-                                        anchors.bottom: parent.bottom
-                                        anchors.top: parent.top
-                                        color: Theme.white
-                                        elide: Text.ElideRight
-                                        font.pixelSize: 14
-                                        font.weight: Font.Medium
-                                        horizontalAlignment: Text.AlignLeft
-                                        text: parent.label
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-                                Skin.InputField {
-                                    Layout.preferredWidth: 120
-                                    Layout.minimumHeight: 26
-                                    input.text: cardRoot.profile?.port ?? ""
-                                    objectName: "broadcastPort"
-
-                                    input.onAccepted: {
-                                        root.setProfileValue(cardRoot.profile, "port", parseInt(input.text));
-                                        input.focus = false;
-                                    }
-                                }
-                                }
-
-                        RowLayout {Mixxx.SettingParameter {
-                                    Layout.alignment: Qt.AlignVCenter
-                                    Layout.minimumWidth: loginLabel.implicitWidth
-                                    label: "Login"
-
-                                    Text {
-                                        id: loginLabel
-
-                                        anchors.bottom: parent.bottom
-                                        anchors.top: parent.top
-                                        color: Theme.white
-                                        elide: Text.ElideRight
-                                        font.pixelSize: 14
-                                        font.weight: Font.Medium
-                                        horizontalAlignment: Text.AlignLeft
-                                        text: parent.label
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-                                Skin.InputField {
-                                    Layout.fillWidth: true
-                                    Layout.minimumHeight: 26
-                                    input.text: cardRoot.profile?.login ?? ""
-                                    objectName: "broadcastLogin"
-
-                                    input.onAccepted: {
-                                        root.setProfileValue(cardRoot.profile, "login", input.text);
-                                        input.focus = false;
-                                    }
-                                }
-                                }
-
-                        RowLayout {Mixxx.SettingParameter {
-                                    Layout.alignment: Qt.AlignVCenter
-                                    Layout.minimumWidth: passwordLabel.implicitWidth
-                                    label: "Password"
-
-                                    Text {
-                                        id: passwordLabel
-
-                                        anchors.bottom: parent.bottom
-                                        anchors.top: parent.top
-                                        color: Theme.white
-                                        elide: Text.ElideRight
-                                        font.pixelSize: 14
-                                        font.weight: Font.Medium
-                                        horizontalAlignment: Text.AlignLeft
-                                        text: parent.label
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
                                 RowLayout {
-                                    Layout.fillWidth: true
+                                    Mixxx.SettingParameter {
+                                        Layout.alignment: Qt.AlignVCenter
+                                        Layout.minimumWidth: hostLabel.implicitWidth
+                                        label: "Host"
+
+                                        Text {
+                                            id: hostLabel
+
+                                            anchors.bottom: parent.bottom
+                                            anchors.top: parent.top
+                                            color: Theme.white
+                                            elide: Text.ElideRight
+                                            font.pixelSize: 14
+                                            font.weight: Font.Medium
+                                            horizontalAlignment: Text.AlignLeft
+                                            text: parent.label
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                    }
                                     Skin.InputField {
                                         Layout.fillWidth: true
                                         Layout.minimumHeight: 26
-                                        input.echoMode: TextInput.Password
-                                        input.text: cardRoot.profile?.password ?? ""
-                                        objectName: "broadcastPassword"
+                                        input.text: cardRoot.profile?.host ?? ""
+                                        objectName: "broadcastHost"
 
                                         input.onAccepted: {
-                                            root.setProfileValue(cardRoot.profile, "password", input.text);
+                                            root.setProfileValue(cardRoot.profile, "host", input.text);
                                             input.focus = false;
                                         }
                                     }
-                                    // Small lock toggle instead of the legacy
-                                    // "Plain text / OS keychain" radio pair.
-                                    Skin.Button {
-                                        activeColor: Theme.white
-                                        checkable: true
-                                        objectName: "broadcastPasswordInKeychain"
-                                        text: checked ? "keychain" : "plain text"
+                                }
+                                RowLayout {
+                                    Mixxx.SettingParameter {
+                                        Layout.alignment: Qt.AlignVCenter
+                                        Layout.minimumWidth: portLabel.implicitWidth
+                                        label: "Port"
 
-                                        Component.onCompleted: {
-                                            checked = cardRoot.profile?.passwordInKeychain === "on";
-                                        }
-                                        onCheckedChanged: {
-                                            root.setProfileValue(cardRoot.profile, "passwordInKeychain", checked ? "on" : "off");
+                                        Text {
+                                            id: portLabel
+
+                                            anchors.bottom: parent.bottom
+                                            anchors.top: parent.top
+                                            color: Theme.white
+                                            elide: Text.ElideRight
+                                            font.pixelSize: 14
+                                            font.weight: Font.Medium
+                                            horizontalAlignment: Text.AlignLeft
+                                            text: parent.label
+                                            verticalAlignment: Text.AlignVCenter
                                         }
                                     }
-                                }
-                                }
+                                    Skin.InputField {
+                                        Layout.minimumHeight: 26
+                                        Layout.preferredWidth: 120
+                                        input.text: cardRoot.profile?.port ?? ""
+                                        objectName: "broadcastPort"
 
-                        RowLayout {Mixxx.SettingParameter {
-                                    Layout.alignment: Qt.AlignVCenter
-                                    Layout.minimumWidth: reconnectLabel.implicitWidth
-                                    label: "Auto reconnect"
-
-                                    Text {
-                                        id: reconnectLabel
-
-                                        anchors.bottom: parent.bottom
-                                        anchors.top: parent.top
-                                        color: Theme.white
-                                        elide: Text.ElideRight
-                                        font.pixelSize: 14
-                                        font.weight: Font.Medium
-                                        horizontalAlignment: Text.AlignLeft
-                                        text: parent.label
-                                        verticalAlignment: Text.AlignVCenter
+                                        input.onAccepted: {
+                                            root.setProfileValue(cardRoot.profile, "port", parseInt(input.text));
+                                            input.focus = false;
+                                        }
                                     }
                                 }
                                 RowLayout {
-                                    RatioChoice {
-                                        inactiveColor: Theme.darkGray4
-                                        maxWidth: reconnectPeriodBox.width + 120
-                                        objectName: "broadcastReconnect"
-                                        options: ["on", "off"]
-                                        selected: cardRoot.profile?.reconnect ?? "on"
+                                    Mixxx.SettingParameter {
+                                        Layout.alignment: Qt.AlignVCenter
+                                        Layout.minimumWidth: loginLabel.implicitWidth
+                                        label: "Login"
 
-                                        onSelectedChanged: root.setProfileValue(cardRoot.profile, "reconnect", selected)
+                                        Text {
+                                            id: loginLabel
+
+                                            anchors.bottom: parent.bottom
+                                            anchors.top: parent.top
+                                            color: Theme.white
+                                            elide: Text.ElideRight
+                                            font.pixelSize: 14
+                                            font.weight: Font.Medium
+                                            horizontalAlignment: Text.AlignLeft
+                                            text: parent.label
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
                                     }
-                                    SettingComponents.SpinBox {
-                                        id: reconnectPeriodBox
+                                    Skin.InputField {
+                                        Layout.fillWidth: true
+                                        Layout.minimumHeight: 26
+                                        input.text: cardRoot.profile?.login ?? ""
+                                        objectName: "broadcastLogin"
 
-                                        enabled: cardRoot.profile?.reconnect === "on"
-                                        max: 3600
-                                        min: 0
-                                        objectName: "broadcastReconnectPeriod"
-                                        suffix: " s"
-
-                                        // Internal SpinBox value scale is
-                                        // decimalFactor-aware (decimals: 1).
-                                        value: Math.round((cardRoot.profile?.reconnectPeriod ?? 5.0) * decimalFactor)
-
-                                        onValueChanged: {
-                                            root.setProfileValue(cardRoot.profile, "reconnectPeriod", value / decimalFactor);
+                                        input.onAccepted: {
+                                            root.setProfileValue(cardRoot.profile, "login", input.text);
+                                            input.focus = false;
                                         }
                                     }
                                 }
+                                RowLayout {
+                                    Mixxx.SettingParameter {
+                                        Layout.alignment: Qt.AlignVCenter
+                                        Layout.minimumWidth: passwordLabel.implicitWidth
+                                        label: "Password"
+
+                                        Text {
+                                            id: passwordLabel
+
+                                            anchors.bottom: parent.bottom
+                                            anchors.top: parent.top
+                                            color: Theme.white
+                                            elide: Text.ElideRight
+                                            font.pixelSize: 14
+                                            font.weight: Font.Medium
+                                            horizontalAlignment: Text.AlignLeft
+                                            text: parent.label
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                    }
+                                    RowLayout {
+                                        Layout.fillWidth: true
+
+                                        Skin.InputField {
+                                            Layout.fillWidth: true
+                                            Layout.minimumHeight: 26
+                                            input.echoMode: TextInput.Password
+                                            input.text: cardRoot.profile?.password ?? ""
+                                            objectName: "broadcastPassword"
+
+                                            input.onAccepted: {
+                                                root.setProfileValue(cardRoot.profile, "password", input.text);
+                                                input.focus = false;
+                                            }
+                                        }
+                                        // Small lock toggle instead of the legacy
+                                        // "Plain text / OS keychain" radio pair.
+                                        Skin.Button {
+                                            activeColor: Theme.white
+                                            checkable: true
+                                            objectName: "broadcastPasswordInKeychain"
+                                            text: checked ? "keychain" : "plain text"
+
+                                            Component.onCompleted: {
+                                                checked = cardRoot.profile?.passwordInKeychain === "on";
+                                            }
+                                            onCheckedChanged: {
+                                                root.setProfileValue(cardRoot.profile, "passwordInKeychain", checked ? "on" : "off");
+                                            }
+                                        }
+                                    }
+                                }
+                                RowLayout {
+                                    Mixxx.SettingParameter {
+                                        Layout.alignment: Qt.AlignVCenter
+                                        Layout.minimumWidth: reconnectLabel.implicitWidth
+                                        label: "Auto reconnect"
+
+                                        Text {
+                                            id: reconnectLabel
+
+                                            anchors.bottom: parent.bottom
+                                            anchors.top: parent.top
+                                            color: Theme.white
+                                            elide: Text.ElideRight
+                                            font.pixelSize: 14
+                                            font.weight: Font.Medium
+                                            horizontalAlignment: Text.AlignLeft
+                                            text: parent.label
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                    }
+                                    RowLayout {
+                                        RatioChoice {
+                                            inactiveColor: Theme.darkGray4
+                                            maxWidth: reconnectPeriodBox.width + 120
+                                            objectName: "broadcastReconnect"
+                                            options: ["on", "off"]
+                                            selected: cardRoot.profile?.reconnect ?? "on"
+
+                                            onSelectedChanged: root.setProfileValue(cardRoot.profile, "reconnect", selected)
+                                        }
+                                        SettingComponents.SpinBox {
+                                            id: reconnectPeriodBox
+
+                                            enabled: cardRoot.profile?.reconnect === "on"
+                                            max: 3600
+                                            min: 0
+                                            objectName: "broadcastReconnectPeriod"
+                                            suffix: " s"
+
+                                            // Internal SpinBox value scale is
+                                            // decimalFactor-aware (decimals: 1).
+                                            value: Math.round((cardRoot.profile?.reconnectPeriod ?? 5.0) * decimalFactor)
+
+                                            onValueChanged: {
+                                                root.setProfileValue(cardRoot.profile, "reconnectPeriod", value / decimalFactor);
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -801,9 +802,9 @@ Category {
                                     }
                                 }
                                 Skin.InputField {
+                                    Layout.columnSpan: 3
                                     Layout.fillWidth: true
                                     Layout.minimumHeight: 26
-                                    Layout.columnSpan: 3
                                     input.text: cardRoot.profile?.streamName ?? ""
                                     objectName: "broadcastStreamName"
 
@@ -867,8 +868,8 @@ Category {
                                     }
                                 }
                                 Skin.ComboBox {
-                                    Layout.minimumWidth: 100
                                     Layout.alignment: Qt.AlignRight
+                                    Layout.minimumWidth: 100
                                     currentIndex: model.indexOf(cardRoot.profile?.format)
                                     model: ["MP3", "Ogg Vorbis", "Opus", "AAC", "HE-AAC", "HE-AACv2"]
                                     objectName: "broadcastEncodingFormat"
@@ -897,13 +898,14 @@ Category {
                                     }
                                 }
                                 RatioChoice {
-                                    Layout.minimumWidth: 100
                                     Layout.alignment: Qt.AlignRight
+                                    Layout.minimumWidth: 100
                                     inactiveColor: Theme.darkGray4
                                     maxWidth: streamPane.width * 0.5
                                     objectName: "broadcastEncodingChannels"
                                     options: ["Automatic", "Mono", "Stereo"]
                                     selected: cardRoot.profile?.channels
+
                                     onSelectedChanged: {
                                         root.setProfileValue(cardRoot.profile, "channels", selected);
                                     }
@@ -928,8 +930,8 @@ Category {
                                     }
                                 }
                                 Skin.ComboBox {
-                                    Layout.minimumWidth: 100
                                     Layout.alignment: Qt.AlignRight
+                                    Layout.minimumWidth: 100
                                     currentIndex: model.indexOf(cardRoot.profile?.bitrate)
                                     model: [320, 256, 224, 192, 160, 128, 112, 96, 80, 64, 48, 32]
                                     objectName: "broadcastEncodingBitrate"
@@ -958,9 +960,9 @@ Category {
                                     }
                                 }
                                 Skin.InputField {
+                                    Layout.columnSpan: 3
                                     Layout.fillWidth: true
                                     Layout.minimumHeight: 26
-                                    Layout.columnSpan: 3
                                     input.text: cardRoot.profile?.mount ?? ""
                                     objectName: "broadcastMount"
 
@@ -1181,8 +1183,8 @@ Category {
                                     }
                                 }
                                 Skin.InputField {
-                                    Layout.minimumHeight: 26
                                     Layout.fillWidth: true
+                                    Layout.minimumHeight: 26
                                     input.text: cardRoot.profile?.metadataFormat ?? ""
                                     objectName: "broadcastMetadataFormat"
 
@@ -1211,8 +1213,8 @@ Category {
                                     }
                                 }
                                 Skin.InputField {
-                                    Layout.minimumHeight: 26
                                     Layout.fillWidth: true
+                                    Layout.minimumHeight: 26
                                     input.text: cardRoot.profile?.genre ?? ""
                                     objectName: "broadcastGenre"
 
@@ -1309,8 +1311,9 @@ Category {
                                     }
                                 }
                                 RatioChoice {
-                                    Layout.alignment: Qt.AlignRight
                                     id: broadcastStaticMetadata
+
+                                    Layout.alignment: Qt.AlignRight
                                     inactiveColor: Theme.darkGray4
                                     maxWidth: propertiesPane.width * 0.5
                                     objectName: "broadcastStaticMetadata"
@@ -1320,14 +1323,14 @@ Category {
                                     onSelectedChanged: root.setProfileValue(cardRoot.profile, "staticMetadata", selected)
                                 }
                                 Item {
-                                    visible: parent.columns == 4
                                     Layout.columnSpan: 2
+                                    visible: parent.columns == 4
                                 }
                                 Mixxx.SettingParameter {
-                                    visible: broadcastStaticMetadata.selected === "on"
                                     Layout.alignment: Qt.AlignVCenter
                                     Layout.minimumWidth: staticArtistLabel.implicitWidth
                                     label: "Static artist"
+                                    visible: broadcastStaticMetadata.selected === "on"
 
                                     Text {
                                         id: staticArtistLabel
@@ -1344,23 +1347,22 @@ Category {
                                     }
                                 }
                                 Skin.InputField {
-                                    visible: broadcastStaticMetadata.selected === "on"
-                                    Layout.minimumHeight: 26
                                     Layout.fillWidth: true
+                                    Layout.minimumHeight: 26
                                     input.text: cardRoot.profile?.staticArtist ?? ""
                                     objectName: "broadcastStaticArtist"
+                                    visible: broadcastStaticMetadata.selected === "on"
 
                                     input.onAccepted: {
                                         root.setProfileValue(cardRoot.profile, "staticArtist", input.text);
                                         input.focus = false;
                                     }
                                 }
-
                                 Mixxx.SettingParameter {
-                                    visible: broadcastStaticMetadata.selected === "on"
                                     Layout.alignment: Qt.AlignVCenter
                                     Layout.minimumWidth: staticTitleLabel.implicitWidth
                                     label: "Static title"
+                                    visible: broadcastStaticMetadata.selected === "on"
 
                                     Text {
                                         id: staticTitleLabel
@@ -1377,11 +1379,11 @@ Category {
                                     }
                                 }
                                 Skin.InputField {
-                                    visible: broadcastStaticMetadata.selected === "on"
-                                    Layout.minimumHeight: 26
                                     Layout.fillWidth: true
+                                    Layout.minimumHeight: 26
                                     input.text: cardRoot.profile?.staticTitle ?? ""
                                     objectName: "broadcastStaticTitle"
+                                    visible: broadcastStaticMetadata.selected === "on"
 
                                     input.onAccepted: {
                                         root.setProfileValue(cardRoot.profile, "staticTitle", input.text);
@@ -1393,6 +1395,7 @@ Category {
                     }
                     RowLayout {
                         Layout.fillWidth: true
+
                         Skin.FormButton {
                             Layout.alignment: Qt.AlignRight
                             activeColor: "#999999"
