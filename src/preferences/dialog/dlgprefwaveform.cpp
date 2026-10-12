@@ -414,10 +414,17 @@ void DlgPrefWaveform::slotUpdate() {
             WaveformWidgetFactory::toUntilMarkTextHeightLimitIndex(
                     pFactory->getUntilMarkTextHeightLimit()));
 
+<<<<<<< HEAD
     stemReorderLayerOnChangedCheckBox->setChecked(pFactory->isStemReorderOnChange());
     stemOpacitySpinBox->setValue(pFactory->getStemOpacity());
     stemOutlineOpacitySpinBox->setValue(pFactory->getStemOutlineOpacity());
     stemDisplayModeComboBox->setCurrentIndex(pFactory->isStemSplitTracks() ? 1 : 0);
+=======
+    stemReorderLayerOnChangedCheckBox->setChecked(factory->isStemReorderOnChange());
+    stemOpacitySpinBox->setValue(factory->getStemOpacity());
+    stemOutlineOpacitySpinBox->setValue(factory->getStemOutlineOpacity());
+    stemDisplayModeComboBox->setCurrentIndex(factory->isStemSplitTracks() ? 1 : 0);
+>>>>>>> origin/feat/qml
 
     OverviewType cfgOverviewType =
             m_pConfig->getValue<OverviewType>(kOverviewTypeCfgKey, OverviewType::RGB);
@@ -530,6 +537,7 @@ void DlgPrefWaveform::slotResetToDefaults() {
     playMarkerPositionSlider->setValue(50);
 
     stemDisplayModeComboBox->setCurrentIndex(0);
+<<<<<<< HEAD
 }
 
 void DlgPrefWaveform::notifyQmlWaveformSettingsChanged() {
@@ -538,6 +546,8 @@ void DlgPrefWaveform::notifyQmlWaveformSettingsChanged() {
         mixxx::qml::QmlConfigProxy::notifyWaveformSettingsChanged();
     }
 #endif
+    == == == =
+>>>>>>> origin/feat/qml
 }
 
 void DlgPrefWaveform::slotSetFrameRate(int frameRate) {
@@ -728,7 +738,11 @@ void DlgPrefWaveform::updateStemOptionsEnabled() {
     stemOpacityMainLabel->setEnabled(stemsSupported && enabled);
     stemOpacityOutlineLabel->setEnabled(stemsSupported && enabled);
     stemDisplayModeLabel->setEnabled(stemsSupported && enabled);
+<<<<<<< HEAD
     stemReorderLayerOnChangedCheckBox->setEnabled(stemReorderEnabled);
+=======
+    stemReorderLayerOnChangedCheckBox->setEnabled(stemsSupported && enabled);
+>>>>>>> origin/feat/qml
     stemOpacitySpinBox->setEnabled(stemsSupported && enabled);
     stemOutlineOpacitySpinBox->setEnabled(stemsSupported && enabled);
     stemDisplayModeComboBox->setEnabled(stemsSupported && enabled);
@@ -898,6 +912,10 @@ void DlgPrefWaveform::slotStemDisplayMode(int index) {
     WaveformWidgetFactory::instance()->setStemSplitTracks(index == 1);
     updateStemOptionsEnabled();
     notifyQmlWaveformSettingsChanged();
+}
+
+void DlgPrefWaveform::slotStemDisplayMode(int index) {
+    WaveformWidgetFactory::instance()->setStemSplitTracks(index == 1);
 }
 
 void DlgPrefWaveform::calculateCachedWaveformDiskUsage() {

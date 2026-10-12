@@ -619,7 +619,10 @@ void DlgTrackInfoMulti::addValuesToCommentBox(QSet<QString>& comments) {
 void DlgTrackInfoMulti::showEvent(QShowEvent* pEvent) {
     QDialog::showEvent(pEvent);
     adjustWidgetSizes();
+<<<<<<< HEAD
     maybeMakeDialogScrollable();
+=======
+>>>>>>> origin/feat/qml
 }
 
 void DlgTrackInfoMulti::resizeEvent(QResizeEvent* pEvent) {
@@ -672,6 +675,7 @@ void DlgTrackInfoMulti::adjustWidgetSizes() {
     // use the triple the height of a QLineEdit because they are sized correctly.
     // The editor can expand vertically when the dialog is resized.
     txtComment->setMinimumHeight(txtTrackNumber->geometry().height() * 3);
+<<<<<<< HEAD
 }
 
 void DlgTrackInfoMulti::maybeMakeDialogScrollable() {
@@ -806,6 +810,8 @@ void DlgTrackInfoMulti::maybeMakeDialogScrollable() {
         int overlap = geometry.bottom() - screenAvailableGeometry.bottom();
         move(geometry.x(), top - overlap);
     }
+=======
+>>>>>>> origin/feat/qml
 }
 
 void DlgTrackInfoMulti::saveTracks() {

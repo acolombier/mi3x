@@ -2,12 +2,16 @@
 
 #include <spa/utils/defs.h>
 
+<<<<<<< HEAD
 #include "audio/types.h"
+        == == ==
+        =
+>>>>>>> origin/feat/qml
 #include "sounddevice.h"
 #include "soundio/soundmanagerconfig.h"
 #include "soundio/soundmanagerutil.h"
 
-class SoundManager;
+                class SoundManager;
 class PipewireEnumerator;
 
 class SoundDevicePipewire : public SoundDevice {
@@ -31,7 +35,11 @@ class SoundDevicePipewire : public SoundDevice {
         return m_error.c_str();
     }
 
+<<<<<<< HEAD
     QString getChannelString(ChannelGroup channelGroup, bool input) const override;
+=======
+    QString getChannelString(ChannelGroup channelGroup, bool input) override;
+>>>>>>> origin/feat/qml
     mixxx::audio::SampleRate getDefaultSampleRate() const override;
 
     void writeOutput(float* output, int channel, int framesPerBuffer, int offset = 0);
@@ -41,6 +49,7 @@ class SoundDevicePipewire : public SoundDevice {
             uint32_t outPortId,
             uint32_t inNodeId,
             uint32_t inPortId);
+<<<<<<< HEAD
 
     void setNumInputs(SINT count) {
         m_numInputChannels = mixxx::audio::ChannelCount::fromInt(count);
@@ -48,9 +57,52 @@ class SoundDevicePipewire : public SoundDevice {
 
     void setNumOutputs(SINT count) {
         m_numOutputChannels = mixxx::audio::ChannelCount::fromInt(count);
+=======
+    void registerPort(uint32_t id, const struct spa_dict* props);
+    void unregisterPort(uint32_t id);
+    void registerLink(uint32_t id, spa_direction direction);
+    void unregisterLink(uint32_t id, spa_direction direction);
+
+    std::span<const uint32_t> getInLinks() const {
+        return m_inLinks;
+    }
+
+    std::span<const uint32_t> getOutLinks() const {
+        return m_outLinks;
+    }
+
+    struct Port {
+        std::string getDisplayName() const {
+            return name + channel;
+        }
+
+        uint32_t id;
+        // this is port.name after stripping out channel and delimiter,
+        // and appending a ':' to simplify logic
+        std::string name;
+        // in case port had no recognizable channel, entire name is put
+        // here so SoundDevicePipewire::getChannelString logic works fine
+        std::string channel;
+    };
+
+    std::span<const Port> getInPorts() const {
+        return m_inPorts;
+    }
+
+    std::span<const Port> getOutPorts() const {
+        return m_outPorts;
+>>>>>>> origin/feat/qml
     }
 
   private:
     PipewireEnumerator* m_pEnumerator;
+<<<<<<< HEAD
+=======
+    std::vector<Port> m_inPorts;
+    std::vector<Port> m_outPorts;
+
+    std::vector<uint32_t> m_inLinks;
+    std::vector<uint32_t> m_outLinks;
+>>>>>>> origin/feat/qml
     std::string m_error;
 };

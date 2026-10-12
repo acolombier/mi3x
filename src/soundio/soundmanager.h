@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QHash>
+#include <QJsonArray>
 #include <QList>
 #include <QObject>
 #include <QSharedPointer>
@@ -13,14 +14,18 @@
 #include "preferences/usersettings.h"
 #include "soundio/portaudioenumerator.h"
 #include "soundio/sounddevice.h"
+<<<<<<< HEAD
 #include "soundio/sounddeviceenumerator.h"
+        == == ==
+        =
+>>>>>>> origin/feat/qml
 #include "soundio/sounddevicenetwork.h"
 #include "soundio/sounddevicestatus.h"
 #include "soundio/soundmanagerconfig.h"
 #include "util/cmdlineargs.h"
 #include "util/types.h"
 
-class EngineMixer;
+                class EngineMixer;
 class ControlObject;
 class PipewireEnumerator;
 
@@ -114,6 +119,7 @@ class SoundManager : public QObject {
         m_audioLatencyOverloadCount.set(0);
     }
 
+<<<<<<< HEAD
     void updateDeviceChannels(SoundDevicePointer pDevice);
     bool isPipewireSelected() {
 #ifdef __PIPEWIRE__
@@ -153,6 +159,11 @@ class SoundManager : public QObject {
 
     void loadConfig();
     void invalidateConfig();
+=======
+    // currently only used by pipewire
+    void updateDeviceChannels(SoundDevicePointer pDevice);
+
+>>>>>>> origin/feat/qml
   signals:
     void deviceAdded(SoundDevicePointer pDevice);
     void deviceRemoved(SoundDevicePointer pDevice);
@@ -173,11 +184,25 @@ class SoundManager : public QObject {
   public slots:
     void addDevice(SoundDevicePointer pDevice);
     void removeDevice(SoundDevicePointer pDevice);
+<<<<<<< HEAD
     void devicesEnumerated();
+=======
+
+#ifdef USE_TEST_UI
+    // Injects mock devices from a JSON array for UI testing.
+    // Each element: { "name": "...", "api": "...", "outputChannels": N, "inputChannels": N }
+    void registerMockDevices(const QJsonArray& devices);
+    void clearMockDevices();
 
   private:
-    // Closes all the devices and empties the list of devices we have.
-    void clearDeviceList(bool sleepAfterClosing);
+    bool m_testMockingMode{false};
+#endif
+  >>>>>>> origin / feat / qml
+
+                  private :
+          // Closes all the devices and empties the list of devices we have.
+          void
+          clearDeviceList(bool sleepAfterClosing);
 
     // Closes all the open sound devices. Because multiple soundcards might be
     // open, this method simply runs through the list of all known soundcards
@@ -206,9 +231,20 @@ class SoundManager : public QObject {
     PollingControlProxy m_audioLatencyOverloadCount;
     PollingControlProxy m_audioLatencyOverload;
 
+<<<<<<< HEAD
     std::unique_ptr<SoundDeviceEnumerator> m_pEnumerator;
 
     QSharedPointer<EngineNetworkStream> m_pNetworkStream;
     QSharedPointer<SoundDeviceNetwork> m_pNetworkDevice;
     bool m_pipewireEnabled;
+=======
+    std::unique_ptr<PortAudioEnumerator> m_pPaEnumerator;
+
+#ifdef __PIPEWIRE__
+    std::unique_ptr<PipewireEnumerator> m_pPipewireEnumerator;
+#endif
+
+    QSharedPointer<EngineNetworkStream> m_pNetworkStream;
+    QSharedPointer<SoundDeviceNetwork> m_pNetworkDevice;
+>>>>>>> origin/feat/qml
 };

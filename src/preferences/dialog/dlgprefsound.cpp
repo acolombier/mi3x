@@ -1,8 +1,13 @@
 #include "preferences/dialog/dlgprefsound.h"
 
+<<<<<<< HEAD
 #include <QBoxLayout>
 #include <QCheckBox>
 #include <QGroupBox>
+        == == ==
+        =
+#include <QCheckBox>
+                >>>>>>> origin / feat / qml
 #include <QMessageBox>
 #include <QtDebug>
 #include <algorithm>
@@ -29,7 +34,7 @@
 #include "engine/bufferscalers/rubberbandworkerpool.h"
 #endif
 
-namespace {
+                namespace {
 
 const QString kAppGroup = QStringLiteral("[App]");
 const QString kMasterGroup = QStringLiteral("[Master]");
@@ -39,10 +44,13 @@ const ConfigKey kKeylockMultiThreadingCfgkey =
         ConfigKey(kAppGroup, QStringLiteral("keylock_multithreading"));
 const ConfigKey kPipeWire =
         ConfigKey(kAppGroup, QStringLiteral("pipewire"));
+<<<<<<< HEAD
 const ConfigKey kPipeWirePatchbay =
         ConfigKey(kAppGroup, QStringLiteral("pipewire_patchbay_sync"));
 const ConfigKey kForceBufferSize = ConfigKey(kAppGroup, QStringLiteral("force_buffer_size"));
 const ConfigKey kForceSamplerate = ConfigKey(kAppGroup, QStringLiteral("force_samplerate"));
+=======
+>>>>>>> origin/feat/qml
 
 bool soundItemAlreadyExists(const AudioPath& output, const QWidget& widget) {
     for (const QObject* pObj : widget.children()) {
@@ -125,11 +133,14 @@ DlgPrefSound::DlgPrefSound(QWidget* pParent,
             this,
             &DlgPrefSound::updateDeviceChannels);
 
+<<<<<<< HEAD
     connect(m_pSoundManager.get(),
             &SoundManager::configInvalidated,
             this,
             &DlgPrefSound::invalidateConfig);
 
+=======
+>>>>>>> origin/feat/qml
     apiComboBox->clear();
     apiComboBox->addItem(SoundManagerConfig::kEmptyComboBox,
             SoundManagerConfig::kAPINone);
@@ -228,15 +239,24 @@ DlgPrefSound::DlgPrefSound(QWidget* pParent,
         m_pipewireCheckBox = make_parented<QCheckBox>(this);
         m_pipewireCheckBox->setText(tr("Use PipeWire API"));
 
+<<<<<<< HEAD
         bool pipewireSelected = m_pSoundManager->isPipewireSelected();
         m_pipewireCheckBox->setChecked(pipewireSelected);
         m_pipewireCheckBox->setSizePolicy(QSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed));
         apiComboBox->setDisabled(pipewireSelected);
+=======
+        bool checked = m_pSoundManager->isPipewireSelected();
+        m_pipewireCheckBox->setChecked(checked);
+        apiComboBox->setDisabled(checked);
+
+        m_pipewireCheckBox->setSizePolicy(QSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed));
+>>>>>>> origin/feat/qml
         apiHBox->addWidget(m_pipewireCheckBox.get());
 
         connect(m_pipewireCheckBox,
                 &QCheckBox::toggled,
                 this,
+<<<<<<< HEAD
                 [this](bool) {
                     m_settingsModified = true;
                     QMessageBox::information(this,
@@ -386,6 +406,16 @@ DlgPrefSound::DlgPrefSound(QWidget* pParent,
                                 static_cast<bool>(mismatch));
                     });
         }
+=======
+                [this](bool checked) {
+                    m_settingsModified = true;
+                    if (m_pSoundManager->isPipewireSelected() xor checked) {
+                        QMessageBox::information(this,
+                                tr("Information"),
+                                tr("Mixxx must be restarted for the PipeWire "
+                                   "API selection to take effect."));
+                    } });
+>>>>>>> origin/feat/qml
     }
 #endif
 
@@ -612,7 +642,15 @@ void DlgPrefSound::slotApply() {
         m_bLatencyChanged = false;
     }
 
-    m_bSkipConfigClear = true;
+<<<<<<< HEAD
+=======
+#ifdef __PIPEWIRE__
+    if (CmdlineArgs::Instance().getDeveloper()) {
+        m_pSettings->set(kPipeWire, ConfigValue(m_pipewireCheckBox->isChecked()));
+    }
+#endif
+
+    >>>>>>> origin / feat / qml m_bSkipConfigClear = true;
     loadSettings(); // in case SM decided to change anything it didn't like
     checkLatencyCompensation();
 #ifdef __RUBBERBAND__
@@ -730,6 +768,10 @@ void DlgPrefSound::connectSoundItem(DlgPrefSoundItem* pItem) {
             &DlgPrefSound::deviceChannelsUpdated,
             pItem,
             &DlgPrefSoundItem::updateDeviceChannels);
+<<<<<<< HEAD
+=======
+    connect(this, &DlgPrefSound::deviceRouteUpdated, pItem, &DlgPrefSoundItem::updateDeviceRoute);
+>>>>>>> origin/feat/qml
 }
 
 void DlgPrefSound::insertItem(DlgPrefSoundItem *pItem, QVBoxLayout *pLayout) {
@@ -855,12 +897,16 @@ void DlgPrefSound::loadSettings(const SoundManagerConfig& config) {
 
 #ifdef __PIPEWIRE__
     if (CmdlineArgs::Instance().getDeveloper()) {
+<<<<<<< HEAD
         const bool pipewireSelected = m_pSoundManager->isPipewireSelected();
         m_pipewireCheckBox->setChecked(pipewireSelected);
         if (pipewireSelected) {
             m_forceBufferSize->setChecked(m_pSettings->getValue(kForceBufferSize, false));
             m_forceSamplerate->setChecked(m_pSettings->getValue(kForceSamplerate, false));
         }
+=======
+        m_pipewireCheckBox->setChecked(m_pSoundManager->isPipewireSelected());
+>>>>>>> origin/feat/qml
     }
 #endif
 
@@ -885,11 +931,15 @@ void DlgPrefSound::apiChanged(int index) {
     // TODO(Be): Get the buffer size from JACK and update audioBufferComboBox.
     // PortAudio as off v19.7.0 does not have a way to get the buffer size from JACK.
     bool enable = m_config.getAPI() == SoundManagerConfig::kAPIJack ? false : true;
+<<<<<<< HEAD
 
     if (!m_pSoundManager->isPipewireSelected()) {
         // With PipeWire it depends if samplerate is forced or not
         sampleRateComboBox->setEnabled(enable);
     }
+=======
+    sampleRateComboBox->setEnabled(enable);
+>>>>>>> origin/feat/qml
     deviceSyncComboBox->setEnabled(enable);
     engineClockComboBox->setEnabled(enable);
     updateAudioBufferSizes(sampleRateComboBox->currentIndex());
@@ -1406,10 +1456,13 @@ bool DlgPrefSound::okayToClose() const {
 }
 
 void DlgPrefSound::updateSampleRates(const QList<mixxx::audio::SampleRate>& sampleRates) {
+<<<<<<< HEAD
     int currentIndex = sampleRateComboBox->currentIndex();
     mixxx::audio::SampleRate selectedRate =
             sampleRateComboBox->itemData(currentIndex)
                     .value<mixxx::audio::SampleRate>();
+=======
+>>>>>>> origin/feat/qml
     sampleRateComboBox->clear();
     for (const auto& sampleRate : sampleRates) {
         if (sampleRate.isValid()) {
@@ -1419,6 +1472,7 @@ void DlgPrefSound::updateSampleRates(const QList<mixxx::audio::SampleRate>& samp
                     QVariant::fromValue(sampleRate));
         }
     }
+<<<<<<< HEAD
     auto newIndex = sampleRateComboBox->findData(QVariant::fromValue(selectedRate));
     if (newIndex >= 0) {
         sampleRateComboBox->setCurrentIndex(newIndex);
@@ -1427,4 +1481,6 @@ void DlgPrefSound::updateSampleRates(const QList<mixxx::audio::SampleRate>& samp
 
 void DlgPrefSound::invalidateConfig() {
     m_settingsModified = true;
+=======
+>>>>>>> origin/feat/qml
 }

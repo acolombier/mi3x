@@ -21,7 +21,9 @@ const QString SoundManagerConfig::kAPIDirectSound = QStringLiteral("Windows Dire
 // (https://github.com/PortAudio/portaudio/pull/881), we may have to update this
 const QString SoundManagerConfig::kAPIIosAudio = QStringLiteral("iOS Audio");
 const QString SoundManagerConfig::kAPICoreAudio = QStringLiteral("Core Audio");
+#ifdef __PIPEWIRE__
 const QString SoundManagerConfig::kAPIPipewire = QStringLiteral("PipeWire");
+#endif
 
 const QString SoundManagerConfig::kEmptyComboBox = QStringLiteral("---");
 const unsigned int SoundManagerConfig::kDefaultDeckCount = 2;
@@ -81,11 +83,13 @@ bool SoundManagerConfig::readFromDisk() {
 
     setAPI(rootElement.attribute(xmlAttributeApi));
 
+#ifdef __PIPEWIRE__
     if (m_pSoundManager->isPipewireSelected() and m_api != SoundManagerConfig::kAPIPipewire) {
         // PipeWire check box just changed, current config is useless
         m_doc.clear();
         return false;
     }
+#endif
 
     setSampleRate(mixxx::audio::SampleRate(
             rootElement.attribute(xmlAttributeSampleRate, "0").toUInt()));
@@ -416,6 +420,7 @@ unsigned int SoundManagerConfig::getAudioBufferSizeIndex() const {
 // This reflects the configured value only. In case of JACK the
 // setting of the JACK server is used.
 unsigned int SoundManagerConfig::getFramesPerBuffer() const {
+#ifdef __PIPEWIRE__
     if (m_api == SoundManagerConfig::kAPIPipewire) {
         unsigned int audioBufferSizeIndex = m_audioBufferSizeIndex;
         VERIFY_OR_DEBUG_ASSERT(audioBufferSizeIndex > 0) {
@@ -425,7 +430,9 @@ unsigned int SoundManagerConfig::getFramesPerBuffer() const {
 
         // audioBufferSize combobox contains from 64 to 4096 frames
         return 1 << (audioBufferSizeIndex + 5);
-    } else if (m_api == SoundManagerConfig::kAPIJack) {
+    } else
+#endif
+            if (m_api == SoundManagerConfig::kAPIJack) {
         // in case of jack we configure the frames/period
         if (m_audioBufferSizeIndex ==
                 static_cast<unsigned int>(
@@ -526,14 +533,17 @@ void SoundManagerConfig::loadDefaults(SoundManager* soundManager, unsigned int f
         if (!apiList.isEmpty()) {
 #ifdef __LINUX__
             // Check if PipeWire checkbox selected
+#ifdef __PIPEWIRE__
             if (m_pSoundManager->isPipewireSelected()) {
                 m_api = SoundManagerConfig::kAPIPipewire;
+            } else
+#endif
                 // Check for JACK and use that if it's available, otherwise use ALSA
-            } else if (apiList.contains(SoundManagerConfig::kAPIJack)) {
-                m_api = SoundManagerConfig::kAPIJack;
-            } else {
-                m_api = SoundManagerConfig::kAPIAlsa;
-            }
+                if (apiList.contains(SoundManagerConfig::kAPIJack)) {
+                    m_api = SoundManagerConfig::kAPIJack;
+                } else {
+                    m_api = SoundManagerConfig::kAPIAlsa;
+                }
 #endif
 #ifdef __WINDOWS__
             //Existence of ASIO doesn't necessarily mean you've got ASIO devices

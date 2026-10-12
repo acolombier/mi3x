@@ -20,8 +20,12 @@
 #include "moc_qmlapplication.cpp"
 #include "preferences/configobject.h"
 #include "qml/asyncimageprovider.h"
+<<<<<<< HEAD
 #include "qml/qmlapplicationproxy.h"
 #include "qml/qmlconfigproxy.h"
+        == == ==
+        =
+>>>>>>> origin/feat/qml
 #include "qml/qmlcoreservices.h"
 #include "qml/qmldlgpreferencesproxy.h"
 #include "qml/qmlrecordingproxy.h"
@@ -41,28 +45,32 @@
 #include <QJniObject>
 #endif
 
-Q_IMPORT_QML_PLUGIN(MixxxPlugin)
-Q_IMPORT_QML_PLUGIN(Mixxx_ControlsPlugin)
+                Q_IMPORT_QML_PLUGIN(MixxxPlugin)
+                        Q_IMPORT_QML_PLUGIN(Mixxx_ControlsPlugin)
+#ifdef QT_STATIC
+                                Q_IMPORT_QML_PLUGIN(QtGraphicalEffectsPrivatePlugin)
+                                        Q_IMPORT_QML_PLUGIN(QMultimediaQuickModule)
+#endif
 
-namespace {
-const QString kMainQmlFileName = QStringLiteral("qml/main.qml");
+                                                namespace {
+    const QString kMainQmlFileName = QStringLiteral("qml/main.qml");
 
-QString normalizedColorScheme(const QString& colorScheme) {
-    if (colorScheme.compare(QStringLiteral("Classic"), Qt::CaseInsensitive) == 0) {
-        return QStringLiteral("Classic");
+    QString normalizedColorScheme(const QString& colorScheme) {
+        if (colorScheme.compare(QStringLiteral("Classic"), Qt::CaseInsensitive) == 0) {
+            return QStringLiteral("Classic");
+        }
+        return QStringLiteral("PaleMoon");
     }
-    return QStringLiteral("PaleMoon");
-}
 
-// Converts a (capturing) lambda into a function pointer that can be passed to
-// qmlRegisterSingletonType.
-template<class F>
-auto lambda_to_singleton_type_factory_ptr(F&& f) {
-    static F fn = std::forward<F>(f);
-    return [](QQmlEngine* pEngine, QJSEngine* pScriptEngine) -> QObject* {
-        return fn(pEngine, pScriptEngine);
-    };
-}
+    // Converts a (capturing) lambda into a function pointer that can be passed to
+    // qmlRegisterSingletonType.
+    template<class F>
+    auto lambda_to_singleton_type_factory_ptr(F && f) {
+        static F fn = std::forward<F>(f);
+        return [](QQmlEngine* pEngine, QJSEngine* pScriptEngine) -> QObject* {
+            return fn(pEngine, pScriptEngine);
+        };
+    }
 #if defined(Q_OS_ANDROID)
 // Directories under res/qml/ that are compiled into the binary as QML modules
 // and should not be copied to external storage.
@@ -102,6 +110,10 @@ void copyAssetDir(const QString& src, const QString& dst) {
     }
 }
 #endif
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/feat/qml
 } // namespace
 
 namespace mixxx {
@@ -136,7 +148,7 @@ QmlApplication::QmlApplication(
     }
 #endif
 
-    const QString colorScheme = m_pCoreServices->getSettings()->getValueString(
+    < < < < < < < HEAD const QString colorScheme = m_pCoreServices->getSettings()->getValueString(
             ConfigKey("[Config]", "Scheme"));
     QJSEngine::setObjectOwnership(QmlCoreServices::createInstance(
                                           normalizedColorScheme(colorScheme), this),
@@ -166,6 +178,15 @@ QmlApplication::QmlApplication(
             QmlCoreServices::instance(),
             &QmlCoreServices::setInitializationProgress);
 
+=======
+    QJSEngine::setObjectOwnership(QmlCoreServices::createInstance(this), QJSEngine::CppOwnership);
+
+    m_loadSucceeded = loadQml(m_mainFilePath);
+    if (!m_loadSucceeded && !CmdlineArgs::Instance().getDeveloper()) {
+        return;
+    }
+
+>>>>>>> origin/feat/qml
     m_pCoreServices->initialize(app);
     app->installEventFilter(m_pCoreServices->getKeyboardEventFilter().get());
     registerImageProvider();
@@ -190,7 +211,7 @@ QmlApplication::QmlApplication(
     // is taken and the gate remains in effect as designed.
     const bool viaNewUiFlag = CmdlineArgs::Instance().isQml();
 
-    if (configVersion == VersionStore::FUTURE_UNSTABLE) {
+    if (configVersion == VersionStore::FUTURE_UNSTABLE || configVersion.isEmpty()) {
         qDebug() << "Generating a new user profile for safe testing with unstable code";
     } else if (!viaNewUiFlag) {
         qDebug() << "QmlApplication: QML skin loaded via preferences, "
@@ -345,6 +366,15 @@ QmlApplication::QmlApplication(
     });
     m_guiTickTimer.start(std::chrono::milliseconds(16));
 
+<<<<<<< HEAD
+=======
+    // No memory leak here, the QQmlEngine takes ownership of the provider
+    QQuickAsyncImageProvider* pImageProvider = new AsyncImageProvider(
+            m_pCoreServices->getTrackCollectionManager());
+    m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
+    QmlCoreServices::instance()->setReady();
+
+>>>>>>> origin/feat/qml
     m_pCoreServices->getControllerManager()->setUpDevices();
 
     QmlCoreServices::instance()->setInitializationProgress(65, tr("skin"));
@@ -354,10 +384,14 @@ QmlApplication::QmlApplication(
             &QmlAutoReload::triggered,
             this,
             [this]() {
-                if (!loadQml(m_mainFilePath)) {
+                if (!loadQml(m_mainFilePath) && !CmdlineArgs::Instance().getDeveloper()) {
                     qWarning() << "Auto-reload failed to load QML. Exiting.";
                     QCoreApplication::exit(-1);
                 }
+                // No memory leak here, the QQmlEngine takes ownership of the provider
+                QQuickAsyncImageProvider* pImageProvider = new AsyncImageProvider(
+                        m_pCoreServices->getTrackCollectionManager());
+                m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
             });
 
 #if defined(Q_OS_ANDROID)
@@ -484,14 +518,19 @@ bool QmlApplication::loadQml(const QString& path) {
     m_pAppEngine->addUrlInterceptor(&m_autoReload);
     m_pAppEngine->addImportPath(QStringLiteral(":/mixxx.org/imports"));
 
+<<<<<<< HEAD
     registerImageProvider();
 
+=======
+>>>>>>> origin/feat/qml
     m_pAppEngine->load(path);
     const auto rootObjects = m_pAppEngine->rootObjects();
     if (rootObjects.isEmpty()) {
         qWarning() << "Failed to load QML file" << path;
-        m_pAppEngine.reset();
-        return false;
+        if (!CmdlineArgs::Instance().getDeveloper()) {
+            m_pAppEngine.reset();
+            return false;
+        }
     }
 
     for (auto* item : rootObjects) {

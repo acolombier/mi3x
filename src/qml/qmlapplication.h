@@ -35,6 +35,14 @@ class QmlApplication : public QObject {
         return m_loadSucceeded;
     }
 
+    QQmlApplicationEngine* qmlEngine() const {
+        return m_pAppEngine.get();
+    }
+
+    const QString& mainFilePath() const {
+        return m_mainFilePath;
+    }
+
   public slots:
     bool loadQml(const QString& path);
 

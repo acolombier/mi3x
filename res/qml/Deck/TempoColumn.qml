@@ -1,6 +1,5 @@
 import ".." as Skin
 import Mixxx 1.0 as Mixxx
-import Qt5Compat.GraphicalEffects
 import QtQuick 2.12
 import QtQuick.Controls 2.12
 import QtQuick.Layouts
@@ -40,11 +39,13 @@ ColumnLayout {
                 anchors.fill: parent
 
                 Shape {
+                    property int multiSamplingLevel: Mixxx.Config.multiSamplingLevel
+
                     anchors.centerIn: parent
                     antialiasing: true
                     height: 10
-                    layer.enabled: true
-                    layer.samples: 4
+                    layer.enabled: multiSamplingLevel > 1
+                    layer.samples: multiSamplingLevel
                     width: 12
 
                     ShapePath {
@@ -140,11 +141,13 @@ ColumnLayout {
                 anchors.fill: parent
 
                 Shape {
+                    property int multiSamplingLevel: Mixxx.Config.multiSamplingLevel
+
                     anchors.centerIn: parent
                     antialiasing: true
                     height: 10
-                    layer.enabled: true
-                    layer.samples: 4
+                    layer.enabled: multiSamplingLevel > 1
+                    layer.samples: multiSamplingLevel
                     width: 12
 
                     ShapePath {
@@ -192,6 +195,7 @@ ColumnLayout {
     }
     Skin.SyncButton {
         id: syncButton
+        objectName: "syncButton"
 
         Layout.alignment: Qt.AlignHCenter
         Layout.fillWidth: true
@@ -200,6 +204,7 @@ ColumnLayout {
     }
     Skin.RangeButton {
         id: rangeButton
+        objectName: "rangeButton"
 
         Layout.alignment: Qt.AlignHCenter
         Layout.fillWidth: true

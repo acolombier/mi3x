@@ -225,7 +225,11 @@ void SoundDevice::clearInputBuffer(const SINT framesToPush,
     }
 }
 
+<<<<<<< HEAD
 QString SoundDevice::getChannelString(ChannelGroup channelGroup, bool) const {
+=======
+QString SoundDevice::getChannelString(ChannelGroup channelGroup, bool) {
+>>>>>>> origin/feat/qml
     mixxx::audio::ChannelCount count = channelGroup.getChannelCount();
     unsigned char channelBase = channelGroup.getChannelBase();
     if (count == 1) {

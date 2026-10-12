@@ -1,8 +1,9 @@
 import "." as Skin
+import Mixxx 1.0 as Mixxx
 import QtQuick 2.12
 import QtQuick.Controls 2.12
 import QtQuick.Shapes
-import Qt5Compat.GraphicalEffects
+import QtQuick.Effects
 import "Theme"
 
 ComboBox {
@@ -13,60 +14,121 @@ ComboBox {
     property int popupMaxItem: 6
     property alias popupWidth: popupItem.width
 
+    implicitHeight: 24
+    implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset,
+                            implicitContentWidth + leftPadding + rightPadding)
+
+    leftPadding: 4
+    rightPadding: 6
+
+
     signal activateFooter(int index)
 
-    indicator.width: 20
+    indicator: Item {
+        x: root.mirrored ? root.padding : root.width - width - root.padding
+        y: root.topPadding
+        width: height
+        height: 24
 
-    background: Item {
         Rectangle {
+            anchors {
+                top: parent.top
+                bottom: parent.bottom
+                left: parent.left
+            }
+            width: 1
+            color: root.background.border.color
+        }
+
+        Canvas {
+            width: 12
+            height: 12
+            id: canvas
+            anchors.topMargin: 2
+            anchors.centerIn: parent
+            readonly property real radius: 3
+            contextType: "2d"
+
+            Connections {
+                target: root
+                function onPressedChanged() { canvas.requestPaint(); }
+                function onVisibleChanged() { canvas.requestPaint(); }
+            }
+
+            function roundTriangle(ctx, w, h, inset) {
+                const p = [
+                    { x: 0,     y: 0 },
+                    { x: w,     y: 0 },
+                    { x: w / 2, y: h }
+                ];
+
+                ctx.beginPath();
+
+                for (let i = 0; i < 3; ++i) {
+                    const a = p[(i + 2) % 3];
+                    const b = p[i];
+                    const c = p[(i + 1) % 3];
+
+                    const abx = a.x - b.x, aby = a.y - b.y;
+                    const cbx = c.x - b.x, cby = c.y - b.y;
+
+                    const lab = Math.hypot(abx, aby);
+                    const lcb = Math.hypot(cbx, cby);
+
+                    const ux = abx / lab, uy = aby / lab;
+                    const vx = cbx / lcb, vy = cby / lcb;
+
+                    const angle = Math.acos(ux * vx + uy * vy);
+                    const r = inset * Math.tan(angle / 2);
+
+                    const s = { x: b.x + ux * inset, y: b.y + uy * inset };
+                    const e = { x: b.x + vx * inset, y: b.y + vy * inset };
+
+                    if (i === 0)
+                        ctx.moveTo(s.x, s.y);
+                    else
+                        ctx.lineTo(s.x, s.y);
+
+                    ctx.arcTo(b.x, b.y, e.x, e.y, r);
+                }
+
+                ctx.closePath();
+            }
+
+            onPaint: {
+                context.reset();
+                roundTriangle(context, width, height, radius);
+                context.fillStyle = Qt.alpha(Theme.midGray3, root.enabled ? 1 : 0.3)
+
+                context.fill();
+            }
+        }
+    }
+
+    background: Rectangle {
             id: background
 
-            anchors.fill: parent
-            anchors.margins: 4
+            implicitHeight: root.implicitHeight
             border.color: '#000000'
             border.width: 1
             color: '#232323'
             radius: 4
         }
-        InnerShadow {
-            id: bottomInnerEffect
-
-            anchors.fill: parent
-            color: "#40000000"
-            horizontalOffset: -2
-            radius: 4
-            samples: 16
-            source: background
-            spread: 0.3
-            verticalOffset: -2
-        }
-        InnerShadow {
-            id: topInnerEffect
-
-            anchors.fill: parent
-            color: "#40000000"
-            horizontalOffset: 2
-            radius: 4
-            samples: 16
-            source: bottomInnerEffect
-            spread: 0.3
-            verticalOffset: 2
-        }
-        DropShadow {
-            anchors.fill: parent
-            color: "#40000000"
-            horizontalOffset: 0
-            radius: 4.0
-            source: topInnerEffect
-            verticalOffset: 0
-        }
-    }
+        // MultiEffect {
+        //     anchors.fill: parent
+        //     source: background
+        //     shadowEnabled: true
+        //     shadowColor: "#40000000"
+        //     shadowBlur: 0.06
+        // }
+    // }
     contentItem: Text {
         clip: root.clip
         color: Theme.deckTextColor
         elide: root.clip ? Text.ElideNone : Text.ElideRight
         font: root.font
         leftPadding: 5
+        rightPadding: root.indicator.width + root.spacing
         text: root.displayText
         verticalAlignment: Text.AlignVCenter
     }
@@ -76,10 +138,11 @@ ComboBox {
         required property int index
 
         highlighted: root.highlightedIndex === this.index
+        objectName: root.objectName ? root.objectName + "_option_" + index : ""
         padding: 4
         text: root.textAt(this.index)
         verticalPadding: 8
-        width: root.width
+        width: popupItem.width
 
         background: Rectangle {
             border.color: itemDlgt.highlighted ? Theme.deckLineColor : "transparent"
@@ -98,6 +161,13 @@ ComboBox {
     popup: Popup {
         id: popupItem
 
+        onOpened: {
+            Mixxx.Core.addOpenedPopup(this)
+        }
+        onClosed: {
+            Mixxx.Core.removeOpenedPopup(this)
+        }
+
         height: root.contentItem.height * (Math.min(root.popupMaxItem, Math.max(root.count, 1)) + 1)
         padding: 0
         width: root.width
@@ -111,18 +181,26 @@ ComboBox {
                 id: content
 
                 anchors.fill: parent
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    shadowEnabled: true
+                    shadowColor: "#000000"
+                    shadowBlur: 0.1
+                }
 
                 Shape {
                     id: listIndicator
 
+                    property int multiSamplingLevel: Mixxx.Config.multiSamplingLevel
+
                     anchors.right: parent.right
-                    anchors.rightMargin: 3
+                    anchors.rightMargin: 5
                     anchors.top: parent.top
                     antialiasing: true
-                    height: 20
-                    layer.enabled: true
-                    layer.samples: 4
-                    width: 20
+                    height: 10
+                    layer.enabled: multiSamplingLevel > 1
+                    layer.samples: multiSamplingLevel
+                    width: 16
 
                     ShapePath {
                         capStyle: ShapePath.RoundCap
@@ -155,6 +233,8 @@ ComboBox {
                     clip: true
 
                     ListView {
+                        objectName: root.objectName ? root.objectName + "_popupList" : ""
+
                         anchors.fill: parent
                         bottomMargin: 0
                         clip: true
@@ -218,14 +298,6 @@ ComboBox {
                         }
                     }
                 }
-            }
-            DropShadow {
-                anchors.fill: parent
-                color: "#000000"
-                horizontalOffset: 0
-                radius: 8.0
-                source: content
-                verticalOffset: 0
             }
         }
     }

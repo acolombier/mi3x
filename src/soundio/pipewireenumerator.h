@@ -5,21 +5,31 @@
 #include <spa/utils/defs.h>
 
 #include <QObject>
+<<<<<<< HEAD
 #include <cstdint>
 
 #include "audio/types.h"
 #include "control/controlobject.h"
 #include "control/controlproxy.h"
 #include "preferences/dialog/dlgprefsound.h"
+        == == ==
+        =
+
+#include "audio/types.h"
+                >>>>>>> origin / feat / qml
 #include "preferences/usersettings.h"
 #include "soundio/sounddevice.h"
 #include "soundio/sounddeviceenumerator.h"
 #include "soundio/sounddevicepipewire.h"
 #include "soundio/soundmanager.h"
 #include "soundio/soundmanagerconfig.h"
+                < < < < < < < HEAD
 #include "soundio/soundmanagerutil.h"
+        == == ==
+        =
+>>>>>>> origin/feat/qml
 
-class PipewireEnumerator : public SoundDeviceEnumerator {
+                class PipewireEnumerator : public SoundDeviceEnumerator {
     Q_OBJECT
   public:
     PipewireEnumerator(UserSettingsPointer pConfig,
@@ -28,7 +38,11 @@ class PipewireEnumerator : public SoundDeviceEnumerator {
 
     QList<mixxx::audio::SampleRate> getSampleRates(
             [[maybe_unused]] bool jackSampleRates) const override {
+<<<<<<< HEAD
         return {};
+=======
+        return m_samplerates;
+>>>>>>> origin/feat/qml
     }
 
     std::vector<SoundDevicePointer> queryDevices() const override;
@@ -37,9 +51,16 @@ class PipewireEnumerator : public SoundDeviceEnumerator {
     void deinitialize() override;
 
     bool isOpen(uint32_t id);
+<<<<<<< HEAD
     std::string openDeviceInput(uint32_t id, const AudioInput& input);
     std::string openDeviceOutput(uint32_t id, const AudioOutput& output);
     void closeDevices();
+=======
+    std::string openDevice(const SoundDevicePipewire& device,
+            mixxx::audio::SampleRate sampleRate,
+            SINT framesPerBuffer);
+    void closeDevice(uint32_t id);
+>>>>>>> origin/feat/qml
 
     mixxx::audio::SampleRate getDefaultSampleRate() const {
         return m_defaultSampleRate;
@@ -49,8 +70,11 @@ class PipewireEnumerator : public SoundDeviceEnumerator {
         return {SoundManagerConfig::kAPIPipewire};
     }
 
+<<<<<<< HEAD
     QString getChannelString(uint32_t id, ChannelGroup channelGroup, bool input) const;
 
+=======
+>>>>>>> origin/feat/qml
   signals:
     void deviceAdded(SoundDevicePointer pDevice);
     void deviceRemoved(SoundDevicePointer pDevice);
@@ -60,6 +84,7 @@ class PipewireEnumerator : public SoundDeviceEnumerator {
     void registerOutput(const AudioOutput& output, AudioSource* src);
 
   private:
+<<<<<<< HEAD
     struct Link {
         uint32_t input;
         uint32_t output;
@@ -103,6 +128,8 @@ class PipewireEnumerator : public SoundDeviceEnumerator {
         static_cast<PipewireEnumerator*>(data)->coreEventDone(id, seq);
     }
 
+=======
+>>>>>>> origin/feat/qml
     static void coreEventError(void* data, uint32_t id, int seq, int res, const char* message) {
         static_cast<PipewireEnumerator*>(data)->coreEventError(id, seq, res, message);
     }
@@ -110,7 +137,11 @@ class PipewireEnumerator : public SoundDeviceEnumerator {
     static constexpr pw_core_events coreEvents = {
             .version = PW_VERSION_CORE_EVENTS,
             .info = nullptr,
+<<<<<<< HEAD
             .done = coreEventDone,
+=======
+            .done = nullptr,
+>>>>>>> origin/feat/qml
             .ping = nullptr,
             .error = coreEventError,
             .remove_id = nullptr,
@@ -122,7 +153,10 @@ class PipewireEnumerator : public SoundDeviceEnumerator {
 #endif
     };
 
+<<<<<<< HEAD
     void coreEventDone(uint32_t id, int seq);
+=======
+>>>>>>> origin/feat/qml
     void coreEventError(uint32_t id, int seq, int res, const char* message);
 
     static void registryEventGlobalOuter(void* data,
@@ -192,6 +226,7 @@ class PipewireEnumerator : public SoundDeviceEnumerator {
             uint32_t inPortId);
     void destroyLink(uint32_t id);
 
+<<<<<<< HEAD
     void updateAudioLatencyUsage(SINT samplerate, SINT framesPerBuffer);
     void setLatency(unsigned int sampleRate, unsigned int framesPerBuffer);
 
@@ -206,6 +241,27 @@ class PipewireEnumerator : public SoundDeviceEnumerator {
     std::unordered_map<uint32_t, Node> m_nodes;
     std::unordered_map<uint32_t, Port> m_ports;
     std::unordered_map<uint32_t, Link> m_links;
+=======
+    void updateAudioLatencyUsage(const SINT framesPerBuffer);
+    void setLatency(unsigned int sampleRate, unsigned int framesPerBuffer);
+    std::pair<uint32_t*, uint32_t*> createInputPorts(const AudioInput& path);
+    std::pair<uint32_t*, uint32_t*> createOutputPorts(const AudioOutput& path);
+    std::pair<uint32_t*, uint32_t*> createPorts(std::string_view name, spa_direction direction);
+
+    struct Link {
+        uint32_t input;
+        uint32_t output;
+    };
+
+    struct Port {
+        uint32_t node;
+    };
+
+    struct Node {};
+    using Object = std::variant<Node, Port, Link>;
+
+    std::unordered_map<uint32_t, Object> m_objects;
+>>>>>>> origin/feat/qml
     QList<mixxx::audio::SampleRate> m_samplerates;
 
     SoundManager* m_pSoundManager;
@@ -223,11 +279,16 @@ class PipewireEnumerator : public SoundDeviceEnumerator {
     spa_hook m_pwMetadataListener;
 
     std::unordered_map<uint32_t, QSharedPointer<SoundDevicePipewire>> m_soundDevices;
+<<<<<<< HEAD
+=======
+    std::vector<uint32_t> m_openedDevices;
+>>>>>>> origin/feat/qml
 
     uint64_t xrun_duration;
     int m_invalidTimeInfoCount;
     double m_lastCallbackEntrytoDacSecs;
     PerformanceTimer m_clkRefTimer;
+<<<<<<< HEAD
     mixxx::audio::SampleRate m_defaultSampleRate;
 
     std::unordered_map<AudioInput, PortPair> m_inputs;
@@ -252,4 +313,17 @@ class PipewireEnumerator : public SoundDeviceEnumerator {
     bool m_forceSamplerate;
     uint32_t m_samplerate;
     uint32_t m_bufferSize;
+=======
+    mixxx::audio::SampleRate m_sampleRate;
+    mixxx::audio::SampleRate m_defaultSampleRate;
+
+    QHash<AudioInput, std::pair<uint32_t*, uint32_t*>> m_inputs;
+    QHash<AudioOutput, std::pair<uint32_t*, uint32_t*>> m_outputs;
+
+    PollingControlProxy m_audioLatencyUsage;
+    mixxx::Duration m_timeInAudioCallback;
+    int m_framesSinceAudioLatencyUsageUpdate;
+    uint32_t m_filterId;
+    uint32_t m_framesPerBuffer;
+>>>>>>> origin/feat/qml
 };

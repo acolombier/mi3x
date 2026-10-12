@@ -8,6 +8,7 @@
 #include <mutex>
 #include <optional>
 
+#include "library/coverart.h"
 #include "library/dao/directorydao.h"
 #include "library/library_decl.h"
 #include "preferences/usersettings.h"
@@ -55,12 +56,20 @@ class TrackCollectionManager : public QObject,
             TrackId trackId) const;
     TrackPointer getTrackByRef(
             const TrackRef& trackRef) const;
+    /// Lightweight lookup that fetches only the cover art info for the
+    /// track at the given location, without loading the full Track
+    /// object. The returned CoverInfo has its trackLocation field set
+    /// to the provided location. Returns a default-constructed CoverInfo
+    /// (type == NONE) if the track is not found in the library.
+    CoverInfo getCoverInfoForTrackLocation(const QString& trackLocation) const;
     QList<TrackId> resolveTrackIds(
             const QList<mixxx::FileInfo>& fileInfos,
             QObject* pSource) const;
     QList<TrackId> resolveTrackIdsFromUrls(
             const QList<QUrl>& urls,
             bool addMissing) const;
+    QList<TrackId> resolveTrackIdsFromUrls(
+            const QList<QUrl>& urls);
     QList<TrackId> resolveTrackIdsFromLocations(
             const QList<QString>& locations) const;
 
@@ -105,11 +114,14 @@ class TrackCollectionManager : public QObject,
         return m_pScanner.get();
     }
 
+<<<<<<< HEAD
     bool isLibraryScanActive() const {
         return m_libraryScanActive.load();
     }
     std::optional<LibraryScanResultSummary> takePendingLibraryScanSummary();
 
+=======
+>>>>>>> origin/feat/qml
   signals:
     void libraryScanStarted();
     void libraryScanFinished();

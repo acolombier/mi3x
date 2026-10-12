@@ -61,7 +61,11 @@ class DlgPrefWaveform : public DlgPreferencePage, public Ui::DlgPrefWaveformDlg 
     void slotSetUntilMarkTextHeightLimit(int index);
     void slotStemOpacity(double value);
     void slotStemReorderOnChange(bool value);
+<<<<<<< HEAD
     void slotStemOutlineOpacity(double value);
+=======
+    void slotStemOutlineOpacity(float value);
+>>>>>>> origin/feat/qml
     void slotStemDisplayMode(int index);
     // overview options
     void slotSetWaveformOverviewType();

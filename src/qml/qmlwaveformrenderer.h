@@ -33,7 +33,10 @@ using WaveformRendererSignalBaseOptions = WaveformRendererSignalBase::Options;
 
 class QmlWaveformRendererFactory : public QObject {
     Q_OBJECT
+<<<<<<< HEAD
     Q_PROPERTY(bool enabled READ isEnabled WRITE setEnabled NOTIFY enabledChanged)
+=======
+>>>>>>> origin/feat/qml
     Q_PROPERTY(WaveformRendererAbstract::PositionSource position MEMBER
                     m_position NOTIFY positionChanged)
     QML_ANONYMOUS
@@ -63,7 +66,10 @@ class QmlWaveformRendererFactory : public QObject {
 
   signals:
     void positionChanged(WaveformRendererAbstract::PositionSource);
+<<<<<<< HEAD
     void enabledChanged(bool);
+=======
+>>>>>>> origin/feat/qml
 
   protected:
     WaveformRendererPositionSource m_position{::WaveformRendererAbstract::Play};
@@ -705,7 +711,8 @@ class QmlWaveformRendererMark
                     playMarkerBackgroundChanged)
     Q_PROPERTY(double playMarkerPosition MEMBER m_playMarkerPosition NOTIFY
                     playMarkerPositionChanged)
-    Q_PROPERTY(QmlWaveformMark* defaultMark MEMBER m_defaultMark NOTIFY defaultMarkChanged)
+    Q_PROPERTY(mixxx::qml::QmlWaveformMark* defaultMark MEMBER m_defaultMark
+                    NOTIFY defaultMarkChanged)
     Q_PROPERTY(QmlWaveformUntilMark* untilMark READ untilMark FINAL)
     Q_CLASSINFO("DefaultProperty", "marks")
     QML_NAMED_ELEMENT(WaveformRendererMark)

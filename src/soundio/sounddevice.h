@@ -38,7 +38,11 @@ class SoundDevice {
     virtual void writeProcess(SINT framesPerBuffer) = 0;
     virtual QString getError() const = 0;
     virtual mixxx::audio::SampleRate getDefaultSampleRate() const = 0;
+<<<<<<< HEAD
     virtual QString getChannelString(ChannelGroup channelGroup, bool input) const;
+=======
+    virtual QString getChannelString(ChannelGroup channelGroup, bool input);
+>>>>>>> origin/feat/qml
     mixxx::audio::ChannelCount getNumOutputChannels() const;
     mixxx::audio::ChannelCount getNumInputChannels() const;
     SoundDeviceStatus addOutput(const AudioOutputBuffer& out);

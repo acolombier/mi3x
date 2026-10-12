@@ -84,6 +84,7 @@ Rectangle {
         }
         Skin.ControlButton {
             id: loopInButton
+            objectName: "loopIn"
 
             Layout.fillWidth: true
             Layout.minimumWidth: 28
@@ -96,6 +97,7 @@ Rectangle {
         }
         Skin.ControlButton {
             id: loopOutButton
+            objectName: "loopOut"
 
             Layout.fillWidth: true
             Layout.minimumWidth: 28
@@ -108,6 +110,7 @@ Rectangle {
         }
         Skin.ControlButton {
             id: loopRecallButton
+            objectName: "reloopToggle"
 
             Layout.fillWidth: true
             Layout.minimumWidth: 40
@@ -141,6 +144,7 @@ Rectangle {
         }
         Skin.Button {
             id: loopSizeHalfButton
+            objectName: "loopHalve"
 
             activeColor: root.buttonColor
             implicitHeight: 28
@@ -150,11 +154,13 @@ Rectangle {
                 anchors.fill: parent
 
                 Shape {
+                    property int multiSamplingLevel: Mixxx.Config.multiSamplingLevel
+
                     anchors.centerIn: parent
                     antialiasing: true
                     height: 10
-                    layer.enabled: true
-                    layer.samples: 4
+                    layer.enabled: multiSamplingLevel > 1
+                    layer.samples: multiSamplingLevel
                     width: 12
 
                     ShapePath {
@@ -197,6 +203,11 @@ Rectangle {
             property int selectedIndex: 0
             property int valueCount: Math.min(Math.max(1, parseInt((root.width - 56) / 40)), 4)
             property list<double> values: beatloopSize.beatSizes
+
+
+            function adjustSelectedIndex(delta){
+                loopSizeRepeater.selectedIndex = Math.min(Math.max(0, loopSizeRepeater.selectedIndex + delta), loopSizeRepeater.values.length - 1)
+            }
 
 
             function adjustSelectedIndex(delta){
@@ -274,6 +285,7 @@ Rectangle {
         }
         Skin.Button {
             id: loopSizeDoubleButton
+            objectName: "loopDouble"
 
             activeColor: root.buttonColor
             implicitHeight: 28
@@ -283,11 +295,13 @@ Rectangle {
                 anchors.fill: parent
 
                 Shape {
+                    property int multiSamplingLevel: Mixxx.Config.multiSamplingLevel
+
                     anchors.centerIn: parent
                     antialiasing: true
                     height: 10
-                    layer.enabled: true
-                    layer.samples: 4
+                    layer.enabled: multiSamplingLevel > 1
+                    layer.samples: multiSamplingLevel
                     width: 12
 
                     ShapePath {

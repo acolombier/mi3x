@@ -293,7 +293,7 @@ Item {
                 break;
             }
         }
-        onPressed: {
+        onPressed: (mouse) => {
             mouseAnchor = Qt.point(mouse.x, mouse.y);
             if (mouse.button == Qt.LeftButton) {
                 if (mouseStatus == WaveformDisplay.MouseStatus.Bending)

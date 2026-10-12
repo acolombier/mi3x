@@ -15,37 +15,14 @@ Item {
 
     property var sidebar: librarySources.sidebar()
 
-    function applySearch() {
-        if (root.sidebar && root.sidebar.tracklist) {
-            root.sidebar.tracklist.search(searchField.text);
-        }
-    }
-    function focusSearch() {
-        root.applySearch();
-        searchField.forceActiveFocus(Qt.ShortcutFocusReason);
-        searchField.selectAll();
-    }
-
     LibraryComponent.SourceTree {
         id: librarySources
-    }
-    TextField {
-        id: searchField
 
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        placeholderText: qsTranslate("WSearchLineEdit", "Search...")
-
-        onTextChanged: root.applySearch()
     }
     SplitView {
         id: librarySplitView
 
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: searchField.bottom
+        anchors.fill: parent
         orientation: Qt.Horizontal
 
         handle: Rectangle {
@@ -136,10 +113,12 @@ Item {
         }
         LibraryComponent.TrackList {
             SplitView.fillHeight: true
+            SplitView.minimumHeight: 200
+            SplitView.preferredWidth: root.width * 0.75
 
             // FIXME: this is necessary to prevent the header label to render outside of the table when horizontally scrolling: https://github.com/mixxxdj/mixxx/pull/14514#issuecomment-3311914346
             clip: true
-            model: root.sidebar.tracklist
+            model: librarySources
         }
     }
 }

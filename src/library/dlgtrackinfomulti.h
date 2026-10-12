@@ -72,7 +72,10 @@ class DlgTrackInfoMulti : public QDialog, public Ui::DlgTrackInfoMulti {
   private:
     void init();
     void adjustWidgetSizes();
+<<<<<<< HEAD
     void maybeMakeDialogScrollable();
+=======
+>>>>>>> origin/feat/qml
 
     void loadTracksInternal(const QList<TrackPointer>& pTracks);
     void saveTracks();

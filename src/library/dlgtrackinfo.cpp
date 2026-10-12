@@ -1014,7 +1014,10 @@ void DlgTrackInfo::slotImportMetadataFromMusicBrainz() {
 void DlgTrackInfo::showEvent(QShowEvent* pEvent) {
     QDialog::showEvent(pEvent);
     adjustWidgetSizes();
+<<<<<<< HEAD
     maybeMakeDialogScrollable();
+=======
+>>>>>>> origin/feat/qml
 }
 
 void DlgTrackInfo::resizeEvent(QResizeEvent* pEvent) {
@@ -1062,6 +1065,7 @@ void DlgTrackInfo::adjustWidgetSizes() {
     // use the triple the height of a QLineEdit because they are sized correctly.
     // The editor can expand vertically when the dialog is resized.
     txtComment->setMinimumHeight(txtTrackNumber->geometry().height() * 3);
+<<<<<<< HEAD
 }
 
 void DlgTrackInfo::maybeMakeDialogScrollable() {
@@ -1178,4 +1182,6 @@ void DlgTrackInfo::maybeMakeDialogScrollable() {
         int overlap = geometry.bottom() - screenAvailableGeometry.bottom();
         move(geometry.x(), top - overlap);
     }
+=======
+>>>>>>> origin/feat/qml
 }

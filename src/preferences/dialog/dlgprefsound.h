@@ -48,6 +48,10 @@ class DlgPrefSound : public DlgPreferencePage, public Ui::DlgPrefSoundDlg  {
     void removeInputDevice(SoundDevicePointer pDevice);
     void updatingAPI();
     void updatedAPI();
+<<<<<<< HEAD
+=======
+    void deviceRouteUpdated(const SoundDeviceId& device, const AudioPath* pPath);
+>>>>>>> origin/feat/qml
     void deviceChannelsUpdated(SoundDevicePointer devices);
 
   public slots:
@@ -92,7 +96,10 @@ class DlgPrefSound : public DlgPreferencePage, public Ui::DlgPrefSoundDlg  {
     void removeDevice(SoundDevicePointer pDevice);
     void updateDeviceChannels(SoundDevicePointer pDevice);
     void updateSampleRates(const QList<mixxx::audio::SampleRate>& sampleRates);
+<<<<<<< HEAD
     void invalidateConfig();
+=======
+>>>>>>> origin/feat/qml
 
   private:
     void initializePaths();
@@ -129,6 +136,7 @@ class DlgPrefSound : public DlgPreferencePage, public Ui::DlgPrefSoundDlg  {
 
 #ifdef __PIPEWIRE__
     parented_ptr<QCheckBox> m_pipewireCheckBox;
+<<<<<<< HEAD
     parented_ptr<QCheckBox> m_pipewirePatchbayCheckBox;
     parented_ptr<ControlProxy> m_pPipewirePatchbay;
     parented_ptr<QCheckBox> m_forceBufferSize;
@@ -137,5 +145,7 @@ class DlgPrefSound : public DlgPreferencePage, public Ui::DlgPrefSoundDlg  {
     parented_ptr<ControlProxy> m_cpBufferSize;
     parented_ptr<ControlProxy> m_cpLatencyParamsMismatch;
     QLabel* m_latencyParamsMismatchText;
+=======
+>>>>>>> origin/feat/qml
 #endif
 };

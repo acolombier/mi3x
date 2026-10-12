@@ -8,6 +8,8 @@
 #include <QtGlobal>
 #include <gsl/pointers>
 
+#include "util/cmdlineargs.h"
+
 #ifdef __BROADCAST__
 #include "broadcast/broadcastmanager.h"
 #endif
@@ -632,6 +634,13 @@ void CoreServices::initialize(QApplication* pApp) {
             &TrackDAO::waveformSummaryUpdated,
             pOverviewCache,
             &OverviewCache::onTrackSummaryChanged);
+    // Forward per-track analyzer progress to OverviewCache so that
+    // OverviewCache clients (e.g. QmlWaveformOverview) can repaint
+    // the partial waveform during analysis.
+    connect(m_pPlayerManager.get(),
+            &PlayerManager::trackAnalyzerProgress,
+            pOverviewCache,
+            &OverviewCache::onTrackAnalysisProgress);
 
     // Binding the PlayManager to the Library may already trigger
     // loading of tracks which requires that the GlobalTrackCache has
@@ -641,7 +650,13 @@ void CoreServices::initialize(QApplication* pApp) {
 
     bool musicDirAdded = false;
 
-    if (m_pTrackCollectionManager->internalCollection()->loadRootDirs().isEmpty()) {
+    if (m_pTrackCollectionManager->internalCollection()
+                    ->loadRootDirs()
+                    .isEmpty()) {
+        if (CmdlineArgs::Instance().getDeveloper()) {
+            qInfo() << "No music directory configured - skipping first-run "
+                       "directory prompt because developer mode is enabled";
+        } else {
 #if defined(Q_OS_IOS) || defined(Q_OS_WASM)
         // On the web and iOS, we are running in a sandbox (a virtual file
         // system on the web). Since we are generally limited to paths within
@@ -710,6 +725,7 @@ void CoreServices::initialize(QApplication* pApp) {
         // request to add directory to database.
         if (!fd.isEmpty() && m_pLibrary->requestAddDir(fd)) {
             musicDirAdded = true;
+        }
         }
     }
 
@@ -825,11 +841,10 @@ void CoreServices::initializeQMLSingletons() {
 
     ControllerScriptEngineBase::registerTrackCollectionManager(getTrackCollectionManager());
 
-    // Qt Quick's native graphics backends are preferred on macOS and Windows.
-    // Offscreen rendering for controller screens is currently implemented only
-    // on Linux and Android, so those platforms retain the established OpenGL
-    // scene-graph backend used by the QML waveform renderers.
 #if !defined(Q_OS_MACOS) && !defined(Q_OS_WIN)
+    // Currently, it is required to enforce QQuickWindow RHI backend to use
+    // OpenGL on all platforms to allow offscreen rendering to function as
+    // expected
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
 #endif
 #endif

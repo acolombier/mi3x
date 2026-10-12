@@ -98,7 +98,10 @@ class DlgTrackInfo : public QDialog, public Ui::DlgTrackInfo {
     void clear();
     void init();
     void adjustWidgetSizes();
+<<<<<<< HEAD
     void maybeMakeDialogScrollable();
+=======
+>>>>>>> origin/feat/qml
 
     void updateKeyText();
     void displayKeyText();

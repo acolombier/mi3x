@@ -4,17 +4,26 @@
 #include <QObject>
 #include <QQmlEngine>
 #include <QString>
+<<<<<<< HEAD
+=======
+#include <QUrl>
+                >>>>>>> origin / feat / qml
 #include <Qt>
 #include <memory>
 
 #include "library/dao/directorydao.h"
 #include "library/scanner/libraryscanner.h"
+                < < < < < < < HEAD
 #include "library/trackcollectionmanager.h"
+        == == ==
+        =
+>>>>>>> origin/feat/qml
 #include "qml/qmllibrarysource.h"
 #include "qml/qmllibrarytracklistmodel.h"
 #include "util/parented_ptr.h"
 
-class Library;
+                class Library;
+class LibraryScanner;
 class KeyboardEventFilter;
 
 namespace mixxx {
@@ -23,6 +32,7 @@ namespace qml {
 
 class QmlLibrarySource : public QObject {
     Q_OBJECT
+<<<<<<< HEAD
     Q_PROPERTY(QString path MEMBER m_path CONSTANT)
     Q_PROPERTY(uint totalSecond MEMBER m_totalSecond CONSTANT)
     Q_PROPERTY(uint trackCount MEMBER m_trackCount CONSTANT)
@@ -31,12 +41,25 @@ class QmlLibrarySource : public QObject {
   public:
     QmlLibrarySource(const DirectoryDAO::RootDirectoryInfo& record)
             : m_path(record.path),
+=======
+    Q_PROPERTY(QUrl url MEMBER m_url CONSTANT)
+    Q_PROPERTY(uint totalSecond MEMBER m_totalSecond CONSTANT)
+    Q_PROPERTY(uint trackCount MEMBER m_trackCount CONSTANT)
+    QML_NAMED_ELEMENT(LibrarySource)
+  public:
+    QmlLibrarySource(const DirectoryDAO::RootDirectoryInfo& record)
+            : m_url(QUrl::fromLocalFile(record.path)),
+>>>>>>> origin/feat/qml
               m_totalSecond(record.totalSecond),
               m_trackCount(record.trackCount) {
     }
 
   private:
+<<<<<<< HEAD
     QString m_path;
+=======
+    QUrl m_url;
+>>>>>>> origin/feat/qml
     uint m_totalSecond;
     uint m_trackCount;
 };
@@ -48,10 +71,14 @@ class QmlLibraryScannerProxy : public QObject {
     QML_NAMED_ELEMENT(LibraryScanner)
     QML_UNCREATABLE("Only accessible via Mixxx.Library.scanner")
   public:
+<<<<<<< HEAD
     QmlLibraryScannerProxy(
             LibraryScanner* libraryScanner,
             TrackCollectionManager* trackCollectionManager,
             QObject* parent);
+=======
+    QmlLibraryScannerProxy(LibraryScanner* libraryScanner, QObject* parent);
+>>>>>>> origin/feat/qml
 
     bool isRunning() const {
         return m_running;
@@ -94,20 +121,30 @@ class QmlLibraryProxy : public QObject {
     Q_PROPERTY(mixxx::qml::QmlLibraryTrackListModel* model MEMBER m_pModelProperty CONSTANT)
     Q_PROPERTY(QQmlListProperty<mixxx::qml::QmlLibrarySource> sources READ sources CONSTANT)
     Q_PROPERTY(mixxx::qml::QmlLibraryScannerProxy* scanner MEMBER m_pScanner CONSTANT)
+<<<<<<< HEAD
     Q_PROPERTY(bool libraryScanActive READ libraryScanActive NOTIFY libraryScanActiveChanged)
     Q_PROPERTY(bool enginePrimeExportAvailable READ enginePrimeExportAvailable CONSTANT)
     Q_PROPERTY(QString waveformCacheDiskUsage READ waveformCacheDiskUsage NOTIFY
                     waveformCacheDiskUsageChanged)
+=======
+>>>>>>> origin/feat/qml
     QML_NAMED_ELEMENT(Library)
     QML_SINGLETON
 
   public:
+<<<<<<< HEAD
     enum class AddResult {
         Ok,
+=======
+    enum class Result {
+        Ok,
+        NotFound,
+>>>>>>> origin/feat/qml
         AlreadyWatching,
         InvalidOrMissingDirectory,
         UnreadableDirectory,
         SqlError,
+<<<<<<< HEAD
     };
     Q_ENUM(AddResult);
     enum class RemoveResult {
@@ -123,12 +160,18 @@ class QmlLibraryProxy : public QObject {
         SqlError,
     };
     Q_ENUM(RelocateResult);
+=======
+        Unknown
+    };
+    Q_ENUM(Result);
+>>>>>>> origin/feat/qml
     enum class SourceRemovalType {
         KeepTracks,
         HideTracks,
         PurgeTracks
     };
     Q_ENUM(SourceRemovalType);
+<<<<<<< HEAD
     enum class JumpDirection {
         Impossible,
         Forward,
@@ -137,6 +180,10 @@ class QmlLibraryProxy : public QObject {
     Q_ENUM(JumpDirection);
 
     explicit QmlLibraryProxy(QObject* parent = nullptr);
+=======
+
+    explicit QmlLibraryProxy(std::shared_ptr<Library> pLibrary, QObject* parent = nullptr);
+>>>>>>> origin/feat/qml
     ~QmlLibraryProxy() override;
 
     static QmlLibraryProxy* create(QQmlEngine* pQmlEngine, QJSEngine* pJsEngine);
@@ -148,6 +195,7 @@ class QmlLibraryProxy : public QObject {
         return s_pLibrary.get();
     }
 
+<<<<<<< HEAD
     QString waveformCacheDiskUsage() const {
         return m_waveformCacheDiskUsage;
     }
@@ -155,6 +203,9 @@ class QmlLibraryProxy : public QObject {
     Q_INVOKABLE bool clearCachedWaveforms();
 
     QQmlListProperty<QmlLibrarySource> sources() {
+=======
+    QQmlListProperty<mixxx::qml::QmlLibrarySource> sources() {
+>>>>>>> origin/feat/qml
         return {this,
                 nullptr,
                 nullptr,
@@ -163,6 +214,7 @@ class QmlLibraryProxy : public QObject {
                 &QmlLibraryProxy::sources_clear};
     }
 
+<<<<<<< HEAD
     Q_INVOKABLE mixxx::qml::QmlLibraryProxy::AddResult addSource(const QUrl& newPath);
     Q_INVOKABLE mixxx::qml::QmlLibraryProxy::RemoveResult removeSource(
             const QUrl& oldPath,
@@ -170,6 +222,22 @@ class QmlLibraryProxy : public QObject {
     Q_INVOKABLE mixxx::qml::QmlLibraryProxy::RelocateResult relinkSource(
             const QUrl& oldPath, const QUrl& newPath);
 
+=======
+    Q_INVOKABLE mixxx::qml::QmlLibraryProxy::Result addSource(const QUrl& newPath);
+    Q_INVOKABLE mixxx::qml::QmlLibraryProxy::Result removeSource(
+            const QUrl& oldPath,
+            mixxx::qml::QmlLibraryProxy::SourceRemovalType type);
+    Q_INVOKABLE mixxx::qml::QmlLibraryProxy::Result relinkSource(
+            const QUrl& oldPath, const QUrl& newPath);
+
+    /// Converts a file URL to a local path for display purposes. The only
+    /// sanctioned url <-> path conversion in QML; all library operations
+    /// receive and store QUrls.
+    Q_INVOKABLE static QString urlToLocalPath(const QUrl& url) {
+        return url.toLocalFile();
+    }
+
+>>>>>>> origin/feat/qml
     static void registerKeyboardEventFilter(std::shared_ptr<KeyboardEventFilter> pKeyboard) {
         s_pKeyboard = std::move(pKeyboard);
     }
@@ -186,6 +254,7 @@ class QmlLibraryProxy : public QObject {
     bool enginePrimeExportAvailable() const;
 
     Q_INVOKABLE void analyze(const mixxx::qml::QmlTrackProxy* track) const;
+<<<<<<< HEAD
     Q_INVOKABLE void createCrate();
     Q_INVOKABLE void createPlaylist();
     Q_INVOKABLE void exportLibrary();
@@ -193,6 +262,8 @@ class QmlLibraryProxy : public QObject {
     Q_INVOKABLE void searchInCurrentView();
     Q_INVOKABLE void searchInTracksLibrary();
     Q_INVOKABLE void showAutoDJ();
+=======
+>>>>>>> origin/feat/qml
     Q_INVOKABLE QString deckHotcueLabel(
             mixxx::qml::QmlTrackProxy* track,
             int hotcueNumber) const;
@@ -205,6 +276,7 @@ class QmlLibraryProxy : public QObject {
             const QString& group,
             int hotcueNumber,
             const QString& action);
+<<<<<<< HEAD
     Q_INVOKABLE mixxx::qml::QmlLibraryProxy::JumpDirection deckHotcueJumpDirection(
             mixxx::qml::QmlTrackProxy* track,
             const QString& group,
@@ -220,17 +292,29 @@ class QmlLibraryProxy : public QObject {
             const QString& title,
             const QString& text,
             const QString& informativeText);
+=======
+    Q_INVOKABLE void cleanupDeckHotcuePopup(
+            mixxx::qml::QmlTrackProxy* track,
+            int hotcueNumber);
+>>>>>>> origin/feat/qml
 
   private:
     void deliverPendingLibraryScanSummary();
     static inline std::shared_ptr<Library> s_pLibrary;
 
+<<<<<<< HEAD
     QString m_waveformCacheDiskUsage;
+=======
+    std::shared_ptr<Library> m_pLibrary;
+>>>>>>> origin/feat/qml
 
     /// This needs to be a plain pointer because it's used as a `Q_PROPERTY` member variable.
     QmlLibraryTrackListModel* m_pModelProperty;
     QmlLibraryScannerProxy* m_pScanner;
+<<<<<<< HEAD
     TrackCollectionManager* m_pTrackCollectionManager;
+=======
+>>>>>>> origin/feat/qml
 
     static qsizetype sources_count(QQmlListProperty<QmlLibrarySource>* property);
     static QmlLibrarySource* sources_at(

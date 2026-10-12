@@ -70,7 +70,10 @@ class QmlSkinControlCreator : public QObject, public QQmlParserStatus {
     bool m_persist;
     bool m_persistConfigured;
     double m_defaultValue;
+<<<<<<< HEAD
     bool m_defaultValueConfigured;
+=======
+>>>>>>> origin/feat/qml
     ButtonMode m_buttonMode;
     bool m_isComponentComplete;
     std::unique_ptr<ControlPushButton> m_pControl;
