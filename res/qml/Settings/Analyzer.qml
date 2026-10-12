@@ -28,13 +28,13 @@ Category {
         keyFastAnalysisSetting.selected = Mixxx.Config.keyFastAnalysis ? "on" : "off";
         keyReanalyzeSetting.selected = Mixxx.Config.keyReanalyzeWhenSettingsChange ? "on" : "off";
         keyNotationSetting.selected = ({
-            "Lancelot": "lancelot",
-            "Lancelot/Traditional": "lancelot",
-            "OpenKey": "openkey",
-            "OpenKey/Traditional": "openkey",
-            "Traditional": "traditional",
-            "Custom": "custom",
-        })[Mixxx.Config.keyNotation] ?? "traditional";
+                "Lancelot": "lancelot",
+                "Lancelot/Traditional": "lancelot",
+                "OpenKey": "openkey",
+                "OpenKey/Traditional": "openkey",
+                "Traditional": "traditional",
+                "Custom": "custom"
+            })[Mixxx.Config.keyNotation] ?? "traditional";
 
         replayGainAnalyzer.state.selected = Mixxx.Config.replayGainEnabled ? "on" : "off";
         replayGainAnalyserPlugin.selected = Mixxx.Config.replayGainAnalyserVersion == 1 ? "replaygain10" : "replaygain20";
@@ -89,7 +89,7 @@ Category {
             "lancelot": "Lancelot",
             "openkey": "OpenKey",
             "traditional": "Traditional",
-            "custom": "Custom",
+            "custom": "Custom"
         };
         // KeyUtils::KeyNotation: Custom = 1, OpenKey = 2, Lancelot = 3,
         // Traditional = 4. The '[Library],key_notation' ControlObject drives
@@ -99,7 +99,7 @@ Category {
             "lancelot": 3,
             "openkey": 2,
             "traditional": 4,
-            "custom": 1,
+            "custom": 1
         };
         Mixxx.Config.keyNotation = notationNames[keyNotationSetting.selected];
         keyNotationControl.value = notationValues[keyNotationSetting.selected];
@@ -116,19 +116,25 @@ Category {
 
     label: qsTr("Analyzer")
 
+    Component.onCompleted: {
+        root.load();
+    }
+
     Mixxx.ControlProxy {
         id: keyNotationControl
 
         group: "[Library]"
         key: "key_notation"
     }
-
-    Component.onCompleted: {
-        root.load();
-    }
-
     ScrollView {
         id: scrollView
+
+        anchors.bottom: buttonActions.top
+        anchors.bottomMargin: 18
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        spacing: 0
 
         ScrollBar.vertical: ScrollBar {
             anchors.bottom: parent.bottom
@@ -137,149 +143,42 @@ Category {
             objectName: "analyzerSettingsScrollBar"
             policy: ScrollBar.AsNeeded
         }
-        anchors.bottom: buttonActions.top
-        anchors.bottomMargin: 18
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        spacing: 0
 
         ColumnLayout {
             width: root.width - 10
 
-            component AnalyzerSection: Mixxx.SettingGroup {
-                id: analyzer
-
-                property alias state: analyzerSetting
-                property alias plugin: analyzerPlugin
-                property alias pane: analyzerPane
-
-                default property alias children: analyzerPane.children
-
-                Layout.bottomMargin: 6
-                implicitWidth: scrollView.width
-                implicitHeight: analyzerColumn.height
-
-                Column {
-                    id: analyzerColumn
-
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-
-                    RowLayout {
-                        height: 40
-                        width: parent.width
-
-                        Text {
-                            Layout.fillWidth: true
-                            color: Theme.white
-                            font.pixelSize: 16
-                            font.weight: Font.DemiBold
-                            text: analyzer.label
-                        }
-                        RatioChoice {
-                            id: analyzerDetectionSetting
-
-                            inactiveColor: Theme.darkGray4
-                            maxWidth: parent.width * 0.25
-                            objectName: "state"
-                            options: ["off", "on"]
-
-                            onSelectedChanged: root.dirty = true
-                        }
-                    }
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        color: Qt.alpha('#676767', 0.21)
-                        implicitHeight: analyzerPane.implicitHeight + 20
-
-                        GridLayout {
-                            id: analyzerPane
-
-                            anchors.bottomMargin: 10
-                            anchors.fill: parent
-                            anchors.leftMargin: 25
-                            anchors.rightMargin: 25
-                            anchors.topMargin: 10
-                            columnSpacing: 20
-                            columns: analyzerColumn.width < 850 ? 1 : 2
-                            uniformCellWidths: true
-                            objectName: "analyzerGrid"
-                            rowSpacing: 15
-
-                            GridLayout {
-                                Layout.columnSpan: analyzerPane.columns
-                                Layout.preferredWidth: analyzerPane.width
-                                columns: 2
-                                uniformCellWidths: true
-
-                                Mixxx.SettingParameter {
-                                    id: analyzerSetting
-                                    Layout.fillWidth: true
-                                    label: qsTr("Analyser")
-
-                                    Text {
-                                        anchors.fill: parent
-                                        color: Theme.white
-                                        font.pixelSize: 16
-                                        font.weight: Font.DemiBold
-                                        horizontalAlignment: Text.AlignHCenter
-                                        text: parent.label
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-                                RatioChoice {
-                                    id: analyzerPlugin
-                                    Layout.alignment: Qt.AlignHCenter
-
-                                    enabled: analyzerDetectionSetting.selected != "off"
-                                    inactiveColor: Theme.darkGray4
-                                    objectName: "setting_analyzer"
-
-                                    content.height: 34
-                                    normalizedWidth: true
-
-                                    onSelectedChanged: root.dirty = true
-                                }
-                            }
-                        }
-                    }
-                }
-            }
             AnalyzerSection {
                 id: bpmAnalyzer
-                objectName: "bpmAnalyzer"
+
                 label: qsTr("BPM and Beat detection")
+                objectName: "bpmAnalyzer"
                 state.keywords: [qsTr("Beat"), qsTr("BPM")]
+
                 plugin {
+                    metric.font.pixelSize: 18
                     options: ["queenmary", "soundtouch"]
-                    tooltips: [
-                        qsTr("Queen Mary Tempo and Beat Tracker"),
-                        qsTr("SoundTouch BPM Detector (Legacy)"),
-                    ]
+                    tooltips: [qsTr("Queen Mary Tempo and Beat Tracker"), qsTr("SoundTouch BPM Detector (Legacy)"),]
+
                     delegate: Component {
                         Text {
                             anchors.fill: parent
                             anchors.leftMargin: 10
                             anchors.rightMargin: 10
                             color: Theme.white
-                            font.pixelSize: 12
                             font.capitalization: Font.AllUppercase
-                            wrapMode: Text.Wrap
+                            font.pixelSize: 12
                             horizontalAlignment: Text.AlignHCenter
                             text: parent.modelData == "queenmary" ? "Queen Mary Tempo and Beat Tracker" : 'SoundTouch BPM Detector<span style="color: #6A6A6A;" size="1">(Legacy)</span>'
-                            verticalAlignment: Text.AlignVCenter
                             textFormat: Text.RichText
+                            verticalAlignment: Text.AlignVCenter
+                            wrapMode: Text.Wrap
                         }
                     }
-                    metric.font.pixelSize: 18
                 }
-
                 ColumnLayout {
                     RowLayout {
-                        width: parent.width
                         implicitHeight: bpmFastAnalysisLabel.height
+                        width: parent.width
 
                         Mixxx.SettingParameter {
                             Layout.fillWidth: true
@@ -288,6 +187,7 @@ Category {
 
                             Column {
                                 id: bpmFastAnalysisLabel
+
                                 anchors.fill: parent
                                 anchors.verticalCenter: parent.verticalCenter
 
@@ -302,8 +202,8 @@ Category {
                                 }
                                 Text {
                                     color: Theme.midGray
-                                    font.pixelSize: 11
                                     font.italic: true
+                                    font.pixelSize: 11
                                     text: qsTr("Recommended for slow computer, may be less accurate")
                                     width: parent.width
                                 }
@@ -337,14 +237,14 @@ Category {
                             font.weight: Font.Medium
                             horizontalAlignment: Text.AlignLeft
                             text: parent.label
-                            wrapMode: Text.Wrap
                             verticalAlignment: Text.AlignVCenter
+                            wrapMode: Text.Wrap
                         }
                     }
                     RatioChoice {
                         id: bpmReanalyzeSetting
-                        Layout.minimumWidth: implicitWidth
 
+                        Layout.minimumWidth: implicitWidth
                         enabled: bpmAnalyzer.state.selected != "off"
                         inactiveColor: Theme.darkGray4
                         maxWidth: parent.width * 0.5
@@ -411,32 +311,31 @@ Category {
             }
             AnalyzerSection {
                 id: keyAnalyzer
-                objectName: "keyAnalyzer"
+
                 label: qsTr("Key detection")
+                objectName: "keyAnalyzer"
                 state.keywords: [qsTr("Key")]
+
                 plugin {
+                    metric.font.pixelSize: 18
                     options: ["queenmary", "keyfinder"]
-                    tooltips: [
-                        qsTr("Queen Mary Key Detector"),
-                        qsTr("KeyFinder"),
-                    ]
+                    tooltips: [qsTr("Queen Mary Key Detector"), qsTr("KeyFinder"),]
+
                     delegate: Component {
                         Text {
                             anchors.fill: parent
                             anchors.leftMargin: 10
                             anchors.rightMargin: 10
                             color: Theme.white
-                            font.pixelSize: 12
                             font.capitalization: Font.AllUppercase
-                            wrapMode: Text.Wrap
+                            font.pixelSize: 12
                             horizontalAlignment: Text.AlignHCenter
                             text: parent.modelData == "queenmary" ? "Queen Mary Key Detector" : 'KeyFinder'
                             verticalAlignment: Text.AlignVCenter
+                            wrapMode: Text.Wrap
                         }
                     }
-                    metric.font.pixelSize: 18
                 }
-
                 ColumnLayout {
                     RowLayout {
                         width: parent.width
@@ -448,6 +347,7 @@ Category {
 
                             Column {
                                 id: keyFastAnalysisLabel
+
                                 anchors.fill: parent
                                 anchors.verticalCenter: parent.verticalCenter
 
@@ -462,8 +362,8 @@ Category {
                                 }
                                 Text {
                                     color: Theme.midGray
-                                    font.pixelSize: 11
                                     font.italic: true
+                                    font.pixelSize: 11
                                     text: qsTr("Recommended for slow computer, may be less accurate")
                                     width: parent.width
                                 }
@@ -494,14 +394,14 @@ Category {
                             font.weight: Font.Medium
                             horizontalAlignment: Text.AlignLeft
                             text: parent.label
-                            wrapMode: Text.Wrap
                             verticalAlignment: Text.AlignVCenter
+                            wrapMode: Text.Wrap
                         }
                     }
                     RatioChoice {
                         id: keyReanalyzeSetting
-                        Layout.minimumWidth: implicitWidth
 
+                        Layout.minimumWidth: implicitWidth
                         enabled: keyAnalyzer.state.selected != "off"
                         inactiveColor: Theme.darkGray4
                         maxWidth: parent.width * 0.5
@@ -544,32 +444,31 @@ Category {
             }
             AnalyzerSection {
                 id: replayGainAnalyzer
-                objectName: "replayGainAnalyzer"
+
                 label: qsTr("ReplayGain Loudness Normalization")
+                objectName: "replayGainAnalyzer"
                 state.keywords: [qsTr("ReplayGain"), qsTr("EBU R128"), qsTr("Loudness")]
+
                 plugin {
+                    metric.font.pixelSize: 18
                     options: ["replaygain20", "replaygain10"]
-                    tooltips: [
-                        qsTr("ReplayGain 2.0 (ITU-R BS.1770)"),
-                        qsTr("ReplayGain 1.0"),
-                    ]
+                    tooltips: [qsTr("ReplayGain 2.0 (ITU-R BS.1770)"), qsTr("ReplayGain 1.0"),]
+
                     delegate: Component {
                         Text {
                             anchors.fill: parent
                             anchors.leftMargin: 10
                             anchors.rightMargin: 10
                             color: Theme.white
-                            font.pixelSize: 12
                             font.capitalization: Font.AllUppercase
-                            wrapMode: Text.Wrap
+                            font.pixelSize: 12
                             horizontalAlignment: Text.AlignHCenter
                             text: parent.modelData == "2" ? "ReplayGain 2.0" : 'ReplayGain 1.0'
                             verticalAlignment: Text.AlignVCenter
+                            wrapMode: Text.Wrap
                         }
                     }
-                    metric.font.pixelSize: 18
                 }
-
                 RowLayout {
                     Mixxx.SettingParameter {
                         Layout.fillWidth: true
@@ -591,9 +490,7 @@ Category {
                         font.pixelSize: 11
                         // ReplayGain targets a reference loudness of
                         // -18 LUFS. The adjustment is relative to it.
-                        text: qsTr("Adjust by: %1%2 dB")
-                            .arg(replayGainTargetLoudnessInput.value < 0 ? "" : "+")
-                            .arg(replayGainTargetLoudnessInput.value)
+                        text: qsTr("Adjust by: %1%2 dB").arg(replayGainTargetLoudnessInput.value < 0 ? "" : "+").arg(replayGainTargetLoudnessInput.value)
                     }
                     SettingComponents.Slider {
                         id: replayGainTargetLoudnessInput
@@ -641,8 +538,8 @@ Category {
                 RowLayout {
                     Mixxx.SettingParameter {
                         Layout.fillWidth: true
-                        label: qsTr("Initial boost without ReplayGain")
                         keywords: [qsTr("Gain"), qsTr("Unanalysed"), qsTr("Unanalyzed")]
+                        label: qsTr("Initial boost without ReplayGain")
 
                         Text {
                             anchors.fill: parent
@@ -720,6 +617,106 @@ Category {
 
                 onPressed: {
                     root.save();
+                }
+            }
+        }
+    }
+
+    component AnalyzerSection: Mixxx.SettingGroup {
+        id: analyzer
+
+        default property alias children: analyzerPane.children
+        property alias pane: analyzerPane
+        property alias plugin: analyzerPlugin
+        property alias state: analyzerSetting
+
+        Layout.bottomMargin: 6
+        implicitHeight: analyzerColumn.height
+        implicitWidth: scrollView.width
+
+        Column {
+            id: analyzerColumn
+
+            anchors.left: parent.left
+            anchors.right: parent.right
+
+            RowLayout {
+                height: 40
+                width: parent.width
+
+                Text {
+                    Layout.fillWidth: true
+                    color: Theme.white
+                    font.pixelSize: 16
+                    font.weight: Font.DemiBold
+                    text: analyzer.label
+                }
+                RatioChoice {
+                    id: analyzerDetectionSetting
+
+                    inactiveColor: Theme.darkGray4
+                    maxWidth: parent.width * 0.25
+                    objectName: "state"
+                    options: ["off", "on"]
+
+                    onSelectedChanged: root.dirty = true
+                }
+            }
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                color: Qt.alpha('#676767', 0.21)
+                implicitHeight: analyzerPane.implicitHeight + 20
+
+                GridLayout {
+                    id: analyzerPane
+
+                    anchors.bottomMargin: 10
+                    anchors.fill: parent
+                    anchors.leftMargin: 25
+                    anchors.rightMargin: 25
+                    anchors.topMargin: 10
+                    columnSpacing: 20
+                    columns: analyzerColumn.width < 850 ? 1 : 2
+                    objectName: "analyzerGrid"
+                    rowSpacing: 15
+                    uniformCellWidths: true
+
+                    GridLayout {
+                        Layout.columnSpan: analyzerPane.columns
+                        Layout.preferredWidth: analyzerPane.width
+                        columns: 2
+                        uniformCellWidths: true
+
+                        Mixxx.SettingParameter {
+                            id: analyzerSetting
+
+                            Layout.fillWidth: true
+                            label: qsTr("Analyser")
+
+                            Text {
+                                anchors.fill: parent
+                                color: Theme.white
+                                font.pixelSize: 16
+                                font.weight: Font.DemiBold
+                                horizontalAlignment: Text.AlignHCenter
+                                text: parent.label
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+                        RatioChoice {
+                            id: analyzerPlugin
+
+                            Layout.alignment: Qt.AlignHCenter
+                            content.height: 34
+                            enabled: analyzerDetectionSetting.selected != "off"
+                            inactiveColor: Theme.darkGray4
+                            normalizedWidth: true
+                            objectName: "setting_analyzer"
+
+                            onSelectedChanged: root.dirty = true
+                        }
+                    }
                 }
             }
         }
