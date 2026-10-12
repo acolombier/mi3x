@@ -134,6 +134,40 @@ const QString kResizableSkinKey = QStringLiteral("ResizableSkin");
 
 // BPM group
 const QString kSyncLockAlgorithmKey = QStringLiteral("sync_lock_algorithm");
+const QString kBPMDetectionEnabledKey = QStringLiteral("BPMDetectionEnabled");
+const QString kBPMFixedTempoAssumptionKey =
+        QStringLiteral("BeatDetectionFixedTempoAssumption");
+const QString kBPMReanalyzeWhenSettingsChangeKey =
+        QStringLiteral("ReanalyzeWhenSettingsChange");
+const QString kBPMReanalyzeImportedKey = QStringLiteral("ReanalyzeImported");
+const QString kBPMFastAnalysisEnabledKey = QStringLiteral("FastAnalysisEnabled");
+
+// Key group
+const QString kKeyGroup = QStringLiteral("[Key]");
+const QString kKeyDetectionEnabledKey = QStringLiteral("KeyDetectionEnabled");
+const QString kKeyFastAnalysisEnabledKey = QStringLiteral("FastAnalysisEnabled");
+const QString kKeyReanalyzeWhenSettingsChangeKey =
+        QStringLiteral("ReanalyzeWhenSettingsChange");
+const QString kKeyNotationKey = QStringLiteral("KeyNotation");
+
+// Vamp group. NOTE: The analyser plugin IDs live in the [Vamp] group like in
+// the legacy preference dialogs (see beatdetectionsettings.h /
+// keydetectionsettings.h). WARNING: Do not fix the "analyser" spelling here
+// since user config files contain these keys.
+const QString kVampGroup = QStringLiteral("[Vamp]");
+const QString kAnalyserBeatPluginIdKey = QStringLiteral("AnalyserBeatPluginID");
+const QString kAnalyserKeyPluginIdKey = QStringLiteral("AnalyserKeyPluginID");
+
+// ReplayGain group
+const QString kReplayGainGroup = QStringLiteral("[ReplayGain]");
+const QString kReplayGainEnabledKey = QStringLiteral("ReplayGainEnabled");
+const QString kReplayGainAnalyserEnabledKey =
+        QStringLiteral("ReplayGainAnalyserEnabled");
+const QString kReplayGainAnalyserVersionKey =
+        QStringLiteral("ReplayGainAnalyserVersion");
+const QString kReplayGainReanalyzeKey = QStringLiteral("ReplayGainReanalyze");
+const QString kInitialReplayGainBoostKey = QStringLiteral("InitialReplayGainBoost");
+const QString kInitialDefaultBoostKey = QStringLiteral("InitialDefaultBoost");
 
 } // namespace
 
@@ -937,6 +971,69 @@ PROPERTY_IMPL(kBpmGroup,
         EngineSync::SyncLockAlgorithm,
         bpmSyncLockAlgorithm,
         EngineSync::SyncLockAlgorithm::PREFER_SOFT_LEADER);
+PROPERTY_IMPL(kBpmGroup, kBPMDetectionEnabledKey, bool, bpmDetectionEnabled, true);
+PROPERTY_IMPL(kBpmGroup,
+        kBPMFixedTempoAssumptionKey,
+        bool,
+        bpmFixedTempoAssumption,
+        true);
+PROPERTY_IMPL(kBpmGroup,
+        kBPMReanalyzeWhenSettingsChangeKey,
+        bool,
+        bpmReanalyzeWhenSettingsChange,
+        false);
+PROPERTY_IMPL(kBpmGroup, kBPMReanalyzeImportedKey, bool, bpmReanalyzeImported, false);
+PROPERTY_IMPL(kBpmGroup, kBPMFastAnalysisEnabledKey, bool, bpmFastAnalysis, false);
+PROPERTY_IMPL(kVampGroup,
+        kAnalyserBeatPluginIdKey,
+        QString,
+        bpmAnalyserPluginId,
+        QStringLiteral("qm-tempotracker:0"));
+
+// Key group
+PROPERTY_IMPL(kKeyGroup, kKeyDetectionEnabledKey, bool, keyDetectionEnabled, true);
+PROPERTY_IMPL(kKeyGroup, kKeyFastAnalysisEnabledKey, bool, keyFastAnalysis, false);
+PROPERTY_IMPL(kKeyGroup,
+        kKeyReanalyzeWhenSettingsChangeKey,
+        bool,
+        keyReanalyzeWhenSettingsChange,
+        false);
+PROPERTY_IMPL(kKeyGroup,
+        kKeyNotationKey,
+        QString,
+        keyNotation,
+        QStringLiteral("Traditional"));
+PROPERTY_IMPL(kVampGroup,
+        kAnalyserKeyPluginIdKey,
+        QString,
+        keyAnalyserPluginId,
+        QStringLiteral("qm-keydetector:2"));
+
+// ReplayGain group. See ReplayGainSettings in preferences/replaygainsettings.h
+// for the meaning of the keys. The InitialReplayGainBoost config value is a
+// dB offset relative to the ReplayGain reference loudness (-18 LUFS).
+PROPERTY_IMPL(kReplayGainGroup, kReplayGainEnabledKey, bool, replayGainEnabled, true);
+PROPERTY_IMPL(kReplayGainGroup,
+        kReplayGainAnalyserEnabledKey,
+        bool,
+        replayGainAnalyser,
+        true);
+PROPERTY_IMPL(kReplayGainGroup,
+        kReplayGainAnalyserVersionKey,
+        int,
+        replayGainAnalyserVersion,
+        2);
+PROPERTY_IMPL(kReplayGainGroup,
+        kReplayGainReanalyzeKey,
+        bool,
+        replayGainReanalyze,
+        false);
+PROPERTY_IMPL(kReplayGainGroup,
+        kInitialReplayGainBoostKey,
+        int,
+        replayGainTargetLoudnessAdjust,
+        0);
+PROPERTY_IMPL(kReplayGainGroup, kInitialDefaultBoostKey, int, replayGainDefaultBoost, -6);
 
 // static
 QmlConfigProxy* QmlConfigProxy::create(QQmlEngine* pQmlEngine, QJSEngine*) {

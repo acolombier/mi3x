@@ -259,6 +259,59 @@ class QmlConfigProxy : public QmlConfigProxyBase {
     Q_PROPERTY(EngineSync::SyncLockAlgorithm bpmSyncLockAlgorithm READ
                     bpmSyncLockAlgorithm WRITE set_bpmSyncLockAlgorithm NOTIFY
                             bpmSyncLockAlgorithmChanged);
+    Q_PROPERTY(bool bpmDetectionEnabled READ bpmDetectionEnabled WRITE
+                    set_bpmDetectionEnabled NOTIFY bpmDetectionEnabledChanged);
+    Q_PROPERTY(bool bpmFixedTempoAssumption READ bpmFixedTempoAssumption WRITE
+                    set_bpmFixedTempoAssumption NOTIFY
+                            bpmFixedTempoAssumptionChanged);
+    Q_PROPERTY(bool bpmReanalyzeWhenSettingsChange READ
+                    bpmReanalyzeWhenSettingsChange WRITE
+                            set_bpmReanalyzeWhenSettingsChange NOTIFY
+                                    bpmReanalyzeWhenSettingsChangeChanged);
+    Q_PROPERTY(bool bpmReanalyzeImported READ bpmReanalyzeImported WRITE
+                    set_bpmReanalyzeImported NOTIFY bpmReanalyzeImportedChanged);
+    Q_PROPERTY(bool bpmFastAnalysis READ bpmFastAnalysis WRITE
+                    set_bpmFastAnalysis NOTIFY bpmFastAnalysisChanged);
+    // QString of the selected analyser plugin, e.g. "qm-tempotracker:0"
+    Q_PROPERTY(QString bpmAnalyserPluginId READ bpmAnalyserPluginId WRITE
+                    set_bpmAnalyserPluginId NOTIFY bpmAnalyserPluginIdChanged);
+
+    // Key group
+    Q_PROPERTY(bool keyDetectionEnabled READ keyDetectionEnabled WRITE
+                    set_keyDetectionEnabled NOTIFY keyDetectionEnabledChanged);
+    Q_PROPERTY(bool keyFastAnalysis READ keyFastAnalysis WRITE
+                    set_keyFastAnalysis NOTIFY keyFastAnalysisChanged);
+    Q_PROPERTY(bool keyReanalyzeWhenSettingsChange READ
+                    keyReanalyzeWhenSettingsChange WRITE
+                            set_keyReanalyzeWhenSettingsChange NOTIFY
+                                    keyReanalyzeWhenSettingsChangeChanged);
+    // One of the KEY_NOTATION_* identifiers, e.g. "Lancelot"
+    Q_PROPERTY(QString keyNotation READ keyNotation WRITE set_keyNotation
+                    NOTIFY keyNotationChanged);
+    // QString of the selected analyser plugin, e.g. "qm-keydetector:2"
+    Q_PROPERTY(QString keyAnalyserPluginId READ keyAnalyserPluginId WRITE
+                    set_keyAnalyserPluginId NOTIFY keyAnalyserPluginIdChanged);
+
+    // ReplayGain group
+    // dB offset relative to the ReplayGain reference loudness (-18 LUFS)
+    // [-12..+12]
+    Q_PROPERTY(int replayGainTargetLoudnessAdjust READ
+                    replayGainTargetLoudnessAdjust WRITE
+                            set_replayGainTargetLoudnessAdjust NOTIFY
+                                    replayGainTargetLoudnessAdjustChanged);
+    // Default boost for tracks without ReplayGain data, [-12..+12] dB
+    Q_PROPERTY(int replayGainDefaultBoost READ replayGainDefaultBoost WRITE
+                    set_replayGainDefaultBoost NOTIFY replayGainDefaultBoostChanged);
+    Q_PROPERTY(bool replayGainEnabled READ replayGainEnabled WRITE
+                    set_replayGainEnabled NOTIFY replayGainEnabledChanged);
+    Q_PROPERTY(bool replayGainAnalyser READ replayGainAnalyser WRITE
+                    set_replayGainAnalyser NOTIFY replayGainAnalyserChanged);
+    // The ReplayGain version run by the analyser, 1..2
+    Q_PROPERTY(int replayGainAnalyserVersion READ replayGainAnalyserVersion
+                    WRITE set_replayGainAnalyserVersion NOTIFY
+                            replayGainAnalyserVersionChanged);
+    Q_PROPERTY(bool replayGainReanalyze READ replayGainReanalyze WRITE
+                    set_replayGainReanalyze NOTIFY replayGainReanalyzeChanged);
 
     // Library group
     Q_PROPERTY(bool librarySyncTrackMetadataExport READ
@@ -454,6 +507,31 @@ class QmlConfigProxy : public QmlConfigProxyBase {
 
     // BPM group
     PROPERTY_DECL_ACCESSOR(EngineSync::SyncLockAlgorithm, bpmSyncLockAlgorithm);
+    PROPERTY_DECL_ACCESSOR(bool, bpmDetectionEnabled);
+    PROPERTY_DECL_ACCESSOR(bool, bpmFixedTempoAssumption);
+    PROPERTY_DECL_ACCESSOR(bool, bpmReanalyzeWhenSettingsChange);
+    PROPERTY_DECL_ACCESSOR(bool, bpmReanalyzeImported);
+    PROPERTY_DECL_ACCESSOR(bool, bpmFastAnalysis);
+    PROPERTY_DECL_ACCESSOR(QString, bpmAnalyserPluginId);
+
+    // Key group
+    PROPERTY_DECL_ACCESSOR(bool, keyDetectionEnabled);
+    PROPERTY_DECL_ACCESSOR(bool, keyFastAnalysis);
+    PROPERTY_DECL_ACCESSOR(bool, keyReanalyzeWhenSettingsChange);
+    PROPERTY_DECL_ACCESSOR(QString, keyNotation);
+    PROPERTY_DECL_ACCESSOR(QString, keyAnalyserPluginId);
+
+    // ReplayGain group
+    // dB offset relative to the ReplayGain reference loudness (-18 LUFS)
+    // [-12..+12]
+    PROPERTY_DECL_ACCESSOR(int, replayGainTargetLoudnessAdjust);
+    // Default boost for tracks without ReplayGain data, [-12..+12] dB
+    PROPERTY_DECL_ACCESSOR(int, replayGainDefaultBoost);
+    PROPERTY_DECL_ACCESSOR(bool, replayGainEnabled);
+    PROPERTY_DECL_ACCESSOR(bool, replayGainAnalyser);
+    // The ReplayGain version run by the analyser, 1..2
+    PROPERTY_DECL_ACCESSOR(int, replayGainAnalyserVersion);
+    PROPERTY_DECL_ACCESSOR(bool, replayGainReanalyze);
 
     // Library group
     PROPERTY_DECL_ACCESSOR(bool, librarySyncTrackMetadataExport);
@@ -557,6 +635,23 @@ class QmlConfigProxy : public QmlConfigProxyBase {
     void configStartInFullscreenKeyChanged();
     void configSkinChanged();
     void bpmSyncLockAlgorithmChanged();
+    void bpmDetectionEnabledChanged();
+    void bpmFixedTempoAssumptionChanged();
+    void bpmReanalyzeWhenSettingsChangeChanged();
+    void bpmReanalyzeImportedChanged();
+    void bpmFastAnalysisChanged();
+    void bpmAnalyserPluginIdChanged();
+    void keyDetectionEnabledChanged();
+    void keyFastAnalysisChanged();
+    void keyReanalyzeWhenSettingsChangeChanged();
+    void keyNotationChanged();
+    void keyAnalyserPluginIdChanged();
+    void replayGainTargetLoudnessAdjustChanged();
+    void replayGainDefaultBoostChanged();
+    void replayGainEnabledChanged();
+    void replayGainAnalyserChanged();
+    void replayGainAnalyserVersionChanged();
+    void replayGainReanalyzeChanged();
     void librarySyncTrackMetadataExportChanged();
     void librarySeratoMetadataExportChanged();
     void libraryUseRelativePathOnExportChanged();

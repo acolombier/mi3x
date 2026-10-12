@@ -33,12 +33,21 @@ SEARCH_INPUT = f"{SETTINGS_POPUP_ITEM}/searchInput"
 CATEGORIES_ITEM = f"{SETTINGS_POPUP_ITEM}/settingsCategories"
 SHOW_CATEGORIES_BUTTON = f"{SETTINGS_POPUP_ITEM}/showCategoriesButton"
 
-SETTING_CATEGORY_SLUG = ["sound","library","controller", "interface"]
+# Slug ("sound", "library", ...) per active category index in the settings
+# popup (see res/qml/Settings.qml;Analyzer is index 8). Categories without an
+# implemented save/cancel/reset footer are not listed.
+SETTING_CATEGORY_SLUG = {
+    0: "sound",
+    1: "library",
+    2: "controller",
+    3: "interface",
+    8: "analyzer",
+}
 CATEGORY_SCROLLBARS_TEMPLATE = "mainWindow/%sSettingsScrollBar"
 ACTION_BUTTON_TEMPLATE = "mainWindow/%s%sButton"
 CATEGORY_SCROLLBARS = {
     index: CATEGORY_SCROLLBARS_TEMPLATE % slug
-    for index, slug in enumerate(SETTING_CATEGORY_SLUG)
+    for index, slug in SETTING_CATEGORY_SLUG.items()
 }
 MUSIC_DIRECTORY_LIST = "mainWindow/librarySourceList"
 MUSIC_DIRECTORY_ROW = "mainWindow/sourceRow_%d"
@@ -168,6 +177,25 @@ SETTING_MAP = {
     "library search history keyboard shortcuts": {"path": "mainWindow/setting_librarySearchHistoryShortcuts", "kind": "ratio", "options": ["on", "off"]},
     "search-as-you-type timeout": {"path": "mainWindow/setting_searchTimeout", "kind": "slider", "min": 0.1, "max": 10, "markers": [0.1, 0.5, 1, 5, 10]},
     "pitch slider for fuzz BPM search": {"path": "mainWindow/setting_searchFuzzBpm", "kind": "slider", "min": 0, "max": 100, "markers": [0, 25, 50, 75, 100]},
+    # Analyzer category — BPM and beat detection
+    "BPM detection": {"path": "mainWindow/setting_bpmDetection", "kind": "ratio", "options": ["off", "on"]},
+    "BPM analyser": {"path": "mainWindow/setting_bpmAnalyser", "kind": "ratio", "options": ["queenmary", "soundtouch"]},
+    "assume constant tempo": {"path": "mainWindow/setting_bpmFixedTempo", "kind": "ratio", "options": ["off", "on"]},
+    "re-analysis when settings change": {"path": "mainWindow/setting_bpmReanalyze", "kind": "ratio", "options": ["off", "on"]},
+    "BPM fast analysis": {"path": "mainWindow/setting_bpmFastAnalysis", "kind": "ratio", "options": ["off", "on"]},
+    "re-analysis of beatgrids imported from other DJ software": {"path": "mainWindow/setting_bpmReanalyzeImported", "kind": "ratio", "options": ["off", "on"]},
+    # Analyzer category — key detection
+    "key detection": {"path": "mainWindow/setting_keyDetection", "kind": "ratio", "options": ["off", "on"]},
+    "key analyser": {"path": "mainWindow/setting_keyAnalyser", "kind": "ratio", "options": ["queenmary", "keyfinder"]},
+    "key fast analysis": {"path": "mainWindow/setting_keyFastAnalysis", "kind": "ratio", "options": ["off", "on"]},
+    "key re-analysis when settings change": {"path": "mainWindow/setting_keyReanalyze", "kind": "ratio", "options": ["off", "on"]},
+    "key notation": {"path": "mainWindow/setting_keyNotation", "kind": "ratio", "options": ["lancelot", "traditional", "openkey", "custom"]},
+    # Analyzer category — ReplayGain
+    "ReplayGain normalization": {"path": "mainWindow/setting_replayGain", "kind": "ratio", "options": ["off", "on"]},
+    "ReplayGain analyser version": {"path": "mainWindow/setting_replayGainAnalyser", "kind": "ratio", "options": ["replaygain20", "replaygain10"]},
+    "ReplayGain target loudness": {"path": "mainWindow/setting_replayGainTargetLoudness", "kind": "slider", "min": -12, "max": 12, "markers": [-12, -6, 0, 6, 12]},
+    "ReplayGain re-analysis": {"path": "mainWindow/setting_replayGainReanalyze", "kind": "ratio", "options": ["off", "on"]},
+    "ReplayGain default boost": {"path": "mainWindow/setting_replayGainDefaultBoost", "kind": "slider", "min": -12, "max": 12, "markers": [-12, -6, 0, 6, 12]},
 }
 
 # Config keys written by saveInterface()/saveDeck() (see QmlConfigProxy).
@@ -296,6 +324,25 @@ CONFIG_SAVE_MAP = {
     "track duplicate distance": {"group": "[Library]", "key": "history_track_duplicate_distance", "expected": lambda value: str(int(float(value)))},
     "delete history playlist with less than": {"group": "[Library]", "key": "history_min_tracks_to_keep", "expected": lambda value: str(int(float(value)))},
     "search-as-you-type timeout": {"group": "[Library]", "key": "SearchDebouncingTimeoutMillis", "expected": lambda value: str(int(float(value) * 1000))},
+    # Analyzer category — see Analyzer.qml save() and QmlConfigProxy.
+    # Mixxx removes a config key whose value equals its declared default, so
+    # assertions for default values map onto the empty string.
+    "BPM detection": {"group": "[BPM]", "key": "BPMDetectionEnabled", "expected": {"on": "", "off": "0"}},
+    "BPM analyser": {"group": "[Vamp]", "key": "AnalyserBeatPluginID", "expected": {"queenmary": "", "soundtouch": "mixxxbpmdetection"}},
+    "assume constant tempo": {"group": "[BPM]", "key": "BeatDetectionFixedTempoAssumption", "expected": {"on": "", "off": "0"}},
+    "re-analysis when settings change": {"group": "[BPM]", "key": "ReanalyzeWhenSettingsChange", "expected": {"on": "1", "off": ""}},
+    "BPM fast analysis": {"group": "[BPM]", "key": "FastAnalysisEnabled", "expected": {"on": "1", "off": ""}},
+    "re-analysis of beatgrids imported from other DJ software": {"group": "[BPM]", "key": "ReanalyzeImported", "expected": {"on": "1", "off": ""}},
+    "key detection": {"group": "[Key]", "key": "KeyDetectionEnabled", "expected": {"on": "", "off": "0"}},
+    "key analyser": {"group": "[Vamp]", "key": "AnalyserKeyPluginID", "expected": {"queenmary": "", "keyfinder": "keyfinder:2"}},
+    "key fast analysis": {"group": "[Key]", "key": "FastAnalysisEnabled", "expected": {"on": "1", "off": ""}},
+    "key re-analysis when settings change": {"group": "[Key]", "key": "ReanalyzeWhenSettingsChange", "expected": {"on": "1", "off": ""}},
+    "key notation": {"group": "[Key]", "key": "KeyNotation", "expected": {"lancelot": "Lancelot", "traditional": "", "openkey": "OpenKey", "custom": "Custom"}},
+    "ReplayGain normalization": {"group": "[ReplayGain]", "key": "ReplayGainEnabled", "expected": {"on": "", "off": "0"}},
+    "ReplayGain analyser version": {"group": "[ReplayGain]", "key": "ReplayGainAnalyserVersion", "expected": {"replaygain20": "", "replaygain10": "1"}},
+    "ReplayGain target loudness": {"group": "[ReplayGain]", "key": "InitialReplayGainBoost", "expected": lambda value: str(int(float(value)))},
+    "ReplayGain re-analysis": {"group": "[ReplayGain]", "key": "ReplayGainReanalyze", "expected": {"on": "1", "off": ""}},
+    "ReplayGain default boost": {"group": "[ReplayGain]", "key": "InitialDefaultBoost", "expected": lambda value: str(int(float(value)))},
 }
 
 # ControlObject side-effects of saveDeck().
