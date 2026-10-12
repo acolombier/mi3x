@@ -14,6 +14,7 @@ Item {
         Math.max.apply(null, options.map(option => fontMetrics.advanceWidth(option))) + root.spacing * 2;
     }
     property alias content: contentList
+    property alias itemDelegate: contentList
     property color inactiveColor: Theme.darkGray2
     property real maxWidth: 0
     property alias metric: fontMetrics
@@ -45,6 +46,19 @@ Item {
         font.capitalization: Font.AllUppercase
         font.pixelSize: 14
     }
+
+    Component {
+        id: delegateComponent
+        Text {
+            anchors.fill: parent
+            color: Theme.white
+            font: fontMetrics.font
+            horizontalAlignment: Text.AlignHCenter
+            text: parent.modelData
+            verticalAlignment: Text.AlignVCenter
+        }
+    }
+    property Component delegate: delegateComponent
     Rectangle {
         id: contentList
 
@@ -68,6 +82,7 @@ Item {
                 model: options
 
                 Item {
+                    id: optionItem
                     required property int index
                     required property var modelData
                     objectName: root.objectName ? "option" + index : ""
@@ -92,13 +107,13 @@ Item {
                             shadowBlur: 1
                         }
 
-                        Text {
+                        // DelegateComponent {
+                        //     modelData: optionItem.modelData
+                        // }
+                        Loader {
+                            readonly property var modelData: optionItem.modelData
                             anchors.fill: parent
-                            color: Theme.white
-                            font: fontMetrics.font
-                            horizontalAlignment: Text.AlignHCenter
-                            text: modelData
-                            verticalAlignment: Text.AlignVCenter
+                            sourceComponent: root.delegate
                         }
                         MouseArea {
                             anchors.fill: parent
