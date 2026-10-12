@@ -205,15 +205,16 @@ Category {
 
                         RowLayout {
                             Mixxx.SettingParameter {
-                                Layout.minimumWidth: directoryLabel.implicitWidth
                                 Layout.alignment: Qt.AlignVCenter
                                 Layout.fillWidth: true
+                                Layout.minimumWidth: directoryLabel.implicitWidth
                                 label: "Directory"
 
                                 Text {
                                     id: directoryLabel
-                                    anchors.top: parent.top
+
                                     anchors.bottom: parent.bottom
+                                    anchors.top: parent.top
                                     color: Theme.white
                                     elide: Text.ElideRight
                                     font.pixelSize: 14
@@ -224,14 +225,15 @@ Category {
                                 }
                             }
                             RowLayout {
+                                Layout.maximumWidth: 300
                                 Layout.minimumHeight: 26
                                 Layout.minimumWidth: 100
-                                Layout.maximumWidth: 300
+
                                 Skin.InputField {
-                                    input.text: root.cfg.directory
-                                    objectName: "recordingDirectory"
                                     Layout.fillWidth: true
                                     Layout.minimumHeight: 26
+                                    input.text: root.cfg.directory
+                                    objectName: "recordingDirectory"
 
                                     input.onAccepted: {
                                         root.set("directory", input.text);
@@ -248,18 +250,18 @@ Category {
                                 }
                             }
                         }
-
                         RowLayout {
                             Mixxx.SettingParameter {
-                                Layout.minimumWidth: qualityLabel.implicitWidth
                                 Layout.alignment: Qt.AlignVCenter
                                 Layout.fillWidth: true
+                                Layout.minimumWidth: qualityLabel.implicitWidth
                                 label: "Quality"
 
                                 Text {
                                     id: qualityLabel
-                                    anchors.top: parent.top
+
                                     anchors.bottom: parent.bottom
+                                    anchors.top: parent.top
                                     color: Theme.white
                                     elide: Text.ElideRight
                                     font.pixelSize: 14
@@ -271,9 +273,9 @@ Category {
                             }
                             SettingComponents.Slider {
                                 id: qualityRow
-                                Layout.preferredWidth: 350
-                                Layout.preferredHeight: 30
 
+                                Layout.preferredHeight: 30
+                                Layout.preferredWidth: 350
                                 markers: [32, 96, 128, 192, 256, 320]
                                 objectName: "recordingQuality"
                                 suffix: " kbit/s"
@@ -287,21 +289,19 @@ Category {
                                 }
                             }
                         }
-
                         RowLayout {
                             Mixxx.SettingParameter {
-                                Layout.minimumWidth: outputFileFormatLabel.implicitWidth
                                 Layout.alignment: Qt.AlignVCenter
                                 Layout.fillWidth: true
+                                Layout.minimumWidth: outputFileFormatLabel.implicitWidth
+                                keywords: ["channels"]
                                 label: "Output file format"
-                                keywords: [
-                                    "channels"
-                                ]
 
                                 Text {
                                     id: outputFileFormatLabel
-                                    anchors.top: parent.top
+
                                     anchors.bottom: parent.bottom
+                                    anchors.top: parent.top
                                     color: Theme.white
                                     elide: Text.ElideRight
                                     font.pixelSize: 14
@@ -313,6 +313,7 @@ Category {
                             }
                             RowLayout {
                                 Layout.fillWidth: true
+
                                 Skin.ComboBox {
                                     // Values mirror EncoderFactory::getFormats().
                                     // TODO(XXX): populate from the encoder registry
@@ -338,15 +339,16 @@ Category {
                         }
                         RowLayout {
                             Mixxx.SettingParameter {
-                                Layout.minimumWidth: splitRecordingsLabel.implicitWidth
                                 Layout.alignment: Qt.AlignVCenter
                                 Layout.fillWidth: true
+                                Layout.minimumWidth: splitRecordingsLabel.implicitWidth
                                 label: "Split recordings at"
 
                                 Text {
                                     id: splitRecordingsLabel
-                                    anchors.top: parent.top
+
                                     anchors.bottom: parent.bottom
+                                    anchors.top: parent.top
                                     color: Theme.white
                                     elide: Text.ElideRight
                                     font.pixelSize: 14
@@ -375,15 +377,16 @@ Category {
                         }
                         RowLayout {
                             Mixxx.SettingParameter {
-                                Layout.minimumWidth: bitrateModeLabel.implicitWidth
                                 Layout.alignment: Qt.AlignVCenter
                                 Layout.fillWidth: true
+                                Layout.minimumWidth: bitrateModeLabel.implicitWidth
                                 label: "Bitrate mode"
 
                                 Text {
                                     id: bitrateModeLabel
-                                    anchors.top: parent.top
+
                                     anchors.bottom: parent.bottom
+                                    anchors.top: parent.top
                                     color: Theme.white
                                     elide: Text.ElideRight
                                     font.pixelSize: 14
@@ -407,15 +410,16 @@ Category {
                         }
                         RowLayout {
                             Mixxx.SettingParameter {
-                                Layout.minimumWidth: compressionLevelLabel.implicitWidth
                                 Layout.alignment: Qt.AlignVCenter
                                 Layout.fillWidth: true
+                                Layout.minimumWidth: compressionLevelLabel.implicitWidth
                                 label: "Compression level"
 
                                 Text {
                                     id: compressionLevelLabel
-                                    anchors.top: parent.top
+
                                     anchors.bottom: parent.bottom
+                                    anchors.top: parent.top
                                     color: Theme.white
                                     elide: Text.ElideRight
                                     font.pixelSize: 14
@@ -427,9 +431,9 @@ Category {
                             }
                             SettingComponents.Slider {
                                 id: compressionRow
-                                Layout.preferredWidth: 350
-                                Layout.preferredHeight: 30
 
+                                Layout.preferredHeight: 30
+                                Layout.preferredWidth: 350
                                 markers: [0, 2, 4, 6, 8]
                                 objectName: "recordingCompression"
                                 suffix: ""
@@ -445,18 +449,17 @@ Category {
                         }
                         RowLayout {
                             Mixxx.SettingParameter {
-                                Layout.minimumWidth: cueFileLabel.implicitWidth
                                 Layout.alignment: Qt.AlignVCenter
                                 Layout.fillWidth: true
+                                Layout.minimumWidth: cueFileLabel.implicitWidth
+                                keywords: ["annotation"]
                                 label: "CUE file"
-                                keywords: [
-                                    "annotation"
-                                ]
 
                                 Text {
                                     id: cueFileLabel
-                                    anchors.top: parent.top
+
                                     anchors.bottom: parent.bottom
+                                    anchors.top: parent.top
                                     color: Theme.white
                                     elide: Text.ElideRight
                                     font.pixelSize: 14
@@ -478,15 +481,16 @@ Category {
                         }
                         RowLayout {
                             Mixxx.SettingParameter {
-                                Layout.minimumWidth: trackListAsCommentLabel.implicitWidth
                                 Layout.alignment: Qt.AlignVCenter
                                 Layout.fillWidth: true
+                                Layout.minimumWidth: trackListAsCommentLabel.implicitWidth
                                 label: "Store the tracklist as comment"
 
                                 Text {
                                     id: trackListAsCommentLabel
-                                    anchors.top: parent.top
+
                                     anchors.bottom: parent.bottom
+                                    anchors.top: parent.top
                                     color: Theme.white
                                     elide: Text.ElideRight
                                     font.pixelSize: 14
@@ -553,14 +557,15 @@ Category {
                         rowSpacing: 15
 
                         Mixxx.SettingParameter {
-                            Layout.minimumWidth: titleLabel.implicitWidth
                             Layout.alignment: Qt.AlignVCenter
+                            Layout.minimumWidth: titleLabel.implicitWidth
                             label: "Title"
 
                             Text {
                                 id: titleLabel
-                                anchors.top: parent.top
+
                                 anchors.bottom: parent.bottom
+                                anchors.top: parent.top
                                 color: Theme.white
                                 elide: Text.ElideRight
                                 font.pixelSize: 14
@@ -581,16 +586,16 @@ Category {
                                 input.focus = false;
                             }
                         }
-
                         Mixxx.SettingParameter {
-                            Layout.minimumWidth: authorLabel.implicitWidth
                             Layout.alignment: Qt.AlignVCenter
+                            Layout.minimumWidth: authorLabel.implicitWidth
                             label: "Author"
 
                             Text {
                                 id: authorLabel
-                                anchors.top: parent.top
+
                                 anchors.bottom: parent.bottom
+                                anchors.top: parent.top
                                 color: Theme.white
                                 elide: Text.ElideRight
                                 font.pixelSize: 14
@@ -612,14 +617,15 @@ Category {
                             }
                         }
                         Mixxx.SettingParameter {
-                            Layout.minimumWidth: albumLabel.implicitWidth
                             Layout.alignment: Qt.AlignVCenter
+                            Layout.minimumWidth: albumLabel.implicitWidth
                             label: "Album"
 
                             Text {
                                 id: albumLabel
-                                anchors.top: parent.top
+
                                 anchors.bottom: parent.bottom
+                                anchors.top: parent.top
                                 color: Theme.white
                                 elide: Text.ElideRight
                                 font.pixelSize: 14
