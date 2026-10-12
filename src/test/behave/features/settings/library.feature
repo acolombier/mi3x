@@ -189,19 +189,19 @@ Feature: Library Settings
   @category/responsiveness
   Scenario: Sources and integrations stack on a narrow window
     Given the window's width is 1792px
-    Then the "sources" grid should be displayed in 2 columns
+    Then the Library sources grid should be displayed in 2 columns
     When I resize the window's width to 700px
-    Then the "sources" grid should be displayed in 1 column
+    Then the Library sources grid should be displayed in 1 column
     When I resize the window's width to 1792px
 
   @category/responsiveness
   Scenario: Metadata and history settings rearrange on a narrow window
     Given the window's width is 1792px
-    Then the "metadata" grid should be displayed in 2 columns
-    And the "history" grid should be displayed in 2 columns
+    Then the Library metadata grid should be displayed in 2 columns
+    And the Library history grid should be displayed in 2 columns
     When I resize the window's width to 700px
-    Then the "metadata" grid should be displayed in 1 column
-    And the "history" grid should be displayed in 1 column
+    Then the Library metadata grid should be displayed in 1 column
+    And the Library history grid should be displayed in 1 column
     When I resize the window's width to 1792px
 
   @category/responsiveness
@@ -218,9 +218,9 @@ Feature: Library Settings
   @category/responsiveness
   Scenario: Integration options compact when the row is narrow
     Given the window's width is 1792px
-    Then the "integrations" grid should be displayed in 1 column
+    Then the Library integrations grid should be displayed in 1 column
     When I resize the window's width to 700px
-    Then the "integrations" grid should be displayed in 2 columns
-    And the "integrations grid" should be below the "library source pane"
-    And the "integrations grid" should not overlap the "library source pane"
+    Then the Library integrations grid should be displayed in 2 columns
+    And the integrations grid should be below the library source pane
+    And the integrations grid should not overlap the library source pane
     When I resize the window's width to 1792px

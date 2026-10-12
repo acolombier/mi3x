@@ -10,25 +10,17 @@ import "Settings" as Settings
 
 Popup {
     id: root
-    objectName: "settingsPopup"
-
-    onOpened: {
-        Mixxx.Core.addOpenedPopup(this)
-    }
-    onClosed: {
-        Mixxx.Core.removeOpenedPopup(this)
-    }
 
     property var activeCategory: null
     property alias activeCategoryIndex: categoryList.currentIndex
+
+    // Used to show click interaction on the Window. Mainly relevant on automated testing
+    property bool enableDiagnosticClick: false
     readonly property var manager: managerItem
     property alias sections: managerItem.data
 
     // FIXME change to `final` when supported
     readonly property real smallScreenWidth: 1200
-
-    // Used to show click interaction on the Window. Mainly relevant on automated testing
-    property bool enableDiagnosticClick: false
 
     function updateActiveCategory() {
         root.activeCategory?.deactivated();
@@ -36,11 +28,10 @@ Popup {
         root.activeCategory?.activated();
     }
 
-    Component.onCompleted: updateActiveCategory()
-
-    horizontalPadding: 20
-    verticalPadding: 20
     focus: true
+    horizontalPadding: 20
+    objectName: "settingsPopup"
+    verticalPadding: 20
 
     background: Rectangle {
         anchors.fill: parent
@@ -49,22 +40,22 @@ Popup {
         radius: 8
     }
     contentItem: Item {
-        objectName: "settingsPopupItem"
 
         // Used for testing
         readonly property int activeCategoryIndex: root.activeCategoryIndex
 
         anchors.centerIn: parent
         height: parent.height - 40
+        objectName: "settingsPopupItem"
         width: parent.width - 40
 
         Rectangle {
             id: categories
-            objectName: "settingsCategories"
 
             border.color: Theme.darkGray3
             border.width: 6
             color: Theme.darkGray
+            objectName: "settingsCategories"
             visible: root.width > root.smallScreenWidth || showCategories.checked
             width: Math.min(280, root.width * 0.25)
             z: 100
@@ -81,7 +72,6 @@ Popup {
 
                 Rectangle {
                     id: searchSetting
-                    objectName: "searchSetting"
 
                     property bool active: false
                     property alias input: searchInput
@@ -89,6 +79,7 @@ Popup {
                     Layout.fillWidth: true
                     color: Theme.midGray
                     height: 30
+                    objectName: "searchSetting"
 
                     Text {
                         id: searchInputPlaceholder
@@ -100,9 +91,9 @@ Popup {
                     }
                     TextInput {
                         id: searchInput
-                        objectName: "searchInput"
 
                         anchors.verticalCenter: parent.verticalCenter
+                        objectName: "searchInput"
                         visible: parent.active
                         width: parent.width
 
@@ -122,7 +113,6 @@ Popup {
                 }
                 ListView {
                     id: categoryList
-                    objectName: "categoryList"
 
                     Layout.fillHeight: true
                     Layout.fillWidth: true
@@ -130,15 +120,16 @@ Popup {
                     currentIndex: 0
                     focus: true
                     model: sectionProperties
+                    objectName: "categoryList"
                     visible: !searchSetting.active
 
                     delegate: Rectangle {
                         required property int index
                         required property var label
-                        objectName: "category_" + label
 
                         color: ListView.isCurrentItem ? Theme.darkGray3 : Theme.darkGray2
                         height: 38
+                        objectName: "category_" + label
                         width: ListView.view.width
 
                         Image {
@@ -281,7 +272,6 @@ Popup {
             }
             Rectangle {
                 id: tabBar
-                objectName: "tabBar"
 
                 readonly property int selectedIndex: root.activeCategory?.selectedIndex ?? 0
                 readonly property var tabs: root.activeCategory?.tabs ?? []
@@ -289,6 +279,7 @@ Popup {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
                 color: Theme.darkGray3
+                objectName: "tabBar"
                 visible: tabs?.length > 0
 
                 RowLayout {
@@ -300,13 +291,13 @@ Popup {
                         Skin.Button {
                             required property int index
                             required property string modelData
-                            objectName: "tab_" + modelData
 
                             Layout.alignment: Qt.AlignHCenter
                             Layout.preferredHeight: 22
                             Layout.preferredWidth: parent.width / (tabBar.tabs.length + 2)
                             activeColor: Theme.white
                             checked: tabBar.selectedIndex == index
+                            objectName: "tab_" + modelData
                             text: modelData
 
                             onPressed: {
@@ -364,10 +355,13 @@ Popup {
                 Settings.AutoDJ {
                 }
                 Settings.Broadcast {
+                    objectName: "broadcastPage"
                 }
                 Settings.Recording {
+                    objectName: "recordingPage"
                 }
                 Settings.Analyzer {
+                    objectName: "analyzerPage"
                 }
                 Settings.StatsPerformance {
                 }
@@ -375,7 +369,14 @@ Popup {
         }
     }
 
+    Component.onCompleted: updateActiveCategory()
     onActiveCategoryIndexChanged: updateActiveCategory()
+    onClosed: {
+        Mixxx.Core.removeOpenedPopup(this);
+    }
+    onOpened: {
+        Mixxx.Core.addOpenedPopup(this);
+    }
     onSectionsChanged: updateActiveCategory()
 
     ListModel {
@@ -385,37 +386,44 @@ Popup {
     // Testing automation resources
     Rectangle {
         id: click
+
         color: clickDetector.clicked ? 'red' : 'green'
         radius: width / 2
         visible: opacity != 0 && root.enableDiagnosticClick
 
-        NumberAnimation on width {
-            running: clickDetector.clicked
-            from: 20; to: 0
-        }
         NumberAnimation on height {
+            from: 20
             running: clickDetector.clicked
-            from: 20; to: 0
+            to: 0
         }
         NumberAnimation on opacity {
+            from: 1
             running: clickDetector.clicked
-            from: 1; to: 0
+            to: 0
+        }
+        NumberAnimation on width {
+            from: 20
+            running: clickDetector.clicked
+            to: 0
         }
     }
     MouseArea {
-        property bool clicked: false
-        enabled: root.enableDiagnosticClick
         id: clickDetector
+
+        property bool clicked: false
+
         anchors.fill: parent
-        onPressed: (mouse)=> {
-            clicked = false
-            click.width = 20
-            click.height = 20
-            click.opacity = 1
+        enabled: root.enableDiagnosticClick
+
+        onPressed: mouse => {
+            clicked = false;
+            click.width = 20;
+            click.height = 20;
+            click.opacity = 1;
             click.x = Qt.binding(() => mouse.x - click.width / 2);
             click.y = Qt.binding(() => mouse.y - click.height / 2);
-            clicked = true
-            mouse.accepted = false
+            clicked = true;
+            mouse.accepted = false;
         }
     }
 }

@@ -14,7 +14,9 @@ Item {
         Math.max.apply(null, options.map(option => fontMetrics.advanceWidth(option))) + root.spacing * 2;
     }
     property alias content: contentList
+    property Component delegate: delegateComponent
     property color inactiveColor: Theme.darkGray2
+    property alias itemDelegate: contentList
     property real maxWidth: 0
     property alias metric: fontMetrics
     property bool normalizedWidth: false
@@ -45,6 +47,18 @@ Item {
         font.capitalization: Font.AllUppercase
         font.pixelSize: 14
     }
+    Component {
+        id: delegateComponent
+
+        Text {
+            anchors.fill: parent
+            color: Theme.white
+            font: fontMetrics.font
+            horizontalAlignment: Text.AlignHCenter
+            text: parent.modelData
+            verticalAlignment: Text.AlignVCenter
+        }
+    }
     Rectangle {
         id: contentList
 
@@ -68,12 +82,14 @@ Item {
                 model: options
 
                 Item {
+                    id: optionItem
+
                     required property int index
                     required property var modelData
-                    objectName: root.objectName ? "option" + index : ""
 
                     height: contentList.height
                     implicitWidth: root.normalizedWidth ? root.cellSize : fontMetrics.advanceWidth(modelData) + root.spacing * 2
+                    objectName: root.objectName ? "option" + index : ""
 
                     Rectangle {
                         id: contentOption
@@ -81,24 +97,26 @@ Item {
                         anchors.fill: parent
                         color: root.selected == modelData ? Theme.accentColor : 'transparent'
                         radius: height / 2
+
+                        layer.effect: MultiEffect {
+                            shadowBlur: 1
+                            shadowColor: "#0E2A54"
+                            shadowEnabled: true
+                        }
+
                         border {
                             color: root.selected == modelData ? "#0E2A54" : 'transparent'
                             width: 1
                         }
 
-                        layer.effect: MultiEffect {
-                            shadowEnabled: true
-                            shadowColor: "#0E2A54"
-                            shadowBlur: 1
-                        }
+                        // DelegateComponent {
+                        //     modelData: optionItem.modelData
+                        // }
+                        Loader {
+                            readonly property var modelData: optionItem.modelData
 
-                        Text {
                             anchors.fill: parent
-                            color: Theme.white
-                            font: fontMetrics.font
-                            horizontalAlignment: Text.AlignHCenter
-                            text: modelData
-                            verticalAlignment: Text.AlignVCenter
+                            sourceComponent: root.delegate
                         }
                         MouseArea {
                             anchors.fill: parent
@@ -130,6 +148,11 @@ Item {
 
         property real textWidth: fontMetrics.advanceWidth(root.options.reduce((accumulator, currentValue) => accumulator.length > currentValue.length ? accumulator : currentValue, ""))
 
+        function updatePopup() {
+            popup.tooltip = root.tooltips[contentSpin.value] ?? "";
+            popup.x = contentSpin.width / 2 - popup.width / 2;
+        }
+
         anchors.centerIn: parent
         font: fontMetrics.font
         from: 0
@@ -139,10 +162,6 @@ Item {
             return root.options[value];
         }
         to: root.options.length - 1
-        Binding on value {
-            delayed: true
-            value: root.options.indexOf(root.selected)
-        }
         valueFromText: function (text) {
             for (var i = 0; i < root.options.length; ++i) {
                 if (root.options[i].toLowerCase().indexOf(text.toLowerCase()) === 0)
@@ -160,34 +179,34 @@ Item {
         contentItem: Item {
             width: contentSpin.textWidth + 2 * contentSpin.spacing
 
-                Rectangle {
-                    id: content
+            Rectangle {
+                id: content
+
+                anchors.fill: parent
+                color: Theme.accentColor
+                radius: height / 2
+
+                layer.effect: MultiEffect {
+                    shadowBlur: 1
+                    shadowColor: "#0E2A54"
+                    shadowEnabled: true
+                }
+
+                border {
+                    color: "#0E2A54"
+                    width: 1
+                }
+                Text {
+                    id: textLabel
 
                     anchors.fill: parent
-                    color: Theme.accentColor
-                    radius: height / 2
-                    border {
-                        color: "#0E2A54"
-                        width: 1
-                    }
-
-                    layer.effect: MultiEffect {
-                        shadowEnabled: true
-                        shadowColor: "#0E2A54"
-                        shadowBlur: 1
-                    }
-
-                    Text {
-                        id: textLabel
-
-                        anchors.fill: parent
-                        color: Theme.white
-                        font: contentSpin.font
-                        horizontalAlignment: Text.AlignHCenter
-                        text: contentSpin.textFromValue(contentSpin.value, contentSpin.locale) ?? ""
-                        verticalAlignment: Text.AlignVCenter
-                    }
+                    color: Theme.white
+                    font: contentSpin.font
+                    horizontalAlignment: Text.AlignHCenter
+                    text: contentSpin.textFromValue(contentSpin.value, contentSpin.locale) ?? ""
+                    verticalAlignment: Text.AlignVCenter
                 }
+            }
         }
         down.indicator: Indicator {
             objectName: root.objectName ? "prevButton" : ""
@@ -199,25 +218,23 @@ Item {
             text: ">"
             x: contentSpin.mirrored ? 0 : parent.width - width
         }
-
-        function updatePopup(){
-            popup.tooltip = root.tooltips[contentSpin.value] ?? "";
-            popup.x = contentSpin.width / 2 - popup.width / 2;
+        Binding on value {
+            delayed: true
+            value: root.options.indexOf(root.selected)
         }
 
         Component.onCompleted: updatePopup()
-
-                        onValueChanged: {
-                            if (root.selected === null) {
-                                // The SpinBox initialises its value from the
-                                // binding, which clamps indexOf(null) to the
-                                // first option. Do not let that preselect an
-                                // option the user has not chosen.
-                                return;
-                            }
-                            root.selected = contentSpin.textFromValue(value) ?? "";
-                            updatePopup()
-                        }
+        onValueChanged: {
+            if (root.selected === null) {
+                // The SpinBox initialises its value from the
+                // binding, which clamps indexOf(null) to the
+                // first option. Do not let that preselect an
+                // option the user has not chosen.
+                return;
+            }
+            root.selected = contentSpin.textFromValue(value) ?? "";
+            updatePopup();
+        }
 
         MouseArea {
             anchors.fill: parent
@@ -241,12 +258,12 @@ Item {
         id: dropRatio
 
         anchors.fill: contentList.visible ? contentList : contentSpin
-        source: contentList.visible ? contentList : contentSpin
         autoPaddingEnabled: true
-        shadowEnabled: true
-        shadowColor: "#B0000000"
-        shadowBlur: 0.24
         blurMultiplier: 0.24
+        shadowBlur: 0.24
+        shadowColor: "#B0000000"
+        shadowEnabled: true
+        source: contentList.visible ? contentList : contentSpin
     }
     Popup {
         id: popup
@@ -317,12 +334,12 @@ Item {
             }
             MultiEffect {
                 anchors.fill: parent
-                source: contentPopup
                 autoPaddingEnabled: true
-                shadowEnabled: true
-                shadowColor: "#B0000000"
-                shadowBlur: 0.24
                 blurMultiplier: 0.24
+                shadowBlur: 0.24
+                shadowColor: "#B0000000"
+                shadowEnabled: true
+                source: contentPopup
             }
         }
     }
