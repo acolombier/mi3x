@@ -211,6 +211,7 @@ QmlApplication::QmlApplication(
     // follows a strict singleton pattern design
     QmlDlgPreferencesProxy::s_pInstance =
             std::make_unique<QmlDlgPreferencesProxy>(pDlgPreferences, this);
+    QmlRecordingProxy::s_pRecordingManager = m_pCoreServices->getRecordingManager();
 
     const QStringList visualGroups =
             m_pCoreServices->getPlayerManager()->getVisualPlayerGroups();

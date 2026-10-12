@@ -1,5 +1,7 @@
 #include "qml/qmlrecordingproxy.h"
 
+#include <qvariant.h>
+
 #include <utility>
 
 #include "moc_qmlrecordingproxy.cpp"
@@ -40,6 +42,14 @@ QmlRecordingProxy* QmlRecordingProxy::create(
         QQmlEngine* pQmlEngine,
         [[maybe_unused]] QJSEngine* pJsEngine) {
     return new QmlRecordingProxy(s_pRecordingManager, pQmlEngine);
+}
+
+QVariantList QmlRecordingProxy::formats() const {
+    QVariantList results{};
+    for (const Encoder::Format& format : EncoderFactory::getFactory().getFormats()) {
+        results.append(QVariant::fromValue(EncoderFormat(format)));
+    }
+    return results;
 }
 
 void QmlRecordingProxy::slotDurationRecorded(const QString& durationText) {

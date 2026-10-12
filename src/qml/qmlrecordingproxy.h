@@ -1,15 +1,48 @@
 #pragma once
 
+#include <qtmetamacros.h>
+
 #include <QJSEngine>
 #include <QObject>
 #include <QQmlEngine>
 #include <QString>
 #include <memory>
 
+#include "encoder/encoder.h"
+
 class RecordingManager;
 
 namespace mixxx {
 namespace qml {
+
+struct EncoderFormat {
+    Q_GADGET
+
+    Q_PROPERTY(QString label READ getLabel);
+    Q_PROPERTY(QString internalName READ getInternalName);
+    Q_PROPERTY(bool lossless READ getLossless);
+    Q_PROPERTY(QString fileExtension READ getFileExtension);
+
+  public:
+    EncoderFormat(const Encoder::Format& format)
+            : inner(format) {
+    }
+
+  private:
+    Encoder::Format inner;
+    QString getLabel() const {
+        return inner.label;
+    }
+    QString getInternalName() const {
+        return inner.internalName;
+    }
+    bool getLossless() const {
+        return inner.lossless;
+    }
+    QString getFileExtension() const {
+        return inner.fileExtension;
+    }
+};
 
 class QmlRecordingProxy : public QObject {
     Q_OBJECT
@@ -26,6 +59,8 @@ class QmlRecordingProxy : public QObject {
     const QString& durationText() const {
         return m_durationText;
     }
+
+    Q_INVOKABLE QVariantList formats() const;
 
     static inline std::shared_ptr<RecordingManager> s_pRecordingManager;
 
