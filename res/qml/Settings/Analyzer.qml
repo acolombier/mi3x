@@ -1,3 +1,4 @@
+pragma ListPropertyAssignBehavior: ReplaceIfNotDefault
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -13,8 +14,8 @@ Category {
     property bool dirty: false
 
     function load() {
-        bpmDetectionSetting.selected = Mixxx.Config.bpmDetectionEnabled ? "on" : "off";
-        bpmAnalyserPlugin.selected = Mixxx.Config.bpmAnalyserPluginId == "mixxxbpmdetection" ? "soundtouch" : "queenmary";
+        bpmAnalyzer.state.selected = Mixxx.Config.bpmDetectionEnabled ? "on" : "off";
+        bpmAnalyzer.plugin.selected = Mixxx.Config.bpmAnalyserPluginId == "mixxxbpmdetection" ? "soundtouch" : "queenmary";
         bpmFixedTempoSetting.selected = Mixxx.Config.bpmFixedTempoAssumption ? "on" : "off";
         // Fast analysis cannot be combined with non-constant tempo
         // beatgrids (see DlgPrefBeats::updateGui).
@@ -22,7 +23,7 @@ Category {
         bpmReanalyzeSetting.selected = Mixxx.Config.bpmReanalyzeWhenSettingsChange ? "on" : "off";
         bpmReanalyzeImportedSetting.selected = Mixxx.Config.bpmReanalyzeImported ? "on" : "off";
 
-        keyDetectionSetting.selected = Mixxx.Config.keyDetectionEnabled ? "on" : "off";
+        keyAnalyzer.state.selected = Mixxx.Config.keyDetectionEnabled ? "on" : "off";
         keyAnalyserPlugin.selected = Mixxx.Config.keyAnalyserPluginId == "keyfinder:2" ? "keyfinder" : "queenmary";
         keyFastAnalysisSetting.selected = Mixxx.Config.keyFastAnalysis ? "on" : "off";
         keyReanalyzeSetting.selected = Mixxx.Config.keyReanalyzeWhenSettingsChange ? "on" : "off";
@@ -35,7 +36,7 @@ Category {
             "Custom": "custom",
         })[Mixxx.Config.keyNotation] ?? "traditional";
 
-        replayGainSetting.selected = Mixxx.Config.replayGainEnabled ? "on" : "off";
+        replayGainAnalyzer.state.selected = Mixxx.Config.replayGainEnabled ? "on" : "off";
         replayGainAnalyserPlugin.selected = Mixxx.Config.replayGainAnalyserVersion == 1 ? "replaygain10" : "replaygain20";
         replayGainReanalyzeSetting.selected = Mixxx.Config.replayGainReanalyze ? "on" : "off";
         replayGainTargetLoudnessInput.setValue(Mixxx.Config.replayGainTargetLoudnessAdjust);
@@ -68,9 +69,9 @@ Category {
         load();
     }
     function save() {
-        const bpmEnabled = bpmDetectionSetting.selected == "on";
+        const bpmEnabled = bpmAnalyzer.state.selected == "on";
         Mixxx.Config.bpmDetectionEnabled = bpmEnabled;
-        Mixxx.Config.bpmAnalyserPluginId = bpmAnalyserPlugin.selected == "soundtouch" ? "mixxxbpmdetection" : "qm-tempotracker:0";
+        Mixxx.Config.bpmAnalyserPluginId = bpmAnalyzer.plugin.selected == "soundtouch" ? "mixxxbpmdetection" : "qm-tempotracker:0";
         const fixedTempo = bpmFixedTempoSetting.selected == "on";
         Mixxx.Config.bpmFixedTempoAssumption = fixedTempo;
         // Fast analysis cannot be combined with non-constant tempo
@@ -79,7 +80,7 @@ Category {
         Mixxx.Config.bpmReanalyzeWhenSettingsChange = bpmEnabled && bpmReanalyzeSetting.selected == "on";
         Mixxx.Config.bpmReanalyzeImported = bpmEnabled && bpmReanalyzeImportedSetting.selected == "on";
 
-        const keyEnabled = keyDetectionSetting.selected == "on";
+        const keyEnabled = keyAnalyzer.state.selected == "on";
         Mixxx.Config.keyDetectionEnabled = keyEnabled;
         Mixxx.Config.keyAnalyserPluginId = keyAnalyserPlugin.selected == "keyfinder" ? "keyfinder:2" : "qm-keydetector:2";
         Mixxx.Config.keyFastAnalysis = keyEnabled && keyFastAnalysisSetting.selected == "on";
@@ -103,7 +104,7 @@ Category {
         Mixxx.Config.keyNotation = notationNames[keyNotationSetting.selected];
         keyNotationControl.value = notationValues[keyNotationSetting.selected];
 
-        const replayGainEnabled = replayGainSetting.selected == "on";
+        const replayGainEnabled = replayGainAnalyzer.state.selected == "on";
         Mixxx.Config.replayGainEnabled = replayGainEnabled;
         Mixxx.Config.replayGainAnalyser = replayGainEnabled;
         Mixxx.Config.replayGainAnalyserVersion = replayGainAnalyserPlugin.selected == "replaygain10" ? 1 : 2;
@@ -146,632 +147,527 @@ Category {
         ColumnLayout {
             width: root.width - 10
 
-            Mixxx.SettingGroup {
+            component AnalyzerSection: Mixxx.SettingGroup {
+                id: analyzer
+
+                property alias state: analyzerSetting
+                property alias plugin: analyzerPlugin
+                property alias pane: analyzerPane
+
+                default property alias children: analyzerPane.children
+
                 Layout.bottomMargin: 6
                 implicitWidth: scrollView.width
-                implicitHeight: bpmColumn.height
+                implicitHeight: analyzerColumn.height
+
+                Column {
+                    id: analyzerColumn
+
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+
+                    RowLayout {
+                        height: 40
+                        width: parent.width
+
+                        Text {
+                            Layout.fillWidth: true
+                            color: Theme.white
+                            font.pixelSize: 16
+                            font.weight: Font.DemiBold
+                            text: analyzer.label
+                        }
+                        RatioChoice {
+                            id: analyzerDetectionSetting
+
+                            inactiveColor: Theme.darkGray4
+                            maxWidth: parent.width * 0.25
+                            objectName: "state"
+                            options: ["off", "on"]
+
+                            onSelectedChanged: root.dirty = true
+                        }
+                    }
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        color: Qt.alpha('#676767', 0.21)
+                        implicitHeight: analyzerPane.implicitHeight + 20
+
+                        GridLayout {
+                            id: analyzerPane
+
+                            anchors.bottomMargin: 10
+                            anchors.fill: parent
+                            anchors.leftMargin: 25
+                            anchors.rightMargin: 25
+                            anchors.topMargin: 10
+                            columnSpacing: 20
+                            columns: analyzerColumn.width < 850 ? 1 : 2
+                            uniformCellWidths: true
+                            objectName: "analyzerGrid"
+                            rowSpacing: 15
+
+                            GridLayout {
+                                Layout.columnSpan: analyzerPane.columns
+                                Layout.preferredWidth: analyzerPane.width
+                                columns: 2
+                                uniformCellWidths: true
+
+                                Mixxx.SettingParameter {
+                                    id: analyzerSetting
+                                    Layout.fillWidth: true
+                                    label: qsTr("Analyser")
+
+                                    Text {
+                                        anchors.fill: parent
+                                        color: Theme.white
+                                        font.pixelSize: 16
+                                        font.weight: Font.DemiBold
+                                        horizontalAlignment: Text.AlignHCenter
+                                        text: parent.label
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                }
+                                RatioChoice {
+                                    id: analyzerPlugin
+                                    Layout.alignment: Qt.AlignHCenter
+
+                                    enabled: analyzerDetectionSetting.selected != "off"
+                                    inactiveColor: Theme.darkGray4
+                                    objectName: "setting_analyzer"
+
+                                    content.height: 34
+                                    normalizedWidth: true
+
+                                    onSelectedChanged: root.dirty = true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            AnalyzerSection {
+                id: bpmAnalyzer
+                objectName: "bpmAnalyzer"
                 label: qsTr("BPM and Beat detection")
-
-                Column {
-                    id: bpmColumn
-
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-
-                    RowLayout {
-                        Layout.bottomMargin: 12
-                        Layout.leftMargin: 17
-                        Layout.rightMargin: 17
-                        Layout.topMargin: 6
-                        width: parent.width
-
+                state.keywords: [qsTr("Beat"), qsTr("BPM")]
+                plugin {
+                    options: ["queenmary", "soundtouch"]
+                    tooltips: [
+                        qsTr("Queen Mary Tempo and Beat Tracker"),
+                        qsTr("SoundTouch BPM Detector (Legacy)"),
+                    ]
+                    delegate: Component {
                         Text {
-                            Layout.fillWidth: true
-                            color: Theme.white
-                            font.pixelSize: 16
-                            font.weight: Font.DemiBold
-                            text: qsTr("BPM and Beat detection")
-                        }
-                        RatioChoice {
-                            id: bpmDetectionSetting
-
-                            inactiveColor: Theme.darkGray4
-                            maxWidth: parent.width * 0.25
-                            objectName: "setting_bpmDetection"
-                            options: ["off", "on"]
-
-                            onSelectedChanged: root.dirty = true
-                        }
-                    }
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        color: Theme.darkGray2
-                        implicitHeight: bpmPane.implicitHeight + 20
-
-                        GridLayout {
-                            id: bpmPane
-
-                            anchors.bottomMargin: 10
                             anchors.fill: parent
-                            anchors.leftMargin: 17
-                            anchors.rightMargin: 17
-                            anchors.topMargin: 10
-                            columnSpacing: 20
-                            columns: bpmColumn.width < 850 ? 1 : 2
-                            objectName: "analyzerBpmGrid"
-                            rowSpacing: 15
-
-                            RowLayout {
-                                Layout.columnSpan: bpmPane.columns
-                                Layout.preferredWidth: bpmPane.width
-
-                                Mixxx.SettingParameter {
-                                    Layout.fillWidth: true
-                                    label: qsTr("Analyser")
-                                    keywords: [qsTr("Beat"), qsTr("BPM")]
-
-                                    Text {
-                                        anchors.fill: parent
-                                        color: Theme.white
-                                        font.pixelSize: 16
-                                        font.weight: Font.DemiBold
-                                        horizontalAlignment: Text.AlignHCenter
-                                        text: parent.label
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-                                RatioChoice {
-                                    id: bpmAnalyserPlugin
-
-                                    enabled: bpmDetectionSetting.selected != "off"
-                                    inactiveColor: Theme.darkGray4
-                                    maxWidth: parent.width * 0.5
-                                    objectName: "setting_bpmAnalyser"
-                                    options: ["queenmary", "soundtouch"]
-                                    tooltips: [
-                                        qsTr("Queen Mary Tempo and Beat Tracker"),
-                                        qsTr("SoundTouch BPM Detector (Legacy)"),
-                                    ]
-
-                                    onSelectedChanged: root.dirty = true
-                                }
-                            }
-                            RowLayout {
-                                Layout.preferredWidth: bpmPane.width / bpmPane.columns
-
-                                Mixxx.SettingParameter {
-                                    Layout.fillWidth: true
-                                    label: qsTr("Assume constant tempo")
-
-                                    Text {
-                                        anchors.fill: parent
-                                        color: Theme.white
-                                        font.pixelSize: 14
-                                        font.weight: Font.Medium
-                                        horizontalAlignment: Text.AlignLeft
-                                        text: parent.label
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-                                RatioChoice {
-                                    id: bpmFixedTempoSetting
-
-                                    enabled: bpmDetectionSetting.selected != "off" && bpmAnalyserPlugin.selected == "queenmary"
-                                    inactiveColor: Theme.darkGray4
-                                    maxWidth: parent.width * 0.5
-                                    objectName: "setting_bpmFixedTempo"
-                                    options: ["off", "on"]
-
-                                    onSelectedChanged: root.dirty = true
-                                }
-                            }
-                            RowLayout {
-                                Layout.preferredWidth: bpmPane.width / bpmPane.columns
-
-                                Mixxx.SettingParameter {
-                                    Layout.fillWidth: true
-                                    label: qsTr("Re-analyse beats when settings change or beat detection data is outdated")
-
-                                    Text {
-                                        anchors.fill: parent
-                                        color: Theme.white
-                                        font.pixelSize: 14
-                                        font.weight: Font.Medium
-                                        horizontalAlignment: Text.AlignLeft
-                                        text: parent.label
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-                                RatioChoice {
-                                    id: bpmReanalyzeSetting
-
-                                    enabled: bpmDetectionSetting.selected != "off"
-                                    inactiveColor: Theme.darkGray4
-                                    maxWidth: parent.width * 0.5
-                                    objectName: "setting_bpmReanalyze"
-                                    options: ["off", "on"]
-
-                                    onSelectedChanged: root.dirty = true
-                                }
-                            }
-                            ColumnLayout {
-                                Layout.preferredWidth: bpmPane.width / bpmPane.columns
-
-                                RowLayout {
-                                    width: parent.width
-
-                                    Mixxx.SettingParameter {
-                                        Layout.fillWidth: true
-                                        label: qsTr("Fast Analysis")
-
-                                        Column {
-                                            anchors.fill: parent
-                                            anchors.verticalCenter: parent.verticalCenter
-
-                                            Text {
-                                                color: Theme.white
-                                                font.pixelSize: 14
-                                                font.weight: Font.Medium
-                                                horizontalAlignment: Text.AlignLeft
-                                                text: parent.parent.label
-                                                verticalAlignment: Text.AlignVCenter
-                                                width: parent.width
-                                            }
-                                            Text {
-                                                color: Theme.midGray
-                                                font.pixelSize: 11
-                                                text: qsTr("Recommended for slow computer, may be less accurate")
-                                                width: parent.width
-                                            }
-                                        }
-                                    }
-                                    RatioChoice {
-                                        id: bpmFastAnalysisSetting
-
-                                        // Fast analysis cannot be combined with
-                                        // non-constant tempo beatgrids (see
-                                        // DlgPrefBeats::updateGui).
-                                        enabled: bpmDetectionSetting.selected != "off" && bpmAnalyserPlugin.selected == "queenmary" && bpmFixedTempoSetting.selected == "on"
-                                        inactiveColor: Theme.darkGray4
-                                        maxWidth: parent.width * 0.5
-                                        objectName: "setting_bpmFastAnalysis"
-                                        options: ["off", "on"]
-
-                                        onSelectedChanged: root.dirty = true
-                                    }
-                                }
-                            }
-                            RowLayout {
-                                Layout.preferredWidth: bpmPane.width / bpmPane.columns
-
-                                Mixxx.SettingParameter {
-                                    Layout.fillWidth: true
-                                    label: qsTr("Re-analyse beatgrids imported from other DJ software")
-
-                                    Text {
-                                        anchors.fill: parent
-                                        color: Theme.white
-                                        font.pixelSize: 14
-                                        font.weight: Font.Medium
-                                        horizontalAlignment: Text.AlignLeft
-                                        text: parent.label
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-                                RatioChoice {
-                                    id: bpmReanalyzeImportedSetting
-
-                                    enabled: bpmDetectionSetting.selected != "off"
-                                    inactiveColor: Theme.darkGray4
-                                    maxWidth: parent.width * 0.5
-                                    objectName: "setting_bpmReanalyzeImported"
-                                    options: ["off", "on"]
-
-                                    onSelectedChanged: root.dirty = true
-                                }
-                            }
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            color: Theme.white
+                            font.pixelSize: 12
+                            font.capitalization: Font.AllUppercase
+                            wrapMode: Text.Wrap
+                            horizontalAlignment: Text.AlignHCenter
+                            text: parent.modelData == "queenmary" ? "Queen Mary Tempo and Beat Tracker" : 'SoundTouch BPM Detector<span style="color: #6A6A6A;" size="1">(Legacy)</span>'
+                            verticalAlignment: Text.AlignVCenter
+                            textFormat: Text.RichText
                         }
                     }
+                    metric.font.pixelSize: 18
                 }
-            }
-            Mixxx.SettingGroup {
-                Layout.bottomMargin: 6
-                implicitWidth: scrollView.width
-                implicitHeight: keyColumn.height
-                label: qsTr("Key detection")
 
-                Column {
-                    id: keyColumn
-
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-
+                ColumnLayout {
                     RowLayout {
-                        Layout.bottomMargin: 12
-                        Layout.leftMargin: 17
-                        Layout.rightMargin: 17
-                        Layout.topMargin: 6
                         width: parent.width
+                        implicitHeight: bpmFastAnalysisLabel.height
 
-                        Text {
+                        Mixxx.SettingParameter {
                             Layout.fillWidth: true
-                            color: Theme.white
-                            font.pixelSize: 16
-                            font.weight: Font.DemiBold
-                            text: qsTr("Key detection")
-                        }
-                        RatioChoice {
-                            id: keyDetectionSetting
+                            Layout.minimumHeight: bpmFastAnalysisLabel.implicitHeight
+                            label: qsTr("Fast Analysis")
 
-                            inactiveColor: Theme.darkGray4
-                            maxWidth: parent.width * 0.25
-                            objectName: "setting_keyDetection"
-                            options: ["off", "on"]
+                            Column {
+                                id: bpmFastAnalysisLabel
+                                anchors.fill: parent
+                                anchors.verticalCenter: parent.verticalCenter
 
-                            onSelectedChanged: root.dirty = true
-                        }
-                    }
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        color: Theme.darkGray2
-                        implicitHeight: keyPane.implicitHeight + 20
-
-                        GridLayout {
-                            id: keyPane
-
-                            anchors.bottomMargin: 10
-                            anchors.fill: parent
-                            anchors.leftMargin: 17
-                            anchors.rightMargin: 17
-                            anchors.topMargin: 10
-                            columnSpacing: 20
-                            columns: keyColumn.width < 850 ? 1 : 2
-                            objectName: "analyzerKeyGrid"
-                            rowSpacing: 15
-
-                            RowLayout {
-                                Layout.columnSpan: keyPane.columns
-                                Layout.preferredWidth: keyPane.width
-
-                                Mixxx.SettingParameter {
-                                    Layout.fillWidth: true
-                                    label: qsTr("Analyser")
-                                    keywords: [qsTr("Key")]
-
-                                    Text {
-                                        anchors.fill: parent
-                                        color: Theme.white
-                                        font.pixelSize: 16
-                                        font.weight: Font.DemiBold
-                                        horizontalAlignment: Text.AlignHCenter
-                                        text: parent.label
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-                                RatioChoice {
-                                    id: keyAnalyserPlugin
-
-                                    enabled: keyDetectionSetting.selected != "off"
-                                    inactiveColor: Theme.darkGray4
-                                    maxWidth: parent.width * 0.5
-                                    objectName: "setting_keyAnalyser"
-                                    options: ["queenmary", "keyfinder"]
-                                    tooltips: [
-                                        qsTr("Queen Mary Key Detector"),
-                                        qsTr("KeyFinder"),
-                                    ]
-
-                                    onSelectedChanged: root.dirty = true
-                                }
-                            }
-                            ColumnLayout {
-                                Layout.preferredWidth: keyPane.width / keyPane.columns
-
-                                RowLayout {
+                                Text {
+                                    color: Theme.white
+                                    font.pixelSize: 14
+                                    font.weight: Font.Medium
+                                    horizontalAlignment: Text.AlignLeft
+                                    text: parent.parent.label
+                                    verticalAlignment: Text.AlignVCenter
                                     width: parent.width
-
-                                    Mixxx.SettingParameter {
-                                        Layout.fillWidth: true
-                                        label: qsTr("Fast Analysis")
-
-                                        Column {
-                                            anchors.fill: parent
-                                            anchors.verticalCenter: parent.verticalCenter
-
-                                            Text {
-                                                color: Theme.white
-                                                font.pixelSize: 14
-                                                font.weight: Font.Medium
-                                                horizontalAlignment: Text.AlignLeft
-                                                text: parent.parent.label
-                                                verticalAlignment: Text.AlignVCenter
-                                                width: parent.width
-                                            }
-                                            Text {
-                                                color: Theme.midGray
-                                                font.pixelSize: 11
-                                                text: qsTr("Recommended for slow computer, may be less accurate")
-                                                width: parent.width
-                                            }
-                                        }
-                                    }
-                                    RatioChoice {
-                                        id: keyFastAnalysisSetting
-
-                                        enabled: keyDetectionSetting.selected != "off"
-                                        inactiveColor: Theme.darkGray4
-                                        maxWidth: parent.width * 0.5
-                                        objectName: "setting_keyFastAnalysis"
-                                        options: ["off", "on"]
-
-                                        onSelectedChanged: root.dirty = true
-                                    }
-                                }
-                            }
-                            RowLayout {
-                                Layout.preferredWidth: keyPane.width / keyPane.columns
-
-                                Mixxx.SettingParameter {
-                                    Layout.fillWidth: true
-                                    label: qsTr("Re-analyse beats when settings change or 3rd-party keys are present")
-
-                                    Text {
-                                        anchors.fill: parent
-                                        color: Theme.white
-                                        font.pixelSize: 14
-                                        font.weight: Font.Medium
-                                        horizontalAlignment: Text.AlignLeft
-                                        text: parent.label
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-                                RatioChoice {
-                                    id: keyReanalyzeSetting
-
-                                    enabled: keyDetectionSetting.selected != "off"
-                                    inactiveColor: Theme.darkGray4
-                                    maxWidth: parent.width * 0.5
-                                    objectName: "setting_keyReanalyze"
-                                    options: ["off", "on"]
-
-                                    onSelectedChanged: root.dirty = true
-                                }
-                            }
-                            RowLayout {
-                                Layout.columnSpan: keyPane.columns
-                                Layout.preferredWidth: keyPane.width
-
-                                Mixxx.SettingParameter {
-                                    Layout.fillWidth: true
-                                    label: qsTr("Key Notation")
-
-                                    Text {
-                                        anchors.fill: parent
-                                        color: Theme.white
-                                        font.pixelSize: 14
-                                        font.weight: Font.Medium
-                                        horizontalAlignment: Text.AlignLeft
-                                        text: parent.label
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-                                RatioChoice {
-                                    id: keyNotationSetting
-
-                                    enabled: keyDetectionSetting.selected != "off"
-                                    inactiveColor: Theme.darkGray4
-                                    maxWidth: parent.width * 0.65
-                                    objectName: "setting_keyNotation"
-                                    options: ["lancelot", "traditional", "openkey", "custom"]
-
-                                    onSelectedChanged: root.dirty = true
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            Mixxx.SettingGroup {
-                Layout.bottomMargin: 6
-                Layout.topMargin: 40
-                implicitWidth: scrollView.width
-                implicitHeight: replayGainColumn.height
-                label: qsTr("ReplayGain Loudness Normalization")
-
-                Column {
-                    id: replayGainColumn
-
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-
-                    RowLayout {
-                        Layout.bottomMargin: 12
-                        Layout.leftMargin: 17
-                        Layout.rightMargin: 17
-                        Layout.topMargin: 6
-                        width: parent.width
-
-                        Text {
-                            Layout.fillWidth: true
-                            color: Theme.white
-                            font.pixelSize: 16
-                            font.weight: Font.DemiBold
-                            text: qsTr("ReplayGain Loudness Normalization")
-                        }
-                        RatioChoice {
-                            id: replayGainSetting
-
-                            inactiveColor: Theme.darkGray4
-                            maxWidth: parent.width * 0.25
-                            objectName: "setting_replayGain"
-                            options: ["off", "on"]
-
-                            onSelectedChanged: root.dirty = true
-                        }
-                    }
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        color: Theme.darkGray2
-                        implicitHeight: replayGainPane.implicitHeight + 20
-
-                        GridLayout {
-                            id: replayGainPane
-
-                            anchors.bottomMargin: 10
-                            anchors.fill: parent
-                            anchors.leftMargin: 17
-                            anchors.rightMargin: 17
-                            anchors.topMargin: 10
-                            columnSpacing: 20
-                            columns: replayGainColumn.width < 850 ? 1 : 2
-                            objectName: "analyzerReplayGainGrid"
-                            rowSpacing: 15
-
-                            RowLayout {
-                                Layout.columnSpan: replayGainPane.columns
-                                Layout.preferredWidth: replayGainPane.width
-
-                                Mixxx.SettingParameter {
-                                    Layout.fillWidth: true
-                                    label: qsTr("Analyser")
-                                    keywords: [qsTr("ReplayGain"), qsTr("EBU R128"), qsTr("Loudness")]
-
-                                    Text {
-                                        anchors.fill: parent
-                                        color: Theme.white
-                                        font.pixelSize: 16
-                                        font.weight: Font.DemiBold
-                                        horizontalAlignment: Text.AlignHCenter
-                                        text: parent.label
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-                                RatioChoice {
-                                    id: replayGainAnalyserPlugin
-
-                                    enabled: replayGainSetting.selected != "off"
-                                    inactiveColor: Theme.darkGray4
-                                    maxWidth: parent.width * 0.5
-                                    objectName: "setting_replayGainAnalyser"
-                                    options: ["replaygain20", "replaygain10"]
-                                    tooltips: [
-                                        qsTr("ReplayGain 2.0 (ITU-R BS.1770)"),
-                                        qsTr("ReplayGain 1.0"),
-                                    ]
-
-                                    onSelectedChanged: root.dirty = true
-                                }
-                            }
-                            ColumnLayout {
-                                Layout.preferredWidth: replayGainPane.width / replayGainPane.columns
-
-                                Mixxx.SettingParameter {
-                                    Layout.fillWidth: true
-                                    label: qsTr("Target loudness")
-
-                                    Text {
-                                        anchors.fill: parent
-                                        color: Theme.white
-                                        font.pixelSize: 14
-                                        font.weight: Font.Medium
-                                        horizontalAlignment: Text.AlignLeft
-                                        text: parent.label
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
                                 }
                                 Text {
-                                    Layout.alignment: Qt.AlignHCenter
                                     color: Theme.midGray
                                     font.pixelSize: 11
-                                    // ReplayGain targets a reference loudness of
-                                    // -18 LUFS. The adjustment is relative to it.
-                                    text: qsTr("Adjust by: %1%2 dB")
-                                        .arg(replayGainTargetLoudnessInput.value < 0 ? "" : "+")
-                                        .arg(replayGainTargetLoudnessInput.value)
-                                }
-                                SettingComponents.Slider {
-                                    id: replayGainTargetLoudnessInput
-
-                                    Layout.preferredWidth: 400
-                                    decimals: 0
-                                    markers: [-12, -6, 0, 6, 12]
-                                    max: 12
-                                    min: -12
-                                    objectName: "setting_replayGainTargetLoudness"
-                                    suffix: qsTr(" dB")
-                                    value: 0
-                                    wheelStep: 1
-
-                                    onValueChanged: root.dirty = true
-                                }
-                            }
-                            RowLayout {
-                                Layout.preferredWidth: replayGainPane.width / replayGainPane.columns
-
-                                Mixxx.SettingParameter {
-                                    Layout.fillWidth: true
-                                    label: qsTr("Re-analyse and override an existing value")
-
-                                    Text {
-                                        anchors.fill: parent
-                                        color: Theme.white
-                                        font.pixelSize: 14
-                                        font.weight: Font.Medium
-                                        horizontalAlignment: Text.AlignLeft
-                                        text: parent.label
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-                                RatioChoice {
-                                    id: replayGainReanalyzeSetting
-
-                                    enabled: replayGainSetting.selected != "off"
-                                    inactiveColor: Theme.darkGray4
-                                    maxWidth: parent.width * 0.5
-                                    objectName: "setting_replayGainReanalyze"
-                                    options: ["off", "on"]
-
-                                    onSelectedChanged: root.dirty = true
-                                }
-                            }
-                            ColumnLayout {
-                                Layout.preferredWidth: replayGainPane.width / replayGainPane.columns
-
-                                Mixxx.SettingParameter {
-                                    Layout.fillWidth: true
-                                    label: qsTr("Initial boost without ReplayGain")
-                                    keywords: [qsTr("Gain"), qsTr("Unanalysed"), qsTr("Unanalyzed")]
-
-                                    Text {
-                                        anchors.fill: parent
-                                        color: Theme.white
-                                        font.pixelSize: 14
-                                        font.weight: Font.Medium
-                                        horizontalAlignment: Text.AlignLeft
-                                        text: parent.label
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-                                SettingComponents.Slider {
-                                    id: replayGainDefaultBoostInput
-
-                                    Layout.preferredWidth: 400
-                                    decimals: 0
-                                    markers: [-12, -6, 0, 6, 12]
-                                    max: 12
-                                    min: -12
-                                    objectName: "setting_replayGainDefaultBoost"
-                                    suffix: qsTr(" dB")
-                                    value: -6
-                                    wheelStep: 1
-
-                                    onValueChanged: root.dirty = true
+                                    font.italic: true
+                                    text: qsTr("Recommended for slow computer, may be less accurate")
+                                    width: parent.width
                                 }
                             }
                         }
+                        RatioChoice {
+                            id: bpmFastAnalysisSetting
+
+                            // Fast analysis cannot be combined with
+                            // non-constant tempo beatgrids (see
+                            // DlgPrefBeats::updateGui).
+                            enabled: bpmAnalyzer.state.selected != "off" && bpmAnalyzer.plugin.selected == "queenmary" && bpmFixedTempoSetting.selected == "on"
+                            inactiveColor: Theme.darkGray4
+                            maxWidth: parent.width * 0.5
+                            objectName: "setting_bpmFastAnalysis"
+                            options: ["off", "on"]
+
+                            onSelectedChanged: root.dirty = true
+                        }
+                    }
+                }
+                RowLayout {
+                    Mixxx.SettingParameter {
+                        Layout.fillWidth: true
+                        label: qsTr("Re-analyse beats when settings change or beat detection data is outdated")
+
+                        Text {
+                            anchors.fill: parent
+                            color: Theme.white
+                            font.pixelSize: 14
+                            font.weight: Font.Medium
+                            horizontalAlignment: Text.AlignLeft
+                            text: parent.label
+                            wrapMode: Text.Wrap
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                    RatioChoice {
+                        id: bpmReanalyzeSetting
+                        Layout.minimumWidth: implicitWidth
+
+                        enabled: bpmAnalyzer.state.selected != "off"
+                        inactiveColor: Theme.darkGray4
+                        maxWidth: parent.width * 0.5
+                        objectName: "setting_bpmReanalyze"
+                        options: ["off", "on"]
+
+                        onSelectedChanged: root.dirty = true
+                    }
+                }
+                RowLayout {
+                    Mixxx.SettingParameter {
+                        Layout.fillWidth: true
+                        label: qsTr("Assume constant tempo")
+
+                        Text {
+                            anchors.fill: parent
+                            color: Theme.white
+                            font.pixelSize: 14
+                            font.weight: Font.Medium
+                            horizontalAlignment: Text.AlignLeft
+                            text: parent.label
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                    RatioChoice {
+                        id: bpmFixedTempoSetting
+
+                        enabled: bpmAnalyzer.state.selected != "off" && bpmAnalyzer.plugin.selected == "queenmary"
+                        inactiveColor: Theme.darkGray4
+                        maxWidth: parent.width * 0.5
+                        objectName: "setting_bpmFixedTempo"
+                        options: ["off", "on"]
+
+                        onSelectedChanged: root.dirty = true
+                    }
+                }
+                RowLayout {
+                    Mixxx.SettingParameter {
+                        Layout.fillWidth: true
+                        label: qsTr("Re-analyse beatgrids imported from other DJ software")
+
+                        Text {
+                            anchors.fill: parent
+                            color: Theme.white
+                            font.pixelSize: 14
+                            font.weight: Font.Medium
+                            horizontalAlignment: Text.AlignLeft
+                            text: parent.label
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                    RatioChoice {
+                        id: bpmReanalyzeImportedSetting
+
+                        enabled: bpmAnalyzer.state.selected != "off"
+                        inactiveColor: Theme.darkGray4
+                        maxWidth: parent.width * 0.5
+                        objectName: "setting_bpmReanalyzeImported"
+                        options: ["off", "on"]
+
+                        onSelectedChanged: root.dirty = true
+                    }
+                }
+            }
+            AnalyzerSection {
+                id: keyAnalyzer
+                objectName: "keyAnalyzer"
+                label: qsTr("Key detection")
+                state.keywords: [qsTr("Key")]
+                plugin {
+                    options: ["queenmary", "keyfinder"]
+                    tooltips: [
+                        qsTr("Queen Mary Key Detector"),
+                        qsTr("KeyFinder"),
+                    ]
+                    delegate: Component {
+                        Text {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            color: Theme.white
+                            font.pixelSize: 12
+                            font.capitalization: Font.AllUppercase
+                            wrapMode: Text.Wrap
+                            horizontalAlignment: Text.AlignHCenter
+                            text: parent.modelData == "queenmary" ? "Queen Mary Key Detector" : 'KeyFinder'
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                    metric.font.pixelSize: 18
+                }
+
+                ColumnLayout {
+                    RowLayout {
+                        width: parent.width
+
+                        Mixxx.SettingParameter {
+                            Layout.fillWidth: true
+                            Layout.minimumHeight: keyFastAnalysisLabel.implicitHeight
+                            label: qsTr("Fast Analysis")
+
+                            Column {
+                                id: keyFastAnalysisLabel
+                                anchors.fill: parent
+                                anchors.verticalCenter: parent.verticalCenter
+
+                                Text {
+                                    color: Theme.white
+                                    font.pixelSize: 14
+                                    font.weight: Font.Medium
+                                    horizontalAlignment: Text.AlignLeft
+                                    text: parent.parent.label
+                                    verticalAlignment: Text.AlignVCenter
+                                    width: parent.width
+                                }
+                                Text {
+                                    color: Theme.midGray
+                                    font.pixelSize: 11
+                                    font.italic: true
+                                    text: qsTr("Recommended for slow computer, may be less accurate")
+                                    width: parent.width
+                                }
+                            }
+                        }
+                        RatioChoice {
+                            id: keyFastAnalysisSetting
+
+                            enabled: keyAnalyzer.state.selected != "off"
+                            inactiveColor: Theme.darkGray4
+                            maxWidth: parent.width * 0.5
+                            objectName: "setting_keyFastAnalysis"
+                            options: ["off", "on"]
+
+                            onSelectedChanged: root.dirty = true
+                        }
+                    }
+                }
+                RowLayout {
+                    Mixxx.SettingParameter {
+                        Layout.fillWidth: true
+                        label: qsTr("Re-analyse beats when settings change or 3rd-party keys are present")
+
+                        Text {
+                            anchors.fill: parent
+                            color: Theme.white
+                            font.pixelSize: 14
+                            font.weight: Font.Medium
+                            horizontalAlignment: Text.AlignLeft
+                            text: parent.label
+                            wrapMode: Text.Wrap
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                    RatioChoice {
+                        id: keyReanalyzeSetting
+                        Layout.minimumWidth: implicitWidth
+
+                        enabled: keyAnalyzer.state.selected != "off"
+                        inactiveColor: Theme.darkGray4
+                        maxWidth: parent.width * 0.5
+                        objectName: "setting_keyReanalyze"
+                        options: ["off", "on"]
+
+                        onSelectedChanged: root.dirty = true
+                    }
+                }
+                RowLayout {
+                    Layout.columnSpan: keyAnalyzer.pane.columns
+                    Layout.preferredWidth: keyAnalyzer.pane.width
+
+                    Mixxx.SettingParameter {
+                        Layout.fillWidth: true
+                        label: qsTr("Key Notation")
+
+                        Text {
+                            anchors.fill: parent
+                            color: Theme.white
+                            font.pixelSize: 14
+                            font.weight: Font.Medium
+                            horizontalAlignment: Text.AlignLeft
+                            text: parent.label
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                    RatioChoice {
+                        id: keyNotationSetting
+
+                        enabled: keyAnalyzer.state.selected != "off"
+                        inactiveColor: Theme.darkGray4
+                        maxWidth: parent.width * 0.65
+                        objectName: "setting_keyNotation"
+                        options: ["lancelot", "traditional", "openkey", "custom"]
+
+                        onSelectedChanged: root.dirty = true
+                    }
+                }
+            }
+            AnalyzerSection {
+                id: replayGainAnalyzer
+                objectName: "replayGainAnalyzer"
+                label: qsTr("ReplayGain Loudness Normalization")
+                state.keywords: [qsTr("ReplayGain"), qsTr("EBU R128"), qsTr("Loudness")]
+                plugin {
+                    options: ["replaygain20", "replaygain10"]
+                    tooltips: [
+                        qsTr("ReplayGain 2.0 (ITU-R BS.1770)"),
+                        qsTr("ReplayGain 1.0"),
+                    ]
+                    delegate: Component {
+                        Text {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            color: Theme.white
+                            font.pixelSize: 12
+                            font.capitalization: Font.AllUppercase
+                            wrapMode: Text.Wrap
+                            horizontalAlignment: Text.AlignHCenter
+                            text: parent.modelData == "2" ? "ReplayGain 2.0" : 'ReplayGain 1.0'
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                    metric.font.pixelSize: 18
+                }
+
+                RowLayout {
+                    Mixxx.SettingParameter {
+                        Layout.fillWidth: true
+                        label: qsTr("Target loudness")
+
+                        Text {
+                            anchors.fill: parent
+                            color: Theme.white
+                            font.pixelSize: 14
+                            font.weight: Font.Medium
+                            horizontalAlignment: Text.AlignLeft
+                            text: parent.label
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                    Text {
+                        Layout.alignment: Qt.AlignHCenter
+                        color: Theme.midGray
+                        font.pixelSize: 11
+                        // ReplayGain targets a reference loudness of
+                        // -18 LUFS. The adjustment is relative to it.
+                        text: qsTr("Adjust by: %1%2 dB")
+                            .arg(replayGainTargetLoudnessInput.value < 0 ? "" : "+")
+                            .arg(replayGainTargetLoudnessInput.value)
+                    }
+                    SettingComponents.Slider {
+                        id: replayGainTargetLoudnessInput
+
+                        Layout.preferredWidth: 400
+                        decimals: 0
+                        markers: [-12, -6, 0, 6, 12]
+                        max: 12
+                        min: -12
+                        objectName: "setting_replayGainTargetLoudness"
+                        suffix: qsTr(" dB")
+                        value: 0
+                        wheelStep: 1
+
+                        onValueChanged: root.dirty = true
+                    }
+                }
+                RowLayout {
+                    Mixxx.SettingParameter {
+                        Layout.fillWidth: true
+                        label: qsTr("Re-analyse and override an existing value")
+
+                        Text {
+                            anchors.fill: parent
+                            color: Theme.white
+                            font.pixelSize: 14
+                            font.weight: Font.Medium
+                            horizontalAlignment: Text.AlignLeft
+                            text: parent.label
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                    RatioChoice {
+                        id: replayGainReanalyzeSetting
+
+                        enabled: replayGainAnalyzer.state.selected != "off"
+                        inactiveColor: Theme.darkGray4
+                        maxWidth: parent.width * 0.5
+                        objectName: "setting_replayGainReanalyze"
+                        options: ["off", "on"]
+
+                        onSelectedChanged: root.dirty = true
+                    }
+                }
+                RowLayout {
+                    Mixxx.SettingParameter {
+                        Layout.fillWidth: true
+                        label: qsTr("Initial boost without ReplayGain")
+                        keywords: [qsTr("Gain"), qsTr("Unanalysed"), qsTr("Unanalyzed")]
+
+                        Text {
+                            anchors.fill: parent
+                            color: Theme.white
+                            font.pixelSize: 14
+                            font.weight: Font.Medium
+                            horizontalAlignment: Text.AlignLeft
+                            text: parent.label
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                    SettingComponents.Slider {
+                        id: replayGainDefaultBoostInput
+
+                        Layout.preferredWidth: 400
+                        decimals: 0
+                        markers: [-12, -6, 0, 6, 12]
+                        max: 12
+                        min: -12
+                        objectName: "setting_replayGainDefaultBoost"
+                        suffix: qsTr(" dB")
+                        value: -6
+                        wheelStep: 1
+
+                        onValueChanged: root.dirty = true
                     }
                 }
             }
