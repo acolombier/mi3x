@@ -27,6 +27,12 @@
 #include "util/sample.h"
 #include "vinylcontrol/defs_vinylcontrol.h"
 
+#ifdef USE_TEST_UI
+#include <QJsonArray>
+
+#include "soundio/sounddevicemock.h"
+#endif
+
 #ifdef __PIPEWIRE__
 #include "soundio/pipewireenumerator.h"
 #endif
@@ -162,10 +168,50 @@ QList<QString> SoundManager::getHostAPIList() const {
     return m_pEnumerator->getAPIs();
 }
 
+#ifdef USE_TEST_UI
+void SoundManager::registerMockDevices(const QJsonArray& devices) {
+    for (const auto& entry : devices) {
+        QJsonObject obj = entry.toObject();
+        auto pDevice = QSharedPointer<SoundDeviceMock>::create(
+                m_pConfig,
+                this,
+                obj["api"].toString(),
+                obj["name"].toString(),
+                obj["outputChannels"].toInt(0),
+                obj["inputChannels"].toInt(0));
+        addDevice(pDevice);
+    }
+    m_testMockingMode = true;
+    emit devicesUpdated();
+}
+
+void SoundManager::clearMockDevices() {
+    auto it = m_devices.begin();
+    while (it != m_devices.end()) {
+        if (dynamic_cast<SoundDeviceMock*>(it->data()) != nullptr) {
+            qDebug() << "SoundManager::clearMockDevices"
+                     << (*it)->getDisplayName();
+            emit deviceRemoved(*it);
+            it = m_devices.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    m_testMockingMode = false;
+    emit devicesUpdated();
+}
+#endif
+
 void SoundManager::closeDevices(
         [[maybe_unused]] bool sleepAfterClosing, [[maybe_unused]] bool async) {
     // sleepAfterClosing and async maybe unused depending on platform support
     // qDebug() << "SoundManager::closeDevices()";
+
+#ifdef USE_TEST_UI
+    if (m_testMockingMode) {
+        return;
+    }
+#endif
 
 #ifdef __LINUX__
     bool closed = false;

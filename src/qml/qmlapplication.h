@@ -8,14 +8,11 @@
 
 #include "coreservices.h"
 #include "qmlautoreload.h"
-#include "util/parented_ptr.h"
 
-class ControlProxy;
-class ControlPushButton;
 class GuiTick;
 class VisualsManager;
-class QQuickWindow;
 #if defined(Q_OS_ANDROID)
+class QQuickWindow;
 class APerformanceHintSession;
 #endif
 
@@ -35,30 +32,28 @@ class QmlApplication : public QObject {
         return m_loadSucceeded;
     }
 
+    QQmlApplicationEngine* qmlEngine() const {
+        return m_pAppEngine.get();
+    }
+
+    const QString& mainFilePath() const {
+        return m_mainFilePath;
+    }
+
   public slots:
     bool loadQml(const QString& path);
 
+#if defined(Q_OS_ANDROID)
   private slots:
     void slotFrameSwapped();
     void slotWindowChanged(QQuickWindow* window);
+#endif
 
   private:
-    void registerImageProvider();
-    void setupSpinnyCoverControls();
-    void updateSpinnyCoverControls();
-
     std::shared_ptr<CoreServices> m_pCoreServices;
     std::unique_ptr<::VisualsManager> m_visualsManager;
     std::unique_ptr<GuiTick> m_pGuiTick;
     QTimer m_guiTickTimer;
-
-    parented_ptr<ControlProxy> m_pShowSpinny;
-    parented_ptr<ControlProxy> m_pShowCover;
-    std::unique_ptr<ControlPushButton> m_pShowSpinnyAndOrCover;
-    std::unique_ptr<ControlPushButton> m_pSelectBigSpinnyCover;
-    std::unique_ptr<ControlPushButton> m_pShowSmallSpinnyCover;
-    std::unique_ptr<ControlPushButton> m_pShowBigSpinnyCover;
-    std::unique_ptr<ControlPushButton> m_pWaveformOverviewType;
 
     QString m_mainFilePath;
 

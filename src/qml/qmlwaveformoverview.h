@@ -1,18 +1,20 @@
 #pragma once
 
 #include <QPainter>
+#include <QPixmap>
 #include <QPointer>
 #include <QQmlEngine>
 #include <QQuickItem>
 #include <QQuickPaintedItem>
 #include <QString>
+#include <QUrl>
 #include <memory>
 
 #include "control/controlproxy.h"
+#include "library/overviewcache.h"
 #include "qmltrackproxy.h"
+#include "track/trackid.h"
 #include "waveform/waveform.h"
-
-class ControlProxy;
 
 namespace mixxx {
 namespace qml {
@@ -22,11 +24,12 @@ class QmlWaveformOverview : public QQuickPaintedItem {
     Q_FLAGS(Channels)
     Q_PROPERTY(QString group READ getGroup WRITE setGroup NOTIFY groupChanged)
     Q_PROPERTY(mixxx::qml::QmlTrackProxy* track READ getTrack WRITE setTrack
-                    NOTIFY trackChanged REQUIRED)
+                    NOTIFY trackChanged)
     Q_PROPERTY(mixxx::qml::QmlWaveformOverview::Channels channels READ
                     getChannels WRITE setChannels NOTIFY channelsChanged)
-    Q_PROPERTY(mixxx::qml::QmlWaveformOverview::Renderer renderer READ
-                    renderer WRITE setRenderer NOTIFY rendererChanged)
+    Q_PROPERTY(QUrl trackUrl READ trackUrl WRITE setTrackUrl NOTIFY trackUrlChanged)
+    Q_PROPERTY(mixxx::qml::QmlWaveformOverview::Renderer renderer MEMBER
+                    m_renderer NOTIFY rendererChanged)
     Q_PROPERTY(bool stereo READ stereo WRITE setStereo NOTIFY stereoChanged)
     Q_PROPERTY(bool normalized READ normalized WRITE setNormalized NOTIFY
                     normalizedChanged)
@@ -50,7 +53,6 @@ class QmlWaveformOverview : public QQuickPaintedItem {
     enum class Renderer {
         RGB = 1,
         Filtered = 2,
-        HSV = 3,
     };
     Q_ENUM(Renderer)
 
@@ -62,6 +64,10 @@ class QmlWaveformOverview : public QQuickPaintedItem {
 
     void setTrack(QmlTrackProxy* track);
     QmlTrackProxy* getTrack() const;
+    void setTrackUrl(const QUrl& track);
+    QUrl trackUrl() const {
+        return m_trackUrl;
+    }
     void setGroup(const QString& group);
     QString getGroup() const {
         return m_group;
@@ -69,10 +75,6 @@ class QmlWaveformOverview : public QQuickPaintedItem {
 
     void setChannels(Channels channels);
     Channels getChannels() const;
-    Renderer renderer() const {
-        return m_renderer;
-    }
-    void setRenderer(Renderer renderer);
     bool stereo() const {
         return m_stereo;
     }
@@ -91,10 +93,12 @@ class QmlWaveformOverview : public QQuickPaintedItem {
     void setAnalyzerProgress(double analyzerProgress);
   private slots:
     void slotWaveformUpdated();
+    void slotOverviewChanged(TrackId trackId);
 
   signals:
     void groupChanged();
     void trackChanged();
+    void trackUrlChanged();
     void channelsChanged(mixxx::qml::QmlWaveformOverview::Channels channels);
     void rendererChanged(mixxx::qml::QmlWaveformOverview::Renderer renderer);
     void stereoChanged();
@@ -106,6 +110,7 @@ class QmlWaveformOverview : public QQuickPaintedItem {
     void colorLowChanged(const QColor& color);
 
   private:
+    double amplitudeScale() const;
     void drawFiltered(QPainter* pPainter,
             Channels channels,
             ConstWaveformPointer pWaveform,
@@ -114,28 +119,32 @@ class QmlWaveformOverview : public QQuickPaintedItem {
             Channels channels,
             ConstWaveformPointer pWaveform,
             int completion) const;
-    void drawHsv(QPainter* pPainter,
-            Channels channels,
-            ConstWaveformPointer pWaveform,
-            int completion) const;
     void drawMinuteMarkers(QPainter* pPainter, double duration) const;
     QColor getRgbPenColor(ConstWaveformPointer pWaveform, int completion) const;
-    QColor getRgbPenColor(qreal low, qreal mid, qreal high) const;
+    QPixmap renderWaveformToPixmap(ConstWaveformPointer pWaveform, int completion) const;
+    void invalidatePixmapCacheForCurrent();
+
     QString m_group;
-    QmlTrackProxy* m_pTrack;
+    QPointer<QmlTrackProxy> m_pTrack;
     std::unique_ptr<ControlProxy> m_pReplayGain;
     std::unique_ptr<ControlProxy> m_pReplayGainEnabled;
     std::unique_ptr<ControlProxy> m_pReplayGainBoost;
     std::unique_ptr<ControlProxy> m_pReplayGainDefaultBoost;
+    QUrl m_trackUrl;
     Channels m_channels;
     Renderer m_renderer;
-    bool m_stereo;
-    bool m_normalized;
-    bool m_minuteMarkers;
+    bool m_stereo{true};
+    bool m_normalized{false};
+    bool m_minuteMarkers{true};
     double m_analyzerProgress{-1.0};
     QColor m_colorHigh;
     QColor m_colorMid;
     QColor m_colorLow;
+
+    ConstWaveformPointer m_waveformSummary;
+    TrackId m_trackId;
+
+    static QString pixmapCacheKey(TrackId trackId);
 };
 
 } // namespace qml

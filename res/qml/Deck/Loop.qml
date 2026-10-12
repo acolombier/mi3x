@@ -32,28 +32,11 @@ Rectangle {
         group: root.group
         key: "loop_enabled"
     }
-    BeatSizeSpinBoxBehavior {
+    Mixxx.ControlProxy {
         id: beatloopSize
 
         group: root.group
         key: "beatloop_size"
-        beatSizes: [
-            1 / 32,
-            1 / 16,
-            1 / 8,
-            1 / 4,
-            1 / 2,
-            1,
-            2,
-            4,
-            8,
-            16,
-            32,
-            64,
-            128,
-            256,
-            512
-        ]
     }
     Mixxx.ControlProxy {
         id: beatloopActivate
@@ -84,6 +67,7 @@ Rectangle {
         }
         Skin.ControlButton {
             id: loopInButton
+            objectName: "loopIn"
 
             Layout.fillWidth: true
             Layout.minimumWidth: 28
@@ -96,6 +80,7 @@ Rectangle {
         }
         Skin.ControlButton {
             id: loopOutButton
+            objectName: "loopOut"
 
             Layout.fillWidth: true
             Layout.minimumWidth: 28
@@ -108,6 +93,7 @@ Rectangle {
         }
         Skin.ControlButton {
             id: loopRecallButton
+            objectName: "reloopToggle"
 
             Layout.fillWidth: true
             Layout.minimumWidth: 40
@@ -141,6 +127,7 @@ Rectangle {
         }
         Skin.Button {
             id: loopSizeHalfButton
+            objectName: "loopHalve"
 
             activeColor: root.buttonColor
             implicitHeight: 28
@@ -150,11 +137,13 @@ Rectangle {
                 anchors.fill: parent
 
                 Shape {
+                    property int multiSamplingLevel: Mixxx.Config.multiSamplingLevel
+
                     anchors.centerIn: parent
                     antialiasing: true
                     height: 10
-                    layer.enabled: true
-                    layer.samples: 4
+                    layer.enabled: multiSamplingLevel > 1
+                    layer.samples: multiSamplingLevel
                     width: 12
 
                     ShapePath {
@@ -196,7 +185,13 @@ Rectangle {
 
             property int selectedIndex: 0
             property int valueCount: Math.min(Math.max(1, parseInt((root.width - 56) / 40)), 4)
-            property list<double> values: beatloopSize.beatSizes
+            property list<double> values: {
+                let values = [1 / 32];
+                while (values[values.length - 1] < 512) {
+                    values.push(values[values.length - 1] * 2);
+                }
+                return values;
+            }
 
 
             function adjustSelectedIndex(delta){
@@ -254,11 +249,11 @@ Rectangle {
                 highlight: currentSize == beatloopSize.value && trackLoadedControl.value > 0
                 implicitHeight: 28
                 implicitWidth: 33
-                text: beatloopSize.formatBeatSize(currentSize)
+                text: currentSize < 1 ? `1/${1 / currentSize}` : currentSize
 
                 onPressed: {
                     if (loopEnabled.value) {
-                        beatloopSize.commitText(currentSize.toString());
+                        beatloopSize.value = currentSize;
                     } else {
                         sizedBeatloopActivate.trigger();
                     }
@@ -274,6 +269,7 @@ Rectangle {
         }
         Skin.Button {
             id: loopSizeDoubleButton
+            objectName: "loopDouble"
 
             activeColor: root.buttonColor
             implicitHeight: 28
@@ -283,11 +279,13 @@ Rectangle {
                 anchors.fill: parent
 
                 Shape {
+                    property int multiSamplingLevel: Mixxx.Config.multiSamplingLevel
+
                     anchors.centerIn: parent
                     antialiasing: true
                     height: 10
-                    layer.enabled: true
-                    layer.samples: 4
+                    layer.enabled: multiSamplingLevel > 1
+                    layer.samples: multiSamplingLevel
                     width: 12
 
                     ShapePath {

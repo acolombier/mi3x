@@ -6,30 +6,34 @@ import QtQuick 2.12
 Item {
     id: root
 
-    property color color: "white"
     required property string group
     required property string key
     property alias orientation: orientationSlider.value
+    property color color: "white"
 
-    implicitHeight: 26
     implicitWidth: 56
+    implicitHeight: 26
 
     Skin.Fader {
         id: orientationSlider
 
-        anchors.bottomMargin: 2
         anchors.fill: parent
         anchors.leftMargin: 10
         anchors.rightMargin: 10
         anchors.topMargin: 2
-        from: 0
+        anchors.bottomMargin: 2
+        wheelEnabled: false
         live: false
+        from: 0
+        to: 2
+        stepSize: 1
+        value: control.value
         orientation: Qt.Horizontal
         snapMode: MixxxControls.Slider.SnapOnRelease
-        stepSize: 1
-        to: 2
-        value: control.value
-        wheelEnabled: false
+        onMoved: function(value) {
+            if (value != control.value)
+                control.value = value;
+        }
 
         background: Rectangle {
             id: sliderBackground
@@ -37,18 +41,19 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            color: root.color
             height: 2
+            color: root.color
         }
+
         handle: Rectangle {
             id: indicator
 
+            anchors.top: parent.top
             anchors.bottom: parent.bottom
             anchors.margins: 5
-            anchors.top: parent.top
-            color: root.color
-            width: 3
             x: orientationSlider.visualPosition * (sliderBackground.width - width)
+            width: 3
+            color: root.color
 
             Behavior on x {
                 NumberAnimation {
@@ -56,12 +61,8 @@ Item {
                 }
             }
         }
-
-        onMoved: function (value) {
-            if (value != control.value)
-                control.value = value;
-        }
     }
+
     Mixxx.ControlProxy {
         id: control
 
