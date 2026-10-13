@@ -1,4 +1,3 @@
-pragma ListPropertyAssignBehavior: ReplaceIfNotDefault
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -14,7 +13,7 @@ Category {
     property bool dirty: false
 
     function load() {
-        bpmAnalyzer.state.selected = Mixxx.Config.bpmDetectionEnabled ? "on" : "off";
+        bpmAnalyzer.detection.selected = Mixxx.Config.bpmDetectionEnabled ? "on" : "off";
         bpmAnalyzer.plugin.selected = Mixxx.Config.bpmAnalyserPluginId == "mixxxbpmdetection" ? "soundtouch" : "queenmary";
         bpmFixedTempoSetting.selected = Mixxx.Config.bpmFixedTempoAssumption ? "on" : "off";
         // Fast analysis cannot be combined with non-constant tempo
@@ -23,8 +22,8 @@ Category {
         bpmReanalyzeSetting.selected = Mixxx.Config.bpmReanalyzeWhenSettingsChange ? "on" : "off";
         bpmReanalyzeImportedSetting.selected = Mixxx.Config.bpmReanalyzeImported ? "on" : "off";
 
-        keyAnalyzer.state.selected = Mixxx.Config.keyDetectionEnabled ? "on" : "off";
-        keyAnalyserPlugin.selected = Mixxx.Config.keyAnalyserPluginId == "keyfinder:2" ? "keyfinder" : "queenmary";
+        keyAnalyzer.detection.selected = Mixxx.Config.keyDetectionEnabled ? "on" : "off";
+        keyAnalyzer.plugin.selected = Mixxx.Config.keyAnalyserPluginId == "keyfinder:2" ? "keyfinder" : "queenmary";
         keyFastAnalysisSetting.selected = Mixxx.Config.keyFastAnalysis ? "on" : "off";
         keyReanalyzeSetting.selected = Mixxx.Config.keyReanalyzeWhenSettingsChange ? "on" : "off";
         keyNotationSetting.selected = ({
@@ -36,8 +35,8 @@ Category {
                 "Custom": "custom"
             })[Mixxx.Config.keyNotation] ?? "traditional";
 
-        replayGainAnalyzer.state.selected = Mixxx.Config.replayGainEnabled ? "on" : "off";
-        replayGainAnalyserPlugin.selected = Mixxx.Config.replayGainAnalyserVersion == 1 ? "replaygain10" : "replaygain20";
+        replayGainAnalyzer.detection.selected = Mixxx.Config.replayGainEnabled ? "on" : "off";
+        replayGainAnalyzer.plugin.selected = Mixxx.Config.replayGainAnalyserVersion == 1 ? "replaygain10" : "replaygain20";
         replayGainReanalyzeSetting.selected = Mixxx.Config.replayGainReanalyze ? "on" : "off";
         replayGainTargetLoudnessInput.setValue(Mixxx.Config.replayGainTargetLoudnessAdjust);
         replayGainDefaultBoostInput.setValue(Mixxx.Config.replayGainDefaultBoost);
@@ -69,7 +68,7 @@ Category {
         load();
     }
     function save() {
-        const bpmEnabled = bpmAnalyzer.state.selected == "on";
+        const bpmEnabled = bpmAnalyzer.detection.selected == "on";
         Mixxx.Config.bpmDetectionEnabled = bpmEnabled;
         Mixxx.Config.bpmAnalyserPluginId = bpmAnalyzer.plugin.selected == "soundtouch" ? "mixxxbpmdetection" : "qm-tempotracker:0";
         const fixedTempo = bpmFixedTempoSetting.selected == "on";
@@ -80,9 +79,9 @@ Category {
         Mixxx.Config.bpmReanalyzeWhenSettingsChange = bpmEnabled && bpmReanalyzeSetting.selected == "on";
         Mixxx.Config.bpmReanalyzeImported = bpmEnabled && bpmReanalyzeImportedSetting.selected == "on";
 
-        const keyEnabled = keyAnalyzer.state.selected == "on";
+        const keyEnabled = keyAnalyzer.detection.selected == "on";
         Mixxx.Config.keyDetectionEnabled = keyEnabled;
-        Mixxx.Config.keyAnalyserPluginId = keyAnalyserPlugin.selected == "keyfinder" ? "keyfinder:2" : "qm-keydetector:2";
+        Mixxx.Config.keyAnalyserPluginId = keyAnalyzer.plugin.selected == "keyfinder" ? "keyfinder:2" : "qm-keydetector:2";
         Mixxx.Config.keyFastAnalysis = keyEnabled && keyFastAnalysisSetting.selected == "on";
         Mixxx.Config.keyReanalyzeWhenSettingsChange = keyEnabled && keyReanalyzeSetting.selected == "on";
         const notationNames = {
@@ -104,10 +103,10 @@ Category {
         Mixxx.Config.keyNotation = notationNames[keyNotationSetting.selected];
         keyNotationControl.value = notationValues[keyNotationSetting.selected];
 
-        const replayGainEnabled = replayGainAnalyzer.state.selected == "on";
+        const replayGainEnabled = replayGainAnalyzer.detection.selected == "on";
         Mixxx.Config.replayGainEnabled = replayGainEnabled;
         Mixxx.Config.replayGainAnalyser = replayGainEnabled;
-        Mixxx.Config.replayGainAnalyserVersion = replayGainAnalyserPlugin.selected == "replaygain10" ? 1 : 2;
+        Mixxx.Config.replayGainAnalyserVersion = replayGainAnalyzer.plugin.selected == "replaygain10" ? 1 : 2;
         Mixxx.Config.replayGainReanalyze = replayGainEnabled && replayGainReanalyzeSetting.selected == "on";
         Mixxx.Config.replayGainTargetLoudnessAdjust = Math.round(replayGainTargetLoudnessInput.value);
         Mixxx.Config.replayGainDefaultBoost = Math.round(replayGainDefaultBoostInput.value);
@@ -140,7 +139,7 @@ Category {
             anchors.bottom: parent.bottom
             anchors.right: parent.right
             anchors.top: parent.top
-            objectName: "analyzerSettingsScrollBar"
+            objectName: "scrollBar"
             policy: ScrollBar.AsNeeded
         }
 
@@ -151,8 +150,8 @@ Category {
                 id: bpmAnalyzer
 
                 label: qsTr("BPM and Beat detection")
-                objectName: "bpmAnalyzer"
-                state.keywords: [qsTr("Beat"), qsTr("BPM")]
+                objectName: "bpm"
+                parameter.keywords: [qsTr("Beat"), qsTr("BPM")]
 
                 plugin {
                     metric.font.pixelSize: 18
@@ -215,10 +214,10 @@ Category {
                             // Fast analysis cannot be combined with
                             // non-constant tempo beatgrids (see
                             // DlgPrefBeats::updateGui).
-                            enabled: bpmAnalyzer.state.selected != "off" && bpmAnalyzer.plugin.selected == "queenmary" && bpmFixedTempoSetting.selected == "on"
+                            enabled: bpmAnalyzer.detection.selected != "off" && bpmAnalyzer.plugin.selected == "queenmary" && bpmFixedTempoSetting.selected == "on"
                             inactiveColor: Theme.darkGray4
                             maxWidth: parent.width * 0.5
-                            objectName: "setting_bpmFastAnalysis"
+                            objectName: "fastAnalysis"
                             options: ["off", "on"]
 
                             onSelectedChanged: root.dirty = true
@@ -245,10 +244,10 @@ Category {
                         id: bpmReanalyzeSetting
 
                         Layout.minimumWidth: implicitWidth
-                        enabled: bpmAnalyzer.state.selected != "off"
+                        enabled: bpmAnalyzer.detection.selected != "off"
                         inactiveColor: Theme.darkGray4
                         maxWidth: parent.width * 0.5
-                        objectName: "setting_bpmReanalyze"
+                        objectName: "reanalyze"
                         options: ["off", "on"]
 
                         onSelectedChanged: root.dirty = true
@@ -272,10 +271,10 @@ Category {
                     RatioChoice {
                         id: bpmFixedTempoSetting
 
-                        enabled: bpmAnalyzer.state.selected != "off" && bpmAnalyzer.plugin.selected == "queenmary"
+                        enabled: bpmAnalyzer.detection.selected != "off" && bpmAnalyzer.plugin.selected == "queenmary"
                         inactiveColor: Theme.darkGray4
                         maxWidth: parent.width * 0.5
-                        objectName: "setting_bpmFixedTempo"
+                        objectName: "fixedTempo"
                         options: ["off", "on"]
 
                         onSelectedChanged: root.dirty = true
@@ -299,10 +298,10 @@ Category {
                     RatioChoice {
                         id: bpmReanalyzeImportedSetting
 
-                        enabled: bpmAnalyzer.state.selected != "off"
+                        enabled: bpmAnalyzer.detection.selected != "off"
                         inactiveColor: Theme.darkGray4
                         maxWidth: parent.width * 0.5
-                        objectName: "setting_bpmReanalyzeImported"
+                        objectName: "reanalyzeImported"
                         options: ["off", "on"]
 
                         onSelectedChanged: root.dirty = true
@@ -313,8 +312,8 @@ Category {
                 id: keyAnalyzer
 
                 label: qsTr("Key detection")
-                objectName: "keyAnalyzer"
-                state.keywords: [qsTr("Key")]
+                objectName: "key"
+                parameter.keywords: [qsTr("Key")]
 
                 plugin {
                     metric.font.pixelSize: 18
@@ -372,10 +371,10 @@ Category {
                         RatioChoice {
                             id: keyFastAnalysisSetting
 
-                            enabled: keyAnalyzer.state.selected != "off"
+                            enabled: keyAnalyzer.detection.selected != "off"
                             inactiveColor: Theme.darkGray4
                             maxWidth: parent.width * 0.5
-                            objectName: "setting_keyFastAnalysis"
+                            objectName: "fastAnalysis"
                             options: ["off", "on"]
 
                             onSelectedChanged: root.dirty = true
@@ -402,10 +401,10 @@ Category {
                         id: keyReanalyzeSetting
 
                         Layout.minimumWidth: implicitWidth
-                        enabled: keyAnalyzer.state.selected != "off"
+                        enabled: keyAnalyzer.detection.selected != "off"
                         inactiveColor: Theme.darkGray4
                         maxWidth: parent.width * 0.5
-                        objectName: "setting_keyReanalyze"
+                        objectName: "reanalyze"
                         options: ["off", "on"]
 
                         onSelectedChanged: root.dirty = true
@@ -432,10 +431,10 @@ Category {
                     RatioChoice {
                         id: keyNotationSetting
 
-                        enabled: keyAnalyzer.state.selected != "off"
+                        enabled: keyAnalyzer.detection.selected != "off"
                         inactiveColor: Theme.darkGray4
                         maxWidth: parent.width * 0.65
-                        objectName: "setting_keyNotation"
+                        objectName: "notation"
                         options: ["lancelot", "traditional", "openkey", "custom"]
 
                         onSelectedChanged: root.dirty = true
@@ -446,8 +445,8 @@ Category {
                 id: replayGainAnalyzer
 
                 label: qsTr("ReplayGain Loudness Normalization")
-                objectName: "replayGainAnalyzer"
-                state.keywords: [qsTr("ReplayGain"), qsTr("EBU R128"), qsTr("Loudness")]
+                objectName: "replayGain"
+                parameter.keywords: [qsTr("ReplayGain"), qsTr("EBU R128"), qsTr("Loudness")]
 
                 plugin {
                     metric.font.pixelSize: 18
@@ -500,7 +499,7 @@ Category {
                         markers: [-12, -6, 0, 6, 12]
                         max: 12
                         min: -12
-                        objectName: "setting_replayGainTargetLoudness"
+                        objectName: "targetLoudness"
                         suffix: qsTr(" dB")
                         value: 0
                         wheelStep: 1
@@ -526,10 +525,10 @@ Category {
                     RatioChoice {
                         id: replayGainReanalyzeSetting
 
-                        enabled: replayGainAnalyzer.state.selected != "off"
+                        enabled: replayGainAnalyzer.detection.selected != "off"
                         inactiveColor: Theme.darkGray4
                         maxWidth: parent.width * 0.5
-                        objectName: "setting_replayGainReanalyze"
+                        objectName: "reanalyze"
                         options: ["off", "on"]
 
                         onSelectedChanged: root.dirty = true
@@ -559,7 +558,7 @@ Category {
                         markers: [-12, -6, 0, 6, 12]
                         max: 12
                         min: -12
-                        objectName: "setting_replayGainDefaultBoost"
+                        objectName: "defaultBoost"
                         suffix: qsTr(" dB")
                         value: -6
                         wheelStep: 1
@@ -582,7 +581,7 @@ Category {
             activeColor: "#999999"
             anchors.left: parent.left
             backgroundColor: "#7D3B3B"
-            objectName: "analyzerResetButton"
+            objectName: "reset"
             opacity: enabled ? 1.0 : 0.5
             text: qsTr("Reset")
 
@@ -597,7 +596,7 @@ Category {
             Skin.FormButton {
                 activeColor: "#999999"
                 backgroundColor: "#3F3F3F"
-                objectName: "analyzerCancelButton"
+                objectName: "cancel"
                 opacity: enabled ? 1.0 : 0.5
                 text: qsTr("Cancel")
                 visible: root.dirty
@@ -611,7 +610,7 @@ Category {
                 backgroundColor: root.dirty ? "#3a60be" : "#3F3F3F"
                 // Weird bug on MacOS - if the button is disabled before the pressed property is clicked, the button remains pressed, leading to a no-op click when it gets next enabled
                 enabled: pressed || root.dirty
-                objectName: "analyzerSaveButton"
+                objectName: "save"
                 opacity: enabled ? 1.0 : 0.5
                 text: qsTr("Save")
 
@@ -628,11 +627,26 @@ Category {
         default property alias children: analyzerPane.children
         property alias pane: analyzerPane
         property alias plugin: analyzerPlugin
-        property alias state: analyzerSetting
+        property alias detection: analyzerDetectionSetting
+        property alias parameter: analyzerSetting
 
         Layout.bottomMargin: 6
         implicitHeight: analyzerColumn.height
         implicitWidth: scrollView.width
+
+        function dumpObjectTree() {
+            function toJson(o) {
+                const children = []
+                for (let i = 0; i < o.children.length; ++i)
+                    children.push(toJson(o.children[i]))
+                return {
+                    className: o.toString() ?? "Unknown",
+                    objectName: o.objectName || "",
+                    children: children
+                }
+            }
+            return JSON.stringify(toJson(analyzer), null, 2)
+        }
 
         Column {
             id: analyzerColumn
@@ -666,19 +680,22 @@ Category {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 color: Qt.alpha('#676767', 0.21)
-                implicitHeight: analyzerPane.implicitHeight + 20
+                implicitHeight: analyzerHeader.implicitHeight + analyzerPane.implicitHeight + 40
 
+                // Note: we used two GridLayout, one for the static header, one for the custom content. Attempts were made to use "pragma ListPropertyAssignBehavior: ReplaceIfNotDefault", but even if this was working, this seems to create a strange parenting relationship, where the header element weren't always reachable through the parent tree, making it unstable.
                 GridLayout {
-                    id: analyzerPane
+                    id: analyzerHeader
 
                     anchors.bottomMargin: 10
-                    anchors.fill: parent
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
                     anchors.leftMargin: 25
                     anchors.rightMargin: 25
                     anchors.topMargin: 10
                     columnSpacing: 20
                     columns: analyzerColumn.width < 850 ? 1 : 2
-                    objectName: "analyzerGrid"
+                    objectName: "grid"
                     rowSpacing: 15
                     uniformCellWidths: true
 
@@ -712,11 +729,29 @@ Category {
                             enabled: analyzerDetectionSetting.selected != "off"
                             inactiveColor: Theme.darkGray4
                             normalizedWidth: true
-                            objectName: "setting_analyzer"
+                            objectName: "plugin"
 
                             onSelectedChanged: root.dirty = true
                         }
                     }
+                }
+
+                GridLayout {
+                    id: analyzerPane
+
+                    anchors.bottomMargin: 10
+                    anchors.top: analyzerHeader.bottom
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.leftMargin: 25
+                    anchors.rightMargin: 25
+                    anchors.topMargin: 10
+                    columnSpacing: 20
+                    columns: analyzerColumn.width < 850 ? 1 : 2
+                    objectName: "grid"
+                    rowSpacing: 15
+                    uniformCellWidths: true
+
                 }
             }
         }

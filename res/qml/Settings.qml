@@ -364,10 +364,13 @@ Popup {
                 Settings.AutoDJ {
                 }
                 Settings.Broadcast {
+                    objectName: "broadcastPage"
                 }
                 Settings.Recording {
+                    objectName: "recordingPage"
                 }
                 Settings.Analyzer {
+                    objectName: "analyzerPage"
                 }
                 Settings.StatsPerformance {
                 }

@@ -30,7 +30,7 @@ Feature: Analyzer Settings
     And the "key fast analysis" setting should be "off"
     And the "key notation" setting should be "traditional"
     And the "ReplayGain normalization" setting should be "on"
-    And the "ReplayGain analyser version" setting should be "replaygain20"
+    And the "ReplayGain analyser" setting should be "replaygain20"
     And the "ReplayGain re-analysis" setting should be "off"
 
   Scenario: BPM detection can be disabled and saved
@@ -115,11 +115,11 @@ Feature: Analyzer Settings
 
   # --- ReplayGain -------------------------------------------------------------
 
-  Scenario: ReplayGain analyser version can be switched and saved
-    When I toggle the "ReplayGain analyser version" setting to "replaygain10"
+  Scenario: ReplayGain analyser can be switched and saved
+    When I toggle the "ReplayGain analyser" setting to "replaygain10"
     And I click the save button
-    Then the "ReplayGain analyser version" setting should be "replaygain10"
-    And the "ReplayGain analyser version" should be saved as "replaygain10"
+    Then the "ReplayGain analyser" setting should be "replaygain10"
+    And the "ReplayGain analyser" should be saved as "replaygain10"
 
   Scenario: ReplayGain normalization can be disabled and saved
     When I toggle the "ReplayGain normalization" setting to "off"
@@ -186,13 +186,13 @@ Feature: Analyzer Settings
   @category/responsiveness
   Scenario: BPM and key grids collapse on a narrow window
     Given the window's width is 1792px
-    Then the "analyzerBpmGrid" grid should be displayed in 2 columns
-    And the "analyzerKeyGrid" grid should be displayed in 2 columns
-    And the "analyzerReplayGainGrid" grid should be displayed in 2 columns
+    Then the BPM analyzer grid should be displayed in 2 columns
+    And the key analyzer grid should be displayed in 2 columns
+    And the ReplayGain analyzer grid should be displayed in 2 columns
     When I resize the window's width to 700px
-    Then the "analyzerBpmGrid" grid should be displayed in 1 column
-    And the "analyzerKeyGrid" grid should be displayed in 1 column
-    And the "analyzerReplayGainGrid" grid should be displayed in 1 column
+    Then the BPM analyzer grid should be displayed in 1 column
+    And the key analyzer grid should be displayed in 1 column
+    And the ReplayGain analyzer grid should be displayed in 1 column
     When I resize the window's width to 1792px
 
   @category/responsiveness

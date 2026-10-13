@@ -355,7 +355,7 @@ class MixxxProcess:
     # machines with a cold audio stack. Configurable for slower runners.
     def start(self, timeout=None):
         if timeout is None:
-            timeout = int(os.environ.get("MIXXX_TEST_RPC_TIMEOUT", "20"))
+            timeout = int(os.environ.get("MIXXX_TEST_RPC_TIMEOUT", "30"))
         env = os.environ.copy()
         if self.display:
             env["DISPLAY"] = self.display

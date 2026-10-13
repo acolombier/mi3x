@@ -45,8 +45,17 @@ SETTING_CATEGORY_SLUG = {
 }
 CATEGORY_SCROLLBARS_TEMPLATE = "mainWindow/%sSettingsScrollBar"
 ACTION_BUTTON_TEMPLATE = "mainWindow/%s%sButton"
+# Categories whose page was moved onto object-namespaced paths
+# ("mainWindow/settingsPopupItem/<slug>Page/...") already resolve their controls
+# through the settings popup tree; all other categories keep their flat
+# "mainWindow/<name>" object names.
+TREE_NAMESPACED_PAGES = ["analyzer"]
 CATEGORY_SCROLLBARS = {
-    index: CATEGORY_SCROLLBARS_TEMPLATE % slug
+    index: (
+        "mainWindow/settingsPopupItem/%sPage/scrollBar"
+        if slug in TREE_NAMESPACED_PAGES
+        else CATEGORY_SCROLLBARS_TEMPLATE
+    ) % slug
     for index, slug in SETTING_CATEGORY_SLUG.items()
 }
 MUSIC_DIRECTORY_LIST = "mainWindow/librarySourceList"
@@ -177,25 +186,27 @@ SETTING_MAP = {
     "library search history keyboard shortcuts": {"path": "mainWindow/setting_librarySearchHistoryShortcuts", "kind": "ratio", "options": ["on", "off"]},
     "search-as-you-type timeout": {"path": "mainWindow/setting_searchTimeout", "kind": "slider", "min": 0.1, "max": 10, "markers": [0.1, 0.5, 1, 5, 10]},
     "pitch slider for fuzz BPM search": {"path": "mainWindow/setting_searchFuzzBpm", "kind": "slider", "min": 0, "max": 100, "markers": [0, 25, 50, 75, 100]},
-    # Analyzer category — BPM and beat detection
-    "BPM detection": {"path": "mainWindow/setting_bpmDetection", "kind": "ratio", "options": ["off", "on"]},
-    "BPM analyser": {"path": "mainWindow/setting_bpmAnalyser", "kind": "ratio", "options": ["queenmary", "soundtouch"]},
-    "assume constant tempo": {"path": "mainWindow/setting_bpmFixedTempo", "kind": "ratio", "options": ["off", "on"]},
-    "re-analysis when settings change": {"path": "mainWindow/setting_bpmReanalyze", "kind": "ratio", "options": ["off", "on"]},
-    "BPM fast analysis": {"path": "mainWindow/setting_bpmFastAnalysis", "kind": "ratio", "options": ["off", "on"]},
-    "re-analysis of beatgrids imported from other DJ software": {"path": "mainWindow/setting_bpmReanalyzeImported", "kind": "ratio", "options": ["off", "on"]},
+    # Analyzer category — BPM and beat detection. The Analyzer page resolves
+    # through the settings popup tree
+    # ("mainWindow/settingsPopupItem/analyzerPage/<section>/<control>").
+    "BPM detection": {"path": "mainWindow/settingsPopupItem/analyzerPage/bpm/state", "kind": "ratio", "options": ["off", "on"]},
+    "BPM analyser": {"path": "mainWindow/settingsPopupItem/analyzerPage/bpm/plugin", "kind": "ratio", "options": ["queenmary", "soundtouch"]},
+    "assume constant tempo": {"path": "mainWindow/settingsPopupItem/analyzerPage/bpm/fixedTempo", "kind": "ratio", "options": ["off", "on"]},
+    "re-analysis when settings change": {"path": "mainWindow/settingsPopupItem/analyzerPage/bpm/reanalyze", "kind": "ratio", "options": ["off", "on"]},
+    "BPM fast analysis": {"path": "mainWindow/settingsPopupItem/analyzerPage/bpm/fastAnalysis", "kind": "ratio", "options": ["off", "on"]},
+    "re-analysis of beatgrids imported from other DJ software": {"path": "mainWindow/settingsPopupItem/analyzerPage/bpm/reanalyzeImported", "kind": "ratio", "options": ["off", "on"]},
     # Analyzer category — key detection
-    "key detection": {"path": "mainWindow/setting_keyDetection", "kind": "ratio", "options": ["off", "on"]},
-    "key analyser": {"path": "mainWindow/setting_keyAnalyser", "kind": "ratio", "options": ["queenmary", "keyfinder"]},
-    "key fast analysis": {"path": "mainWindow/setting_keyFastAnalysis", "kind": "ratio", "options": ["off", "on"]},
-    "key re-analysis when settings change": {"path": "mainWindow/setting_keyReanalyze", "kind": "ratio", "options": ["off", "on"]},
-    "key notation": {"path": "mainWindow/setting_keyNotation", "kind": "ratio", "options": ["lancelot", "traditional", "openkey", "custom"]},
+    "key detection": {"path": "mainWindow/settingsPopupItem/analyzerPage/key/state", "kind": "ratio", "options": ["off", "on"]},
+    "key analyser": {"path": "mainWindow/settingsPopupItem/analyzerPage/key/plugin", "kind": "ratio", "options": ["queenmary", "keyfinder"]},
+    "key fast analysis": {"path": "mainWindow/settingsPopupItem/analyzerPage/key/fastAnalysis", "kind": "ratio", "options": ["off", "on"]},
+    "key re-analysis when settings change": {"path": "mainWindow/settingsPopupItem/analyzerPage/key/reanalyze", "kind": "ratio", "options": ["off", "on"]},
+    "key notation": {"path": "mainWindow/settingsPopupItem/analyzerPage/key/notation", "kind": "ratio", "options": ["lancelot", "traditional", "openkey", "custom"]},
     # Analyzer category — ReplayGain
-    "ReplayGain normalization": {"path": "mainWindow/setting_replayGain", "kind": "ratio", "options": ["off", "on"]},
-    "ReplayGain analyser version": {"path": "mainWindow/setting_replayGainAnalyser", "kind": "ratio", "options": ["replaygain20", "replaygain10"]},
-    "ReplayGain target loudness": {"path": "mainWindow/setting_replayGainTargetLoudness", "kind": "slider", "min": -12, "max": 12, "markers": [-12, -6, 0, 6, 12]},
-    "ReplayGain re-analysis": {"path": "mainWindow/setting_replayGainReanalyze", "kind": "ratio", "options": ["off", "on"]},
-    "ReplayGain default boost": {"path": "mainWindow/setting_replayGainDefaultBoost", "kind": "slider", "min": -12, "max": 12, "markers": [-12, -6, 0, 6, 12]},
+    "ReplayGain normalization": {"path": "mainWindow/settingsPopupItem/analyzerPage/replayGain/state", "kind": "ratio", "options": ["off", "on"]},
+    "ReplayGain analyser": {"path": "mainWindow/settingsPopupItem/analyzerPage/replayGain/plugin", "kind": "ratio", "options": ["replaygain20", "replaygain10"]},
+    "ReplayGain target loudness": {"path": "mainWindow/settingsPopupItem/analyzerPage/replayGain/targetLoudness", "kind": "slider", "min": -12, "max": 12, "markers": [-12, -6, 0, 6, 12]},
+    "ReplayGain re-analysis": {"path": "mainWindow/settingsPopupItem/analyzerPage/replayGain/reanalyze", "kind": "ratio", "options": ["off", "on"]},
+    "ReplayGain default boost": {"path": "mainWindow/settingsPopupItem/analyzerPage/replayGain/defaultBoost", "kind": "slider", "min": -12, "max": 12, "markers": [-12, -6, 0, 6, 12]},
 }
 
 # Config keys written by saveInterface()/saveDeck() (see QmlConfigProxy).
@@ -339,7 +350,7 @@ CONFIG_SAVE_MAP = {
     "key re-analysis when settings change": {"group": "[Key]", "key": "ReanalyzeWhenSettingsChange", "expected": {"on": "1", "off": ""}},
     "key notation": {"group": "[Key]", "key": "KeyNotation", "expected": {"lancelot": "Lancelot", "traditional": "", "openkey": "OpenKey", "custom": "Custom"}},
     "ReplayGain normalization": {"group": "[ReplayGain]", "key": "ReplayGainEnabled", "expected": {"on": "", "off": "0"}},
-    "ReplayGain analyser version": {"group": "[ReplayGain]", "key": "ReplayGainAnalyserVersion", "expected": {"replaygain20": "", "replaygain10": "1"}},
+    "ReplayGain analyser": {"group": "[ReplayGain]", "key": "ReplayGainAnalyserVersion", "expected": {"replaygain20": "", "replaygain10": "1"}},
     "ReplayGain target loudness": {"group": "[ReplayGain]", "key": "InitialReplayGainBoost", "expected": lambda value: str(int(float(value)))},
     "ReplayGain re-analysis": {"group": "[ReplayGain]", "key": "ReplayGainReanalyze", "expected": {"on": "1", "off": ""}},
     "ReplayGain default boost": {"group": "[ReplayGain]", "key": "InitialDefaultBoost", "expected": lambda value: str(int(float(value)))},
@@ -425,6 +436,8 @@ def _active_button(s, button):
     active_category_idx = s.getStringProperty(SETTINGS_POPUP_ITEM, "activeCategoryIndex")
     assert active_category_idx != "", "Cannot resolve the currently active category"
     active_category_slug = SETTING_CATEGORY_SLUG[int(active_category_idx)]
+    if active_category_slug in TREE_NAMESPACED_PAGES:
+        return "%s/%sPage/%s" % (SETTINGS_POPUP_ITEM, active_category_slug, button)
     return ACTION_BUTTON_TEMPLATE % (active_category_slug, button.title())
 
 def _get_control_value(s, group, key):
@@ -759,7 +772,7 @@ def step_set_setting(context, setting, value, method=None):
                     current_idx = options.index(current)
                 except ValueError:
                     raise RuntimeError(
-                        f"Setting '{setting}' current '{current}' not in options"
+                        f"Setting '{setting}' (in path {repr(path)}) current '{current}' not in options (out of {', '.join(options)})"
                     )
                 delta = index - current_idx
                 if delta == 0: break
@@ -1098,6 +1111,7 @@ def _assert_setting_value_matches(s, setting, spec, value):
     change a setting, so a change that silently did not happen fails right
     where it was made instead of at a later (or missing) assertion.
     """
+    assert _wait_for_visible(s, spec['path']), "Unable to find setting"
     actual = _read_setting_value(s, spec)
     kind = spec["kind"]
     if kind == "combo":
@@ -1117,7 +1131,7 @@ def _assert_setting_value_matches(s, setting, spec, value):
             f"(diff {diff} > tolerance {tolerance})"
         )
     else:
-        assert actual == value, f"Setting '{setting}' should be '{value}' but is '{actual}'"
+        assert actual == value, f"Setting '{setting}' ({repr(spec['path'])}) should be '{value}' but is '{actual}'"
 
 
 @then('the "{setting}" setting should be "{value}"')
@@ -1686,11 +1700,15 @@ LIBRARY_GRIDS = {
     "integrations": "mainWindow/libraryIntegrationsGrid",
     "metadata": "mainWindow/libraryMetadataGrid",
     "history": "mainWindow/libraryHistoryGrid",
+    # Analyzer page grids (objectNamespaced paths)
+    "BPM analyzer": "mainWindow/settingsPopupItem/analyzerPage/bpm/grid",
+    "key analyzer": "mainWindow/settingsPopupItem/analyzerPage/key/grid",
+    "analyzerReplayGainGrid": "mainWindow/settingsPopupItem/analyzerPage/replayGain/grid",
 }
 
 
-@then('the "{grid}" grid should be displayed in {columns:d} columns')
-@then('the "{grid}" grid should be displayed in {columns:d} column')
+@then('the {grid} grid should be displayed in {columns:d} columns')
+@then('the {grid} grid should be displayed in {columns:d} column')
 def step_grid_columns(context, grid, columns):
     s = _rpc(context)
     path = LIBRARY_GRIDS.get(grid, f"mainWindow/{grid}")
@@ -1707,7 +1725,7 @@ SPATIAL_ITEM_PATHS = {
 }
 
 
-@then('the "{item}" should be below the "{target}"')
+@then('the {item} should be below the {target}')
 def step_below(context, item, target):
     s = _rpc(context)
     item_path = SPATIAL_ITEM_PATHS[item]
@@ -1725,7 +1743,7 @@ def step_below(context, item, target):
     )
 
 
-@then('the "{item}" should not overlap the "{target}"')
+@then('the {item} should not overlap the {target}')
 def step_not_overlap(context, item, target):
     s = _rpc(context)
     item_path = SPATIAL_ITEM_PATHS[item]
