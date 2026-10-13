@@ -20,7 +20,7 @@ Category {
     // for MP3 and WAV.
     readonly property bool isFlac: cfg.format === "FLAC"
     readonly property bool isLossless: ["WAV PCM", "AIFF PCM", "FLAC"].indexOf(cfg.format) > -1
-    readonly property bool isRecording: Mixxx.Recording && Mixxx.Recording?.durationText !== "--:--" // FIXME: proxy not yet merged
+    readonly property bool isRecording: !!Mixxx.Recording && Mixxx.Recording?.durationText !== "--:--" // FIXME: proxy not yet merged
     readonly property bool isWavOrMp3: cfg.format === "MP3" || cfg.format === "WAV PCM"
 
     function load() {
@@ -117,7 +117,7 @@ Category {
         }
 
         height: 0
-        objectName: "recordingFolderDialogTest"
+        objectName: "folderDialogTest"
         visible: false
         width: 0
     }
@@ -163,7 +163,7 @@ Category {
                         color: Theme.white
                         font.pixelSize: 12
                         font.weight: Font.DemiBold
-                        objectName: "recordingState"
+                        objectName: "state"
 
                         // text: "RECORDING ..." placeholder until the
                         // Mixxx.Recording proxy singleton is available.
@@ -175,6 +175,7 @@ Category {
             // --- Recording files ------------------------------------------------
             Mixxx.SettingGroup {
                 id: filesGroup
+                objectName: "files"
 
                 Layout.bottomMargin: 6
                 Layout.fillWidth: true
@@ -199,7 +200,7 @@ Category {
                         anchors.topMargin: 10
                         columnSpacing: 48
                         columns: filesPane.width < 900 ? 1 : 2
-                        objectName: "recordingFilesGrid"
+                        objectName: "grid"
                         rowSpacing: 15
                         uniformCellWidths: true
 
@@ -233,7 +234,7 @@ Category {
                                     Layout.fillWidth: true
                                     Layout.minimumHeight: 26
                                     input.text: root.cfg.directory
-                                    objectName: "recordingDirectory"
+                                    objectName: "directory"
 
                                     input.onAccepted: {
                                         root.set("directory", input.text);
@@ -243,7 +244,7 @@ Category {
                                 Skin.FormButton {
                                     activeColor: "#999999"
                                     backgroundColor: "#3F3F3F"
-                                    objectName: "recordingBrowseButton"
+                                    objectName: "directoryBrowse"
                                     text: "Browse..."
 
                                     onPressed: testFolderDialog.open()
@@ -277,7 +278,7 @@ Category {
                                 Layout.preferredHeight: 30
                                 Layout.preferredWidth: 350
                                 markers: [32, 96, 128, 192, 256, 320]
-                                objectName: "recordingQuality"
+                                objectName: "quality"
                                 suffix: " kbit/s"
                                 value: root.cfg.quality ?? 128
 
@@ -320,7 +321,7 @@ Category {
                                     // when it becomes available to QML.
                                     currentIndex: ["WAV PCM", "AIFF PCM", "FLAC", "MP3", "OGG Vorbis", "Opus", "AAC", "HE-AAC", "HE-AACv2"].indexOf(root.cfg.format)
                                     model: ["WAV PCM", "AIFF PCM", "FLAC", "MP3", "OGG Vorbis", "Opus", "AAC", "HE-AAC", "HE-AACv2"]
-                                    objectName: "recordingFormat"
+                                    objectName: "format"
 
                                     onActivated: function (index) {
                                         root.set("format", currentText);
@@ -329,7 +330,7 @@ Category {
                                 RatioChoice {
                                     inactiveColor: Theme.darkGray4
                                     maxWidth: filesPane.width * 0.5
-                                    objectName: "recordingChannels"
+                                    objectName: "channels"
                                     options: ["Stereo", "Mono"]
                                     selected: root.cfg.channels
 
@@ -362,7 +363,7 @@ Category {
                                 // Values mirror DlgPrefRecord's splitting combo.
                                 currentIndex: ["650 MB", "700 MB (CD)", "1 GB", "2 GB", "4 GB", "60 Minutes (CD)", "74 Minutes (CD)", "80 Minutes (CD)", "120 Minutes", "No Splitting"].indexOf(root.cfg.split)
                                 model: ["650 MB", "700 MB (CD)", "1 GB", "2 GB", "4 GB", "60 Minutes (CD)", "74 Minutes (CD)", "80 Minutes (CD)", "120 Minutes", "No Splitting"]
-                                objectName: "recordingSplitting"
+                                objectName: "split"
 
                                 onActivated: function (index) {
                                     // "No Splitting" is not supported by
@@ -401,7 +402,7 @@ Category {
 
                                 inactiveColor: Theme.darkGray4
                                 maxWidth: filesPane.width * 0.5
-                                objectName: "recordingBitrateMode"
+                                objectName: "bitrateMode"
                                 options: ["CBR", "ABR", "VBR"]
                                 selected: root.cfg.bitrateMode
 
@@ -435,7 +436,7 @@ Category {
                                 Layout.preferredHeight: 30
                                 Layout.preferredWidth: 350
                                 markers: [0, 2, 4, 6, 8]
-                                objectName: "recordingCompression"
+                                objectName: "compression"
                                 suffix: ""
                                 value: root.cfg.compression ?? 5
 
@@ -472,7 +473,7 @@ Category {
                             RatioChoice {
                                 inactiveColor: Theme.darkGray4
                                 // maxWidth: filesPane.width * 0.5
-                                objectName: "recordingCueFile"
+                                objectName: "cueFile"
                                 options: ["with file annotation", "on", "off"]
                                 selected: root.cfg.cueFile
 
@@ -506,7 +507,7 @@ Category {
                                 enabled: root.isWavOrMp3
                                 inactiveColor: Theme.darkGray4
                                 maxWidth: filesPane.width * 0.5
-                                objectName: "recordingTracklistAsComment"
+                                objectName: "tracklistAsComment"
                                 options: ["on", "off"]
                                 selected: root.cfg.tracklistAsComment
 
@@ -531,6 +532,7 @@ Category {
             }
             Mixxx.SettingGroup {
                 id: tagsGroup
+                objectName: "tags"
 
                 Layout.bottomMargin: 6
                 Layout.fillWidth: true
@@ -553,7 +555,7 @@ Category {
                         anchors.topMargin: 10
                         columnSpacing: 100
                         columns: 2
-                        objectName: "recordingTagsGrid"
+                        objectName: "grid"
                         rowSpacing: 15
 
                         Mixxx.SettingParameter {
@@ -579,7 +581,7 @@ Category {
                             Layout.fillWidth: true
                             Layout.minimumHeight: 26
                             input.text: root.cfg.title
-                            objectName: "recordingTitleTag"
+                            objectName: "titleTag"
 
                             input.onAccepted: {
                                 root.set("title", input.text);
@@ -609,7 +611,7 @@ Category {
                             Layout.fillWidth: true
                             Layout.minimumHeight: 26
                             input.text: root.cfg.author
-                            objectName: "recordingAuthorTag"
+                            objectName: "authorTag"
 
                             input.onAccepted: {
                                 root.set("author", input.text);
@@ -639,7 +641,7 @@ Category {
                             Layout.fillWidth: true
                             Layout.minimumHeight: 26
                             input.text: root.cfg.album
-                            objectName: "recordingAlbumTag"
+                            objectName: "albumTag"
 
                             input.onAccepted: {
                                 root.set("album", input.text);
@@ -664,7 +666,7 @@ Category {
         Skin.FormButton {
             activeColor: "#999999"
             backgroundColor: "#7D3B3B"
-            objectName: "recordingResetButton"
+            objectName: "reset"
             opacity: enabled ? 1.0 : 0.5
             text: "Reset"
 
@@ -684,7 +686,7 @@ Category {
         Skin.FormButton {
             activeColor: "#999999"
             backgroundColor: "#3F3F3F"
-            objectName: "recordingCancelButton"
+            objectName: "cancel"
             opacity: enabled ? 1.0 : 0.5
             text: "Cancel"
             visible: root.dirty
@@ -695,7 +697,7 @@ Category {
             activeColor: "#999999"
             backgroundColor: root.dirty ? "#3a60be" : "#3F3F3F"
             enabled: pressed || root.dirty
-            objectName: "recordingSaveButton"
+            objectName: "save"
             opacity: enabled ? 1.0 : 0.5
             text: "Save"
 
