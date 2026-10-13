@@ -176,7 +176,7 @@ Category {
                     Layout.fillWidth: true
                     color: 'transparent'
                     implicitHeight: 110
-                    objectName: "broadcastAddProfile"
+                    objectName: "addProfile"
                     visible: root.selectedProfileId === ""
 
                     Rectangle {
@@ -240,7 +240,7 @@ Category {
         RatioChoice {
             inactiveColor: Theme.darkGray4
             maxWidth: 100
-            objectName: "broadcastTurnOnWhenApplying"
+            objectName: "turnOnWhenApplying"
             options: ["on", "off"]
             selected: "off"
 
@@ -252,7 +252,7 @@ Category {
         Skin.FormButton {
             activeColor: "#999999"
             backgroundColor: "#7D3B3B"
-            objectName: "broadcastResetButton"
+            objectName: "reset"
             opacity: enabled ? 1.0 : 0.5
             text: "Reset"
 
@@ -264,13 +264,13 @@ Category {
             Layout.alignment: Qt.AlignVCenter
             Layout.rightMargin: 16
             color: "#7D3B3B"
-            objectName: "broadcastErrorMessage"
+            objectName: "errorMessage"
             text: ""
         }
         Skin.FormButton {
             activeColor: "#999999"
             backgroundColor: "#3F3F3F"
-            objectName: "broadcastCancelButton"
+            objectName: "cancel"
             opacity: enabled ? 1.0 : 0.5
             text: "Cancel"
             visible: root.dirty
@@ -281,7 +281,7 @@ Category {
             activeColor: "#999999"
             backgroundColor: root.dirty ? "#3a60be" : "#3F3F3F"
             enabled: pressed || root.dirty
-            objectName: "broadcastSaveButton"
+            objectName: "save"
             opacity: enabled ? 1.0 : 0.5
             text: "Save"
 
@@ -298,6 +298,11 @@ Category {
         property bool focused
         property var profile: null
         property int profilesCount: 1
+
+        // Card names are namespaced by profile so the tree-local child
+        // names (name, status, gear, settings, ...) resolve unambiguously.
+        // '/' is the Spix path separator, so mirror AudioEntity and strip it.
+        objectName: "profile_" + (cardRoot.profile?.name ?? "").replace("/", "")
         // TODO(XXX): the status comes from the profile's connection state
         // in BroadcastManager, not from the stored configuration.
         readonly property string statusText: cardRoot.profile?.status === "ON AIR" ? "ON AIR" : "DISCONNECTED"
@@ -360,7 +365,7 @@ Category {
                 color: Theme.white
                 font.pixelSize: 16
                 font.weight: Font.DemiBold
-                objectName: "broadcastProfileName_" + cardRoot.profile?.name
+                objectName: "name"
                 text: cardRoot.profile?.name ?? "Unnamed profile"
                 visible: !cardRoot.focused
 
@@ -408,7 +413,7 @@ Category {
                     color: Theme.white
                     font.pixelSize: 10
                     font.weight: Font.Medium
-                    objectName: "broadcastProfileStatus_" + cardRoot.profile?.name
+                    objectName: "status"
                     text: cardRoot.statusText
                 }
             }
@@ -421,7 +426,7 @@ Category {
                 anchors.topMargin: 8
                 color: Theme.midGray
                 font.pixelSize: 12
-                objectName: "broadcastProfileSummary_" + cardRoot.profile?.name
+                objectName: "summary"
                 text: cardRoot.summaryText
                 visible: !cardRoot.focused
             }
@@ -431,7 +436,7 @@ Category {
                 anchors.right: statusBadge.left
                 anchors.rightMargin: 12
                 anchors.verticalCenter: profileName.verticalCenter
-                objectName: "broadcastServerType"
+                objectName: "serverType"
                 options: ["Icecast 2", "Shoutcast 1", "Icecast 1"]
                 selected: cardRoot.profile?.serverType
                 visible: cardRoot.focused
@@ -446,7 +451,7 @@ Category {
                 anchors.right: gearButton.left
                 anchors.rightMargin: 10
                 checkable: true
-                objectName: "broadcastProfileEnabled_" + cardRoot.profile?.name
+                objectName: "enabled"
                 text: checked ? "On" : "Off"
 
                 Component.onCompleted: {
@@ -474,7 +479,7 @@ Category {
                 icon.source: "images/gear.svg"
                 icon.width: 16
                 implicitWidth: implicitHeight
-                objectName: "broadcastProfileGear_" + cardRoot.profile?.name
+                objectName: "gear"
 
                 onPressed: {
                     cardRoot.select();
@@ -502,7 +507,7 @@ Category {
                 anchors.topMargin: 14
                 clip: true
                 height: cardRoot.focused ? settingsColumn.implicitHeight : 0
-                objectName: "broadcastProfileSettings_" + cardRoot.profile?.name
+                objectName: "settings"
                 visible: cardRoot.focused
 
                 ColumnLayout {
@@ -521,6 +526,7 @@ Category {
                     }
                     Mixxx.SettingGroup {
                         id: serverGroup
+                        objectName: "server"
 
                         Layout.bottomMargin: 6
                         Layout.fillWidth: true
@@ -543,7 +549,7 @@ Category {
                                 anchors.topMargin: 10
                                 columnSpacing: 48
                                 columns: serverPane.width < 900 ? 1 : 2
-                                objectName: "broadcastServerGrid"
+                                objectName: "grid"
                                 rowSpacing: 15
                                 uniformCellWidths: true
 
@@ -571,7 +577,7 @@ Category {
                                         Layout.fillWidth: true
                                         Layout.minimumHeight: 26
                                         input.text: cardRoot.profile?.host ?? ""
-                                        objectName: "broadcastHost"
+                                        objectName: "host"
 
                                         input.onAccepted: {
                                             root.setProfileValue(cardRoot.profile, "host", input.text);
@@ -603,7 +609,7 @@ Category {
                                         Layout.minimumHeight: 26
                                         Layout.preferredWidth: 120
                                         input.text: cardRoot.profile?.port ?? ""
-                                        objectName: "broadcastPort"
+                                        objectName: "port"
 
                                         input.onAccepted: {
                                             root.setProfileValue(cardRoot.profile, "port", parseInt(input.text));
@@ -635,7 +641,7 @@ Category {
                                         Layout.fillWidth: true
                                         Layout.minimumHeight: 26
                                         input.text: cardRoot.profile?.login ?? ""
-                                        objectName: "broadcastLogin"
+                                        objectName: "login"
 
                                         input.onAccepted: {
                                             root.setProfileValue(cardRoot.profile, "login", input.text);
@@ -671,7 +677,7 @@ Category {
                                             Layout.minimumHeight: 26
                                             input.echoMode: TextInput.Password
                                             input.text: cardRoot.profile?.password ?? ""
-                                            objectName: "broadcastPassword"
+                                            objectName: "password"
 
                                             input.onAccepted: {
                                                 root.setProfileValue(cardRoot.profile, "password", input.text);
@@ -683,7 +689,7 @@ Category {
                                         Skin.Button {
                                             activeColor: Theme.white
                                             checkable: true
-                                            objectName: "broadcastPasswordInKeychain"
+                                            objectName: "passwordInKeychain"
                                             text: checked ? "keychain" : "plain text"
 
                                             Component.onCompleted: {
@@ -719,7 +725,7 @@ Category {
                                         RatioChoice {
                                             inactiveColor: Theme.darkGray4
                                             maxWidth: reconnectPeriodBox.width + 120
-                                            objectName: "broadcastReconnect"
+                                            objectName: "reconnect"
                                             options: ["on", "off"]
                                             selected: cardRoot.profile?.reconnect ?? "on"
 
@@ -731,7 +737,7 @@ Category {
                                             enabled: cardRoot.profile?.reconnect === "on"
                                             max: 3600
                                             min: 0
-                                            objectName: "broadcastReconnectPeriod"
+                                            objectName: "reconnectPeriod"
                                             suffix: " s"
 
                                             // Internal SpinBox value scale is
@@ -757,6 +763,7 @@ Category {
                     }
                     Mixxx.SettingGroup {
                         id: streamGroup
+                        objectName: "stream"
 
                         Layout.bottomMargin: 6
                         Layout.fillWidth: true
@@ -779,7 +786,7 @@ Category {
                                 anchors.topMargin: 10
                                 columnSpacing: 48
                                 columns: streamPane.width < 900 ? 4 : 6
-                                objectName: "broadcastStreamGrid"
+                                objectName: "grid"
                                 rowSpacing: 15
 
                                 Mixxx.SettingParameter {
@@ -806,7 +813,7 @@ Category {
                                     Layout.fillWidth: true
                                     Layout.minimumHeight: 26
                                     input.text: cardRoot.profile?.streamName ?? ""
-                                    objectName: "broadcastStreamName"
+                                    objectName: "name"
 
                                     input.onAccepted: {
                                         root.setProfileValue(cardRoot.profile, "streamName", input.text);
@@ -836,7 +843,7 @@ Category {
                                 RatioChoice {
                                     inactiveColor: Theme.darkGray4
                                     maxWidth: streamPane.width * 0.5
-                                    objectName: "broadcastPublicStream"
+                                    objectName: "public"
                                     options: ["Public", "Private"]
 
                                     Component.onCompleted: {
@@ -872,7 +879,7 @@ Category {
                                     Layout.minimumWidth: 100
                                     currentIndex: model.indexOf(cardRoot.profile?.format)
                                     model: ["MP3", "Ogg Vorbis", "Opus", "AAC", "HE-AAC", "HE-AACv2"]
-                                    objectName: "broadcastEncodingFormat"
+                                    objectName: "format"
 
                                     onActivated: function (index) {
                                         root.setProfileValue(cardRoot.profile, "format", currentText);
@@ -902,7 +909,7 @@ Category {
                                     Layout.minimumWidth: 100
                                     inactiveColor: Theme.darkGray4
                                     maxWidth: streamPane.width * 0.5
-                                    objectName: "broadcastEncodingChannels"
+                                    objectName: "channels"
                                     options: ["Automatic", "Mono", "Stereo"]
                                     selected: cardRoot.profile?.channels
 
@@ -934,7 +941,7 @@ Category {
                                     Layout.minimumWidth: 100
                                     currentIndex: model.indexOf(cardRoot.profile?.bitrate)
                                     model: [320, 256, 224, 192, 160, 128, 112, 96, 80, 64, 48, 32]
-                                    objectName: "broadcastEncodingBitrate"
+                                    objectName: "bitrate"
 
                                     onActivated: function (index) {
                                         root.setProfileValue(cardRoot.profile, "bitrate", parseInt(currentText));
@@ -964,7 +971,7 @@ Category {
                                     Layout.fillWidth: true
                                     Layout.minimumHeight: 26
                                     input.text: cardRoot.profile?.mount ?? ""
-                                    objectName: "broadcastMount"
+                                    objectName: "mount"
 
                                     input.onAccepted: {
                                         root.setProfileValue(cardRoot.profile, "mount", input.text);
@@ -984,6 +991,7 @@ Category {
                     }
                     Mixxx.SettingGroup {
                         id: propertiesGroup
+                        objectName: "properties"
 
                         Layout.bottomMargin: 6
                         Layout.fillWidth: true
@@ -1006,7 +1014,7 @@ Category {
                                 anchors.topMargin: 10
                                 columnSpacing: 48
                                 columns: propertiesPane.width < 900 ? 2 : 4
-                                objectName: "broadcastPropertiesGrid"
+                                objectName: "grid"
                                 rowSpacing: 15
 
                                 Mixxx.SettingParameter {
@@ -1032,7 +1040,7 @@ Category {
                                     Layout.fillWidth: true
                                     Layout.minimumHeight: 26
                                     input.text: cardRoot.profile?.website ?? ""
-                                    objectName: "broadcastWebsite"
+                                    objectName: "website"
 
                                     input.onAccepted: {
                                         root.setProfileValue(cardRoot.profile, "website", input.text);
@@ -1062,7 +1070,7 @@ Category {
                                     Layout.fillWidth: true
                                     Layout.minimumHeight: 26
                                     input.text: cardRoot.profile?.description ?? ""
-                                    objectName: "broadcastDescription"
+                                    objectName: "description"
 
                                     input.onAccepted: {
                                         root.setProfileValue(cardRoot.profile, "description", input.text);
@@ -1186,7 +1194,7 @@ Category {
                                     Layout.fillWidth: true
                                     Layout.minimumHeight: 26
                                     input.text: cardRoot.profile?.metadataFormat ?? ""
-                                    objectName: "broadcastMetadataFormat"
+                                    objectName: "metadataFormat"
 
                                     input.onAccepted: {
                                         root.setProfileValue(cardRoot.profile, "metadataFormat", input.text);
@@ -1216,7 +1224,7 @@ Category {
                                     Layout.fillWidth: true
                                     Layout.minimumHeight: 26
                                     input.text: cardRoot.profile?.genre ?? ""
-                                    objectName: "broadcastGenre"
+                                    objectName: "genre"
 
                                     input.onAccepted: {
                                         root.setProfileValue(cardRoot.profile, "genre", input.text);
@@ -1256,7 +1264,7 @@ Category {
                                     enabled: cardRoot.profile?.format === "Ogg Vorbis"
                                     inactiveColor: Theme.darkGray4
                                     maxWidth: propertiesPane.width * 0.5
-                                    objectName: "broadcastOggDynamicUpdate"
+                                    objectName: "oggDynamicUpdate"
                                     options: ["on", "off"]
                                     // selected: cardRoot.profile?.staticMetadata ?? "off"
 
@@ -1286,7 +1294,7 @@ Category {
                                     enabled: cardRoot.profile?.format === "Ogg Vorbis"
                                     inactiveColor: Theme.darkGray4
                                     maxWidth: propertiesPane.width * 0.5
-                                    objectName: "broadcastUtf8Metadata"
+                                    objectName: "utf8Metadata"
                                     options: ["on", "off"]
                                     // selected: cardRoot.profile?.staticMetadata ?? "off"
 
@@ -1316,7 +1324,7 @@ Category {
                                     Layout.alignment: Qt.AlignRight
                                     inactiveColor: Theme.darkGray4
                                     maxWidth: propertiesPane.width * 0.5
-                                    objectName: "broadcastStaticMetadata"
+                                    objectName: "metadata"
                                     options: ["on", "off"]
                                     selected: cardRoot.profile?.staticMetadata ?? "off"
 
@@ -1350,7 +1358,7 @@ Category {
                                     Layout.fillWidth: true
                                     Layout.minimumHeight: 26
                                     input.text: cardRoot.profile?.staticArtist ?? ""
-                                    objectName: "broadcastStaticArtist"
+                                    objectName: "artist"
                                     visible: broadcastStaticMetadata.selected === "on"
 
                                     input.onAccepted: {
@@ -1382,7 +1390,7 @@ Category {
                                     Layout.fillWidth: true
                                     Layout.minimumHeight: 26
                                     input.text: cardRoot.profile?.staticTitle ?? ""
-                                    objectName: "broadcastStaticTitle"
+                                    objectName: "title"
                                     visible: broadcastStaticMetadata.selected === "on"
 
                                     input.onAccepted: {
@@ -1400,7 +1408,7 @@ Category {
                             Layout.alignment: Qt.AlignRight
                             activeColor: "#999999"
                             backgroundColor: "#7D3B3B"
-                            objectName: "broadcastRemoveProfile"
+                            objectName: "remove"
                             text: "Remove profile"
 
                             onPressed: cardRoot.remove()
