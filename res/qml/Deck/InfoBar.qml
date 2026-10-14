@@ -11,7 +11,7 @@ import "../Theme"
 Rectangle {
     id: root
 
-    property list<string> availableData: ["none", "title", "year", "time", "artist", "rating"]
+    property list<string> availableData: ["None", "Title", "Year", "Time", "Artist", "Rating", "BPM"]
     readonly property var currentTrack: deckPlayer?.currentTrack
     property var deckPlayer: Mixxx.PlayerManager.getPlayer(group)
     property bool editMode: false
@@ -78,7 +78,7 @@ Rectangle {
         role: "type"
 
         DelegateChoice {
-            roleValue: "title"
+            roleValue: "Title"
 
             Cell {
                 item.font.bold: false
@@ -88,14 +88,14 @@ Rectangle {
             }
         }
         DelegateChoice {
-            roleValue: "artist"
+            roleValue: "Artist"
 
             Cell {
                 item.text: root.currentTrack?.artist
             }
         }
         DelegateChoice {
-            roleValue: "year"
+            roleValue: "Year"
 
             Cell {
                 item.text: root.currentTrack?.year
@@ -103,7 +103,21 @@ Rectangle {
             }
         }
         DelegateChoice {
-            roleValue: "time"
+            roleValue: "BPM"
+
+            Cell {
+                item.text: bpmCO.value > 0 ? bpmCO.value.toFixed(2) : "-"
+                visible: root.width > 450
+
+                Mixxx.ControlProxy {
+                    id: bpmCO
+                    group: root.group
+                    key: "bpm"
+                }
+            }
+        }
+        DelegateChoice {
+            roleValue: "Time"
 
             Cell {
                 visible: root.width > 450
@@ -133,7 +147,7 @@ Rectangle {
             }
         }
         DelegateChoice {
-            roleValue: "rating"
+            roleValue: "Rating"
 
             Item {
                 id: cell
@@ -265,26 +279,26 @@ Rectangle {
         id: topRowModel
 
         ListElement {
-            type: "title"
+            type: "Title"
         }
         ListElement {
-            type: "year"
+            type: "BPM"
         }
         ListElement {
-            type: "time"
+            type: "Time"
         }
     }
     ListModel {
         id: bottomRowModel
 
         ListElement {
-            type: "artist"
+            type: "Artist"
         }
         ListElement {
-            type: "none"
+            type: "Year"
         }
         ListElement {
-            type: "rating"
+            type: "Rating"
         }
     }
     Component {
