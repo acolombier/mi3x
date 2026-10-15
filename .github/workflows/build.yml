@@ -1070,10 +1070,16 @@ jobs:
           path: videos
           merge-multiple: true
 
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: "Build and update E2E comment"
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           RESULTS_DIR: results
           VIDEO_DIR: videos
           SNIPPET_DIR: snippets
