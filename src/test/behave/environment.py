@@ -8,6 +8,60 @@ from behave.model import ScenarioOutline
 from behave.model_core import Status
 
 
+def _root_exception(exception):
+    """Return the most specific exception in a ``raise ... from ...`` chain.
+
+    RobustRpcProxy re-raises transport failures as a generic ConnectionError
+    fence ("RPC call ... failed; not retried ...") with the real cause attached
+    via ``from``. That fence message is unhelpful in the report, so follow
+    ``__cause__`` (explicit chaining) and then ``__context__`` (implicit
+    chaining) down to the underlying error, e.g. ConnectionRefusedError carrying
+    the Windows WinError text. A visited set guards against cyclic chains.
+    """
+    seen = set()
+    while exception is not None and id(exception) not in seen:
+        seen.add(id(exception))
+        if exception.__cause__ is not None:
+            exception = exception.__cause__
+        elif exception.__context__ is not None:
+            exception = exception.__context__
+        else:
+            break
+    return exception
+
+
+def _exception_line(exception):
+    """Render an exception as a concise ``ClassName: message`` line."""
+    text = str(exception).strip()
+    name = type(exception).__name__
+    return f"{name}: {text}" if text else name
+
+
+def _step_error_line(step):
+    """Report-friendly description of why ``step`` failed.
+
+    Behave stores the raised exception object on the step (``step.exception``)
+    and its full traceback in ``step.error_message``. Preference order:
+      1. The deepest exception in the step's ``raise ... from ...`` chain, so a
+         generic RPC fence resolves to its source (e.g. ConnectionRefusedError).
+      2. Behave's ``error_message`` last line, which preserves its own wording
+         (the ``ASSERT FAILED: ...`` assertion form) and covers steps without a
+         stored exception object (undefined/pending steps).
+    """
+    exception = getattr(step, "exception", None)
+    if exception is not None:
+        root = _root_exception(exception)
+        if not isinstance(root, AssertionError):
+            return _exception_line(root)
+    msg = (getattr(step, "error_message", "") or "").strip()
+    if not msg:
+        return None
+    return next(
+        (line.strip() for line in reversed(msg.splitlines()) if line.strip()),
+        None,
+    )
+
+
 def _parse_gh_issue(tags):
     for tag in tags:
         m = re.match(r"xfail\(gh_issue=(\d+)\)", tag)
@@ -168,22 +222,16 @@ def after_scenario(context, scenario):
     scenario.end_at = time.time()
     scenario.outcome = outcome
 
-    # Collect the actual exception line from each failing step's error
-    # message. Behave stores the full traceback in step.error_message, so the
-    # meaningful line (e.g. "AssertionError: ...", "RuntimeError: ...") is the
-    # last non-empty line, not the "Traceback (most recent call last):" header.
-    # Successes and expected failures are omitted.
+    # Collect one concise error line per failing step. Iterate all_steps (not
+    # steps): behave keeps Background steps in scenario.background_steps, and
+    # the setup Background ("Mixxx is open and ready to operate") is exactly
+    # where startup/RPC failures surface, so steps would silently drop them and
+    # leave the reported error empty.
     errors = []
-    for step in scenario.steps:
+    for step in scenario.all_steps:
         if step.status not in (Status.failed, Status.error):
             continue
-        msg = (getattr(step, "error_message", "") or "").strip()
-        if not msg:
-            continue
-        error_line = next(
-            (line.strip() for line in reversed(msg.splitlines()) if line.strip()),
-            None,
-        )
+        error_line = _step_error_line(step)
         if error_line:
             errors.append(error_line)
 
