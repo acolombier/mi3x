@@ -39,6 +39,8 @@ on:
         required: false
       RRYAN_AT_MIXXX_DOT_ORG_GPG_PRIVATE_KEY:
         required: false
+      APP_PRIVATE_KEY:
+        required: false
 
 permissions:
   contents: read #  to fetch code (actions/checkout)
