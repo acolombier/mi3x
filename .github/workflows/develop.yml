@@ -77,7 +77,7 @@ jobs:
       branch: ${{ github.head_ref || github.ref_name }}
       ref: ${{ github.ref }}
     secrets:
-      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+      MIXXX_E2E_TOKEN: ${{ secrets.MIXXX_E2E_TOKEN }}
 
   # This task is used as a probe for auto merge
   # In the future, it could also be used to perform a status update (e.g once the whole CI is passing + is ready for review, add a specific label such as `need review`)

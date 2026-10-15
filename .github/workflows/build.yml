@@ -39,7 +39,7 @@ on:
         required: false
       RRYAN_AT_MIXXX_DOT_ORG_GPG_PRIVATE_KEY:
         required: false
-      APP_PRIVATE_KEY:
+      MIXXX_E2E_TOKEN:
         required: false
 
 permissions:
@@ -1072,16 +1072,10 @@ jobs:
           path: videos
           merge-multiple: true
 
-      - uses: actions/create-github-app-token@v3
-        id: app-token
-        with:
-          client-id: ${{ vars.APP_CLIENT_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-
       - name: "Build and update E2E comment"
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.MIXXX_E2E_TOKEN }}
           RESULTS_DIR: results
           VIDEO_DIR: videos
           SNIPPET_DIR: snippets
