@@ -166,6 +166,7 @@ repos:
         files: ^.*\.qml$
         args: [-n, -i]
         stages:
+          - pre-commit
           - manual
       - id: qmllint
         name: qmllint
