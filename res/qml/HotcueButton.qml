@@ -41,12 +41,13 @@ Item {
 
         TapHandler {
             acceptedButtons: Qt.RightButton
-            onTapped: (eventPoint, button) => popup.openFrom(root)
-            onLongPressed: () => popup.openFrom(root)
-        }
 
+            onLongPressed: () => popup.openFrom(root)
+            onTapped: (eventPoint, button) => popup.openFrom(root)
+        }
         TapHandler {
             id: activator
+
             acceptedButtons: Qt.LeftButton
         }
     }

@@ -36,6 +36,21 @@ QtObject {
     property string fontFamily: "Open Sans"
     property color gainKnobColor: blue
     property color green: "#85c85b"
+    property color hotcuePopupBackgroundColor: "#1a1a1a"
+    property color hotcuePopupCueMarkerColor: "#ffd54a"
+    property color hotcuePopupDeleteHoverColor: "#6c2e2e"
+    property color hotcuePopupDeletePressedColor: "#dc4141"
+    property color hotcuePopupGridColor: "#e8e8e8"
+    property color hotcuePopupInputBackgroundColor: "#e8e8e8"
+    property color hotcuePopupInputBorderColorBottom: "#2a2a2a"
+    property color hotcuePopupInputBorderColorLeft: "#121212"
+    property color hotcuePopupInputBorderColorRight: "#252525"
+    property color hotcuePopupInputBorderColorTop: "#0d0d0d"
+    property color hotcuePopupInputSelectionBackgroundColor: "#cccccc"
+    property color hotcuePopupTextColor: "#c2b3a5"
+    property color hotcuePopupTypePressedColor: "#b24c12"
+    property color hotcuePopupWaveformColor: "#2b5ecc"
+    property color hotcuePopupWaveformOverlayColor: "#fca001"
     property string imgBpmSliderBackground: "images/slider_bpm.svg"
     property string imgButton: "images/button.svg"
     property string imgButtonPressed: "images/button_pressed.svg"
@@ -75,21 +90,6 @@ QtObject {
     property color toolbarBackgroundColor: darkGray2
     property color volumeSliderBarColor: blue
     property color warningColor: "#7D3B3B"
-    property color hotcuePopupBackgroundColor: "#1a1a1a"
-    property color hotcuePopupTextColor: "#c2b3a5"
-    property color hotcuePopupInputBackgroundColor: "#e8e8e8"
-    property color hotcuePopupInputBorderColorTop: "#0d0d0d"
-    property color hotcuePopupInputBorderColorLeft: "#121212"
-    property color hotcuePopupInputBorderColorBottom: "#2a2a2a"
-    property color hotcuePopupInputBorderColorRight: "#252525"
-    property color hotcuePopupInputSelectionBackgroundColor: "#cccccc"
-    property color hotcuePopupDeleteHoverColor: "#6c2e2e"
-    property color hotcuePopupDeletePressedColor: "#dc4141"
-    property color hotcuePopupTypePressedColor: "#b24c12"
-    property color hotcuePopupWaveformColor: "#2b5ecc"
-    property color hotcuePopupWaveformOverlayColor: "#fca001"
-    property color hotcuePopupCueMarkerColor: "#ffd54a"
-    property color hotcuePopupGridColor: "#e8e8e8"
     property color waveformBeatColor: lightGray
     property color waveformCursorColor: white
     property color waveformMarkerDefault: '#ff7a01'
