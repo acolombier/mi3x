@@ -12,14 +12,14 @@ ApplicationWindow {
     readonly property int designHeight: 1008
     readonly property int designWidth: 1792
 
+    // Used to show click interaction on the Window. Mainly relevant on automated testing
+    property bool enableDiagnosticClick: false
+    readonly property bool isMobile: Qt.platform.os === "android" || Qt.platform.os === "ios"
+
     // Window-wide gesture router, reachable from anywhere via
     // Window.window.touchHub. It lives at the bottom of the scene so it only
     // sees presses that nothing else accepted.
     readonly property alias touchHub: touchHubArea
-
-    // Used to show click interaction on the Window. Mainly relevant on automated testing
-    property bool enableDiagnosticClick: false
-    readonly property bool isMobile: Qt.platform.os === "android" || Qt.platform.os === "ios"
 
     color: Theme.backgroundColor
     height: isMobile ? Screen.height : designHeight

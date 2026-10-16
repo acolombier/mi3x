@@ -17,24 +17,25 @@ Skin.Button {
 
     activeColor: {
         switch (mode) {
-            case SyncButton.SyncMode.ImplicitLeader:
-                return Theme.yellow;
-            case SyncButton.SyncMode.ExplicitLeader:
-                return Theme.red;
-            default:
-                return Theme.deckActiveColor;
-        }
-    }
-    text: {
-        switch (mode) {
-            case SyncButton.SyncMode.ImplicitLeader:
-                case SyncButton.SyncMode.ExplicitLeader:
-                    return "Leader";
-            default:
-                return "Sync";
+        case SyncButton.SyncMode.ImplicitLeader:
+            return Theme.yellow;
+        case SyncButton.SyncMode.ExplicitLeader:
+            return Theme.red;
+        default:
+            return Theme.deckActiveColor;
         }
     }
     highlight: enabledControl.value
+    text: {
+        switch (mode) {
+        case SyncButton.SyncMode.ImplicitLeader:
+        case SyncButton.SyncMode.ExplicitLeader:
+            return "Leader";
+        default:
+            return "Sync";
+        }
+    }
+
     onClicked: {
         enabledControl.value = !enabledControl.value;
     }
@@ -42,7 +43,7 @@ Skin.Button {
         if (play.value) {
             leaderControl.value = !leaderControl.value;
         } else {
-            syncTempo.trigger()
+            syncTempo.trigger();
         }
     }
 
@@ -52,14 +53,12 @@ Skin.Button {
         group: root.group
         key: "sync_enabled"
     }
-
     Mixxx.ControlProxy {
         id: modeControl
 
         group: root.group
         key: "sync_mode"
     }
-
     Mixxx.ControlProxy {
         id: leaderControl
 

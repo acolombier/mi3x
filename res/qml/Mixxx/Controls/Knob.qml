@@ -94,12 +94,12 @@ Item {
         property vector2d lastTranslation: Qt.vector2d(0, 0)
         property real value
 
-        target: null
-        enabled: !Mixxx.Core.hasPopup
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         dragThreshold: 0
+        enabled: !Mixxx.Core.hasPopup
         maximumPointCount: 1
         minimumPointCount: 1
+        target: null
 
         onActiveChanged: {
             dragHandler.value = root.value;
