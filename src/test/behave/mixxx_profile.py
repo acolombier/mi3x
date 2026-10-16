@@ -315,13 +315,14 @@ class MixxxProcess:
     ATTACH_MODE = False
 
     def __init__(
-        self, binary, profile_dir, display=None, output_dir=None,
+        self, binary, profile_dir, display=None, output_dir=None, capture=True,
         flatpak_package=None,
     ):
         self.binary = binary
         self.flatpak_package = flatpak_package
         if not binary and not flatpak_package:
             raise ValueError("either binary or flatpak_package is required")
+        self.capture = capture
         self.profile_dir = profile_dir
         self.display = display
         self.output_dir = output_dir
@@ -357,10 +358,11 @@ class MixxxProcess:
     def _close_output_log(self):
         if self._output_file is None:
             return
-        try:
-            self._output_file.close()
-        except Exception:
-            pass
+        if self._output_file != sys.stderr:
+            try:
+                self._output_file.close()
+            except Exception:
+                pass
         self._output_file = None
 
     def _write_output_banner(self, text):
@@ -431,8 +433,7 @@ class MixxxProcess:
             text=True,
         )
 
-        output_file = self._open_output_log(self.process.pid)
-        self._output_file = output_file
+        self._output_file = self._open_output_log(self.process.pid) if self.capture else sys.stderr
         self._write_output_banner(
             f"===== spawn {time.strftime('%Y-%m-%d %H:%M:%S')} "
             f"pid={self.process.pid} binary={launched_as} "
@@ -442,19 +443,18 @@ class MixxxProcess:
         output_lines = collections.deque(maxlen=self.OUTPUT_TAIL_LINES)
 
         def _pipe_logger():
-            nonlocal output_file
             assert self.process is not None
             assert self.process.stdout is not None
             for line in self.process.stdout:
                 output_lines.append(line)
-                if output_file is None:
+                if self._output_file is None:
                     continue
                 try:
-                    output_file.write(line)
-                    output_file.flush()
+                    self._output_file.write(line)
+                    self._output_file.flush()
                 except Exception:
                     # Log persistence must never kill the reader thread.
-                    output_file = None
+                    self._output_file = None
 
         self._log_thread = threading.Thread(target=_pipe_logger, daemon=True)
         self._log_thread.start()
@@ -470,7 +470,8 @@ class MixxxProcess:
             except (OSError, ConnectionRefusedError):
                 pass
             if self.process.poll() is not None:
-                _print_output_tail(output_lines, self.output_path)
+                if self.capture:
+                    _print_output_tail(output_lines, self.output_path)
                 raise RuntimeError(
                     f"mixxx-test exited early with code "
                     f"{self._format_exit_code(self.process.returncode)}"

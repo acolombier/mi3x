@@ -304,6 +304,7 @@ def step_open_and_ready(context):
             context.profile_dir,
             output_dir=context.config.userdata.get("mixxx_output_dir"),
             flatpak_package=flatpak_package,
+            capture=not context.config.userdata.get("no_capture", False),
         )
         context.mixxx.start()
         context.rpc = RobustRpcProxy()
