@@ -40,6 +40,13 @@ Popup {
         anchors.fill: parent
         anchors.margins: 10
         asynchronous: true
+        sourceComponent: content
+        visible: item !== null && status == Loader.Ready
+
+        Binding on asynchronous {
+            delayed: true
+            value: !popup.opened || timeout.running
+        }
 
         // Accelerate the load of the setting popup after a specific delay
         Timer {
@@ -50,15 +57,6 @@ Popup {
             repeat: false
             running: popup.opened
         }
-
-        Binding on asynchronous {
-            delayed: true
-            value: !popup.opened || timeout.running
-        }
-
-        sourceComponent: content
-        visible: item !== null && status == Loader.Ready
-
         Component {
             id: content
 
@@ -87,7 +85,6 @@ Popup {
                     id: sectionProperties
 
                 }
-
                 Rectangle {
                     id: categories
 
