@@ -111,6 +111,7 @@ Rectangle {
 
                 Mixxx.ControlProxy {
                     id: bpmCO
+
                     group: root.group
                     key: "bpm"
                 }
@@ -120,8 +121,8 @@ Rectangle {
             roleValue: "Time"
 
             Cell {
-                visible: root.width > 450
                 item.text: time.text
+                visible: root.width > 450
 
                 Mixxx.ControlProxy {
                     id: durationControl
@@ -135,9 +136,9 @@ Rectangle {
                     group: root.group
                     key: "playposition"
                 }
-
                 TrackTime {
                     id: time
+
                     display: Mixxx.Config.controlPositionDisplay
                     elapsed: durationControl.value * playPositionControl.value
                     mode: Mixxx.Config.controlTimeFormat
