@@ -31,6 +31,7 @@ Item {
     function setColor(newColor) {
         hotcueColorControl.value = (parseInt(newColor.r * 255) << 16) | (parseInt(newColor.g * 255) << 8) | parseInt(newColor.b * 255);
     }
+
     Mixxx.ControlProxy {
         id: hotcueColorControl
 

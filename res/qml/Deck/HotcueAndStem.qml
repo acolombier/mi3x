@@ -110,7 +110,6 @@ Item {
 
                     Skin.HotcueButton {
                         required property int index
-                        objectName: "hotcue_" + (index + 1)
 
                         Layout.column: index % 4
                         Layout.fillHeight: true
@@ -125,6 +124,7 @@ Item {
                             root.currentTrack?.hotcuesModel.revision;
                             return root.currentTrack?.hotcuesModel.get(index)?.label;
                         }
+                        objectName: "hotcue_" + (index + 1)
                     }
                 }
             }
@@ -171,14 +171,15 @@ Item {
                             radius: 1
                         }
                         Rectangle {
+                            color: "#4b000000"
+                            height: 4
+                            radius: 1
+
                             anchors {
                                 bottom: parent.bottom
                                 left: parent.left
                                 right: parent.right
                             }
-                            height: 4
-                            color: "#4b000000"
-                            radius: 1
                         }
                         Item {
                             id: stemButton
@@ -198,6 +199,7 @@ Item {
                                 color: stem.color
                                 opacity: stemMute.value ? 0.6 : 1.0
                                 radius: 1
+
                                 border {
                                     color: '#1C1C1C'
                                     width: 1
@@ -360,8 +362,8 @@ Item {
         anchors.rightMargin: 6
         anchors.top: parent.top
         spacing: 10
-        width: stemCountControl.value > 0 ? 36 : 0
         visible: width > 0
+        width: stemCountControl.value > 0 ? 36 : 0
 
         Behavior on width {
             SpringAnimation {

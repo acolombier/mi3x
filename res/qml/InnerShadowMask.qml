@@ -10,9 +10,9 @@ Rectangle {
     color: 'transparent'
 
     Rectangle {
-        anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
+        anchors.top: parent.top
         height: waveformMask.size
 
         gradient: Gradient {
@@ -48,9 +48,9 @@ Rectangle {
         }
     }
     Rectangle {
-        anchors.top: parent.top
         anchors.bottom: parent.bottom
         anchors.left: parent.left
+        anchors.top: parent.top
         width: waveformMask.size
 
         gradient: Gradient {
@@ -67,9 +67,9 @@ Rectangle {
         }
     }
     Rectangle {
-        anchors.top: parent.top
         anchors.bottom: parent.bottom
         anchors.right: parent.right
+        anchors.top: parent.top
         width: waveformMask.size
 
         gradient: Gradient {
