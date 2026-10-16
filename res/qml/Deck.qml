@@ -45,7 +45,6 @@ Item {
         return result;
     }
 
-    Drag.active: dragArea.drag.active
     Drag.dragType: Drag.Automatic
     Drag.mimeData: {
         let data = {
@@ -53,11 +52,16 @@ Item {
         };
         const trackLocationUrl = currentTrack?.trackLocationUrl;
         if (trackLocationUrl)
-            data["text/uri-list"] = trackLocationUrl;
+            data["text/uri-list"] = trackLocationUrl.toString();
 
         return data;
     }
     Drag.supportedActions: Qt.CopyAction
+
+    Binding on Drag.active {
+        delayed: true
+        value: dragArea.drag.active
+    }
 
     Component.onCompleted: {
         itemModel.append({
@@ -842,6 +846,7 @@ Item {
 
             anchors.fill: layoutItem
             color: Qt.alpha("black", 0.4)
+            objectName: "overlayItem"
             visible: root.editMode
             z: 90
 
