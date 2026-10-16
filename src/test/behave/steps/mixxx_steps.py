@@ -783,6 +783,7 @@ def step_open_and_ready(context):
             binary,
             context.profile_dir,
             output_dir=context.config.userdata.get("mixxx_output_dir"),
+            capture=not context.config.userdata.get("no_capture", False),
         )
         context.mixxx.start()
         context.mixxx_rpc = RobustRpcProxy()
@@ -2114,7 +2115,7 @@ def _wait_for_search_suggestion(context, value, timeout=15):
 
 def search_field_quote(value):
     """Quote a criterion value the same way res/qml/Library/SearchPane.qml does."""
-    if re.search(r"[\s\"'=~-]", value):
+    if re.search(r"[\s\"'=~]", value):
         return '"' + value + '"'
     return value
 

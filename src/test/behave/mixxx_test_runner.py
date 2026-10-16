@@ -801,6 +801,7 @@ def main():
         runner.config.userdata = dict(
             tracks_dir=tracks_cache,
             tracks_catalog=tracks_catalog,
+            no_capture=args.no_capture,
             run_seed=run_seed,
             binary=args.binary,
             fail_early=args.fail_early,
