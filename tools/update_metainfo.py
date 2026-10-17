@@ -91,7 +91,7 @@ def parse_changelog(content, development_release_date):
             tag.replace_with(tag.get_text())
 
         desc = soup.new_tag("description")
-        desc.extend(soup.contents)
+        desc.extend(soup.contents or ["no changelog available yet"])
 
         release = etree.Element("release", attrib=attrib)
         release.append(etree.fromstring(desc.prettify()))
