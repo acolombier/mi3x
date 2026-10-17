@@ -433,8 +433,6 @@ PROPERTY_IMPL_GETTER(kWaveformGroup,
 void QmlConfigProxy::set_waveformUntilMarkShowBeats(bool value) {
     if (WaveformWidgetFactory::isCreated()) {
         WaveformWidgetFactory::instance()->setUntilMarkShowBeats(value);
-        emit waveformUntilMarkShowBeatsChanged();
-        return;
     }
     setConfigValueAndNotify<bool>(kWaveformGroup,
             kUntilMarkShowBeatsKey,
@@ -447,8 +445,6 @@ PROPERTY_IMPL_GETTER(kWaveformGroup, kUntilMarkShowTimeKey, bool, waveformUntilM
 void QmlConfigProxy::set_waveformUntilMarkShowTime(bool value) {
     if (WaveformWidgetFactory::isCreated()) {
         WaveformWidgetFactory::instance()->setUntilMarkShowTime(value);
-        emit waveformUntilMarkShowTimeChanged();
-        return;
     }
     setConfigValueAndNotify<bool>(kWaveformGroup,
             kUntilMarkShowTimeKey,

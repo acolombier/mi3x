@@ -117,6 +117,8 @@ case "$1" in
             libpipewire-0.3-dev \
             libportmidi-dev \
             libprotobuf-dev \
+            python3-behave \
+            python3-xmltodict \
             libqt6opengl6-dev \
             libqt6sql6-sqlite \
             libqt6svg6-dev \
@@ -150,6 +152,7 @@ case "$1" in
             qml6-module-qtquick-shapes \
             qml6-module-qtquick-templates \
             qml6-module-qtquick-window \
+            qml6-module-qtquick-effects \
             qml6-module-qt-labs-qmlmodels \
             qml6-module-qtquick-dialogs \
             qml6-module-qt-labs-folderlistmodel \

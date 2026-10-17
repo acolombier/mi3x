@@ -27,6 +27,12 @@
 #include "util/sample.h"
 #include "vinylcontrol/defs_vinylcontrol.h"
 
+#ifdef USE_TEST_UI
+#include <QJsonArray>
+
+#include "soundio/sounddevicemock.h"
+#endif
+
 #ifdef __PIPEWIRE__
 #include "soundio/pipewireenumerator.h"
 #endif
@@ -134,7 +140,10 @@ QList<SoundDevicePointer> SoundManager::getDeviceList(
     // input/output.
     QList<SoundDevicePointer> filteredDeviceList;
 
-    for (const auto& pDevice : m_pEnumerator->queryDevices()) {
+    auto appendIfMatch = [&filteredDeviceList,
+                                 &filterAPI,
+                                 bOutputDevices,
+                                 bInputDevices](const auto& pDevice) {
         // Skip devices that don't match the API, don't have input channels when
         // we want input devices, or don't have output channels when we want
         // output devices. If searching for both input and output devices,
@@ -149,18 +158,80 @@ QList<SoundDevicePointer> SoundManager::getDeviceList(
                 (bOutputDevices && !bInputDevices && !hasOutputs) ||
                 (bInputDevices && !bOutputDevices && !hasInputs) ||
                 (!hasInputs && !hasOutputs)) {
-            continue;
+            return;
         }
 
         filteredDeviceList.push_back(pDevice);
+    };
+
+#ifdef USE_TEST_UI
+    if (filterAPI == "Mock") {
+        for (const auto& pDevice : m_devices) {
+            appendIfMatch(pDevice);
+        }
+    } else {
+#endif
+        for (const auto& pDevice : m_pEnumerator->queryDevices()) {
+            appendIfMatch(pDevice);
+        }
+#ifdef USE_TEST_UI
     }
+#endif
 
     return filteredDeviceList;
 }
 
 QList<QString> SoundManager::getHostAPIList() const {
-    return m_pEnumerator->getAPIs();
+    QList<QString> apiList;
+
+    auto apis = m_pEnumerator->getAPIs();
+    for (const auto& api : std::as_const(apis)) {
+        apiList.push_back(api);
+    }
+
+#ifdef USE_TEST_UI
+    if (m_testMockingMode) {
+        apiList.push_back("Mock");
+    }
+#endif
+
+    return apiList;
 }
+
+#ifdef USE_TEST_UI
+void SoundManager::registerMockDevices(const QJsonArray& devices) {
+    for (const auto& entry : devices) {
+        QJsonObject obj = entry.toObject();
+        auto pDevice = QSharedPointer<SoundDeviceMock>::create(
+                m_pConfig,
+                this,
+                obj["api"].toString(),
+                obj["name"].toString(),
+                obj["outputChannels"].toInt(0),
+                obj["inputChannels"].toInt(0));
+        m_devices.push_back(pDevice);
+        addDevice(pDevice);
+    }
+    m_testMockingMode = true;
+    emit devicesUpdated();
+}
+
+void SoundManager::clearMockDevices() {
+    auto it = m_devices.begin();
+    while (it != m_devices.end()) {
+        if (dynamic_cast<SoundDeviceMock*>(it->data()) != nullptr) {
+            qDebug() << "SoundManager::clearMockDevices"
+                     << (*it)->getDisplayName();
+            emit deviceRemoved(*it);
+            it = m_devices.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    m_testMockingMode = false;
+    emit devicesUpdated();
+}
+#endif
 
 void SoundManager::closeDevices(
         [[maybe_unused]] bool sleepAfterClosing, [[maybe_unused]] bool async) {
@@ -331,7 +402,14 @@ SoundDeviceStatus SoundManager::setupDevices() {
     bool haveOutput = false;
     // loop over all available devices
 
-    std::vector<SoundDevicePointer> devices = m_pEnumerator->queryDevices();
+    std::vector<SoundDevicePointer> devices =
+#ifdef USE_TEST_UI
+            m_config.getAPI() == "Mock"
+            ? std::vector<SoundDevicePointer>(
+                      m_devices.begin(), m_devices.end())
+            :
+#endif
+            m_pEnumerator->queryDevices();
 
     // here some network device conditions can be separated, currently simply
     // add it to the list of other devices

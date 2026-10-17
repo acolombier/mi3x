@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QHash>
+#include <QJsonObject>
 #include <QList>
 #include <QObject>
 #include <QSharedPointer>
@@ -153,6 +154,13 @@ class SoundManager : public QObject {
 
     void loadConfig();
     void invalidateConfig();
+
+#ifdef USE_TEST_UI
+    // Injects mock devices from a JSON array for UI testing.
+    // Each element: { "name": "...", "api": "...", "outputChannels": N, "inputChannels": N }
+    void registerMockDevices(const QJsonArray& devices);
+    void clearMockDevices();
+#endif
   signals:
     void deviceAdded(SoundDevicePointer pDevice);
     void deviceRemoved(SoundDevicePointer pDevice);
@@ -211,4 +219,8 @@ class SoundManager : public QObject {
     QSharedPointer<EngineNetworkStream> m_pNetworkStream;
     QSharedPointer<SoundDeviceNetwork> m_pNetworkDevice;
     bool m_pipewireEnabled;
+
+#ifdef USE_TEST_UI
+    bool m_testMockingMode{false};
+#endif
 };

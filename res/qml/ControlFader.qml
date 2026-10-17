@@ -10,7 +10,7 @@ Skin.Fader {
 
     value: control.parameter
 
-    onMoved: function (value) {
+    onMoved: function(value) {
         control.parameter = value;
     }
 
@@ -25,7 +25,6 @@ Skin.Fader {
     }
     TapHandler {
         acceptedButtons: Qt.RightButton
-
         onTapped: control.reset()
     }
 }

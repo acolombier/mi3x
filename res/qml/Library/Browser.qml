@@ -7,7 +7,6 @@ import QtQml.Models
 import QtQuick.Layouts
 import QtQuick.Controls 2.15
 import QtQuick.Shapes 1.12
-import Qt5Compat.GraphicalEffects
 import "../Theme"
 
 Rectangle {
@@ -17,6 +16,7 @@ Rectangle {
     }
     required property var model
 
+    property var currentSelectedIndex: null
     color: Theme.backgroundColor
 
     Component.onCompleted: {
@@ -47,6 +47,14 @@ Rectangle {
                     model: root.model
                     selectionModel: featureSelection
 
+                    Connections {
+                        target: featureSelection
+                        function onSelectionChanged(selected, deselected) {
+                            if (!selected.length) return;
+                            root.currentSelectedIndex = selected[0]
+                        }
+                    }
+
                     delegate: FocusScope {
                         required property int column
                         required property bool current
@@ -55,9 +63,7 @@ Rectangle {
                         required property int hasChildren
                         required property var icon
                         readonly property real indentation: 40
-                        // FIXME The signature for that function has changed after Qt 6.4.2 (currently shipped on Ubuntu 24.04)
-                        // See https://github.com/mixxxdj/mixxx/pull/14514#issuecomment-2770811094 for further details
-                        readonly property var index: treeView.modelIndex(column, row)
+                        readonly property var index: treeView.index(row, column)
 
                         // Rotate indicator when expanded by the user
                         // (requires TreeView to have a selectionModel)

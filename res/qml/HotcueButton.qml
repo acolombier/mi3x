@@ -8,24 +8,18 @@ Skin.Button {
     required property string group
 
     text: hotcueNumber
-    activeColor: hotcueBehavior.hotcueColor
-    highlight: hotcueBehavior.isSet
+    activeColor: hotcue.color
+    highlight: hotcue.isSet
 
-    HotcueButtonBehavior {
-        id: hotcueBehavior
+    Skin.Hotcue {
+        id: hotcue
 
         group: root.group
         hotcueNumber: root.hotcueNumber
-        handlePointerInput: false
-
-        onCleared: {
-            popup.close();
-        }
-
-        onPopupRequested: function(mouseX, mouseY) {
-            popup.x = mouseX;
-            popup.y = mouseY;
-            popup.open();
+        activate: root.down
+        onIsSetChanged: {
+            if (!isSet)
+                popup.close();
         }
     }
 
@@ -35,35 +29,17 @@ Skin.Button {
         hotcue: hotcue
     }
 
-    Skin.Hotcue {
-        id: hotcue
-
-        group: root.group
-        hotcueNumber: root.hotcueNumber
-    }
-
-    onPressed: {
-        hotcueBehavior.pressPrimary();
-    }
-    onReleased: {
-        hotcueBehavior.releasePrimary();
-    }
-    onCanceled: {
-        hotcueBehavior.releasePrimary();
-    }
-
     MouseArea {
+        id: mousearea
+
         anchors.fill: parent
         acceptedButtons: Qt.RightButton
-
-        onPressed: function(mouse) {
-            hotcueBehavior.pressSecondary(mouse.x, mouse.y);
-        }
-        onReleased: {
-            hotcueBehavior.releaseSecondary();
-        }
-        onCanceled: {
-            hotcueBehavior.releaseSecondary();
+        onClicked: (mouse) => {
+            if (hotcue.isSet) {
+                popup.x = mouse.x;
+                popup.y = mouse.y;
+                popup.open();
+            }
         }
     }
 }

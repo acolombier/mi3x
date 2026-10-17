@@ -12,6 +12,7 @@
 #include "library/library.h"
 #include "library/library_prefs.h"
 #include "library/librarytablemodel.h"
+#include "library/searchqueries.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #ifdef __ENGINEPRIME__
@@ -21,6 +22,7 @@
 #include "preferences/colorpalettesettings.h"
 #include "qml/qmlconfigproxy.h"
 #include "qml/qmllibrarytracklistmodel.h"
+#include "qml/qmlsearchsuggestionmodel.h"
 #include "qmltrackproxy.h"
 #include "track/cue.h"
 #include "track/track.h"
@@ -161,6 +163,9 @@ QmlLibraryProxy::QmlLibraryProxy(QObject* parent)
                   s_pLibrary->trackCollectionManager()->scanner(),
                   s_pLibrary->trackCollectionManager(),
                   this)),
+          m_pSearchSuggestions(new QmlSearchSuggestionModel(
+                  s_pLibrary->dbConnectionPool(), this)),
+          m_pRecentSearches(new QmlRecentSearchModel(this)),
           m_pTrackCollectionManager(s_pLibrary->trackCollectionManager()) {
     connect(m_pScanner,
             &QmlLibraryScannerProxy::stateChanged,
@@ -384,7 +389,7 @@ bool QmlLibraryProxy::setDeckHotcueLabel(
         int hotcueNumber,
         const QString& label) {
     const CuePointer pCue = findDeckHotcue(track, hotcueNumber);
-    if (!pCue) {
+    if (!track || !track->internal() || !pCue) {
         return false;
     }
     pCue->setLabel(label);
@@ -553,31 +558,60 @@ QmlLibraryProxy* QmlLibraryProxy::create(QQmlEngine* pQmlEngine, QJSEngine* pJsE
     return new QmlLibraryProxy(pQmlEngine);
 }
 
-QmlLibraryProxy::AddResult QmlLibraryProxy::addSource(
+QString QmlLibraryProxy::serializeSearchQuery(
+        const QVariantList& tokens, const QString& freeText) const {
+    return SearchQueries::serializeQuery(tokens, freeText);
+}
+
+QVariantMap QmlLibraryProxy::parseSearchQuery(const QString& query) const {
+    return SearchQueries::parseQuery(query);
+}
+
+QmlLibraryProxy::Result QmlLibraryProxy::addSource(
         const QUrl& newPath) {
     VERIFY_OR_DEBUG_ASSERT(s_pLibrary) {
         qWarning() << "Library hasn't been registered yet!";
-        return QmlLibraryProxy::AddResult::InvalidOrMissingDirectory;
+        return QmlLibraryProxy::Result::InvalidOrMissingDirectory;
     }
     QDir directory(newPath.toLocalFile());
     Sandbox::createSecurityTokenForDir(directory);
-    return static_cast<QmlLibraryProxy::AddResult>(
-            s_pLibrary->trackCollectionManager()->addDirectory(
-                    mixxx::FileInfo(newPath.toLocalFile())));
+    auto result = s_pLibrary->trackCollectionManager()->addDirectory(
+            mixxx::FileInfo(newPath.toLocalFile()));
+    switch (result) {
+    case DirectoryDAO::AddResult::Ok:
+        return Result::Ok;
+    case DirectoryDAO::AddResult::AlreadyWatching:
+        return Result::AlreadyWatching;
+    case DirectoryDAO::AddResult::InvalidOrMissingDirectory:
+        return Result::InvalidOrMissingDirectory;
+    case DirectoryDAO::AddResult::UnreadableDirectory:
+        return Result::UnreadableDirectory;
+    case DirectoryDAO::AddResult::SqlError:
+        return Result::SqlError;
+    }
+    return Result::Unknown;
 }
 
-QmlLibraryProxy::RemoveResult QmlLibraryProxy::removeSource(
+QmlLibraryProxy::Result QmlLibraryProxy::removeSource(
         const QUrl& oldPath, SourceRemovalType removalType) {
     VERIFY_OR_DEBUG_ASSERT(s_pLibrary) {
         qWarning() << "Library hasn't been registered yet!";
-        return QmlLibraryProxy::RemoveResult::NotFound;
+        return QmlLibraryProxy::Result::NotFound;
     }
 
     DirectoryDAO::RemoveResult result =
             s_pLibrary->trackCollectionManager()->removeDirectory(
                     mixxx::FileInfo(oldPath.toLocalFile()));
     if (result != DirectoryDAO::RemoveResult::Ok) {
-        return static_cast<QmlLibraryProxy::RemoveResult>(result);
+        switch (result) {
+        case DirectoryDAO::RemoveResult::Ok:
+            return Result::Ok;
+        case DirectoryDAO::RemoveResult::NotFound:
+            return Result::NotFound;
+        case DirectoryDAO::RemoveResult::SqlError:
+            return Result::SqlError;
+        }
+        return Result::Unknown;
     }
 
     switch (removalType) {
@@ -595,18 +629,29 @@ QmlLibraryProxy::RemoveResult QmlLibraryProxy::removeSource(
     default:
         DEBUG_ASSERT(!"unreachable");
     }
-    return static_cast<QmlLibraryProxy::RemoveResult>(result);
+    return Result::Ok;
 }
 
-QmlLibraryProxy::RelocateResult QmlLibraryProxy::relinkSource(
+QmlLibraryProxy::Result QmlLibraryProxy::relinkSource(
         const QUrl& oldPath, const QUrl& newPath) {
     VERIFY_OR_DEBUG_ASSERT(s_pLibrary) {
         qWarning() << "Library hasn't been registered yet!";
-        return QmlLibraryProxy::RelocateResult::SqlError;
+        return QmlLibraryProxy::Result::SqlError;
     }
-    return static_cast<QmlLibraryProxy::RelocateResult>(
-            s_pLibrary->trackCollectionManager()->relocateDirectory(
-                    oldPath.toLocalFile(), newPath.toLocalFile()));
+    auto result = s_pLibrary->trackCollectionManager()->relocateDirectory(
+            oldPath.toLocalFile(), newPath.toLocalFile());
+
+    switch (result) {
+    case DirectoryDAO::RelocateResult::Ok:
+        return Result::Ok;
+    case DirectoryDAO::RelocateResult::InvalidOrMissingDirectory:
+        return Result::InvalidOrMissingDirectory;
+    case DirectoryDAO::RelocateResult::UnreadableDirectory:
+        return Result::UnreadableDirectory;
+    case DirectoryDAO::RelocateResult::SqlError:
+        return Result::SqlError;
+    }
+    return Result::Unknown;
 }
 
 // Static

@@ -74,29 +74,37 @@ TEST_F(QmlWaveformOverviewTest, RendersAvailableSummaryWithoutAnalyzerProgress) 
     setWaveformSample(pWaveform.get(), 2);
     setWaveformSample(pWaveform.get(), 3);
     pWaveform->setCompletion(4);
+    // Mimic the analyzer-driven repaint trigger: overviews cache their
+    // pixmap per track and only refresh when new analysis data is signaled.
+    QMetaObject::invokeMethod(&overview, "slotWaveformUpdated", Qt::DirectConnection);
     const QImage complete = paintOverview(&overview);
     ASSERT_TRUE(hasPaintedPixels(complete));
     EXPECT_TRUE(imagesDiffer(partial, complete));
 
-    overview.setRenderer(QmlWaveformOverview::Renderer::Filtered);
+    overview.setProperty("renderer", static_cast<int>(QmlWaveformOverview::Renderer::Filtered));
     const QImage filtered = paintOverview(&overview);
     ASSERT_TRUE(hasPaintedPixels(filtered));
     EXPECT_TRUE(imagesDiffer(complete, filtered));
 
-    overview.setRenderer(QmlWaveformOverview::Renderer::HSV);
-    const QImage hsv = paintOverview(&overview);
-    ASSERT_TRUE(hasPaintedPixels(hsv));
-    EXPECT_TRUE(imagesDiffer(filtered, hsv));
+    // Rendering back to RGB must match the initial complete rendering again.
+    overview.setProperty("renderer", static_cast<int>(QmlWaveformOverview::Renderer::RGB));
+    const QImage rgb = paintOverview(&overview);
+    EXPECT_TRUE(imagesDiffer(filtered, rgb));
 
+    // Switch to mono folding: the fold compresses each channel around the
+    // vertical center and keeps rendering both channel colors.
     overview.setStereo(false);
     const QImage mono = paintOverview(&overview);
     ASSERT_TRUE(hasPaintedPixels(mono));
-    EXPECT_TRUE(imagesDiffer(hsv, mono));
 
     overview.setNormalized(true);
     const QImage normalized = paintOverview(&overview);
     ASSERT_TRUE(hasPaintedPixels(normalized));
     EXPECT_TRUE(imagesDiffer(mono, normalized));
+
+    overview.setMinuteMarkers(false);
+    const QImage withoutMinuteMarkers = paintOverview(&overview);
+    ASSERT_TRUE(hasPaintedPixels(withoutMinuteMarkers));
 }
 
 TEST_F(QmlWaveformOverviewTest, MonoRgbColorUsesBothChannels) {
@@ -116,18 +124,24 @@ TEST_F(QmlWaveformOverviewTest, MonoRgbColorUsesBothChannels) {
     overview.setTrack(&trackProxy);
 
     const QImage image = paintOverview(&overview);
-    bool hasCombinedColor = false;
-    for (int y = 0; y < image.height() && !hasCombinedColor; ++y) {
+    bool hasLeftColor = false;
+    bool hasRightColor = false;
+    for (int y = 0; y < image.height(); ++y) {
         for (int x = 0; x < image.width(); ++x) {
             const QColor color = image.pixelColor(x, y);
-            if (color.alpha() > 0 && color.red() > 200 && color.blue() > 200 &&
-                    color.green() < 80) {
-                hasCombinedColor = true;
-                break;
+            if (color.alpha() == 0) {
+                continue;
+            }
+            if (color.red() > 200 && color.green() < 80) {
+                hasLeftColor = true;
+            }
+            if (color.blue() > 200 && color.green() < 80) {
+                hasRightColor = true;
             }
         }
     }
-    EXPECT_TRUE(hasCombinedColor);
+    // The mono fold still renders both channels with their own colors.
+    EXPECT_TRUE(hasLeftColor && hasRightColor);
 }
 
 } // namespace

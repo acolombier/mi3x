@@ -8,6 +8,8 @@ import "../Theme"
 Category {
     id: root
 
+    objectName: "soundHardware"
+
     property bool committing: false
     property bool hasChanges: router.hasChanges
 
@@ -47,7 +49,7 @@ Category {
     }
     function save() {
         const manager = Mixxx.SoundManager;
-        mainEnabled.value = mainMixEnabled.options.indexOf(mainMixEnabled.selected);
+        mainEnabled.value = mainMixEnabled.selected == "on";
         monoMix.value = !mainOutputMode.options.indexOf(mainOutputMode.selected);
         manager.setForceNetworkClock(soundClock.options[1] == soundClock.selected);
         manager.setSampleRate(parseInt(sampleRate.selected));
@@ -201,474 +203,500 @@ Category {
         group: "[Master]"
         key: "talkover_mix"
     }
-    ScrollView {
-        id: scrollView
-
+    ColumnLayout {
         anchors.fill: parent
+        ScrollView {
+            id: scrollView
 
-        ColumnLayout {
-            Item {
-                id: tabSection
-
-                Layout.fillWidth: true
-                Layout.preferredHeight: root.selectedIndex == 0 ? engine.height : delays.height
-
-                Mixxx.SettingGroup {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    label: "Engine"
-                    visible: root.selectedIndex == 0
-
-                    onActivated: {
-                        root.selectedIndex = 0;
-                    }
-
-                    RowLayout {
-                        id: engine
-
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        spacing: tabSection.width * 0.04
-
-                        ColumnLayout {
-                            Layout.alignment: Qt.AlignTop
-                            Layout.fillWidth: true
-
-                            RowLayout {
-                                Text {
-                                    Layout.fillWidth: true
-                                    color: Theme.white
-                                    font.pixelSize: 14
-                                    text: "Main Mix"
-
-                                    Mixxx.SettingParameter {
-                                        label: "Main Mix"
-                                    }
-                                }
-                                RatioChoice {
-                                    id: mainMixEnabled
-
-                                    options: ["on", "off"]
-                                    selected: options[mainEnabled.value ? 0 : 1]
-
-                                    onSelectedChanged: {
-                                        root.hasChanges = true;
-                                    }
-                                }
-                            }
-                            RowLayout {
-                                Text {
-                                    Layout.fillWidth: true
-                                    color: Theme.white
-                                    font.pixelSize: 14
-                                    text: "Main Output Mode"
-
-                                    Mixxx.SettingParameter {
-                                        label: "Main Output Mode"
-                                    }
-                                }
-                                RatioChoice {
-                                    id: mainOutputMode
-
-                                    maxWidth: tabSection.width * 0.18
-                                    options: ["mono", "stereo"]
-                                    selected: options[monoMix.value ? 0 : 1]
-
-                                    onSelectedChanged: {
-                                        root.hasChanges = true;
-                                    }
-                                }
-                            }
-                            RowLayout {
-                                Text {
-                                    Layout.fillWidth: true
-                                    color: Theme.white
-                                    font.pixelSize: 14
-                                    text: "Sound Clock"
-
-                                    Mixxx.SettingParameter {
-                                        label: "Sound Clock"
-                                    }
-                                }
-                                RatioChoice {
-                                    id: soundClock
-
-                                    maxWidth: tabSection.width * 0.28
-                                    options: ["soundcard", "network"]
-
-                                    onSelectedChanged: {
-                                        root.hasChanges = true;
-                                    }
-                                }
-                            }
-                            RowLayout {
-                                Text {
-                                    Layout.fillWidth: true
-                                    color: Theme.white
-                                    font.pixelSize: 14
-                                    text: "Keylock engine"
-                                }
-                                RatioChoice {
-                                    id: keylock
-
-                                    function update() {
-                                        let options = [];
-                                        let tooltips = [];
-                                        for (let engine of Mixxx.SoundManager.getKeylockEngines()) {
-                                            switch (engine) {
-                                            case 0:
-                                                options.push(qsTr("Soundtouch"));
-                                                tooltips.push(qsTr("Faster"));
-                                                break;
-                                            case 1:
-                                                options.push(qsTr("Rubberband"));
-                                                tooltips.push(qsTr("Better"));
-                                                break;
-                                            case 2:
-                                                options.push(qsTr("Rubberband R3"));
-                                                tooltips.push(qsTr("Near-hi-fi quality"));
-                                                break;
-                                            }
-                                        }
-                                        keylock.options = options;
-                                        keylock.tooltips = tooltips;
-                                    }
-
-                                    maxWidth: tabSection.width * 0.4
-                                    normalizedWidth: false
-                                    options: []
-                                    tooltips: []
-
-                                    onSelectedChanged: {
-                                        root.hasChanges = true;
-                                    }
-
-                                    Mixxx.SettingParameter {
-                                        label: "Keylock engine"
-                                    }
-                                }
-                            }
-                        }
-                        ColumnLayout {
-                            Layout.alignment: Qt.AlignTop
-
-                            RowLayout {
-                                Text {
-                                    Layout.fillWidth: true
-                                    color: Theme.white
-                                    font.pixelSize: 14
-                                    text: "Sound API"
-                                }
-                                RatioChoice {
-                                    id: soundApi
-
-                                    maxWidth: tabSection.width * 0.4
-                                    options: []
-
-                                    onSelectedChanged: {
-                                        root.hasChanges = true;
-                                        router.update(soundApi.selected);
-                                        sampleRate.update(soundApi.selected);
-                                    }
-
-                                    Mixxx.SettingParameter {
-                                        label: "Sound API"
-                                    }
-                                }
-                            }
-                            RowLayout {
-                                Text {
-                                    Layout.fillWidth: true
-                                    color: Theme.white
-                                    font.pixelSize: 14
-                                    text: "Sample Rate"
-
-                                    Mixxx.SettingParameter {
-                                        label: "Sample Rate"
-                                    }
-                                }
-                                RatioChoice {
-                                    id: sampleRate
-
-                                    function update(api) {
-                                        let data = [];
-                                        for (let sampleRate of Mixxx.SoundManager.getSampleRates(api)) {
-                                            data.push(qsTr("%1 Hz").arg(sampleRate));
-                                        }
-                                        sampleRate.options = data;
-                                    }
-
-                                    Layout.minimumWidth: sampleRate.implicitWidth
-                                    maxWidth: tabSection.width * 0.34
-                                    options: []
-
-                                    onSelectedChanged: {
-                                        root.hasChanges = true;
-                                    }
-                                }
-                            }
-                            Connections {
-                                function onSelectedChanged() {
-                                    let sampleRateValue = parseInt(sampleRate.selected);
-                                    audioBuffer.update(sampleRateValue);
-                                }
-
-                                target: sampleRate
-                            }
-                            RowLayout {
-                                Text {
-                                    Layout.fillWidth: true
-                                    color: Theme.white
-                                    font.pixelSize: 14
-                                    text: "Audio Buffer"
-
-                                    Mixxx.SettingParameter {
-                                        label: "Audio Buffer"
-                                    }
-                                }
-                                Skin.ComboBox {
-                                    id: audioBuffer
-
-                                    function update(sampleRate) {
-                                        let data = [];
-                                        let framesPerBuffer = 1;
-                                        for (; framesPerBuffer / sampleRate * 1000 < 1.0; framesPerBuffer *= 2) {}
-                                        for (let i = 0; i < 7; i++) {
-                                            const latency = framesPerBuffer / sampleRate * 1000;
-                                            // i + 1 in the next line is a latency index as described in SSConfig
-                                            data.push(qsTr("%1 ms").arg(latency.toFixed(1)));
-                                            framesPerBuffer *= 2;
-                                        }
-                                        let currentIndex = audioBuffer.currentIndex;
-                                        audioBuffer.model = data;
-                                        audioBuffer.currentIndex = currentIndex;
-                                    }
-
-                                    clip: true
-                                    font.pixelSize: 12
-                                    spacing: 2
-
-                                    onCurrentIndexChanged: {
-                                        root.hasChanges = true;
-                                    }
-                                }
-                            }
-                            RowLayout {
-                                Text {
-                                    Layout.fillWidth: true
-                                    color: Theme.white
-                                    font.pixelSize: 14
-                                    opacity: Mixxx.SoundManager.hasMicInputs() ? 1.0 : 0.5
-                                    text: "Microphone Monitor Mode"
-
-                                    Mixxx.SettingParameter {
-                                        label: "Microphone Monitor Mode"
-                                    }
-                                }
-                                Skin.ComboBox {
-                                    id: microphoneMonitorMode
-
-                                    clip: true
-                                    font.pixelSize: 12
-                                    model: ["Main output only", "Main and booth outputs", "Direct monitor (recording and broadcasting only)"]
-                                    opacity: enabled ? 1.0 : 0.5
-                                    spacing: 2
-
-                                    onCurrentIndexChanged: {
-                                        root.hasChanges = true;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Mixxx.SettingGroup {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    label: "Delays"
-                    visible: root.selectedIndex == 1
-
-                    onActivated: {
-                        root.selectedIndex = 1;
-                    }
-
-                    GridLayout {
-                        id: delays
-
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        columns: 2
-                        rowSpacing: 0
-
-                        Text {
-                            id: mainDelayLabel
-
-                            Layout.fillWidth: true
-                            color: Theme.white
-                            font.pixelSize: 14
-                            opacity: enabled ? 1 : 0.5
-                            text: "Main Output"
-
-                            Mixxx.SettingParameter {
-                                label: "Main Output"
-                            }
-                        }
-                        Skin.Slider {
-                            id: mainDelaySlider
-
-                            Layout.fillWidth: true
-                            markers: ["0ms", "100ms", "1s", "10s", null]
-                            slider.to: 1000
-                            suffix: "ms"
-
-                            onValueChanged: {
-                                root.hasChanges = true;
-                            }
-                        }
-                        Text {
-                            id: boothDelayLabel
-
-                            Layout.fillWidth: true
-                            color: Theme.white
-                            enabled: boothEnabled.value
-                            font.pixelSize: 14
-                            opacity: enabled ? 1 : 0.5
-                            text: "Booth Output"
-
-                            Mixxx.SettingParameter {
-                                label: "Booth Output"
-                            }
-                        }
-                        Skin.Slider {
-                            id: boothDelaySlider
-
-                            Layout.fillWidth: true
-                            enabled: boothEnabled.value
-                            markers: ["0ms", "100ms", "1s", "10s", null]
-                            slider.to: 1000
-                            suffix: "ms"
-                            value: boothDelay.value
-
-                            onValueChanged: {
-                                root.hasChanges = true;
-                            }
-                        }
-                        Text {
-                            id: headphoneDelayLabel
-
-                            Layout.fillWidth: true
-                            color: Theme.white
-                            enabled: headEnabled.value
-                            font.pixelSize: 14
-                            opacity: enabled ? 1 : 0.5
-                            text: "Headphone Output"
-
-                            Mixxx.SettingParameter {
-                                label: "Headphone Output"
-                            }
-                        }
-                        Skin.Slider {
-                            id: headphoneDelaySlider
-
-                            Layout.fillWidth: true
-                            enabled: headEnabled.value
-                            markers: ["0ms", "100ms", "1s", "10s", null]
-                            slider.to: 1000
-                            suffix: "ms"
-                            value: headDelay.value
-
-                            onValueChanged: {
-                                root.hasChanges = true;
-                            }
-                        }
-                    }
-                }
-                Mixxx.SettingGroup {
-                    label: "Stats"
-                    visible: root.selectedIndex == 2
-
-                    onActivated: {
-                        root.selectedIndex = 2;
-                    }
-
-                    Mixxx.SettingParameter {
-                        label: "A white square"
-
-                        Rectangle {
-                            color: 'white'
-                            height: 20
-                            width: 20
-                        }
-                    }
-                }
+            ScrollBar.vertical: ScrollBar {
+                anchors.bottom: parent.bottom
+                anchors.right: parent.right
+                anchors.top: parent.top
+                objectName: "soundSettingsScrollBar"
+                policy: ScrollBar.AsNeeded
             }
-            Mixxx.SettingGroup {
-                Layout.fillHeight: true
-                Layout.fillWidth: true
-                Layout.minimumHeight: Math.max(router.mode == AudioRouter.Mode.Advanced ? 450 : 250, scrollView.height - tabSection.height - buttons.height - 15)
-                Layout.minimumWidth: Math.max(600, scrollView.width)
-                label: "Router"
+            Layout.fillWidth: true
+            Layout.fillHeight: true
 
-                AudioRouter {
-                    id: router
 
-                    anchors.fill: parent
-                }
-                Rectangle {
-                    anchors.fill: parent
-                    color: Qt.alpha('grey', 0.3)
-                    visible: root.committing
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        preventStealing: true
-
-                        onWheel: mouse => {
-                            mouse.accepted = true;
-                        }
-                    }
-                }
-            }
-            RowLayout {
-                id: buttons
-
-                Layout.topMargin: 4
-
-                Skin.FormButton {
-                    activeColor: "#999999"
-                    backgroundColor: "#7D3B3B"
-                    enabled: !root.committing
-                    opacity: enabled ? 1.0 : 0.5
-                    text: "Cancel"
-                    visible: root.hasChanges
-
-                    onPressed: {
-                        root.load();
-                    }
-                }
+            ColumnLayout {
                 Item {
+                    id: tabSection
+
                     Layout.fillWidth: true
-                }
-                Text {
-                    id: errorMessage
+                    Layout.preferredHeight: root.selectedIndex == 0 ? engine.height : delays.height
 
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.rightMargin: 16
-                    color: "#7D3B3B"
-                    text: ""
-                }
-                Skin.FormButton {
-                    activeColor: "#999999"
-                    backgroundColor: root.hasChanges ? "#3a60be" : Theme.darkGray3
-                    enabled: root.hasChanges && !root.committing
-                    opacity: enabled ? 1.0 : 0.5
-                    text: "Save"
+                    Mixxx.SettingGroup {
+                        anchors.fill: parent
+                        label: "Engine"
+                        objectName: "engineSection"
+                        visible: root.selectedIndex == 0
 
-                    onPressed: {
-                        errorMessage.text = "";
-                        root.save();
+                        onActivated: {
+                            root.selectedIndex = 0;
+                        }
+
+                        RowLayout {
+                            id: engine
+
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            spacing: tabSection.width * 0.04
+
+                            ColumnLayout {
+                                Layout.alignment: Qt.AlignTop
+                                Layout.fillWidth: true
+
+                                RowLayout {
+                                    Text {
+                                        Layout.fillWidth: true
+                                        color: Theme.white
+                                        font.pixelSize: 14
+                                        text: "Main Mix"
+
+                                        Mixxx.SettingParameter {
+                                            label: "Main Mix"
+                                        }
+                                    }
+                                    RatioChoice {
+                                        id: mainMixEnabled
+                                        objectName: "setting_MainMix"
+
+                                        options: ["on", "off"]
+                                        selected: options[mainEnabled.value ? 0 : 1]
+
+                                        onSelectedChanged: {
+                                            root.hasChanges = true;
+                                        }
+                                    }
+                                }
+                                RowLayout {
+                                    Text {
+                                        Layout.fillWidth: true
+                                        color: Theme.white
+                                        font.pixelSize: 14
+                                        text: "Main Output Mode"
+
+                                        Mixxx.SettingParameter {
+                                            label: "Main Output Mode"
+                                        }
+                                    }
+                                    RatioChoice {
+                                        id: mainOutputMode
+                                        objectName: "setting_MainOutputMode"
+
+                                        maxWidth: tabSection.width * 0.18
+                                        options: ["mono", "stereo"]
+                                        selected: options[monoMix.value ? 0 : 1]
+
+                                        onSelectedChanged: {
+                                            root.hasChanges = true;
+                                        }
+                                    }
+                                }
+                                RowLayout {
+                                    Text {
+                                        Layout.fillWidth: true
+                                        color: Theme.white
+                                        font.pixelSize: 14
+                                        text: "Sound Clock"
+
+                                        Mixxx.SettingParameter {
+                                            label: "Sound Clock"
+                                        }
+                                    }
+                                    RatioChoice {
+                                        id: soundClock
+                                        objectName: "setting_SoundClock"
+
+                                        maxWidth: tabSection.width * 0.28
+                                        options: ["soundcard", "network"]
+
+                                        onSelectedChanged: {
+                                            root.hasChanges = true;
+                                        }
+                                    }
+                                }
+                                RowLayout {
+                                    Text {
+                                        Layout.fillWidth: true
+                                        color: Theme.white
+                                        font.pixelSize: 14
+                                        text: "Keylock engine"
+                                    }
+                                    RatioChoice {
+                                        id: keylock
+                                        objectName: "setting_KeylockEngine"
+
+                                        function update() {
+                                            let options = [];
+                                            let tooltips = [];
+                                            for (let engine of Mixxx.SoundManager.getKeylockEngines()) {
+                                                switch (engine) {
+                                                case 0:
+                                                    options.push(qsTr("Soundtouch"));
+                                                    tooltips.push(qsTr("Faster"));
+                                                    break;
+                                                case 1:
+                                                    options.push(qsTr("Rubberband"));
+                                                    tooltips.push(qsTr("Better"));
+                                                    break;
+                                                case 2:
+                                                    options.push(qsTr("Rubberband R3"));
+                                                    tooltips.push(qsTr("Near-hi-fi quality"));
+                                                    break;
+                                                }
+                                            }
+                                            keylock.options = options;
+                                            keylock.tooltips = tooltips;
+                                        }
+
+                                        maxWidth: tabSection.width * 0.4
+                                        normalizedWidth: false
+                                        options: []
+                                        tooltips: []
+
+                                        onSelectedChanged: {
+                                            root.hasChanges = true;
+                                        }
+
+                                        Mixxx.SettingParameter {
+                                            label: "Keylock engine"
+                                        }
+                                    }
+                                }
+                            }
+                            ColumnLayout {
+                                Layout.alignment: Qt.AlignTop
+
+                                RowLayout {
+                                    Text {
+                                        Layout.fillWidth: true
+                                        color: Theme.white
+                                        font.pixelSize: 14
+                                        text: "Sound API"
+                                    }
+                                    RatioChoice {
+                                        id: soundApi
+                                        objectName: "setting_SoundAPI"
+
+                                        maxWidth: tabSection.width * 0.4
+                                        options: []
+
+                                        onSelectedChanged: {
+                                            root.hasChanges = true;
+                                            router.update(soundApi.selected);
+                                            sampleRate.update(soundApi.selected);
+                                        }
+
+                                        Mixxx.SettingParameter {
+                                            label: "Sound API"
+                                        }
+                                    }
+                                }
+                                RowLayout {
+                                    Text {
+                                        Layout.fillWidth: true
+                                        color: Theme.white
+                                        font.pixelSize: 14
+                                        text: "Sample Rate"
+
+                                        Mixxx.SettingParameter {
+                                            label: "Sample Rate"
+                                        }
+                                    }
+                                    RatioChoice {
+                                        id: sampleRate
+                                        objectName: "setting_SampleRate"
+
+                                        function update(api) {
+                                            let data = [];
+                                            for (let sampleRate of Mixxx.SoundManager.getSampleRates(api)) {
+                                                data.push(qsTr("%1 Hz").arg(sampleRate));
+                                            }
+                                            sampleRate.options = data;
+                                        }
+
+                                        Layout.minimumWidth: sampleRate.implicitWidth
+                                        maxWidth: tabSection.width * 0.34
+                                        options: []
+
+                                        onSelectedChanged: {
+                                            root.hasChanges = true;
+                                        }
+                                    }
+                                }
+                                Connections {
+                                    function onSelectedChanged() {
+                                        let sampleRateValue = parseInt(sampleRate.selected);
+                                        audioBuffer.update(sampleRateValue);
+                                    }
+
+                                    target: sampleRate
+                                }
+                                RowLayout {
+                                    Text {
+                                        Layout.fillWidth: true
+                                        color: Theme.white
+                                        font.pixelSize: 14
+                                        text: "Audio Buffer"
+
+                                        Mixxx.SettingParameter {
+                                            label: "Audio Buffer"
+                                        }
+                                    }
+                                    Skin.ComboBox {
+                                        id: audioBuffer
+
+                                        function update(sampleRate) {
+                                            let data = [];
+                                            let framesPerBuffer = 1;
+                                            for (; framesPerBuffer / sampleRate * 1000 < 1.0; framesPerBuffer *= 2) {}
+                                            for (let i = 0; i < 7; i++) {
+                                                const latency = framesPerBuffer / sampleRate * 1000;
+                                                // i + 1 in the next line is a latency index as described in SSConfig
+                                                data.push(qsTr("%1 ms").arg(latency.toFixed(1)));
+                                                framesPerBuffer *= 2;
+                                            }
+                                            let currentIndex = audioBuffer.currentIndex;
+                                            audioBuffer.model = data;
+                                            audioBuffer.currentIndex = currentIndex;
+                                        }
+
+                                        clip: true
+                                        font.pixelSize: 12
+                                        spacing: 2
+
+                                        onCurrentIndexChanged: {
+                                            root.hasChanges = true;
+                                        }
+                                    }
+                                }
+                                RowLayout {
+                                    Text {
+                                        Layout.fillWidth: true
+                                        color: Theme.white
+                                        font.pixelSize: 14
+                                        opacity: Mixxx.SoundManager.hasMicInputs() ? 1.0 : 0.5
+                                        text: "Microphone Monitor Mode"
+
+                                        Mixxx.SettingParameter {
+                                            label: "Microphone Monitor Mode"
+                                        }
+                                    }
+                                    Skin.ComboBox {
+                                        id: microphoneMonitorMode
+
+                                        clip: true
+                                        font.pixelSize: 12
+                                        model: ["Main output only", "Main and booth outputs", "Direct monitor (recording and broadcasting only)"]
+                                        opacity: enabled ? 1.0 : 0.5
+                                        spacing: 2
+
+                                        onCurrentIndexChanged: {
+                                            root.hasChanges = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
+                    Mixxx.SettingGroup {
+                        anchors.fill: parent
+                        label: "Delays"
+                        objectName: "delaysSection"
+                        visible: root.selectedIndex == 1
+
+                        onActivated: {
+                            root.selectedIndex = 1;
+                        }
+
+                        GridLayout {
+                            id: delays
+
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            columns: 2
+                            rowSpacing: 0
+
+                            Text {
+                                id: mainDelayLabel
+
+                                Layout.fillWidth: true
+                                color: Theme.white
+                                font.pixelSize: 14
+                                opacity: enabled ? 1 : 0.5
+                                text: "Main Output"
+
+                                Mixxx.SettingParameter {
+                                    label: "Main Output"
+                                }
+                            }
+                            Skin.Slider {
+                                id: mainDelaySlider
+
+                                Layout.fillWidth: true
+                                markers: ["0ms", "100ms", "1s", "10s", null]
+                                slider.to: 1000
+                                suffix: "ms"
+
+                                onValueChanged: {
+                                    root.hasChanges = true;
+                                }
+                            }
+                            Text {
+                                id: boothDelayLabel
+
+                                Layout.fillWidth: true
+                                color: Theme.white
+                                enabled: boothEnabled.value
+                                font.pixelSize: 14
+                                opacity: enabled ? 1 : 0.5
+                                text: "Booth Output"
+
+                                Mixxx.SettingParameter {
+                                    label: "Booth Output"
+                                }
+                            }
+                            Skin.Slider {
+                                id: boothDelaySlider
+
+                                Layout.fillWidth: true
+                                enabled: boothEnabled.value
+                                markers: ["0ms", "100ms", "1s", "10s", null]
+                                slider.to: 1000
+                                suffix: "ms"
+                                value: boothDelay.value
+
+                                onValueChanged: {
+                                    root.hasChanges = true;
+                                }
+                            }
+                            Text {
+                                id: headphoneDelayLabel
+
+                                Layout.fillWidth: true
+                                color: Theme.white
+                                enabled: headEnabled.value
+                                font.pixelSize: 14
+                                opacity: enabled ? 1 : 0.5
+                                text: "Headphone Output"
+
+                                Mixxx.SettingParameter {
+                                    label: "Headphone Output"
+                                }
+                            }
+                            Skin.Slider {
+                                id: headphoneDelaySlider
+
+                                Layout.fillWidth: true
+                                enabled: headEnabled.value
+                                markers: ["0ms", "100ms", "1s", "10s", null]
+                                slider.to: 1000
+                                suffix: "ms"
+                                value: headDelay.value
+
+                                onValueChanged: {
+                                    root.hasChanges = true;
+                                }
+                            }
+                        }
+                    }
+                    Mixxx.SettingGroup {
+                        anchors.fill: parent
+                        label: "Stats"
+                        objectName: "statsSection"
+                        visible: root.selectedIndex == 2
+
+                        onActivated: {
+                            root.selectedIndex = 2;
+                        }
+
+                        Mixxx.SettingParameter {
+                            label: "A white square"
+
+                            Rectangle {
+                                color: 'white'
+                                height: 20
+                                width: 20
+                            }
+                        }
+                    }
+                }
+                Mixxx.SettingGroup {
+                    Layout.fillHeight: true
+                    Layout.fillWidth: true
+                    Layout.minimumHeight: Math.max(router.mode == AudioRouter.Mode.Advanced ? 450 : 250, scrollView.height - tabSection.height - buttons.height - 15)
+                    Layout.minimumWidth: Math.max(600, scrollView.width)
+                    label: "Router"
+
+                    AudioRouter {
+                        id: router
+                        objectName: "routerSection"
+
+                        anchors.fill: parent
+                    }
+                    Rectangle {
+                        anchors.fill: parent
+                        color: Qt.alpha('grey', 0.3)
+                        objectName: "committingOverlay"
+                        visible: root.committing
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            preventStealing: true
+
+                            onWheel: mouse => {
+                                mouse.accepted = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        RowLayout {
+            id: buttons
+
+            Layout.topMargin: 4
+
+            Skin.FormButton {
+                activeColor: "#999999"
+                backgroundColor: "#7D3B3B"
+                // Weird bug on MacOS - if the button is disabled before the pressed property is clicked, the button remains pressed, leading to a no-op click when it gets next enabled
+                enabled: pressed || !root.committing
+                objectName: "soundCancelButton"
+                opacity: enabled ? 1.0 : 0.5
+                text: "Cancel"
+                visible: root.hasChanges
+
+                onPressed: {
+                    root.load();
+                }
+            }
+            Item {
+                Layout.fillWidth: true
+            }
+            Text {
+                id: errorMessage
+
+                Layout.alignment: Qt.AlignVCenter
+                Layout.rightMargin: 16
+                color: "#7D3B3B"
+                text: ""
+            }
+            Skin.FormButton {
+                activeColor: "#999999"
+                backgroundColor: root.hasChanges ? "#3a60be" : Theme.darkGray3
+                // Weird bug on MacOS - if the button is disabled before the pressed property is clicked, the button remains pressed, leading to a no-op click when it gets next enabled
+                enabled: pressed || (root.hasChanges && !root.committing)
+                objectName: "soundSaveButton"
+                opacity: enabled ? 1.0 : 0.5
+                text: "Save"
+
+                onPressed: {
+                    errorMessage.text = "";
+                    root.save();
                 }
             }
         }
