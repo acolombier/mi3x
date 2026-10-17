@@ -183,6 +183,8 @@ Videos are uploaded as CI artifacts for review.
 
 Every `mixxx-test` spawn also writes its complete application output
 (`--log-level debug`) to `mixxx-output.<pid>.log` in the artifacts directory,
-so crashes and restarts can be investigated without re-running. (*This
-paragraph was drafted autonomously by an AI agent for a human reviewer to
-check, amend, and submit.*)
+so crashes and restarts can be investigated without re-running. For failed
+scenarios, the CI report lists the PID(s) of the `mixxx-test` instance(s) each
+attempt ran against (also recorded as `mixxx_pids` in
+`artifacts/results-*.json`), matching those log files, and links to the
+process logs archive on the job summary.

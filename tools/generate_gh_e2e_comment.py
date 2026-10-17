@@ -19,6 +19,8 @@ Environment variables:
                            (default: snippets)
   SNIPPET_MAX_ATTACHMENTS- max number of clips to attach (default: 40)
   FFMPEG_BIN             - ffmpeg executable (default: ffmpeg)
+  FFMPEG_JOBS            - max concurrent ffmpeg clip-cutting jobs
+                            (default: number of CPUs)
   BASE_REF               - git ref (e.g. FETCH_HEAD, origin/feat/qml) of the
                            PR base branch. Scenarios absent there are flagged
                            as new. Empty/unresolvable disables the flag.
@@ -358,12 +360,17 @@ def _attached_preview(attempts, allow_clips=True):
 _ERROR_OUTCOMES = ("failed", "error", "expected failure", "flaky")
 
 
-def _failure_blocks(attempts):
+def _failure_blocks(attempts, log_url=None):
     """Label each merged error group with the attempts that produced it.
 
     Only failing attempts are considered: a retried-then-passed scenario shows
     the attempt(s) that errored, not the attempts that passed. Attempts sharing
     the same error are compacted into a single `**Attempt ...**` block.
+
+    Unexpected failures (failed/error, not expected-failure/flaky) additionally
+    carry the PID(s) of the mixxx-test process(es) the attempts ran against,
+    in attempt order and matching the `mixxx-output.<pid>.log` artifact files,
+    plus a link to the archive holding those logs.
     """
     failing = [a for a in attempts if a.get("outcome", "") in _ERROR_OUTCOMES]
     blocks = []
@@ -377,11 +384,28 @@ def _failure_blocks(attempts):
                 + error.replace("|", "\\|")
                 + "</p></blockquote>"
             )
+        if grp["latest"].get("outcome", "") in FAILURE_OUTCOMES:
+            footer = ""
+            pids = [
+                pid
+                for a in grp["attempts"]
+                for pid in (a.get("mixxx_pids") or [])
+            ]
+            if pids:
+                footer += "Mixxx process PID was " + ", ".join(
+                    str(pid) for pid in pids
+                )
+            if log_url:
+                footer += (" \u00b7 " if footer else "") + (
+                    f"[Process logs archive]({log_url})"
+                )
+            if footer:
+                block += f"<br><br><em>{footer}</em>"
         blocks.append(block)
     return blocks
 
 
-def _error_cell(attempts, allow_clips=True):
+def _error_cell(attempts, allow_clips=True, log_url=None):
     """Error blocks (labelled per merged group) + one whole-scenario clip.
 
     A single clip spanning the first attempt's start to the last attempt's end
@@ -389,26 +413,26 @@ def _error_cell(attempts, allow_clips=True):
     clip is looked up on the full attempt list because its carrier is the first
     attempt, which may itself have passed.
     """
-    cell = "<hr> ".join(_failure_blocks(attempts))
+    cell = "<hr> ".join(_failure_blocks(attempts, log_url))
     video = _attached_preview(attempts, allow_clips)
     if video:
         cell += ("<br>" if cell else "") + video
     return cell
 
 
-def attempt_error_cell(attempts, allow_clips=True):
+def attempt_error_cell(attempts, allow_clips=True, log_url=None):
     """Failing scenario (T1): error blocks + whole-scenario video."""
-    return _error_cell(attempts, allow_clips)
+    return _error_cell(attempts, allow_clips, log_url)
 
 
-def eventual_success_cell(attempts, allow_clips=True):
+def eventual_success_cell(attempts, allow_clips=True, log_url=None):
     """Retried-then-passed scenario (T4): error history + whole-span video.
 
     Used when a scenario failed on earlier attempts but eventually passed
     (retries / flaky). Only the failing attempts are labelled; the clip spans
     the first attempt's start to the last (successful) attempt's end.
     """
-    return _error_cell(attempts, allow_clips)
+    return _error_cell(attempts, allow_clips, log_url)
 
 
 def scenario_clip_cell(attempts, allow_clips=True):
@@ -944,13 +968,103 @@ def plan_snippets(all_results, snippet_dir, max_attachments):
     return selected_list
 
 
+def _ffmpeg_jobs_env():
+    """Resolve the clip-cutting worker count from FFMPEG_JOBS or CPU count."""
+    raw = os.environ.get("FFMPEG_JOBS", "")
+    if not raw:
+        return max(1, os.cpu_count() or 1)
+    try:
+        n = int(raw)
+    except ValueError:
+        LOG.warning(
+            "FFMPEG_JOBS=%r is not an integer; falling back to CPU count",
+            raw,
+        )
+        return max(1, os.cpu_count() or 1)
+    if n < 1:
+        LOG.warning("FFMPEG_JOBS=%r is < 1; falling back to CPU count", raw)
+        return max(1, os.cpu_count() or 1)
+    return n
+
+
+def run_ffmpeg_pool(jobs, workers):
+    """Run ffmpeg commands with a bounded child-process pool.
+
+    `jobs` is a list of (log_namer, cmd, on_done); every completion calls
+    `on_done` with the counterpart of run_logged's outcome: the returncode
+    and stderr (None when the process failed to spawn, which counts as a
+    failure). No blocking per-process wait is used, so all `workers` slots
+    stay busy as long as there is queued work.
+    """
+    pending = list(enumerate(jobs))
+    running = []
+    while pending or running:
+        while pending and len(running) < workers:
+            i, job = pending.pop(0)
+            log_namer, cmd, on_done = job
+            LOG.info("clip %s: exec: %s", log_namer, fmt_cmd(cmd))
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+            except OSError as exc:
+                LOG.error(
+                    "clip %s: failed to spawn ffmpeg: %s", log_namer, exc
+                )
+                on_done(None, None)
+                continue
+            running.append(
+                (
+                    time.monotonic(),
+                    i,
+                    log_namer,
+                    cmd,
+                    proc,
+                    on_done,
+                )
+            )
+        time.sleep(0.05)
+        still_running = []
+        for started, i, log_namer, cmd, proc, on_done in running:
+            returncode = proc.poll()
+            if returncode is None:
+                still_running.append(
+                    (started, i, log_namer, cmd, proc, on_done)
+                )
+                continue
+            stderr = proc.stderr.read() if proc.stderr else ""
+            elapsed = time.monotonic() - started
+            LOG.debug(
+                "clip %s: exit=%d after %.2fs",
+                log_namer,
+                returncode,
+                elapsed,
+            )
+            if returncode != 0:
+                LOG.error(
+                    "clip %s: exit=%s after %.2fs: %s%s",
+                    log_namer,
+                    returncode,
+                    elapsed,
+                    fmt_cmd(cmd),
+                    f"\nstderr: {stderr.strip()}" if stderr else "",
+                )
+            on_done(returncode, stderr)
+        running = still_running
+
+
 def generate_snippets(selected, ffmpeg_bin, snippet_dir):
     """Cut one .mp4 clip per selected scenario; return the paths to attach.
 
     Each selected carrier may define a clip range spanning several attempts
     (`_clip_video` / `_clip_start_ms` / `_clip_end_ms`); otherwise the
     carrier's own attempt window is used. Carriers whose clip cannot be
-    produced have `_attach` cleared, so the comment omits the video.
+    produced have `_attach` cleared, so the comment omits the video. Clips
+    are cut in parallel with up to FFMPEG_JOBS concurrent ffmpeg processes
+    (default: one per CPU).
     """
     os.makedirs(snippet_dir, exist_ok=True)
     if shutil.which(ffmpeg_bin) is None:
@@ -961,7 +1075,25 @@ def generate_snippets(selected, ffmpeg_bin, snippet_dir):
             a["_attach"] = False
         return []
 
-    attached = []
+    attached = set()
+
+    def complete(carrier, dst):
+        def on_done(returncode, stderr):
+            if returncode is None or returncode != 0:
+                detail = (
+                    "spawn failure"
+                    if returncode is None
+                    else (stderr or "").strip()
+                )
+                LOG.error("ffmpeg failed for clip %s: %s", dst, detail)
+                carrier["_attach"] = False
+                return
+            LOG.info("wrote %s (%d B)", dst, os.path.getsize(dst))
+            attached.add(dst)
+
+        return on_done
+
+    jobs = []
     for a in selected:
         src = a.get("_clip_video") or a["video_path"]
         dst = a["snippet_relpath"]
@@ -971,7 +1103,7 @@ def generate_snippets(selected, ffmpeg_bin, snippet_dir):
                 dst,
                 os.path.getsize(dst),
             )
-            attached.append(dst)
+            attached.add(dst)
             continue
         start_ms = a.get("_clip_start_ms", a.get("start_ms"))
         end_ms = a.get("_clip_end_ms", a.get("end_ms"))
@@ -1024,24 +1156,29 @@ def generate_snippets(selected, ffmpeg_bin, snippet_dir):
             start_ms,
             end_ms,
         )
-        result = run_logged(cmd)
-        if result.returncode != 0:
-            LOG.error(
-                "ffmpeg failed for %s: %s",
-                dst,
-                (result.stderr or "").strip(),
-            )
-            a["_attach"] = False
-            continue
-        LOG.info("wrote %s (%d B)", dst, os.path.getsize(dst))
-        attached.append(dst)
+        jobs.append((dst, cmd, complete(a, dst)))
+
+    if jobs:
+        workers = min(_ffmpeg_jobs_env(), len(jobs))
+        LOG.info(
+            "cutting %d clip(s) with up to %d concurrent ffmpeg job(s)",
+            len(jobs),
+            workers,
+        )
+        run_ffmpeg_pool(jobs, workers)
+
+    ordered = [
+        a["snippet_relpath"]
+        for a in selected
+        if a["snippet_relpath"] in attached
+    ]
     LOG.info(
         "generated %d/%d clip(s) into %s",
-        len(attached),
+        len(ordered),
         len(selected),
         snippet_dir,
     )
-    return attached
+    return ordered
 
 
 # ---------------------------------------------------------------------------
@@ -1164,9 +1301,13 @@ def build_comment_body(
                 last_outcome = attempts[-1].get("outcome", "")
                 is_new = any(a.get("is_new") for a in attempts)
                 if last_outcome in FAILURE_OUTCOMES:
-                    error_cell = attempt_error_cell(attempts, allow_clips)
+                    error_cell = attempt_error_cell(
+                        attempts, allow_clips, summary_url
+                    )
                 elif len(attempts) >= 2:
-                    error_cell = eventual_success_cell(attempts, allow_clips)
+                    error_cell = eventual_success_cell(
+                        attempts, allow_clips, summary_url
+                    )
                 elif is_new:
                     error_cell = scenario_clip_cell(attempts, allow_clips)
                 else:

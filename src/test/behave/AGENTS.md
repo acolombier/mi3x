@@ -104,8 +104,9 @@ step output:
     Track picked as 'this': "Title" - "Artist" | /path/file.mp3
 
 Each entry in `artifacts/results-*.json` additionally records `run_seed`,
-`scenario_seed` and the `tracks` map (name → `"title - artist"`), so a failed
-run can be pinned and replayed with:
+`scenario_seed`, the `tracks` map (name → `"title - artist"`) and the
+`mixxx_pids` of the `mixxx-test` instance(s) the attempt ran against (matching
+the `mixxx-output.<pid>.log` files, referenced from the CI failure report), so
 
 ```bash
 src/test/behave/.venv/bin/python \
