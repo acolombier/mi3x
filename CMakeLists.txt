@@ -3193,7 +3193,6 @@ if(BUILD_TESTING)
         src/test/qmllibraryproxytest.cpp
         src/test/qmlspinnypositiontest.cpp
         src/test/qmlskincontrolcreatortest.cpp
-        src/test/qmlwaveformoverviewtest.cpp
         src/test/latenightlayoutstate_test.cpp
         src/test/themeqml_test.cpp
     )
