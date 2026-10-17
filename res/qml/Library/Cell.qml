@@ -104,8 +104,9 @@ Rectangle {
         // enabled: false
         enabled: Qt.platform.os !== "android" && !Mixxx.Core.hasPopup
         onActiveChanged: {
-            root.Drag.imageSource = cover_art
-            root.Drag.active = true
+            root.Drag.imageSource = cover_art ?? ""
+            // FIXME: Regression since merge with upstream in https://github.com/acolombier/mi3x/pull/43. Disabling on Windows, which will prevent drag-n-drop to player
+            root.Drag.active = Qt.platform.os !== "windows" && active
             if (active) {
                 trackData.view.selectionModel.selectRow(row);
         //         dragImageSource.grabToImage(function(result) {

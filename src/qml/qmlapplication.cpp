@@ -12,8 +12,10 @@
 #include "moc_qmlapplication.cpp"
 #include "preferences/configobject.h"
 #include "qml/asyncimageprovider.h"
+#include "qml/qmlapplicationproxy.h"
 #include "qml/qmlcoreservices.h"
 #include "qml/qmldlgpreferencesproxy.h"
+#include "qml/qmlrecordingproxy.h"
 #include "soundio/soundmanager.h"
 #include "util/versionstore.h"
 #include "waveform/guitick.h"
@@ -109,6 +111,11 @@ QmlApplication::QmlApplication(
           m_perfSession(nullptr),
 #endif
           m_autoReload() {
+#ifdef MIXXX_USE_QML
+    // Put the legacy waveform widget factory into QML mode. This keeps the
+    // shared preferences page consistent with the QML renderer capabilities.
+    WaveformWidgetFactory::setQmlMode(true);
+#endif
     QQuickStyle::setStyle("Basic");
 
 #if defined(Q_OS_ANDROID)
@@ -127,6 +134,17 @@ QmlApplication::QmlApplication(
     }
 
     m_pCoreServices->initialize(app);
+    QmlApplicationProxy::registerVinylControlManager(
+            m_pCoreServices->getVinylControlManager().get());
+
+    // Create the legacy waveform widget factory if the widget main window has
+    // not already done so. The shared preferences page and the QML waveform
+    // display require the factory instance (and its config) to exist.
+    if (!WaveformWidgetFactory::isCreated()) {
+        WaveformWidgetFactory::createInstance();
+        m_ownsWaveformWidgetFactory = true;
+    }
+    WaveformWidgetFactory::instance()->setConfig(m_pCoreServices->getSettings());
 
     QString configVersion = m_pCoreServices->getSettings()->getValue(
             ConfigKey("[Config]", "Version"), "");
@@ -274,10 +292,22 @@ void QmlApplication::slotFrameSwapped() {
 }
 
 QmlApplication::~QmlApplication() {
-    // Delete all the QML singletons in order to prevent leak detection in CoreService
-    QmlDlgPreferencesProxy::s_pInstance.reset();
-    m_visualsManager.reset();
+    QmlApplicationProxy::registerReloadCallback({});
+    // Destroy the QML engine before the waveform factory. Scene-graph nodes
+    // owned by the engine may still reference QML waveform renderers and the
+    // factory while the engine is tearing down its object tree.
     m_pAppEngine.reset();
+    // Delete all the QML singletons in order to prevent leak detection in CoreService
+    QmlRecordingProxy::s_pRecordingManager.reset();
+    QmlDlgPreferencesProxy::s_pInstance.reset();
+    if (m_ownsWaveformWidgetFactory) {
+        WaveformWidgetFactory::destroy();
+    }
+#ifdef MIXXX_USE_QML
+    WaveformWidgetFactory::setQmlMode(false);
+#endif
+    m_visualsManager.reset();
+    QmlApplicationProxy::registerVinylControlManager(nullptr);
     m_pCoreServices.reset();
 }
 

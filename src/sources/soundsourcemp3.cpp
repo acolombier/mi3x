@@ -109,7 +109,10 @@ bool isUnrecoverableError(mad_error error) {
     return (MAD_ERROR_NONE != error) && !MAD_RECOVERABLE(error);
 }
 
-[[maybe_unused]] bool hasUnrecoverableError(const mad_stream* pMadStream) {
+#ifndef MIXXX_DEBUG_ASSERTIONS_ENABLED
+[[maybe_unused]]
+#endif
+bool hasUnrecoverableError(const mad_stream* pMadStream) {
     if (pMadStream) {
         return isUnrecoverableError(pMadStream->error);
     }

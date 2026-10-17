@@ -164,18 +164,14 @@ DlgAbout::DlgAbout()
             << "Ahmed Salah"
             << "Dheeraj Arora"
             << "Pranav Jadhav"
-            << "endcredits33"
-            << "cucucat"
             << "Laura Mora"
             << "Aleph Mota"
             << "Carl Hedgren"
             << "vespadj"
-            << "Spgamer0407"
             << "Tom&aacute;&scaron; Ba&#382;ant"
             << "Serveny"
             << "Robert Hendrickx"
             << "Rishabh Saini"
-            << "J&eacute;r&ocirc;me Froissart"
             << "Daniel Kinahan"
             << "Anuj Nayak"
             << "Jeff Magill"
@@ -196,7 +192,9 @@ DlgAbout::DlgAbout()
             << "Abdelrahman Medhat Saber"
             << "Aleksei Kubantsev"
             << "Felicia Hummel"
-            << "Pranav Jadhav";
+            << "Pranav Jadhav"
+            << "Spgamer0407"
+            << "marcelomar21";
 
     QStringList specialThanks;
     specialThanks

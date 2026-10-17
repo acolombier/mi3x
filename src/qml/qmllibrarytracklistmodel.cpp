@@ -190,24 +190,6 @@ QUrl QmlLibraryTrackListModel::getUrl(int row) const {
     return pTrackModel->getTrackUrl(sourceModel()->index(row, 0));
 }
 
-QString QmlLibraryTrackListModel::search() const {
-    auto* const pTrackModel = dynamic_cast<TrackModel*>(sourceModel());
-
-    VERIFY_OR_DEBUG_ASSERT(pTrackModel != nullptr) {
-        return {};
-    }
-    return pTrackModel->currentSearch();
-}
-
-void QmlLibraryTrackListModel::setSearch(const QString& searchText) {
-    auto* const pTrackModel = dynamic_cast<TrackModel*>(sourceModel());
-
-    VERIFY_OR_DEBUG_ASSERT(pTrackModel != nullptr) {
-        return;
-    }
-    pTrackModel->search(searchText);
-}
-
 QmlTrackProxy* QmlLibraryTrackListModel::getOrCreateTrackProxy(int row) const {
     auto it = m_trackProxyCache.find(row);
     if (it != m_trackProxyCache.end()) {
@@ -255,6 +237,25 @@ TrackModel::Capabilities QmlLibraryTrackListModel::getCapabilities() const {
 bool QmlLibraryTrackListModel::hasCapabilities(TrackModel::Capabilities caps) const {
     return (getCapabilities() & caps) == caps;
 }
+
+QString QmlLibraryTrackListModel::search() const {
+    auto* const pTrackModel = dynamic_cast<TrackModel*>(sourceModel());
+
+    VERIFY_OR_DEBUG_ASSERT(pTrackModel != nullptr) {
+        return {};
+    }
+    return pTrackModel->currentSearch();
+}
+
+void QmlLibraryTrackListModel::setSearch(const QString& searchText) {
+    auto* const pTrackModel = dynamic_cast<TrackModel*>(sourceModel());
+
+    VERIFY_OR_DEBUG_ASSERT(pTrackModel != nullptr) {
+        return;
+    }
+    pTrackModel->search(searchText);
+}
+
 void QmlLibraryTrackListModel::sort(int column, Qt::SortOrder order) {
     VERIFY_OR_DEBUG_ASSERT(column >= 0 || column < m_columns.size()) {
         return;
