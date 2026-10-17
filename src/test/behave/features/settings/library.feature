@@ -221,6 +221,6 @@ Feature: Library Settings
     Then the "integrations" grid should be displayed in 1 column
     When I resize the window's width to 700px
     Then the "integrations" grid should be displayed in 2 columns
-    And the "integrations grid" should be below the "library source pane"
-    And the "integrations grid" should not overlap the "library source pane"
+    And the integrations grid should be below the library source pane
+    And the integrations grid should not overlap the library source pane
     When I resize the window's width to 1792px
