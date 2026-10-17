@@ -12,13 +12,6 @@ import "../Theme"
 Rectangle {
     id: root
 
-    objectName: "trackList"
-
-    required property var model
-    property var sidebar: model.sidebar()
-
-    property var movedColumn: new Object()
-
     // Display labels of every column in model order, as a JSON array. Exposed
     // for the E2E test harness: unlike a header delegate, this also covers
     // columns that are hidden and therefore have no delegate to read ``index``
@@ -34,27 +27,22 @@ Rectangle {
         }
         return JSON.stringify(labels);
     }
+    required property var model
+    property var movedColumn: new Object()
+    property var sidebar: model.sidebar()
 
     // Restore the library columns to their default order, visibility and sort
     // state. Used by the E2E test harness to reset state between scenarios
     // that share a running Mixxx instance, without a full QML reload.
     function resetColumns() {
-        root.movedColumn = new Object()
-        view.clearColumnReordering()
-        horizontalHeader.sortingColumn = -1
-        horizontalHeader.sortingOrder = Qt.DescendingOrder
+        root.movedColumn = new Object();
+        view.clearColumnReordering();
+        horizontalHeader.sortingColumn = -1;
+        horizontalHeader.sortingOrder = Qt.DescendingOrder;
         for (let i = 0; i < view.model.columns.length; i++) {
-            view.model.columns[i].display = Mixxx.TrackListColumn.Display.Auto
+            view.model.columns[i].display = Mixxx.TrackListColumn.Display.Auto;
         }
-        view.clearColumnWidths()
-    }
-
-    color: Theme.darkGray
-
-    // Displayed title of the track model row, for the E2E test harness
-    function trackTitleForRow(row) {
-        const track = view.model ? view.model.getTrackByRow(row) : null;
-        return track ? track.title : "";
+        view.clearColumnWidths();
     }
 
     // Title, artist, BPM, key text and location of the track model row as a
@@ -69,10 +57,18 @@ Rectangle {
             artist: track.artist,
             bpm: Math.round(track.bpm),
             key: track.keyText,
-            location: track.trackLocationUrl.toString().replace(/^file:\/\//, ""),
+            location: track.trackLocationUrl.toString().replace(/^file:\/\//, "")
         });
     }
 
+    // Displayed title of the track model row, for the E2E test harness
+    function trackTitleForRow(row) {
+        const track = view.model ? view.model.getTrackByRow(row) : null;
+        return track ? track.title : "";
+    }
+
+    color: Theme.darkGray
+    objectName: "trackList"
 
     LibraryComponent.Control {
         id: libraryControl
@@ -100,19 +96,9 @@ Rectangle {
         contentItem.objectName: "columnPickerMenu"
 
         Instantiator {
-            model: root.sidebar.tracklist.columns
-
             property int readyCount: 0
 
-            onReadyCountChanged: {
-                if (readyCount !== root.sidebar.tracklist.columns.length) return
-                for (let action = columnSelectionMenu.actionAt(0); action; action = columnSelectionMenu.actionAt(0)) {
-                    columnSelectionMenu.removeAction(action)
-                }
-                for (let i = 0; i < readyCount; i++){
-                    columnSelectionMenu.insertAction(i, objectAt(i))
-                }
-            }
+            model: root.sidebar.tracklist.columns
 
             delegate: Action {
                 property var data: view.getColumn(index)
@@ -122,37 +108,48 @@ Rectangle {
                 text: data?.label ? qsTr(data?.label) : ""
 
                 onTriggered: {
-                    if (!view.columnShouldAutoHide(data) === checked){
-                        data.display = Mixxx.TrackListColumn.Display.Auto
+                    if (!view.columnShouldAutoHide(data) === checked) {
+                        data.display = Mixxx.TrackListColumn.Display.Auto;
                     } else {
-                        data.display = checked ? Mixxx.TrackListColumn.Display.Show : Mixxx.TrackListColumn.Display.Hide
+                        data.display = checked ? Mixxx.TrackListColumn.Display.Show : Mixxx.TrackListColumn.Display.Hide;
                     }
-                    let currentExplicitWidth = view.explicitColumnWidth(index)
+                    let currentExplicitWidth = view.explicitColumnWidth(index);
                     if (data.display == Mixxx.TrackListColumn.Display.Hide) {
                         if (currentExplicitWidth > 0) {
                             data.preferredWidth = currentExplicitWidth;
                         }
-                        view.setColumnWidth(index, 0)
+                        view.setColumnWidth(index, 0);
                     } else if (data.display != Mixxx.TrackListColumn.Display.Hide) {
-                        view.setColumnWidth(index, data.preferredWidth)
+                        view.setColumnWidth(index, data.preferredWidth);
                     }
                 }
             }
 
             onObjectAdded: (index, object) => {
-                if (readyCount >= root.sidebar.tracklist.columns.length) return
-                readyCount += 1
+                if (readyCount >= root.sidebar.tracklist.columns.length)
+                    return;
+                readyCount += 1;
             }
             onObjectRemoved: (index, object) => {
-                if (readyCount <= 0) return
-                readyCount -= 1
+                if (readyCount <= 0)
+                    return;
+                readyCount -= 1;
+            }
+            onReadyCountChanged: {
+                if (readyCount !== root.sidebar.tracklist.columns.length)
+                    return;
+                for (let action = columnSelectionMenu.actionAt(0); action; action = columnSelectionMenu.actionAt(0)) {
+                    columnSelectionMenu.removeAction(action);
+                }
+                for (let i = 0; i < readyCount; i++) {
+                    columnSelectionMenu.insertAction(i, objectAt(i));
+                }
             }
         }
-
         Connections {
             function onColumnMoved(logicalId, oldId, newId) {
-                let previousName = columnSelectionMenu.actionAt(logicalId).data.label
-                columnSelectionMenu.actionAt(newId).data = view.model.columns[logicalId]
+                let previousName = columnSelectionMenu.actionAt(logicalId).data.label;
+                columnSelectionMenu.actionAt(newId).data = view.model.columns[logicalId];
             }
 
             target: view
@@ -161,8 +158,6 @@ Rectangle {
     HorizontalHeaderView {
         id: horizontalHeader
 
-        objectName: "columnHeader"
-
         property int sortingColumn: -1
         property var sortingOrder: Qt.Descending
 
@@ -170,23 +165,27 @@ Rectangle {
         anchors.margins: 5
         anchors.right: parent.right
         anchors.top: parent.top
-        syncView: view
-        movableColumns: true
         clip: true
+        movableColumns: true
+        objectName: "columnHeader"
+        syncView: view
 
         delegate: Item {
             id: column
-
-            objectName: display
 
             required property string display
             required property int index
 
             implicitHeight: columnName.contentHeight + 5
             implicitWidth: columnName.contentWidth + 5
+            objectName: display
 
             TapHandler {
                 acceptedButtons: Qt.LeftButton
+
+                onLongPressed: (eventPoint, button) => {
+                    columnSelectionMenu.popup();
+                }
                 onTapped: {
                     if (horizontalHeader.sortingColumn == index) {
                         horizontalHeader.sortingOrder = horizontalHeader.sortingOrder == Qt.DescendingOrder ? Qt.AscendingOrder : Qt.DescendingOrder;
@@ -196,13 +195,10 @@ Rectangle {
                     }
                     view.model.sort(horizontalHeader.sortingColumn, horizontalHeader.sortingOrder);
                 }
-                onLongPressed: (eventPoint, button) => {
-                    columnSelectionMenu.popup();
-                }
             }
-
             TapHandler {
                 acceptedButtons: Qt.RightButton
+
                 onTapped: {
                     columnSelectionMenu.popup();
                 }
@@ -267,7 +263,7 @@ Rectangle {
                     onMouseXChanged: {
                         if (drag.active) {
                             column.width += mouseX;
-                            view.setColumnWidth(index, column.width)
+                            view.setColumnWidth(index, column.width);
                         }
                     }
 
@@ -283,24 +279,17 @@ Rectangle {
     TableView {
         id: view
 
-        objectName: "trackTableView"
-
-        onColumnMoved: (logicalIndex, oldVisualIndex, newVisualIndex) => {
-            if (root.movedColumn[newVisualIndex] !== undefined && logicalIndex === newVisualIndex){
-                delete root.movedColumn[newVisualIndex]
-                return;
-            }
-            root.movedColumn[newVisualIndex] = logicalIndex
+        function columnShouldAutoHide(column) {
+            return column?.display == Mixxx.TrackListColumn.Display.Auto && column?.autoHideWidth > 0 && column?.autoHideWidth > root.width;
         }
 
-        function getColumn(index){
-            return model.columns[root.movedColumn[index] !== undefined ? root.movedColumn[index] : index]
+        // E2E test function
+        function currentlyActiveModel() {
+            return view.model.sourceModel.objectName;
         }
-
-        function columnShouldAutoHide(column){
-            return column?.display == Mixxx.TrackListColumn.Display.Auto && column?.autoHideWidth > 0 && column?.autoHideWidth > root.width
+        function getColumn(index) {
+            return model.columns[root.movedColumn[index] !== undefined ? root.movedColumn[index] : index];
         }
-
         function loadSelectedTrack(group, play) {
             const urls = this.selectionModel.selectedTrackUrls();
             if (urls.length == 0)
@@ -316,18 +305,19 @@ Rectangle {
             Mixxx.PlayerManager.loadLocationUrlIntoNextAvailableDeck(urls[0], play);
         }
 
+        // End E2E test function
+
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.margins: 5
         anchors.right: parent.right
         anchors.top: horizontalHeader.bottom
         clip: true
-        rowHeightProvider: () => 30
         columnWidthProvider: function (column) {
             const columnDef = getColumn(column);
             let explicitWidth = explicitColumnWidth(column);
-            if (explicitWidth == -1){
-                explicitWidth = columnDef.preferredWidth
+            if (explicitWidth == -1) {
+                explicitWidth = columnDef.preferredWidth;
             }
             if (columnDef.display == Mixxx.TrackListColumn.Display.Hide || view.columnShouldAutoHide(columnDef)) {
                 return 0;
@@ -342,13 +332,13 @@ Rectangle {
             let usedWidth = 0;
             let dynamicColumnCount = 0;
             for (let c = 0; c < model.columns.length; c++) {
-                 const columnDef = getColumn(c);
+                const columnDef = getColumn(c);
                 if (columnDef.display == Mixxx.TrackListColumn.Display.Hide || view.columnShouldAutoHide(columnDef)) {
                     continue;
                 }
                 let explicitWidth = explicitColumnWidth(c);
-                if (explicitWidth == -1){
-                    explicitWidth = columnDef.preferredWidth
+                if (explicitWidth == -1) {
+                    explicitWidth = columnDef.preferredWidth;
                 }
 
                 if (explicitWidth >= 0) {
@@ -362,8 +352,10 @@ Rectangle {
         }
         keyNavigationEnabled: false
         model: root.sidebar.tracklist
+        objectName: "trackTableView"
         pointerNavigationEnabled: false
         reuseItems: true
+        rowHeightProvider: () => 30
         selectionBehavior: TableView.SelectRows
 
         ScrollBar.vertical: ScrollBar {
@@ -374,6 +366,7 @@ Rectangle {
 
             DelegateChoice {
                 roleValue: Mixxx.TrackListColumn.ColumnType.AlbumArt
+
                 Rectangle {
                     required property url cover_art
                     required property color decoration
@@ -390,26 +383,39 @@ Rectangle {
                     }
                 }
             }
-
             DelegateChoice {
                 roleValue: Mixxx.TrackListColumn.ColumnType.Overview
 
                 Mixxx.WaveformOverview {
                     id: waveformOverview
+
                     channels: Mixxx.WaveformOverview.Channels.LeftChannel
                     colorHigh: Theme.white
                     colorLow: Theme.green
                     colorMid: Theme.blue
-                    renderer: Mixxx.WaveformOverview.Renderer.Filtered
-                    trackUrl: file_url
                     implicitHeight: 30
                     implicitWidth: 30
+                    renderer: Mixxx.WaveformOverview.Renderer.Filtered
+                    trackUrl: file_url
                 }
             }
             DelegateChoice {
                 Cell {
-                    track.capabilities: root.sidebar.tracklist ? root.sidebar.tracklist.getCapabilities() : Mixxx.LibraryTrackListModel.Capability.None
+                    // required property bool selected
+
+                    // readonly property alias dragImage: dragImageSource
+
+                    // Drag.dragType: Drag.Automatic
+                    // Drag.mimeData: {
+                    //     "text/uri-list": file_url.toString(),
+                    //     "text/plain": file_url.toString()
+                    // }
+                    // Drag.supportedActions: Qt.CopyAction
+                    // anchors.fill: parent
                     color: selected ? Theme.accentColor : (row % 2 == 0 ? Theme.sunkenBackgroundColor : Theme.backgroundColor)
+                    track.capabilities: root.sidebar.tracklist ? root.sidebar.tracklist.getCapabilities() : Mixxx.LibraryTrackListModel.Capability.None
+                    track.crates: root.model.crate
+                    track.playlists: root.model.playlist
 
                     Text {
                         anchors.fill: parent
@@ -423,8 +429,6 @@ Rectangle {
             }
         }
         selectionModel: ItemSelectionModel {
-            objectName: "selectionModel"
-
             function moveSelectionVertical(value) {
                 if (value == 0)
                     return;
@@ -452,11 +456,19 @@ Rectangle {
             }
 
             model: view.model
+            objectName: "selectionModel"
         }
 
         Keys.onDownPressed: this.selectionModel.moveSelectionVertical(1)
         Keys.onEnterPressed: this.loadSelectedTrackIntoNextAvailableDeck(false)
         Keys.onReturnPressed: this.loadSelectedTrackIntoNextAvailableDeck(false)
         Keys.onUpPressed: this.selectionModel.moveSelectionVertical(-1)
+        onColumnMoved: (logicalIndex, oldVisualIndex, newVisualIndex) => {
+            if (root.movedColumn[newVisualIndex] !== undefined && logicalIndex === newVisualIndex) {
+                delete root.movedColumn[newVisualIndex];
+                return;
+            }
+            root.movedColumn[newVisualIndex] = logicalIndex;
+        }
     }
 }

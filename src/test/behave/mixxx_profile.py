@@ -286,6 +286,9 @@ class MixxxProcess:
 
     #: Number of recent output lines kept in memory for startup diagnostics.
     OUTPUT_TAIL_LINES = 200
+    # Set this to true if you wish the test not to spawn a Mixxx process and connect to an existing one. USeful for running debugger session.
+    # TODO: make that a CLI arg?
+    ATTACH_MODE = False
 
     def __init__(self, binary, profile_dir, display=None, output_dir=None):
         self.binary = binary
@@ -354,8 +357,12 @@ class MixxxProcess:
     # start, which can exceed the historical 20 s on loaded systems or on
     # machines with a cold audio stack. Configurable for slower runners.
     def start(self, timeout=None):
+        if self.ATTACH_MODE:
+            print(f"Using an existing process. Make sure to run it first")
+            return
         if timeout is None:
-            timeout = int(os.environ.get("MIXXX_TEST_RPC_TIMEOUT", "20"))
+            # First start may be quite slow on Windows Server runner and on Ubuntu, due to what seems to be occasional slowdown induced by ALSA setup.
+            timeout = int(os.environ.get("MIXXX_TEST_RPC_TIMEOUT", "40"))
         env = os.environ.copy()
         if self.display:
             env["DISPLAY"] = self.display
@@ -447,6 +454,8 @@ class MixxxProcess:
         cycles are visible in the behave transcript, not only in the log
         file.
         """
+        if self.ATTACH_MODE:
+            return True
         if self.process is None:
             self._close_output_log()
             return False

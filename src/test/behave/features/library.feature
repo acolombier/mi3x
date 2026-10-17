@@ -389,6 +389,100 @@ Feature: Library
     Given no search is currently active
     Then the library search bar should be anchored to the bottom-right of the library pane
 
+  # --- Library sidebar sources and tracklists ---
+  #
+  # Covers new Playlist/Crate/Explorer sources, capability-driven create UI,
+  # creation flows, activation and sync when items are created.
+  Scenario: Sidebar shows Playlist, Crate and Explorer sources
+    Given Mixxx is open and ready to operate
+    Then the library sidebar should show the source "Playlists"
+    And the library sidebar should show the source "Crates"
+    And the library sidebar should show the source "Explorer"
+
+  Scenario: Explorer source cannot create new items
+    When I select the source "Explorer" in the library sidebar
+    Then the option to create a new item should not be available for the selected library source
+
+  Scenario: Creating a new playlist via sidebar
+    When I select the source "Playlists" in the library sidebar
+    And I initiate creating a new item in the selected library source
+    Then a create popup for the library source should be visible
+    When I enter "MyTestPlaylist" as the new item name
+    And I confirm the create action
+    Then a playlist named "MyTestPlaylist" should exist in the library
+    When I select the source "Playlists" in the library sidebar
+    Then a playlist named "MyTestPlaylist" should appear in the library sidebar
+
+  Scenario: Creating a new crate via sidebar
+    When I select the source "Crates" in the library sidebar
+    And I initiate creating a new item in the selected library source
+    Then a create popup for the library source should be visible
+    When I enter "MyTestCrate" as the new item name
+    And I confirm the create action
+    Then a crate named "MyTestCrate" should exist in the library
+    When I select the source "Crates" in the library sidebar
+    Then a crate named "MyTestCrate" should appear in the library sidebar
+
+  Scenario: Creating playlist via track context menu
+    When I right-click the track at row 1
+    And I select "Add to playlists" > "Create New Playlist" on the track menu
+    When I enter "MyTestPlaylist" as the new playlist context-menu input and submit
+    Then a playlist named "MyTestPlaylist" should exist in the library
+    When I discard the track menu
+    And I select the source "Playlists" in the library sidebar
+    Then a playlist named "MyTestPlaylist" should appear in the library sidebar
+
+  Scenario: Creating crate via track context menu
+    When I right-click the track at row 1
+    And I select "Crates" > "Create New Crate" on the track menu
+    When I enter "MyTestCrate" as the new crate context-menu input and submit
+    Then a crate named "MyTestCrate" should exist in the library
+    When I discard the track menu
+    And I select the source "Crates" in the library sidebar
+    Then a crate named "MyTestCrate" should appear in the library sidebar
+
+  Scenario: Playlist source create requires a valid name
+    When I select the source "Playlists" in the library sidebar
+    And I initiate creating a new item in the selected library source
+    Then a create popup for the library source should be visible
+    When I confirm the create action
+    Then the create popup for the library source should remain visible
+    And the create popup for the library source should show an error state
+
+  Scenario: Playlist source rejects duplicate names
+    Given a playlist named "DupTest" already exists
+    When I select the source "Playlists" in the library sidebar
+    And I initiate creating a new item in the selected library source
+    Then a create popup for the library source should be visible
+    When I enter "DupTest" as the new item name
+    And I confirm the create action
+    Then the create popup for the library source should remain visible
+    And the create popup for the library source should show an error state
+
+  Scenario: Crate source rejects duplicate names
+    Given a crate named "DupTest" already exists
+    When I select the source "Crates" in the library sidebar
+    And I initiate creating a new item in the selected library source
+    Then a create popup for the library source should be visible
+    When I enter "DupTest" as the new item name
+    And I confirm the create action
+    Then the create popup for the library source should remain visible
+    And the create popup for the library source should show an error state
+
+  Scenario: Switching between library sources activates them
+    # Given the library sidebar shows the source "Crate"
+    # Given the library sidebar shows the source "Explorer"
+    Given a playlist named "A test playlist" already exists with 5 tracks
+    And a crate named "A test crate" already exists with 5 tracks
+    When I select the crate named "A test crate" in the library sidebar
+    Then the crate named "A test crate" should be shown in tracklist
+    When I select the playlist named "A test playlist" in the library sidebar
+    Then the playlist named "A test playlist" should be shown in tracklist
+    When I select the crate named "A test crate" in the library sidebar
+    Then the crate named "A test crate" should be shown in tracklist
+    When I select the source "All..." in the library sidebar
+    Then all tracks should be shown in tracklist
+
   # --- Right side menu & split view (tracklist toolbar on the right edge) ---
   #
   # Requires objectNames on the tracklist right menu (res/qml/Library.qml):

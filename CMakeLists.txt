@@ -4332,6 +4332,8 @@ if(QML)
       src/qml/qmlcoreservices.cpp
       src/qml/qmlrecentsearchmodel.cpp
       src/qml/qmlsearchsuggestionmodel.cpp
+      src/qml/qmlplaylistproxy.cpp
+      src/qml/qmlcrateproxy.cpp
       src/qml/qmlsidebarmodelproxy.cpp
       src/qml/qmllibrarytracklistcolumn.cpp
       src/qml/qmltrackproxy.cpp

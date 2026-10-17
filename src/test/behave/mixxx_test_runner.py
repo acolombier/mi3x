@@ -506,9 +506,9 @@ class XFailPrettyFormatter(PrettyFormatter):
             if match:
                 params = dict([tuple(item.split("=", 1)) for item in match.group(1).split(",")])
                 if "gh_issue" in params:
-                    print(f"Tracked as https://github.com/mixxxdj/mixxx/issues/{params['gh_issue']}", file=sys.stderr)
+                    self.stream.write(f"Tracked as https://github.com/mixxxdj/mixxx/issues/{params['gh_issue']}\n")
                     return
-            print("WARNING: xfailed test has no Github issue attached! Use the 'xfail(gh_issue=...)' to track the relevant issue")
+            self.stream.write("WARNING: xfailed test has no Github issue attached! Use the 'xfail(gh_issue=...)' to track the relevant issue\n")
             return
 
         super()._print_current_scenario_captured_output()
@@ -796,7 +796,10 @@ def main():
     try:
         config = Configuration(args.behave_args)
         runner = Runner(config)
-        runner.config.format = ["mixxx_test_runner:XFailPrettyFormatter"]
+        runner.config.format = [
+            "mixxx_test_runner:XFailPrettyFormatter",
+            "behave.contrib.formatter_missing_steps:MissingStepsFormatter"
+        ]
         runner.config.show_timings = True
         runner.config.userdata = dict(
             tracks_dir=tracks_cache,

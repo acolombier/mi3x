@@ -1,5 +1,6 @@
 #include <Spix/AnyRpcServer.h>
 #include <Spix/QtQmlBot.h>
+#include <qdir.h>
 
 #include <QApplication>
 #include <QCoreApplication>
@@ -13,20 +14,38 @@
 #include <QThread>
 #include <atomic>
 #include <memory>
+#include <utility>
 
 #include "control/controlobject.h"
 #include "coreservices.h"
+#include "library/dao/trackdao.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
+#include "library/trackset/crate/cratesummary.h"
 #include "mixer/playermanager.h"
 #include "mixxxapplication.h"
 #include "mixxxtest.h"
 #include "qml/qmlapplication.h"
 #include "soundio/soundmanager.h"
 #include "track/track.h"
+#include "util/assert.h"
 #include "util/cmdlineargs.h"
 #include "util/fileinfo.h"
 #include "util/versionstore.h"
+
+namespace {
+void persistLibraryJsonState(const QJsonObject& state) {
+    QString json = QString::fromUtf8(
+            QJsonDocument(state).toJson(QJsonDocument::Compact));
+    qDebug() << "persistLibraryJsonState:" << json;
+
+    auto windows = QGuiApplication::topLevelWindows();
+    DEBUG_ASSERT(!windows.isEmpty());
+    for (auto* w : std::as_const(windows)) {
+        w->setProperty("lastLibraryState", json);
+    }
+}
+} // namespace
 
 int runServeMode(int argc, char** argv) {
     QCoreApplication::setOrganizationDomain("mixxx.org");
@@ -216,10 +235,10 @@ int runServeMode(int argc, char** argv) {
                                     QByteArray::fromStdString(payload));
                     QJsonObject obj = doc.object();
                     QString action = obj["action"].toString();
-                    QString path = obj["path"].toString();
-                    bool scan = obj["scan"].toBool(false);
 
                     if (action == "addDirectory") {
+                        QString path = obj["path"].toString();
+                        bool scan = obj["scan"].toBool(false);
                         auto result = pCoreServices->getTrackCollectionManager()
                                               ->addDirectory(mixxx::FileInfo(path));
                         if (result == DirectoryDAO::AddResult::AlreadyWatching) {
@@ -235,6 +254,8 @@ int runServeMode(int argc, char** argv) {
                         qDebug() << "library: added directory" << path
                                  << "scan=" << scan;
                     } else if (action == "removeDirectory") {
+                        QString path = obj["path"].toString();
+                        bool scan = obj["scan"].toBool(false);
                         auto result = pCoreServices->getTrackCollectionManager()
                                               ->removeDirectory(mixxx::FileInfo(path));
                         if (result != DirectoryDAO::RemoveResult::Ok) {
@@ -247,6 +268,94 @@ int runServeMode(int argc, char** argv) {
                         }
                         qDebug() << "library: removed directory" << path
                                  << "scan=" << scan;
+                    } else if (action == "deleteFeatureItem") {
+                        QJsonObject state;
+                        state["result"] = "failed";
+
+                        qDebug() << "deleteFeatureItem" << obj;
+                        QString type = obj["type"].toString();
+                        QString id = obj["id"].toString();
+
+                        auto pCollection =
+                                pCoreServices->getTrackCollectionManager();
+
+                        if (type == "playlist") {
+                            auto& paylistsDao = pCollection->internalCollection()->getPlaylistDAO();
+                            paylistsDao.deletePlaylist(id.toInt());
+                            state["result"] = "success";
+                        } else if (type == "crate") {
+                            if (pCollection->internalCollection()->deleteCrate(CrateId(id))) {
+                                state["result"] = "success";
+                            }
+                        }
+
+                        persistLibraryJsonState(state);
+                    } else if (action == "createFeatureItem") {
+                        QJsonObject state;
+                        state["result"] = "failed";
+
+                        QString type = obj["type"].toString();
+                        QString name = obj["name"].toString();
+                        int random_track_count = obj["random_track_count"].toInt(0);
+                        auto pCollection =
+                                pCoreServices->getTrackCollectionManager();
+
+                        if (type == "playlist") {
+                            auto& paylistsDao = pCollection->internalCollection()->getPlaylistDAO();
+                            int playlistId = paylistsDao.createPlaylist(name);
+                            if (random_track_count > 0) {
+                                auto& trackDao = pCollection->internalCollection()->getTrackDAO();
+                                auto allTracks = trackDao.getAllExistingTrackLocations().values();
+                                while (!allTracks.isEmpty() && random_track_count > 0) {
+                                    auto trackLocation = allTracks.at(
+                                            std::rand() % allTracks.size());
+                                    auto track = pCollection->getTrackByRef(
+                                            TrackRef::fromFilePath(
+                                                    trackLocation));
+                                    paylistsDao.appendTrackToPlaylist(track->getId(), playlistId);
+                                    random_track_count--;
+                                }
+                            }
+                            state["result"] = "success";
+                            state["id"] = QString::number(playlistId);
+                        } else if (type == "crate") {
+                            Crate newCrate;
+                            newCrate.setName(std::move(name));
+                            CrateId newCrateId;
+                            if (pCollection->internalCollection()->insertCrate(
+                                        newCrate, &newCrateId) &&
+                                    newCrateId.isValid()) {
+                                DEBUG_ASSERT(newCrateId.isValid());
+                                newCrate.setId(newCrateId);
+                                state["result"] = "success";
+                                state["id"] = newCrateId.toString();
+                                qDebug() << "Created new crate" << newCrate;
+                            } else {
+                                DEBUG_ASSERT(!newCrateId.isValid());
+                                qWarning() << "Failed to create new crate"
+                                           << "->" << newCrate.getName();
+                            }
+
+                            if (newCrateId.isValid() && random_track_count > 0) {
+                                auto& trackDao = pCollection->internalCollection()->getTrackDAO();
+                                auto allTracks = trackDao.getAllExistingTrackLocations().values();
+                                QList<TrackId> tracksToAdd = {};
+                                while (!allTracks.isEmpty() && random_track_count > 0) {
+                                    auto trackLocation = allTracks.at(
+                                            std::rand() % allTracks.size());
+                                    auto track = pCollection->getTrackByRef(
+                                            TrackRef::fromFilePath(
+                                                    trackLocation));
+                                    tracksToAdd.push_back(track->getId());
+                                    random_track_count--;
+                                }
+                                pCollection->internalCollection()
+                                        ->addCrateTracks(
+                                                newCrateId, tracksToAdd);
+                            }
+                        }
+
+                        persistLibraryJsonState(state);
                     } else {
                         qWarning() << "library: unknown action" << action;
                     }
@@ -254,7 +363,7 @@ int runServeMode(int argc, char** argv) {
                     auto* pCollection =
                             pCoreServices->getTrackCollectionManager()->internalCollection();
 
-                    QJsonArray sources;
+                    QJsonArray sources, playlists, crates;
                     const auto rootDirectories = pCollection->getRootDirectories();
                     for (const auto& dirInfo : rootDirectories) {
                         QJsonObject source;
@@ -262,6 +371,24 @@ int runServeMode(int argc, char** argv) {
                         source["trackCount"] = static_cast<int>(dirInfo.trackCount);
                         source["totalSecond"] = static_cast<int>(dirInfo.totalSecond);
                         sources.append(source);
+                    }
+                    auto& paylistsDao = pCollection->getPlaylistDAO();
+                    auto playlistsList = paylistsDao.getPlaylists(PlaylistDAO::PLHT_NOT_HIDDEN);
+                    for (const auto& [id, name] : std::as_const(playlistsList)) {
+                        QJsonObject paylist;
+                        paylist["id"] = QString::number(id);
+                        paylist["name"] = name;
+                        playlists.append(paylist);
+                    }
+                    const auto& cratesDao = pCollection->crates();
+                    CrateSummarySelectResult crateSummaries(
+                            cratesDao.selectCrateSummaries());
+                    CrateSummary crateSummary;
+                    while (crateSummaries.populateNext(&crateSummary)) {
+                        QJsonObject crate;
+                        crate["id"] = crateSummary.getId().toString();
+                        crate["name"] = crateSummary.getName();
+                        crates.append(crate);
                     }
 
                     auto countTracks = [pCollection](bool hidden) {
@@ -275,19 +402,14 @@ int runServeMode(int argc, char** argv) {
 
                     QJsonObject state;
                     state["sources"] = sources;
+                    state["playlists"] = playlists;
+                    state["crates"] = crates;
                     state["visibleTrackCount"] = countTracks(false);
                     state["hiddenTrackCount"] = countTracks(true);
                     state["scanInProgress"] = pActiveScanCount->load() > 0;
                     state["scanGeneration"] = pCompletedScanCount->load();
 
-                    QString json = QString::fromUtf8(
-                            QJsonDocument(state).toJson(QJsonDocument::Compact));
-                    qDebug() << "getLibraryState:" << json;
-
-                    auto windows = QGuiApplication::topLevelWindows();
-                    for (auto* w : std::as_const(windows)) {
-                        w->setProperty("lastLibraryState", json);
-                    }
+                    persistLibraryJsonState(state);
                 } else if (command == "registerMockDevices") {
                     QJsonDocument doc =
                             QJsonDocument::fromJson(
