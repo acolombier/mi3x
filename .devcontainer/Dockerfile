@@ -13,6 +13,8 @@ RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get update && \
     gdb \
     # VCS
     git \
+    # Useful for tooling and scripts
+    npm \
     # Audio integration
     pipewire \
     pipewire-alsa \
@@ -29,7 +31,7 @@ RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get update && \
     udev \
     # Convenience for git interactive commands
     vim && \
-    pip3 install pre-commit --break-system-packages
+    pip3 install pre-commit --break-system-packages --ignore-installed packaging
 
 COPY tools/debian_buildenv.sh /tmp/
 

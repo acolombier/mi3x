@@ -1,12 +1,13 @@
 {
   "name": "mixxx",
   "build": {
-    "cacheFrom": "ghcr.io/mixxxdj/mixxx/devcontainer:latest",
+    // "cacheFrom": "ghcr.io/mixxxdj/mixxx/devcontainer:latest",
     "dockerfile": "Dockerfile",
     "context": ".."
   },
   "runArgs": [
-    "--network=host" // This is needed for native X.org support
+    "--network=host", // This is needed for native X.org support
+    "--mount=type=devpts,destination=/dev/pts" // Needed to allow pts allocation beside the /dev mount
   ],
   "features": {
     "ghcr.io/devcontainers/features/common-utils:2": {
