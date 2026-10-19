@@ -10,6 +10,7 @@
 #include "controllers/controllermanager.h"
 #include "mixer/playermanager.h"
 #include "moc_qmlapplication.cpp"
+#include "notificationmanager.h"
 #include "preferences/configobject.h"
 #include "qml/asyncimageprovider.h"
 #include "qml/qmlapplicationproxy.h"
@@ -126,7 +127,9 @@ QmlApplication::QmlApplication(
     }
 #endif
 
-    QJSEngine::setObjectOwnership(QmlCoreServices::createInstance(this), QJSEngine::CppOwnership);
+    QJSEngine::setObjectOwnership(
+            QmlCoreServices::createInstance(m_pCoreServices),
+            QJSEngine::CppOwnership);
 
     m_loadSucceeded = loadQml(m_mainFilePath);
     if (!m_loadSucceeded && !CmdlineArgs::Instance().getDeveloper()) {
@@ -240,6 +243,9 @@ QmlApplication::QmlApplication(
             m_pCoreServices->getTrackCollectionManager());
     m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
     QmlCoreServices::instance()->setReady();
+    m_pCoreServices->getNotificationManager()->notify(
+            std::make_shared<mixxx::Notification>(
+                    "Mixxx started!", mixxx::NotificationFlag::Sticky));
 
     m_pCoreServices->getControllerManager()->setUpDevices();
 

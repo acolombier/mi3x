@@ -3,6 +3,7 @@
 #include <QDebug>
 #include <QMutexLocker>
 
+#include "moc_notificationmanager.cpp"
 #include "util/assert.h"
 
 namespace {
@@ -19,6 +20,8 @@ NotificationManager::NotificationManager()
     m_timer.setInterval(1000);
     connect(&m_timer, &QTimer::timeout, this, &NotificationManager::slotUpdateNotifications);
 };
+
+NotificationManager::~NotificationManager() = default;
 
 void NotificationManager::notify(NotificationPointer pNotification) {
     VERIFY_OR_DEBUG_ASSERT(pNotification) {

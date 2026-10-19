@@ -21,7 +21,7 @@ class NotificationManager : public QObject {
 
     void notify(NotificationPointer pNotification);
 
-    QList<NotificationPointer> activeNotifications() {
+    const QList<NotificationPointer>& activeNotifications() const {
         return m_notifications;
     }
 

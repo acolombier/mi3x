@@ -5,11 +5,11 @@
 #include <QQmlEngine>
 #include <QString>
 
+#include "notification.h"
 #include "util/singleton.h"
 
-class RecordingManager;
-
 namespace mixxx {
+class CoreServices;
 namespace qml {
 
 class QmlCoreServices : public QObject, public Singleton<QmlCoreServices> {
@@ -18,15 +18,17 @@ class QmlCoreServices : public QObject, public Singleton<QmlCoreServices> {
     // Workaround for https://qt-project.atlassian.net/browse/QTBUG-87815
     // This is necessary to make touchscreen/Android usable
     Q_PROPERTY(bool hasPopup READ hasPopup NOTIFY hasPopupChanged)
+    Q_PROPERTY(QQmlListProperty<mixxx::Notification> notifications READ
+                    notifications NOTIFY notificationsChanged)
     QML_NAMED_ELEMENT(Core)
     QML_SINGLETON
   public:
-    explicit QmlCoreServices(QObject* parent)
-            : QObject(parent) {
-    }
+    explicit QmlCoreServices(std::shared_ptr<::mixxx::CoreServices> pCoreServices);
     ~QmlCoreServices() override = default;
 
     static QmlCoreServices* create(QQmlEngine* pQmlEngine, QJSEngine* pJsEngine);
+
+    QQmlListProperty<mixxx::Notification> notifications();
 
     bool ready() const {
         return m_ready;
@@ -48,12 +50,24 @@ class QmlCoreServices : public QObject, public Singleton<QmlCoreServices> {
     // Workaround for https://qt-project.atlassian.net/browse/QTBUG-87815
     // This is necessary to make touchscreen/Android usable
     void hasPopupChanged();
+    // void notificationAdded();
+    // void notificationClosed();
+
+    void notificationsChanged();
 
   private:
     bool m_ready{false};
     // Workaround for https://qt-project.atlassian.net/browse/QTBUG-87815
     // This is necessary to make touchscreen/Android usable
     QSet<QObject*> m_popups;
+    std::shared_ptr<::mixxx::CoreServices> m_pInternal;
+
+    static void append_notification(QQmlListProperty<mixxx::Notification>* list,
+            mixxx::Notification* slice);
+    static qsizetype count_notification(QQmlListProperty<mixxx::Notification>* p);
+    static mixxx::Notification* at_notification(
+            QQmlListProperty<mixxx::Notification>* p, qsizetype idx);
+    static void clear_notification(QQmlListProperty<mixxx::Notification>* p);
 };
 
 } // namespace qml

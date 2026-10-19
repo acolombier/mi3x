@@ -7,6 +7,7 @@
 #include <QStandardPaths>
 #include <QtGlobal>
 #include <gsl/pointers>
+#include <memory>
 
 #include "util/cmdlineargs.h"
 
@@ -734,8 +735,8 @@ void CoreServices::initialize(QApplication* pApp) {
             musicDirAdded = true;
         } else {
             // prompt the use to add their directory
-            mixxx::Notification* pNotification =
-                    new mixxx::Notification("No music directory configured!",
+            auto pNotification =
+                    std::make_shared<mixxx::Notification>("No music directory configured!",
                             mixxx::NotificationFlag::Sticky);
             pNotification->addButton(tr("Choose Directory"), this, [this]() {
                 QString fd = QFileDialog::getExistingDirectory(nullptr,
