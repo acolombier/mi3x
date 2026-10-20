@@ -1192,7 +1192,7 @@ jobs:
     name: "Update E2E comment"
     if: always() && github.event_name == 'pull_request'
     needs: test
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
@@ -1213,18 +1213,14 @@ jobs:
           pattern: mixxx-ui-test-*-e2e
           path: results
 
-      - name: "Download recordings"
-        uses: actions/download-artifact@v8
-        with:
-          pattern: mixxx-ui-test-*.mkv
-          path: videos
-          merge-multiple: true
-
       - name: "Build and update E2E comment"
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GH_TOKEN: ${{ secrets.MIXXX_E2E_TOKEN }}
           RESULTS_DIR: results
+          # Recordings are not downloaded up front; the script lazily pulls
+          # only the recordings referenced by the selected clips (VIDEO_DIR
+          # is the download target/reuse cache).
           VIDEO_DIR: videos
           SNIPPET_DIR: snippets
           BASE_REF: FETCH_HEAD
