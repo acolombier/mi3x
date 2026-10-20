@@ -311,6 +311,7 @@ void CrateFeature::activateChild(const QModelIndex& index) {
     m_prevSiblingCrate = CrateId();
     emit saveModelState();
     m_crateTableModel.selectCrate(crateId);
+    m_crateTableModel.setObjectName("crate_" + crateId.toString());
     emit showTrackModel(&m_crateTableModel);
     emit enableCoverArtDisplay(true);
 }
@@ -334,6 +335,7 @@ bool CrateFeature::activateCrate(CrateId crateId) {
     m_prevSiblingCrate = CrateId();
     emit saveModelState();
     m_crateTableModel.selectCrate(crateId);
+    m_crateTableModel.setObjectName("crate_" + crateId.toString());
     emit showTrackModel(&m_crateTableModel);
     emit enableCoverArtDisplay(true);
     // Update selection

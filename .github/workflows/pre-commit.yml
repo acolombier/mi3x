@@ -15,7 +15,7 @@ permissions:
 jobs:
   pre-commit:
     name: Detecting code style issues
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: "Check out repository"
         uses: actions/checkout@v7
@@ -25,6 +25,13 @@ jobs:
           # latest changelog modification date. Otherwise, `fetch-depth: 2` would
           # suffice.
           fetch-depth: 0
+
+      - name: "Add dependencies"
+        run: |
+          sudo apt-get update && sudo apt-get install -y qt6-declarative-dev-tools
+          export PATH="/usr/lib/qt6/bin/:$PATH"
+          qmlformat --version
+          echo "PATH=${PATH}" >> $GITHUB_ENV
 
       - name: "Add GitHub workspace as a safe directory"
         # Without this, git commands will fail due to mismatching permissions in

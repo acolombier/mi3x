@@ -1,16 +1,703 @@
 import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Dialogs
 import Mixxx 1.0 as Mixxx
+import ".." as Skin
+import "." as SettingComponents
+import "../Theme"
 
 Category {
+    id: root
+
+    property var cfg: store.values
+    property bool dirty: false
+    readonly property var encoders: Mixxx.Recording.formats()
+    readonly property bool isRecording: !!Mixxx.Recording && Mixxx.Recording?.durationText !== "--:--" // FIXME: proxy not yet merged
+
+    function load() {
+        // Copy the store so that control bindings re-evaluate on reload.
+        cfg = Object.assign({}, store.values);
+        root.dirty = false;
+        errorMessage.text = "";
+    }
+    function reset() {
+        store.reset();
+        load();
+    }
+    function save() {
+        if (!cfg.directory) {
+            errorMessage.text = "A recording directory is required";
+            return;
+        }
+        console.log("Save recording configuration:", JSON.stringify(cfg));
+        root.dirty = false;
+        load();
+    }
+    function set(field, value) {
+        if (cfg[field] === value) {
+            return;
+        }
+        cfg[field] = value;
+        root.dirty = true;
+    }
+
     label: "Recording"
 
-    Mixxx.SettingParameter {
-        label: "A red square"
+    Component.onCompleted: {
+        root.load();
+    }
 
-        Rectangle {
-            color: 'red'
-            height: 20
-            width: 20
+    // TODO(XXX): mock backend. While no C++ proxy for the recording
+    // settings is available in QML yet, values are kept in memory only.
+    // Replace with real bindings to the [Recording] config keys and
+    // EncoderFactory later, keeping this load()/save() contract.
+    QtObject {
+        id: store
+
+        property var values: ({
+                album: "",
+                author: "",
+                bitrateMode: "CBR",
+                channels: "Stereo",
+                compression: 5,
+                cueAnnotation: "off",
+                cueFile: "on",
+                directory: "/home/antoine/Music/Recordings",
+                format: "MP3",
+                quality: 128,
+                split: "4 GB",
+                title: "",
+                tracklistAsComment: "on"
+            })
+
+        function reset() {
+            values = Object.assign({}, values, {
+                album: "",
+                author: "",
+                bitrateMode: "CBR",
+                channels: "Stereo",
+                compression: 5,
+                cueAnnotation: "off",
+                cueFile: "on",
+                format: "MP3",
+                quality: 128,
+                split: "4 GB",
+                title: "",
+                tracklistAsComment: "on"
+            });
+        }
+    }
+
+    // Invisible stand-in for the native folder picker so behavior tests can
+    // inject a directory the same way as on the Library page. Mirrors the
+    // testDialog mock from Library.qml.
+    Item {
+        id: testFolderDialog
+
+        property int openCount: 0
+        property url selectedFolder: root.cfg.directory
+        property bool testMode: false
+
+        function open() {
+            openCount++;
+            if (testMode) {
+                root.set("directory", selectedFolder.toString());
+            } else {
+                folderDialog.open();
+            }
+        }
+
+        height: 0
+        objectName: "folderDialogTest"
+        visible: false
+        width: 0
+    }
+    FolderDialog {
+        id: folderDialog
+
+        currentFolder: root.cfg.directory
+        title: "Choose a recording directory"
+
+        onAccepted: root.set("directory", selectedFolder)
+    }
+    ScrollView {
+        id: scrollView
+
+        anchors.bottom: buttonActions.top
+        anchors.bottomMargin: 18
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+
+        ColumnLayout {
+            spacing: 0
+            width: scrollView.width
+
+            // Read-only recording state indicator: session recording is
+            // toggled from the main window, never from settings.
+            RowLayout {
+                Layout.bottomMargin: 10
+                Layout.leftMargin: 17
+                Layout.topMargin: 14
+                visible: root.isRecording
+
+                Rectangle {
+                    color: "#7D3B3B"
+                    implicitHeight: recordingStateText.implicitHeight + 10
+                    implicitWidth: recordingStateText.implicitWidth + 20
+                    radius: 4
+
+                    Text {
+                        id: recordingStateText
+
+                        anchors.centerIn: parent
+                        color: Theme.white
+                        font.pixelSize: 12
+                        font.weight: Font.DemiBold
+                        objectName: "state"
+
+                        // text: "RECORDING ..." placeholder until the
+                        // Mixxx.Recording proxy singleton is available.
+                        text: Mixxx.Recording ? "RECORDING " + Mixxx.Recording.durationText : "RECORDING ..."
+                    }
+                }
+            }
+
+            // --- Recording files ------------------------------------------------
+            Mixxx.SettingGroup {
+                id: filesGroup
+
+                Layout.bottomMargin: 6
+                Layout.fillWidth: true
+                implicitHeight: filesPane.implicitHeight + 20
+                label: "Recording files"
+                objectName: "files"
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    color: Qt.alpha('#676767', 0.21)
+                    implicitHeight: filesPane.implicitHeight + 20
+
+                    // 4 columns on wide panes, collapsing to 2 columns when
+                    // narrower (mirrors the Library metadata pane pattern).
+                    GridLayout {
+                        id: filesPane
+
+                        anchors.bottomMargin: 10
+                        anchors.fill: parent
+                        anchors.leftMargin: 17
+                        anchors.rightMargin: 17
+                        anchors.topMargin: 10
+                        columnSpacing: 48
+                        columns: filesPane.width < 900 ? 1 : 2
+                        objectName: "grid"
+                        rowSpacing: 15
+                        uniformCellWidths: true
+
+                        RowLayout {
+                            Mixxx.SettingParameter {
+                                Layout.alignment: Qt.AlignVCenter
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: directoryLabel.implicitWidth
+                                label: "Directory"
+
+                                Text {
+                                    id: directoryLabel
+
+                                    anchors.bottom: parent.bottom
+                                    anchors.top: parent.top
+                                    color: Theme.white
+                                    elide: Text.ElideRight
+                                    font.pixelSize: 14
+                                    font.weight: Font.Medium
+                                    horizontalAlignment: Text.AlignLeft
+                                    text: parent.label
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                            }
+                            RowLayout {
+                                Layout.maximumWidth: 300
+                                Layout.minimumHeight: 26
+                                Layout.minimumWidth: 100
+
+                                Skin.InputField {
+                                    Layout.fillWidth: true
+                                    Layout.minimumHeight: 26
+                                    input.text: root.cfg.directory
+                                    objectName: "directory"
+
+                                    input.onAccepted: {
+                                        root.set("directory", input.text);
+                                        input.focus = false;
+                                    }
+                                }
+                                Skin.FormButton {
+                                    activeColor: "#999999"
+                                    backgroundColor: "#3F3F3F"
+                                    implicitHeight: 26
+                                    implicitWidth: 61
+                                    objectName: "directoryBrowse"
+                                    text: "Browse..."
+
+                                    onPressed: testFolderDialog.open()
+                                }
+                            }
+                        }
+                        RowLayout {
+                            Mixxx.SettingParameter {
+                                Layout.alignment: Qt.AlignVCenter
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: qualityLabel.implicitWidth
+                                label: "Quality"
+
+                                Text {
+                                    id: qualityLabel
+
+                                    anchors.bottom: parent.bottom
+                                    anchors.top: parent.top
+                                    color: Theme.white
+                                    elide: Text.ElideRight
+                                    font.pixelSize: 14
+                                    font.weight: Font.Medium
+                                    horizontalAlignment: Text.AlignLeft
+                                    text: parent.label
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                            }
+                            SettingComponents.Slider {
+                                id: qualityRow
+
+                                Layout.preferredHeight: 30
+                                Layout.preferredWidth: 350
+                                markers: [32, 96, 128, 192, 256, 320]
+                                objectName: "quality"
+                                suffix: " kbit/s"
+                                value: root.cfg.quality ?? 128
+
+                                onValueChanged: {
+                                    if (!visible) {
+                                        return;
+                                    }
+                                    root.set("quality", value);
+                                }
+                            }
+                        }
+                        RowLayout {
+                            Mixxx.SettingParameter {
+                                Layout.alignment: Qt.AlignVCenter
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: outputFileFormatLabel.implicitWidth
+                                keywords: ["channels"]
+                                label: "Output file format"
+
+                                Text {
+                                    id: outputFileFormatLabel
+
+                                    anchors.bottom: parent.bottom
+                                    anchors.top: parent.top
+                                    color: Theme.white
+                                    elide: Text.ElideRight
+                                    font.pixelSize: 14
+                                    font.weight: Font.Medium
+                                    horizontalAlignment: Text.AlignLeft
+                                    text: parent.label
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                            }
+                            RowLayout {
+                                Layout.fillWidth: true
+
+                                Skin.ComboBox {
+                                    // Values mirror EncoderFactory::getFormats().
+                                    // TODO(XXX): populate from the encoder registry
+                                    // when it becomes available to QML.
+                                    currentIndex: ["WAV PCM", "AIFF PCM", "FLAC", "MP3", "OGG Vorbis", "Opus", "AAC", "HE-AAC", "HE-AACv2"].indexOf(root.cfg.format)
+                                    model: root.encoders.map(e => e.label)
+                                    objectName: "format"
+
+                                    onActivated: function (index) {
+                                        root.set("format", currentText);
+                                    }
+                                }
+                                RatioChoice {
+                                    inactiveColor: Theme.darkGray4
+                                    maxWidth: filesPane.width * 0.5
+                                    objectName: "channels"
+                                    options: ["Stereo", "Mono"]
+                                    selected: root.cfg.channels
+
+                                    onSelectedChanged: root.set("channels", selected)
+                                }
+                            }
+                        }
+                        RowLayout {
+                            Mixxx.SettingParameter {
+                                Layout.alignment: Qt.AlignVCenter
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: splitRecordingsLabel.implicitWidth
+                                label: "Split recordings at"
+
+                                Text {
+                                    id: splitRecordingsLabel
+
+                                    anchors.bottom: parent.bottom
+                                    anchors.top: parent.top
+                                    color: Theme.white
+                                    elide: Text.ElideRight
+                                    font.pixelSize: 14
+                                    font.weight: Font.Medium
+                                    horizontalAlignment: Text.AlignLeft
+                                    text: parent.label
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                            }
+                            Skin.ComboBox {
+                                currentIndex: model.indexOf(root.cfg.split)
+                                // Values mirror DlgPrefRecord's splitting combo.
+                                model: ["650 MB", "700 MB (CD)", "1 GB", "2 GB", "4 GB", "60 Minutes (CD)", "74 Minutes (CD)", "80 Minutes (CD)", "120 Minutes", "No Splitting"]
+                                objectName: "split"
+
+                                onActivated: function (index) {
+                                    // "No Splitting" is not supported by
+                                    // lossless formats in the legacy page.
+                                    if (root.isLossless && currentText === "No Splitting") {
+                                        currentIndex = model.indexOf(root.cfg.split);
+                                        return;
+                                    }
+                                    root.set("split", currentText);
+                                }
+                            }
+                        }
+                        RowLayout {
+                            Mixxx.SettingParameter {
+                                Layout.alignment: Qt.AlignVCenter
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: bitrateModeLabel.implicitWidth
+                                label: "Bitrate mode"
+
+                                Text {
+                                    id: bitrateModeLabel
+
+                                    anchors.bottom: parent.bottom
+                                    anchors.top: parent.top
+                                    color: Theme.white
+                                    elide: Text.ElideRight
+                                    font.pixelSize: 14
+                                    font.weight: Font.Medium
+                                    horizontalAlignment: Text.AlignLeft
+                                    text: parent.label
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                            }
+                            RatioChoice {
+                                id: bitrateModeRow
+
+                                inactiveColor: Theme.darkGray4
+                                maxWidth: filesPane.width * 0.5
+                                objectName: "bitrateMode"
+                                options: ["CBR", "ABR", "VBR"]
+                                selected: root.cfg.bitrateMode
+
+                                onSelectedChanged: root.set("bitrateMode", selected)
+                            }
+                        }
+                        RowLayout {
+                            Mixxx.SettingParameter {
+                                Layout.alignment: Qt.AlignVCenter
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: compressionLevelLabel.implicitWidth
+                                label: "Compression level"
+
+                                Text {
+                                    id: compressionLevelLabel
+
+                                    anchors.bottom: parent.bottom
+                                    anchors.top: parent.top
+                                    color: Theme.white
+                                    elide: Text.ElideRight
+                                    font.pixelSize: 14
+                                    font.weight: Font.Medium
+                                    horizontalAlignment: Text.AlignLeft
+                                    text: parent.label
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                            }
+                            SettingComponents.Slider {
+                                id: compressionRow
+
+                                Layout.preferredHeight: 30
+                                Layout.preferredWidth: 350
+                                markers: [0, 2, 4, 6, 8]
+                                objectName: "compression"
+                                suffix: ""
+                                value: root.cfg.compression ?? 5
+
+                                onValueChanged: {
+                                    if (!visible) {
+                                        return;
+                                    }
+                                    root.set("compression", Math.round(value));
+                                }
+                            }
+                        }
+                        RowLayout {
+                            Mixxx.SettingParameter {
+                                Layout.alignment: Qt.AlignVCenter
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: cueFileLabel.implicitWidth
+                                keywords: ["annotation"]
+                                label: "CUE file"
+
+                                Text {
+                                    id: cueFileLabel
+
+                                    anchors.bottom: parent.bottom
+                                    anchors.top: parent.top
+                                    color: Theme.white
+                                    elide: Text.ElideRight
+                                    font.pixelSize: 14
+                                    font.weight: Font.Medium
+                                    horizontalAlignment: Text.AlignLeft
+                                    text: parent.label
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                            }
+                            RatioChoice {
+                                inactiveColor: Theme.darkGray4
+                                // maxWidth: filesPane.width * 0.5
+                                objectName: "cueFile"
+                                options: ["with file annotation", "on", "off"]
+                                selected: root.cfg.cueFile
+
+                                onSelectedChanged: root.set("cueFile", selected)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- Tags -------------------------------------------------------------
+            RowLayout {
+                Text {
+                    Layout.bottomMargin: 14
+                    Layout.leftMargin: 17
+                    Layout.topMargin: 10
+                    color: Theme.white
+                    font.pixelSize: 16
+                    font.weight: Font.DemiBold
+                    text: "Tags"
+                }
+            }
+            Mixxx.SettingGroup {
+                id: tagsGroup
+
+                Layout.bottomMargin: 6
+                Layout.fillWidth: true
+                implicitHeight: tagsPane.implicitHeight + 20
+                label: "Tags"
+                objectName: "tags"
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    color: Qt.alpha('#676767', 0.21)
+                    implicitHeight: tagsPane.implicitHeight + 20
+
+                    GridLayout {
+                        id: tagsPane
+
+                        anchors.bottomMargin: 10
+                        anchors.fill: parent
+                        anchors.leftMargin: 17
+                        anchors.rightMargin: 17
+                        anchors.topMargin: 10
+                        columnSpacing: 100
+                        columns: 2
+                        objectName: "grid"
+                        rowSpacing: 15
+
+                        Mixxx.SettingParameter {
+                            Layout.alignment: Qt.AlignVCenter
+                            Layout.minimumWidth: titleLabel.implicitWidth
+                            label: "Title"
+
+                            Text {
+                                id: titleLabel
+
+                                anchors.bottom: parent.bottom
+                                anchors.top: parent.top
+                                color: Theme.white
+                                elide: Text.ElideRight
+                                font.pixelSize: 14
+                                font.weight: Font.Medium
+                                horizontalAlignment: Text.AlignLeft
+                                text: parent.label
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+                        Skin.InputField {
+                            Layout.fillWidth: true
+                            Layout.minimumHeight: 26
+                            input.text: root.cfg.title
+                            objectName: "titleTag"
+
+                            input.onAccepted: {
+                                root.set("title", input.text);
+                                input.focus = false;
+                            }
+                        }
+                        Mixxx.SettingParameter {
+                            Layout.alignment: Qt.AlignVCenter
+                            Layout.minimumWidth: authorLabel.implicitWidth
+                            label: "Author"
+
+                            Text {
+                                id: authorLabel
+
+                                anchors.bottom: parent.bottom
+                                anchors.top: parent.top
+                                color: Theme.white
+                                elide: Text.ElideRight
+                                font.pixelSize: 14
+                                font.weight: Font.Medium
+                                horizontalAlignment: Text.AlignLeft
+                                text: parent.label
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+                        Skin.InputField {
+                            Layout.fillWidth: true
+                            Layout.minimumHeight: 26
+                            input.text: root.cfg.author
+                            objectName: "authorTag"
+
+                            input.onAccepted: {
+                                root.set("author", input.text);
+                                input.focus = false;
+                            }
+                        }
+                        Mixxx.SettingParameter {
+                            Layout.alignment: Qt.AlignVCenter
+                            Layout.minimumWidth: albumLabel.implicitWidth
+                            label: "Album"
+
+                            Text {
+                                id: albumLabel
+
+                                anchors.bottom: parent.bottom
+                                anchors.top: parent.top
+                                color: Theme.white
+                                elide: Text.ElideRight
+                                font.pixelSize: 14
+                                font.weight: Font.Medium
+                                horizontalAlignment: Text.AlignLeft
+                                text: parent.label
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+                        Skin.InputField {
+                            Layout.fillWidth: true
+                            Layout.minimumHeight: 26
+                            input.text: root.cfg.album
+                            objectName: "albumTag"
+
+                            input.onAccepted: {
+                                root.set("album", input.text);
+                                input.focus = false;
+                            }
+                        }
+                        Mixxx.SettingParameter {
+                            Layout.alignment: Qt.AlignVCenter
+                            Layout.minimumWidth: albumLabel.implicitWidth
+                            label: "Store the tracklist as comment"
+
+                            Text {
+                                id: trackListAsCommentLabel
+
+                                anchors.bottom: parent.bottom
+                                anchors.top: parent.top
+                                color: Theme.white
+                                elide: Text.ElideRight
+                                font.pixelSize: 14
+                                font.weight: Font.Medium
+                                horizontalAlignment: Text.AlignLeft
+                                text: parent.label
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+                        RatioChoice {
+                            id: tracklistAsCommentRow
+
+                            Layout.alignment: Qt.AlignRight
+
+                            // enabled: root.isWavOrMp3
+                            inactiveColor: Theme.darkGray4
+                            maxWidth: filesPane.width * 0.5
+                            objectName: "tracklistAsComment"
+                            options: ["on", "off"]
+                            selected: root.cfg.tracklistAsComment
+
+                            onSelectedChanged: root.set("tracklistAsComment", selected)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    RowLayout {
+        id: buttonActions
+
+        anchors.bottom: root.bottom
+        anchors.bottomMargin: 20
+        anchors.left: parent.left
+        anchors.leftMargin: 14
+        anchors.right: parent.right
+        anchors.rightMargin: 14
+
+        Skin.FormButton {
+            activeColor: "#999999"
+            backgroundColor: "#7D3B3B"
+            objectName: "reset"
+            opacity: enabled ? 1.0 : 0.5
+            text: "Reset"
+
+            onPressed: root.reset()
+        }
+        Item {
+            Layout.fillWidth: true
+        }
+        Text {
+            id: errorMessage
+
+            Layout.alignment: Qt.AlignVCenter
+            Layout.rightMargin: 16
+            color: "#7D3B3B"
+            text: ""
+        }
+        Skin.FormButton {
+            activeColor: "#999999"
+            backgroundColor: "#3F3F3F"
+            objectName: "cancel"
+            opacity: enabled ? 1.0 : 0.5
+            text: "Cancel"
+            visible: root.dirty
+
+            onPressed: root.load()
+        }
+        Skin.FormButton {
+            activeColor: "#999999"
+            backgroundColor: root.dirty ? "#3a60be" : "#3F3F3F"
+            enabled: pressed || root.dirty
+            objectName: "save"
+            opacity: enabled ? 1.0 : 0.5
+            text: "Save"
+
+            onPressed: {
+                errorMessage.text = "";
+                root.save();
+            }
         }
     }
 }

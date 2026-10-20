@@ -7,36 +7,32 @@ import "Theme"
 
 ApplicationWindow {
     id: root
+    objectName: "mainWindow"
 
     readonly property bool isMobile: Qt.platform.os === "android" || Qt.platform.os === "ios"
     readonly property int designWidth: 1792
     readonly property int designHeight: 1008
 
+    // Used to show click interaction on the Window. Mainly relevant on automated testing
+    property bool enableDiagnosticClick: false
+
     color: Theme.backgroundColor
     height: isMobile ? Screen.height : designHeight
-    menuBar: content.item ? content.item.menuBar : null
     minimumHeight: isMobile ? 0 : 300
     minimumWidth: isMobile ? 0 : 680
     visible: true
     width: isMobile ? Screen.width : designWidth
 
-    function updateVisibility() {
-        if (!Mixxx.Core.ready) {
-            return;
-        }
-        root.visibility = Mixxx.Config.configStartInFullscreenKey || isMobile
-                ? Window.FullScreen
-                : Window.Windowed;
-    }
-
     Connections {
         target: Mixxx.Core
-        function onReadyChanged() {
-            root.updateVisibility();
+        function onReadyChanged(){
+            root.visibility = Mixxx.Config.configStartInFullscreenKey || isMobile ? Window.FullScreen : Window.Windowed
         }
     }
 
-    Component.onCompleted: root.updateVisibility()
+    Component.onCompleted: {
+        Mixxx.Core.clearOpenedPopup()
+    }
 
     Loader {
         id: content
@@ -53,12 +49,14 @@ ApplicationWindow {
         }
         sourceComponent: Component {
             MainWindow {
-                applicationWindow: root
+                enableDiagnosticClick: root.enableDiagnosticClick
             }
         }
+
     }
     Rectangle {
         id: splash
+        objectName: "splashScreen"
         visible: opacity > 0
         color: Theme.backgroundColor
         anchors.fill: parent
@@ -122,6 +120,42 @@ ApplicationWindow {
 
         Behavior on opacity {
             NumberAnimation { duration: 500; easing.type: Easing.InOutQuad }
+        }
+    }
+    // Testing automation resources
+    Rectangle {
+        id: click
+        color: clickDetector.clicked ? 'red' : 'green'
+        radius: width / 2
+        visible: opacity != 0 && root.enableDiagnosticClick
+
+        NumberAnimation on width {
+            running: clickDetector.clicked
+            from: 20; to: 0
+        }
+        NumberAnimation on height {
+            running: clickDetector.clicked
+            from: 20; to: 0
+        }
+        NumberAnimation on opacity {
+            running: clickDetector.clicked
+            from: 1; to: 0
+        }
+    }
+    MouseArea {
+        property bool clicked: false
+        enabled: root.enableDiagnosticClick
+        id: clickDetector
+        anchors.fill: parent
+        onPressed: (mouse)=> {
+            clicked = false
+            click.width = 20
+            click.height = 20
+            click.opacity = 1
+            click.x = Qt.binding(() => mouse.x - click.width / 2);
+            click.y = Qt.binding(() => mouse.y - click.height / 2);
+            clicked = true
+            mouse.accepted = false
         }
     }
 }

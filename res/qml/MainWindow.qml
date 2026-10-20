@@ -3,16 +3,17 @@ import Mixxx 1.0 as Mixxx
 import QtQuick 2.12
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Window
 import QtQuick.Shapes
+import QtQuick.Window 2.12
 import Qt5Compat.GraphicalEffects
 import "Theme"
 
 Item {
     id: root
 
-    required property ApplicationWindow applicationWindow
-    property alias menuBar: nativeApplicationMenuLoader.item
+    readonly property bool isMobile: Qt.platform.os === "android" || Qt.platform.os === "ios"
+    readonly property int designWidth: 1792
+    readonly property int designHeight: 1008
 
     property alias editDeck: editDeckButton.checked
     property var focusedDeck: null
@@ -25,41 +26,43 @@ Item {
     property alias showEffects: showEffectsButton.checked
     property alias showSamplers: showSamplersButton.checked
 
-    Loader {
-        id: nativeApplicationMenuLoader
+    readonly property bool _showLibrary: maximizeLibrary || height - mixer.height >= 400
 
-        active: Qt.platform.os === "osx" || (Mixxx.Application.supportsGlobalMenuBar && root.applicationWindow.visibility !== Window.FullScreen)
+    // Used to show click interaction on the Window. Mainly relevant on automated testing
+    property bool enableDiagnosticClick: false
+    // Pull-to-top IME shift: while the soft keyboard is up, lift the
+    // content column so the focused editor sits `imeKeyboardMargin` below
+    // the window top (desktop: no IME, stays 0). Mapping relative to this
+    // root keeps it independent of the shift and its animation.
+    readonly property real imeKeyboardMargin: 0
+    readonly property Item imeFocusItem: Window.activeFocusItem
+    // Future: let a focused item opt into another policy, e.g.
+    // imeShiftPolicy: "none" | "top" | "aboveKeyboard".
+    readonly property real imeShift: {
+        if (!Qt.inputMethod.visible || !root.imeFocusItem) {
+            return 0
+        }
+        // The discarded geometric arithmetic registers
+        // geometry changes as binding dependencies;
+        root.imeFocusItem?.imeLayoutSideEffect;
+        return Math.max(0, root.imeFocusItem.mapToItem(root, 0, 0).y
+                - root.imeKeyboardMargin)
+    }
+    y: -root.imeShift
 
-        sourceComponent: Skin.MainMenuBar {
-            actions: applicationMenuActions
+    Behavior on y {
+        NumberAnimation {
+            duration: 150
         }
     }
-    Skin.ApplicationMenuCommands {
-        id: applicationMenuCommands
 
-        applicationWindow: root.applicationWindow
+    // color: Theme.backgroundColor
+    // height: isMobile ? Screen.height : designHeight
+    // visible: true
+    // width: isMobile ? Screen.width : designWidth
+    // visibility: Mixxx.Config.configStartInFullscreenKey || isMobile ? Window.FullScreen : Window.Windowed
 
-        onShowDeveloperToolsRequested: {
-            devToolsWindow.show();
-            devToolsWindow.raise();
-            devToolsWindow.requestActivate();
-        }
-    }
-    Skin.ApplicationMenuActions {
-        id: applicationMenuActions
 
-        applicationWindow: root.applicationWindow
-        commands: applicationMenuCommands
-        numberOfDecks: root.show4decks ? root.numDecks : 2
-
-        onFocusLibrarySearchRequested: {
-            if (library.item) {
-                library.item.focusSearch();
-            }
-        }
-    }
-    Skin.LibraryScanSummaryDialog {
-    }
     Mixxx.ControlProxy {
         group: "[App]"
         key: "num_decks"
@@ -117,6 +120,7 @@ Item {
 
                 Skin.Button {
                     id: show4DecksButton
+                    objectName: "show4DecksButton"
 
                     activeColor: Theme.white
                     checkable: true
@@ -125,6 +129,7 @@ Item {
                 }
                 Skin.Button {
                     id: maximizeLibraryButton
+                    objectName: "library"
 
                     activeColor: Theme.white
                     checkable: true
@@ -171,6 +176,7 @@ Item {
                 }
                 Skin.Button {
                     id: editDeckButton
+                    objectName: "editDeckButton"
 
                     activeColor: Theme.white
                     checkable: true
@@ -200,6 +206,7 @@ Item {
                 }
                 Skin.Button {
                     id: showPreferencesButton
+                    objectName: "showPreferencesButton"
 
                     activeColor: Theme.white
                     checked: settingsPopup.opened
@@ -262,8 +269,8 @@ Item {
             Item {
                 id: waveforms
 
-                SplitView.fillHeight: !library.active
-                SplitView.preferredHeight: library.active ? 120 : undefined
+                SplitView.fillHeight: !_showLibrary
+                SplitView.preferredHeight: _showLibrary ? 120 : undefined
                 visible: !root.maximizeLibrary
 
                 FadeBehavior on visible {
@@ -372,12 +379,13 @@ Item {
                 }
             }
             Item {
-                SplitView.fillHeight: library.active
-                SplitView.maximumHeight: library.active ? undefined : mixer.height
+                SplitView.fillHeight: _showLibrary
+                SplitView.maximumHeight: _showLibrary ? undefined : mixer.height
                 SplitView.minimumHeight: mixer.height
 
                 Deck {
                     id: deck1
+                    objectName: "deck1"
 
                     editMode: root.editDeck
                     group: "[Channel1]"
@@ -409,10 +417,10 @@ Item {
                     }
 
                     anchors {
-                        left: parent.left
                         right: mixer.left
                         top: parent.top
                     }
+                    width: (parent.width - mixer.width) / 2
                 }
                 Mixer {
                     id: mixer
@@ -501,6 +509,7 @@ Item {
                 }
                 Deck {
                     id: deck2
+                    objectName: "deck2"
 
                     editMode: root.editDeck
                     group: "[Channel2]"
@@ -539,6 +548,7 @@ Item {
                 }
                 Loader {
                     id: deck3
+                    objectName: "deck3Loader"
 
                     readonly property string group: "[Channel3]"
 
@@ -556,6 +566,7 @@ Item {
                     }
                     sourceComponent: Component {
                         Deck {
+                            objectName: "deck3"
                             anchors.bottom: parent.bottom
                             anchors.left: parent.left
                             editMode: root.editDeck
@@ -582,6 +593,7 @@ Item {
                 }
                 Loader {
                     id: deck4
+                    objectName: "deck4Loader"
 
                     readonly property string group: "[Channel4]"
 
@@ -599,8 +611,9 @@ Item {
                     }
                     sourceComponent: Component {
                         Deck {
+                            objectName: "deck4"
                             anchors.bottom: parent.bottom
-                            anchors.right: parent.right
+                            anchors.left: parent.left
                             editMode: root.editDeck
                             group: deck4.group
                             minimized: root.maximizeLibrary
@@ -645,11 +658,12 @@ Item {
                 Loader {
                     id: library
 
-                    active: root.maximizeLibrary || root.height - mixer.height >= 400
+                    active: true
                     width: parent.width
 
                     sourceComponent: Component {
                         Skin.Library {
+                            objectName: "libraryContent"
                             anchors.fill: parent
                         }
                     }
@@ -696,6 +710,7 @@ Item {
         width: Math.min(1400, parent.width)
         x: Math.round((parent.width - width) / 2)
         y: Math.round((parent.height - height) / 2)
+        enableDiagnosticClick: parent.enableDiagnosticClick
 
         Overlay.modal: Rectangle {
             id: overlayModal

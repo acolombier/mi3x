@@ -11,35 +11,40 @@
 
 #include "library/libraryfeature.h"
 #include "library/sidebarmodel.h"
+#include "qml/qmllibrarysource.h"
 #include "qmllibrarytracklistmodel.h"
 #include "util/parented_ptr.h"
 
 namespace mixxx {
 namespace qml {
 
-class QmlLibraryAbstractSource;
+class QmlLibrarySourceTree;
 
-class QmlSidebarModelProxy : public SidebarModel {
+class QmlSidebarModelProxy : public ::SidebarModel {
     Q_OBJECT
     Q_PROPERTY(QmlLibraryTrackListModel* tracklist READ tracklist NOTIFY tracklistChanged)
     QML_ANONYMOUS
   public:
     enum Roles {
-        LabelRole = Qt::UserRole,
+        LabelRole = SidebarModel::DataRole + 1,
         IconRole,
+        ItemNameRole,
+        CapabilitiesRole,
     };
     Q_ENUM(Roles);
     Q_DISABLE_COPY_MOVE(QmlSidebarModelProxy)
-    explicit QmlSidebarModelProxy(QObject* parent = nullptr);
+    explicit QmlSidebarModelProxy(QmlLibrarySourceTree* parent);
     ~QmlSidebarModelProxy() override;
 
     QmlLibraryTrackListModel* tracklist() const {
         return m_tracklist.get();
     }
 
-    void update(const QList<QmlLibraryAbstractSource*>& sources);
+    QVariant data(const QModelIndex& index,
+            int role = Qt::DisplayRole) const override;
+    void update();
     QHash<int, QByteArray> roleNames() const override;
-    Q_INVOKABLE QVariant get(int row) const;
+    Q_INVOKABLE mixxx::qml::QmlLibraryAbstractSource* get(const QModelIndex& index) const;
     Q_INVOKABLE void activate(const QModelIndex& index);
   signals:
     void tracklistChanged();
@@ -49,6 +54,7 @@ class QmlSidebarModelProxy : public SidebarModel {
 
   private:
     std::shared_ptr<QmlLibraryTrackListModel> m_tracklist;
+    QList<QmlLibraryAbstractSource*> m_pQmlFeatures;
 };
 
 } // namespace qml

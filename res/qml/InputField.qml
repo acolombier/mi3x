@@ -1,48 +1,43 @@
 import QtQuick
 import QtQuick.Controls 2.15
-import Qt5Compat.GraphicalEffects
+import QtQuick.Effects
 import "Theme"
 
 FocusScope {
     id: root
 
+    property alias background: backgroundInput
     property alias input: inputField
 
     Rectangle {
         id: backgroundInput
-        radius: 4
+
+        anchors.fill: parent
         color: '#232323'
-        anchors.fill: parent
+        radius: 4
+
+        border {
+            color: '#353535'
+            width: 1
+        }
     }
-    DropShadow {
-        id: dropSetting
+    MultiEffect {
         anchors.fill: parent
-        horizontalOffset: 0
-        verticalOffset: 0
-        radius: 4.0
-        color: "#000000"
+        shadowBlur: 0.15
+        shadowColor: "#000000"
+        shadowEnabled: true
         source: backgroundInput
-    }
-    InnerShadow {
-        id: effect2
-        anchors.fill: parent
-        source: dropSetting
-        spread: 0.2
-        radius: 12
-        samples: 24
-        horizontalOffset: 0
-        verticalOffset: 0
-        color: "#353535"
     }
     TextInput {
         id: inputField
+
         anchors.fill: parent
-        anchors.verticalCenter: parent.verticalCenter
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.margins: 7
-        focus: true
+        anchors.verticalCenter: parent.verticalCenter
         clip: true
         color: acceptableInput ? "#FFFFFF" : "#7D3B3B"
+        focus: true
         horizontalAlignment: TextInput.AlignLeft
     }
 }

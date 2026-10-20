@@ -30,6 +30,7 @@ jobs:
     permissions:
       contents: read #  to fetch code (actions/checkout)
       actions: write # to delete outdated caches
+      pull-requests: write # To publish the E2E results
     uses: ./.github/workflows/build.yml
     with:
       publish: true

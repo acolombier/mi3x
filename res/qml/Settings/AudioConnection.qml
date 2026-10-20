@@ -1,3 +1,4 @@
+import Mixxx 1.0 as Mixxx
 import QtQuick 2.12
 import QtQuick.Shapes
 import "../Theme"
@@ -105,6 +106,8 @@ Item {
         }
     }
     onSinkPositionChanged: {
+        if (!sourcePosition || !sinkPosition)
+            return;
         scale.xScale = sourcePosition.x > sinkPosition.x ? -1 : 1;
         scale.yScale = sourcePosition.y > sinkPosition.y ? -1 : 1;
     }
@@ -131,25 +134,26 @@ Item {
         }
     }
     onSourcePositionChanged: {
+        if (!sourcePosition || !sinkPosition)
+            return;
         scale.xScale = sourcePosition.x > sinkPosition.x ? -1 : 1;
         scale.yScale = sourcePosition.y > sinkPosition.y ? -1 : 1;
     }
     onTargetChanged: {
-        if (!source)
+        if (!source || !sourcePosition || !sinkPosition)
             return;
         scale.xScale = sourcePosition.x > sinkPosition.x ? -1 : 1;
         scale.yScale = sourcePosition.y > sinkPosition.y ? -1 : 1;
     }
 
     Shape {
+        property int multiSamplingLevel: Mixxx.Config.multiSamplingLevel
+
         anchors.fill: parent
         // anchors.centerIn: parent
         antialiasing: true
-        layer.enabled: true
-
-        // FIXME: This is causing GL glitched in Android
-        // layer.samples: 16
-        // layer.textureMirroring: ShaderEffectSource.MirrorHorizontally
+        layer.enabled: multiSamplingLevel > 1
+        layer.samples: multiSamplingLevel
         ShapePath {
             id: line
 

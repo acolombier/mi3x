@@ -32,28 +32,11 @@ Rectangle {
         group: root.group
         key: "loop_enabled"
     }
-    BeatSizeSpinBoxBehavior {
+    Mixxx.ControlProxy {
         id: beatloopSize
 
         group: root.group
         key: "beatloop_size"
-        beatSizes: [
-            1 / 32,
-            1 / 16,
-            1 / 8,
-            1 / 4,
-            1 / 2,
-            1,
-            2,
-            4,
-            8,
-            16,
-            32,
-            64,
-            128,
-            256,
-            512
-        ]
     }
     Mixxx.ControlProxy {
         id: beatloopActivate
@@ -82,29 +65,21 @@ Rectangle {
             top: parent.top
             topMargin: 22
         }
-        Skin.ControlButton {
-            id: loopInButton
-
-            Layout.fillWidth: true
-            Layout.minimumWidth: 28
-            activeColor: root.buttonColor
+        LoopPointButton {
+            buttonColor: root.buttonColor
+            buttonName: "loopIn"
             group: root.group
-            implicitHeight: 26
+            isEndAnchor: false
             key: "loop_in"
-            normalColor: root.buttonColor
-            text: "In"
+            label: "In"
         }
-        Skin.ControlButton {
-            id: loopOutButton
-
-            Layout.fillWidth: true
-            Layout.minimumWidth: 28
-            activeColor: root.buttonColor
+        LoopPointButton {
+            buttonColor: root.buttonColor
+            buttonName: "loopOut"
             group: root.group
-            implicitHeight: 26
+            isEndAnchor: true
             key: "loop_out"
-            normalColor: root.buttonColor
-            text: "Out"
+            label: "Out"
         }
         Skin.ControlButton {
             id: loopRecallButton
@@ -116,21 +91,14 @@ Rectangle {
             implicitHeight: 26
             key: loopEnabled.value ? "loop_enabled" : "reloop_toggle"
             normalColor: root.buttonColor
+            objectName: "reloopToggle"
             text: loopEnabled.value ? "exit" : "Recall"
             toggleable: loopEnabled.value
         }
     }
     RowLayout {
-        WheelHandler {
-            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-            onWheel: event => {
-                if (event.angleDelta.y < 0) {
-                    loopSizeRepeater.adjustSelectedIndex(-1)
-                } else if (event.angleDelta.y > 0) {
-                    loopSizeRepeater.adjustSelectedIndex(1)
-                }
-            }
-        }
+        spacing: 0
+
         anchors {
             bottom: parent.bottom
             bottomMargin: 6
@@ -145,16 +113,19 @@ Rectangle {
             activeColor: root.buttonColor
             implicitHeight: 28
             implicitWidth: 22
+            objectName: "loopHalve"
 
             contentItem: Item {
                 anchors.fill: parent
 
                 Shape {
+                    property int multiSamplingLevel: Mixxx.Config.multiSamplingLevel
+
                     anchors.centerIn: parent
                     antialiasing: true
                     height: 10
-                    layer.enabled: true
-                    layer.samples: 4
+                    layer.enabled: multiSamplingLevel > 1
+                    layer.samples: multiSamplingLevel
                     width: 12
 
                     ShapePath {
@@ -187,88 +158,200 @@ Rectangle {
                     if (loopEnabled.value ^ mouse.button == Qt.RightButton) {
                         loopHalve.trigger();
                     }
-                    loopSizeRepeater.adjustSelectedIndex(-1);
+                }
+                onReleased: mouse => {
+                    if (loopEnabled.value ^ mouse.button == Qt.RightButton) {
+                        return;
+                    }
+                    scroll.adjustSelectedIndex(-1);
+                }
+            }
+            DragHandler {
+                target: null
+
+                onActiveChanged: {
+                    let scrollStartingAt = scroll.contentX;
+                    scroll.contentX = Qt.binding(() => Math.min(scroll.contentWidth - scroll.width, Math.max(0, scrollStartingAt - translation.x)));
                 }
             }
         }
-        Repeater {
-            id: loopSizeRepeater
+        Item {
+            id: scrollShell
 
-            property int selectedIndex: 0
-            property int valueCount: Math.min(Math.max(1, parseInt((root.width - 56) / 40)), 4)
-            property list<double> values: beatloopSize.beatSizes
+            Layout.fillWidth: true
+            implicitHeight: 28
 
+            Flickable {
+                id: scroll
 
-            function adjustSelectedIndex(delta){
-                loopSizeRepeater.selectedIndex = Math.min(Math.max(0, loopSizeRepeater.selectedIndex + delta), loopSizeRepeater.values.length - 1)
-            }
-
-            function update() {
-                let values = [this.values[selectedIndex]];
-                let appendMode = values[0] <= this.values[0];
-                while (values.length < valueCount) {
-                    if (appendMode) {
+                readonly property real buttonWidth: 33
+                readonly property real itemStep: buttonWidth + sizeRow.spacing
+                property int selectedIndex: scroll.values.indexOf(beatloopSize.value)
+                property list<double> values: {
+                    let values = [1 / 32];
+                    while (values[values.length - 1] < 512) {
                         values.push(values[values.length - 1] * 2);
-                    } else {
-                        values = [values[0] / 2, ...values];
                     }
-                    if (values[0] == this.values[0]) {
-                        appendMode = true;
-                    } else if (values[values.length - 1] == this.values[this.values.length - 1]) {
-                        appendMode = false;
-                    } else {
-                        appendMode = !appendMode;
+                    return values;
+                }
+
+                function adjustSelectedIndex(delta) {
+                    scroll.selectedIndex = Math.min(Math.max(0, scroll.selectedIndex + delta), loopSizeRepeater.count - 1);
+                }
+
+                anchors.fill: parent
+                anchors.leftMargin: 6
+                anchors.rightMargin: 6
+                boundsBehavior: Flickable.StopAtBounds
+                clip: true
+                contentWidth: sizeRow.implicitWidth
+                contentX: {
+                    let focusedItem = loopSizeRepeater.itemAt(scroll.selectedIndex);
+                    return Math.min(contentWidth - width, Math.max(0, focusedItem.x + focusedItem.width / 2 - width / 2));
+                }
+                flickableDirection: Flickable.HorizontalFlick
+
+                Behavior on contentX {
+                    NumberAnimation {
+                        duration: 500
+                        easing.type: Easing.OutCubic
                     }
                 }
-                model = values;
+
+                WheelHandler {
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+
+                    onWheel: event => {
+                        if (event.angleDelta.y < 0) {
+                            scroll.adjustSelectedIndex(-1);
+                        } else if (event.angleDelta.y > 0) {
+                            scroll.adjustSelectedIndex(1);
+                        }
+                    }
+                }
+                Row {
+                    id: sizeRow
+
+                    spacing: 6
+
+                    Repeater {
+                        id: loopSizeRepeater
+
+                        property list<double> values: {
+                            let values = [1 / 32];
+                            while (values[values.length - 1] < 512) {
+                                values.push(values[values.length - 1] * 2);
+                            }
+                            return values;
+                        }
+
+                        model: values
+
+                        delegate: Skin.Button {
+                            property double currentSize: modelData
+                            required property int index
+                            required property var modelData
+
+                            activeColor: root.buttonColor
+                            highlight: currentSize == beatloopSize.value && trackLoadedControl.value > 0
+                            implicitHeight: 28
+                            implicitWidth: 33
+                            text: currentSize < 1 ? `1/${1 / currentSize}` : currentSize
+
+                            background: Rectangle {
+                                id: backgroundImage
+
+                                anchors.fill: parent
+                                color: loopEnabled.value && parent.highlight ? '#2D4EA1' : Qt.alpha('#2B2B2B', currentSize == beatloopSize.value ? 1 : 0.7)
+                                radius: 2
+
+                                border {
+                                    color: '#1C1C1C'
+                                    width: 1
+                                }
+                            }
+
+                            onPressed: {
+                                if (loopEnabled.value) {
+                                    beatloopSize.value = currentSize;
+                                } else {
+                                    sizedBeatloopActivate.trigger();
+                                }
+                            }
+
+                            Mixxx.ControlProxy {
+                                id: sizedBeatloopActivate
+
+                                group: root.group
+                                key: `beatloop_${currentSize}_activate`
+                            }
+                            Mixxx.ControlProxy {
+                                id: sizedBeatlooprollActivate
+
+                                group: root.group
+                                key: `beatlooproll_${currentSize}_activate`
+                                value: rightClick.pressed
+                            }
+                            MouseArea {
+                                id: rightClick
+
+                                acceptedButtons: Qt.RightButton
+                                anchors.fill: parent
+
+                                onPressed: {}
+                            }
+                        }
+                    }
+                }
             }
+            Rectangle {
+                id: fadeLeft
 
-            Component.onCompleted: {
-                update();
-                selectedIndex = values.indexOf(beatloopSize.value);
-                if (selectedIndex < 0) {
-                    selectedIndex = values.indexOf(4);
-                }
-            }
-            onSelectedIndexChanged: update()
-            onValueCountChanged: update()
+                visible: scroll.contentWidth > scroll.width && scroll.contentX > 1
+                width: 12
 
-            Connections {
-                function onValueChanged() {
-                    if (loopEnabled.value) {
-                        parent.selectedIndex = parent.values.indexOf(beatloopSize.value);
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+
+                    GradientStop {
+                        color: root.color
+                        position: 0
                     }
-                    parent.update();
-                }
-
-                target: beatloopSize
-            }
-            Skin.Button {
-                id: loopSizeOpt1Button
-
-                property double currentSize: modelData
-                required property int index
-                required property var modelData
-
-                activeColor: root.buttonColor
-                highlight: currentSize == beatloopSize.value && trackLoadedControl.value > 0
-                implicitHeight: 28
-                implicitWidth: 33
-                text: beatloopSize.formatBeatSize(currentSize)
-
-                onPressed: {
-                    if (loopEnabled.value) {
-                        beatloopSize.commitText(currentSize.toString());
-                    } else {
-                        sizedBeatloopActivate.trigger();
+                    GradientStop {
+                        color: 'transparent'
+                        position: 1
                     }
                 }
 
-                Mixxx.ControlProxy {
-                    id: sizedBeatloopActivate
+                anchors {
+                    bottom: parent.bottom
+                    left: parent.left
+                    top: parent.top
+                }
+            }
+            Rectangle {
+                id: fadeRight
 
-                    group: root.group
-                    key: `beatloop_${currentSize}_activate`
+                visible: scroll.contentWidth > scroll.width && scroll.contentX < scroll.contentWidth - scroll.width - 1
+                width: 12
+
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+
+                    GradientStop {
+                        color: root.color
+                        position: 1
+                    }
+                    GradientStop {
+                        color: 'transparent'
+                        position: 0
+                    }
+                }
+
+                anchors {
+                    bottom: parent.bottom
+                    right: parent.right
+                    top: parent.top
                 }
             }
         }
@@ -278,16 +361,19 @@ Rectangle {
             activeColor: root.buttonColor
             implicitHeight: 28
             implicitWidth: 22
+            objectName: "loopDouble"
 
             contentItem: Item {
                 anchors.fill: parent
 
                 Shape {
+                    property int multiSamplingLevel: Mixxx.Config.multiSamplingLevel
+
                     anchors.centerIn: parent
                     antialiasing: true
                     height: 10
-                    layer.enabled: true
-                    layer.samples: 4
+                    layer.enabled: multiSamplingLevel > 1
+                    layer.samples: multiSamplingLevel
                     width: 12
 
                     ShapePath {
@@ -321,9 +407,89 @@ Rectangle {
                 onPressed: mouse => {
                     if (loopEnabled.value ^ mouse.button == Qt.RightButton) {
                         loopDouble.trigger();
+                        scroll.selectedIndex = scroll.values.indexOf(beatloopSize.value);
                     }
-                    loopSizeRepeater.adjustSelectedIndex(1);
                 }
+                onReleased: mouse => {
+                    if (loopEnabled.value ^ mouse.button == Qt.RightButton) {
+                        return;
+                    }
+                    scroll.adjustSelectedIndex(1);
+                }
+            }
+            DragHandler {
+                target: null
+
+                onActiveChanged: {
+                    let scrollStartingAt = scroll.contentX;
+                    scroll.contentX = Qt.binding(() => Math.min(scroll.contentWidth - scroll.width, Math.max(0, scrollStartingAt - translation.x)));
+                }
+            }
+        }
+    }
+
+    component LoopPointButton: Item {
+        id: loopPointButton
+
+        readonly property bool anchored: anchorControl.value == (isEndAnchor ? 1 : 0)
+        required property color buttonColor
+        required property string buttonName
+        required property string group
+        required property bool isEndAnchor
+        required property string key
+        required property string label
+
+        function toggleAnchor() {
+            anchorControl.value = anchorControl.value == 0 ? 1 : 0;
+        }
+
+        Layout.fillWidth: true
+        Layout.minimumWidth: 28
+        implicitHeight: 26
+
+        Mixxx.ControlProxy {
+            id: anchorControl
+
+            group: loopPointButton.group
+            key: "loop_anchor"
+        }
+        Skin.ControlButton {
+            id: controlButton
+
+            activeColor: loopPointButton.buttonColor
+            anchors.fill: parent
+            group: loopPointButton.group
+            key: loopPointButton.key
+            normalColor: loopPointButton.buttonColor
+            objectName: loopPointButton.buttonName
+            text: loopPointButton.label
+
+            onPressAndHold: toggleAnchor()
+        }
+        MouseArea {
+            acceptedButtons: Qt.RightButton
+            anchors.fill: parent
+
+            onPressed: toggleAnchor()
+        }
+        Rectangle {
+            id: anchorUnderline
+
+            color: loopPointButton.buttonColor
+            height: 2
+            opacity: loopPointButton.anchored ? 1 : 0
+            width: parent.width - 8
+
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: 100
+                }
+            }
+
+            anchors {
+                bottom: parent.bottom
+                bottomMargin: 2
+                horizontalCenter: parent.horizontalCenter
             }
         }
     }

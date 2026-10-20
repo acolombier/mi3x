@@ -5,11 +5,9 @@ using namespace rendergraph;
 
 bool BaseMaterial::updateUniformsByteArray(QByteArray* buf) {
     auto pThis = static_cast<Material*>(this);
-    if (pThis->clearUniformsCacheDirty()) {
-        memcpy(buf->data(), pThis->uniformsCache().data(), pThis->uniformsCache().size());
-        return true;
-    }
-    return false;
+    memcpy(buf->data(), pThis->uniformsCache().data(), pThis->uniformsCache().size());
+    return true;
+    ;
 }
 
 int BaseMaterial::compare(const QSGMaterial* other) const {
