@@ -1106,13 +1106,10 @@ def build_comment_body(
         )
         stat_suffix = counts_suffix(plat_counts, plat_took)
         title_text = f"{section_mark(plat_counts)} {slug_name}{stat_suffix}"
-        title_html = (
-            f'<a href="{job_url}">{title_text}</a>' if job_url else title_text
-        )
 
         feature_lines = [
             "<details>",
-            f"<summary><strong>{title_html}</strong></summary>",
+            f"<summary><strong>{title_text}</strong></summary>",
             "",
         ]
 

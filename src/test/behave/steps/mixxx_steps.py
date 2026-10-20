@@ -161,6 +161,8 @@ BUTTON_PATHS = {
 }
 
 LIBRARY_CONTENT = "mainWindow/libraryContent"
+LIBRARY_TREEVIEW_PATH = f"{LIBRARY_CONTENT}/featureTree"
+LIBRARY_TREEVIEW_CREATE_POPUP = f"mainWindow/createFeaturePopup"
 TRACKLIST_PATH = f"{LIBRARY_CONTENT}/trackList"
 COLUMN_HEADER_PATH = f"{TRACKLIST_PATH}/columnHeader"
 COLUMN_PICKER_MENU_PATH = "mainWindow/columnPickerMenu"
@@ -350,8 +352,10 @@ def _wait_for_library_scan(rpc, scan_generation, timeout=20):
     )
 
 
-def _library_command(rpc, action, path, scan=False):
-    payload = json.dumps({"action": action, "path": path, "scan": scan})
+def _library_command(rpc, action=None, path=None, scan=False, payload=None):
+    if payload is None:
+        payload = {"action": action, "path": path, "scan": scan}
+    payload = json.dumps(payload)
     scan_generation = None
     if scan:
         scan_generation = _get_library_state(rpc).get("scanGeneration", 0)
@@ -359,6 +363,35 @@ def _library_command(rpc, action, path, scan=False):
     if scan:
         _wait_for_library_scan(rpc, scan_generation)
 
+def _find_sidebar_named_entity_path(rpc, entity, name, expand_if_needed=False):
+    assert _is_visible(rpc, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
+    rows = int(rpc.getStringProperty(LIBRARY_TREEVIEW_PATH, "rows"))
+    in_section = False
+    row = 0
+    while row < rows:
+        path = f"{LIBRARY_TREEVIEW_PATH}/index{row}"
+        depth = int(rpc.invokeMethod(LIBRARY_TREEVIEW_PATH, "depth", [row]))
+        label = rpc.getStringProperty(f"{path}/label", "text")
+        row += 1
+
+        if not in_section:
+            in_section = label.startswith(entity.title())
+            if not in_section:
+                continue
+            is_expanded = rpc.getStringProperty(path, "expanded") == "true"
+            if is_expanded or not expand_if_needed:
+                continue
+            _wait_for_visible(rpc, path)
+            _click(rpc, path)
+            time.sleep(0.3)
+            rows = int(rpc.getStringProperty(LIBRARY_TREEVIEW_PATH, "rows"))
+            continue
+        if not depth:
+            # Reached the end of the entity section
+            break
+        if label.startswith(f"{name} ("):
+            return path
+    assert in_section, f"Could not find the section for {entity} in the sidebar"
 
 # --- Path resolution ---
 
@@ -373,8 +406,15 @@ TRACK_MENU = [
         ]),
         ("Sampler", []),
     ]),
-    ("Add to playlists", []),
-    ("Crates", []),
+    ("Add to playlists", [
+        ("", []),
+        ("Create New Playlist", [])
+    ]),
+    ("Crates", [
+        ("", []),
+        ("", []),
+        ("Create New Crate", [])
+    ]),
     ("Analyze", []),
 ]
 
@@ -404,6 +444,16 @@ def _column_index(rpc, column):
 
 def _track_row_path(row):
     return f"{TRACK_ROW_PATH}/trackRow_{row}"
+
+def _sidebar_feature_row_path(rpc, feature):
+    assert _is_visible(rpc, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
+    rows = int(rpc.getStringProperty(LIBRARY_TREEVIEW_PATH, "rows"))
+    for row in range(rows):
+        path = f"{LIBRARY_TREEVIEW_PATH}/index{row}"
+        label = rpc.getStringProperty(f"{path}/label", "text")
+        if label == feature:
+            return path
+    return None
 
 
 DECK_PATHS = {
@@ -822,6 +872,29 @@ def step_open_and_ready(context):
     context.mixxx_rpc.setStringProperty("mainWindow", "enableDiagnosticClick", "true")
     session["ready_key"] = _session_key(context)
 
+@given(u'a {entity} named "{name}" already exists with {track_count:d} tracks')
+@given(u'a {entity} named "{name}" already exists')
+def step_library_feature_entity_exists(context, entity, name, track_count=0):
+    rpc = context.mixxx_rpc
+    state = _get_library_state(rpc).get(entity + 's', [])
+
+    for p in state:
+        if p["name"] == name:
+            return
+
+    _library_command(rpc, payload={"action": "createFeatureItem", "type": entity, "name": name, "random_track_count": track_count})
+    result = json.loads(rpc.getStringProperty("mainWindow", "lastLibraryState"))
+    assert result["result"] == "success", f"Could not create the {entity}: {result}"
+
+    # TODO cleanup hooks are creating challenges currently due to the ir dependence to the state and health of the RPC server and executable
+    # For now, we leave created resource in place
+    # def cleanup_func(entity_id, **kwargs):
+    #     _library_command(rpc, payload={"action": "deleteFeatureItem", "type": entity, "id": entity_id})
+    #     result = json.loads(rpc.getStringProperty("mainWindow", "lastLibraryState"))
+    #     assert result["result"] == "success", f"Could not delete the {entity} with id {entity_id}: {result}"
+
+    # context.add_cleanup(cleanup_func, result["id"], layer="testrun")
+
 
 # --- When: window/button steps ---
 
@@ -1077,15 +1150,22 @@ def step_select_track_menu(context, path):
         indices.append(index)
         current = action[1]
 
-    s.enterKey("mainWindow", QT_KEY_DOWN, 0)
+    s.invokeMethod(TRACK_CONTEXT_MENU_PATH, "forceActiveFocus", [])
     while indices:
         index = indices.pop(0)
-        for i in range(index):
-            s.wait(200)
-            s.enterKey("mainWindow", QT_KEY_DOWN, 0)
-        s.wait(200)
-        s.enterKey("mainWindow", QT_KEY_ENTER, 0)
+        s.setStringProperty(TRACK_CONTEXT_MENU_PATH, "currentIndex", str(index))
+        time.sleep(0.2)
+        s.enterKey(TRACK_CONTEXT_MENU_PATH, QT_KEY_ENTER, 0)
     time.sleep(1)
+
+@when('I discard the track menu')
+def step_select_track_menu(context):
+    s = context.mixxx_rpc
+    deadline = time.time() + 5
+    while time.time() < deadline and _is_visible(s, TRACK_CONTEXT_MENU_PATH):
+        _click(s, "mainWindow")
+        time.sleep(0.2)
+    assert not _is_visible(s, TRACK_CONTEXT_MENU_PATH), "Context menu is still visible"
 
 
 @given("a track is loaded on deck {deck:d}")
@@ -1197,6 +1277,138 @@ def step_library_width(context, operator, percent):
         assert ratio < percent / 100.0, f"Library covers {ratio*100:.1f}%, expected less than {percent}%"
     else:
         assert ratio > percent / 100.0, f"Library covers {ratio*100:.1f}%, expected more than {percent}%"
+
+
+# --- Then: library sidebar ---
+
+@then('the library sidebar should show the source "{name}"')
+def step_library_show_source(context, name):
+    s = context.mixxx_rpc
+    path = _sidebar_feature_row_path(s, name)
+    assert path and _is_visible(s, path), f"Could not find the feature \"{name}\" in the library sidebar"
+
+@then('the option to create a new item should {expect} available for the selected library source')
+def step_library_source_create_option(context, expect):
+    s = context.mixxx_rpc
+    assert _is_visible(s, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
+    selected = s.invokeMethod(LIBRARY_TREEVIEW_PATH, "getSelectedPath", [])
+    path = f"{LIBRARY_TREEVIEW_PATH}/index{selected}"
+    assert path and _is_visible(s, path), "No library sidebar feature currently selected"
+    expected = expect == "be"
+    assert _is_visible(s, f"{path}/newItem") == expected, f"Library sidebar feature's create item should {expect}"
+
+@then('a create popup for the library source should be visible')
+def step_library_source_create_visible(context):
+    s = context.mixxx_rpc
+    _wait_for_visible(s, LIBRARY_TREEVIEW_CREATE_POPUP)
+
+@then('a {entity} named "{name}" should appear in the library sidebar')
+def step_library_playlist_visible(context, entity, name):
+    rpc = context.mixxx_rpc
+    path = _find_sidebar_named_entity_path(rpc, entity, name)
+    assert path, f"Could not find the library {repr(name)} in the sidebar"
+
+@then('the {entity} named "{name}" should be shown in tracklist')
+@then('all tracks should be shown in tracklist')
+def step_library_playlist_visible(context, entity=None, name=None):
+    rpc = context.mixxx_rpc
+    selected = rpc.invokeMethod(TRACK_TABLE_PATH, "currentlyActiveModel", [])
+    if not entity or not name:
+        assert selected == "all_tracks", "Current active track list is not all track"
+        return
+
+    state = _get_library_state(rpc).get(entity + 's', [])
+    entity_id = [e["id"] for e in state if e["name"] == name]
+    assert entity_id, f"Cannot find the {entity} named {repr(name)}"
+
+    assert selected == f"{entity}_{entity_id[0]}", f"Current active track list is not the {entity} named {repr(name)} (ID: {entity_id[0]}, currently: {selected})"
+
+@then(u'a {entity} named "{name}" should exist in the library')
+def step_library(context, entity, name):
+    rpc = context.mixxx_rpc
+    state = _get_library_state(rpc).get(entity + 's', [])
+    entity_id = [e["id"] for e in state if e["name"] == name]
+    assert entity_id, f"Cannot find the {entity} named {repr(name)}"
+
+@then(u'no new {entity} should be created')
+def step_library(context, entity):
+    # TODO pre snapshot?
+    raise AssertionError("WIP")
+
+@then(u'the create popup for the library source should remain visible')
+def step_library(context):
+    s = context.mixxx_rpc
+    # No wait here as it is expected to already be visible
+    assert _is_visible(s, LIBRARY_TREEVIEW_CREATE_POPUP), "The create entity popup is not visible"
+
+@then(u'the create popup for the library source should show an error state')
+def step_library(context):
+    rpc = context.mixxx_rpc
+    errors = rpc.getStringProperty(f"{LIBRARY_TREEVIEW_CREATE_POPUP}/name", "hasError")
+    assert errors == "true", f"The create entity popup should show an error but is showing none (is: {repr(errors)})"
+
+@then(u'the library should not create a duplicate {entity} named "{name}"')
+def step_library(context, entity, name):
+    rpc = context.mixxx_rpc
+    assert _is_visible(rpc, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
+    rows = int(rpc.getStringProperty(LIBRARY_TREEVIEW_PATH, "rows"))
+    in_section = False
+    row = 0
+    count = 0
+    while row < rows:
+        path = f"{LIBRARY_TREEVIEW_PATH}/index{row}"
+        depth = int(rpc.invokeMethod(LIBRARY_TREEVIEW_PATH, "depth", [row]))
+        label = rpc.getStringProperty(f"{path}/label", "text")
+        row += 1
+
+        if not in_section:
+            in_section = label.startswith(entity.title())
+            if not in_section:
+                continue
+            is_expanded = rpc.getStringProperty(path, "expanded") == "true"
+            if is_expanded or not expand_if_needed:
+                continue
+            _wait_for_visible(rpc, path)
+            _click(rpc, path)
+            time.sleep(0.3)
+            rows = int(rpc.getStringProperty(LIBRARY_TREEVIEW_PATH, "rows"))
+            continue
+        if not depth:
+            # Reached the end of the entity section
+            break
+        if label.startswith(f"{name} ("):
+            count += 1
+
+    assert count == 1, f"Found an unexpected number of occurrence ({count}) of {entity} named {repr(name)} in the sidebar"
+
+    state = _get_library_state(rpc).get(entity + 's', [])
+    entity_id = [e["id"] for e in state if e["name"] == name]
+    assert len(entity_id) == 1, f"Found an unexpected number of occurrence ({count}) of {entity} named {repr(name)} in the backend"
+
+@then(u'the selected library source item should be "{name}"')
+def step_library(context, name):
+    rpc = context.mixxx_rpc
+    assert _is_visible(rpc, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
+    row = int(rpc.getStringProperty(LIBRARY_TREEVIEW_PATH, "currentRow"))
+    path = f"{LIBRARY_TREEVIEW_PATH}/index{row}"
+    label = rpc.getStringProperty(f"{path}/label", "text")
+    assert label == name, f"The expected selected source is {repr(label)} but should be {repr(name)}"
+
+
+@then(u'the sidebar should list "{name}" under {entity}')
+def step_library(context, entity, name):
+    rpc = context.mixxx_rpc
+    path = _find_sidebar_named_entity_path(rpc, entity, name, expand_if_needed=True)
+    assert path, f"Could not find the {entity} named \"{name}\" in the library sidebar"
+
+
+@when(u'I enter "{name}" as the new {entity} context-menu input and submit')
+def step_library(context, entity, name):
+    path = f"mainWindow/contextMenuCreateEntityItem/input"
+    _wait_for_visible(context.mixxx_rpc, path)
+    context.mixxx_rpc.inputText(path, name)
+    context.mixxx_rpc.enterKey(path, QT_KEY_ENTER, 0)
+    time.sleep(1)
 
 
 # --- Then: column visibility ---
@@ -1570,6 +1782,63 @@ def step_select_suggestion(context, suggestion):
     suggestion_path = _suggestion_row_path(s, suggestion)
     _click(s, suggestion_path)
     time.sleep(0.5)
+
+
+# --- When: library sidebar ---
+
+@when('I select the source "{feature}" in the library sidebar')
+def step_select_source_sidebar(context, feature):
+    s = context.mixxx_rpc
+    path = _sidebar_feature_row_path(s, feature)
+    assert path, f"Could not find the feature \"{feature}\" in the library sidebar"
+    # If a popup is still active (e.g item creation, context-menu, ...), the first click will only close the menu, so we retry twice
+    for attempt in range(2):
+        is_expanded = s.getStringProperty(path, "expanded") == "true"
+        is_current = s.getStringProperty(path, "current") == "true"
+        if is_expanded and is_current:
+            return
+        _wait_for_visible(s, path)
+        _click(s, path)
+        time.sleep(1)
+
+@when('I select the {entity} named "{name}" in the library sidebar')
+def step_select_named_entity_sidebar(context, entity, name):
+    rpc = context.mixxx_rpc
+    path = _find_sidebar_named_entity_path(rpc, entity, name, expand_if_needed=True)
+    assert path, f"Could not find the {entity} named \"{name}\" in the library sidebar"
+    _wait_for_visible(rpc, path)
+    _click(rpc, path)
+    time.sleep(1)
+
+@when('I initiate creating a new item in the selected library source')
+def step_select_source_sidebar_feature_create(context):
+    s = context.mixxx_rpc
+    assert _is_visible(s, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
+    selected = s.invokeMethod(LIBRARY_TREEVIEW_PATH, "getSelectedPath", [])
+    path = f"{LIBRARY_TREEVIEW_PATH}/index{selected}"
+    assert path and _is_visible(s, path), "No library sidebar feature currently selected"
+
+    path = f"{path}/newItem"
+    _wait_for_visible(s, path)
+    _click(s, path)
+
+@when('I enter "{label}" as the new item name')
+def step_select_source_sidebar_feature_create_type(context, label):
+    s = context.mixxx_rpc
+    assert _is_visible(s, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
+    _wait_for_visible(s, LIBRARY_TREEVIEW_CREATE_POPUP)
+    path = f"{LIBRARY_TREEVIEW_CREATE_POPUP}/name"
+    _wait_for_visible(s, path)
+    _click(s, path)
+
+    s.inputText(SEARCH_FIELD_PATH, label)
+
+@when('I confirm the create action')
+def step_select_source_sidebar_feature_create_confirm(context):
+    s = context.mixxx_rpc
+    path = f"{LIBRARY_TREEVIEW_CREATE_POPUP}/create"
+    _wait_for_visible(s, path)
+    _click(s, path)
 
 
 # --- When: split view ---

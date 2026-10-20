@@ -524,6 +524,8 @@ try {
     # ========================================================================
 
     Write-OutputLine "Waiting for process $childPid to exit..."
+    Write-OutputLine "Stdout available at $stdoutFile"
+    Write-OutputLine "Stderr available at $stderrFile"
 
     while (-not (Test-Path $doneFile)) {
 
