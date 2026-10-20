@@ -408,6 +408,7 @@ Rectangle {
             }
             DelegateChoice {
                 Cell {
+                    objectName: "trackRow_" + row
                     track.capabilities: root.sidebar.tracklist ? root.sidebar.tracklist.getCapabilities() : Mixxx.LibraryTrackListModel.Capability.None
                     color: selected ? Theme.accentColor : (row % 2 == 0 ? Theme.sunkenBackgroundColor : Theme.backgroundColor)
 
@@ -418,6 +419,15 @@ Rectangle {
                         font.pixelSize: 14
                         text: display ?? ""
                         verticalAlignment: Text.AlignVCenter
+                    }
+
+                    // Pooled items remains parented and set with their previous property, meaning 
+                    // that Spix, used for testing, may accidentally picked a pooled, now stale item.
+                    TableView.onPooled: {
+                        objectName = "";
+                    }
+                    TableView.onReused: {
+                        objectName = Qt.binding(() => "trackRow_" + row);
                     }
                 }
             }

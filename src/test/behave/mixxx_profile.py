@@ -12,6 +12,7 @@ import sys
 import tempfile
 import threading
 import random
+import datetime
 import time
 import urllib.request
 import urllib.parse
@@ -393,6 +394,7 @@ class MixxxProcess:
             assert self.process is not None
             assert self.process.stdout is not None
             for line in self.process.stdout:
+                line = f"{datetime.datetime.now()} {line}"
                 output_lines.append(line)
                 if self._output_file is None:
                     continue

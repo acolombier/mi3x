@@ -402,8 +402,8 @@ def _column_index(rpc, column):
         return -1
 
 
-def _track_row_path(row):
-    return f"{TRACK_ROW_PATH}/trackRow_{row}"
+def _track_row_path(row, panel="left"):
+    return f"{RIGHT_TRACKLIST_TABLE_PATH if panel == "right" else TRACK_TABLE_PATH}/trackRow_{row}"
 
 
 DECK_PATHS = {
@@ -1003,18 +1003,16 @@ def step_toggle_column(context, column):
 
 # --- When: track steps ---
 
-def _track_is_selected(rpc, path):
-    try:
-        return _get_property(rpc, path, "selected") == "true"
-    except Exception:
-        return False
-
 
 def _wait_for_track_selected(rpc, path, timeout=5):
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if _track_is_selected(rpc, path):
-            return True
+        try:
+            selected = _get_property(rpc, path, "selected")
+            if selected == "true":
+                return True
+        except Exception as e:
+            pass
         time.sleep(0.2)
     return False
 
@@ -1034,20 +1032,11 @@ def _wait_for_context_menu(rpc, timeout=5):
 def _perform_track_action(context, action, row, table=TRACK_TABLE_PATH):
     s = context.mixxx_rpc
     _scroll_tableview_to_row(s, row, table)
-    path = f"{table}/trackRow_{row}"
+    path = _track_row_path(row, table)
     _wait_for_clickable(s, path, timeout=10) # Some CI platform like Windows 10 are very slow to load the table
     time.sleep(0.5)
     TRACK_ACTIONS[action](s, path)
     time.sleep(0.3)
-    # The synthetic tap that selects a row is occasionally dropped under load
-    # (e.g. a CI runner that is also capturing video), so re-click once if the
-    # row did not end up selected.
-    if action == "click" and not _wait_for_track_selected(s, path):
-        _click(s, path)
-        time.sleep(0.3)
-    elif action == "right-click" and not _wait_for_context_menu(s):
-        _right_click(s, path)
-        time.sleep(0.3)
 
 
 @when("I {action} the track at row {row:d}")
@@ -1260,9 +1249,10 @@ def step_sorted_by(context, column, order):
 # --- Then: track selection/context ---
 
 @then("the track at row {row:d} should be selected")
-def step_track_selected(context, row):
+@then("the track at row {row:d} should be selected on the {panel} track list")
+def step_track_selected(context, row, panel="left"):
     s = context.mixxx_rpc
-    path = _track_row_path(row)
+    path = _track_row_path(row, panel)
     selected = _get_property(s, path, "selected")
     assert selected == "true", f"Track at row {row} is not selected (selected={selected})"
 

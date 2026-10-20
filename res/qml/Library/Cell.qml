@@ -7,8 +7,6 @@ import "../Theme"
 Rectangle {
     id: root
 
-    objectName: "trackRow_" + row
-
     required property bool selected
 
     property alias track: trackData
