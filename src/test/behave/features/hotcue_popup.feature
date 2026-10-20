@@ -1,7 +1,4 @@
 # -----------------------------------------------------------------------
-# Text drafted autonomously by an AI agent (for a human reviewer to check,
-# amend, and submit).
-#
 # Behave E2E tests for the hotcue edit popup rendered by
 # res/qml/HotcuePopup.qml in the QML skin stack.
 # -----------------------------------------------------------------------
@@ -103,7 +100,8 @@ Feature: Hotcue popup editing
   # by writing the waveform's zoom property directly.
   @test/missing-ui-interaction
   Scenario: The split view follows the zoom dynamically
-    Given the hotcue popup is open for hotcue 1 on deck 1
+    Given hotcue 1 on deck 1 is of type "CUE"
+    And the hotcue popup is open for hotcue 1 on deck 1
     And the beatloop size is set to 4
     When I click the "next type" arrow in the popup
     Then the hotcue type name of hotcue 1 on deck 1 should be "LOOP"
@@ -152,7 +150,8 @@ Feature: Hotcue popup editing
     And the hotcue span length of hotcue 1 on deck 1 should be 2 beats
 
   Scenario: A new cue's jump target defaults to the playhead
-    Given the playhead of deck 1 is at 0.5
+    Given hotcue 1 on deck 1 is of type "CUE"
+    And the playhead of deck 1 is at 0.5
     And quantize is disabled on deck 1
     And the hotcue popup is open for hotcue 1 on deck 1
     When I click the "previous type" arrow in the popup

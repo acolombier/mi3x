@@ -1,7 +1,3 @@
-# -----------------------------------------------------------------------
-# Drafted autonomously by an AI agent (for a human reviewer to check,
-# amend, and submit).
-# -----------------------------------------------------------------------
 import json
 import time
 
@@ -136,6 +132,15 @@ def step_given_hotcue_set(context, hotcue, deck):
             _set_control_value(context, group, f"hotcue_{hotcue}_status", 1)
             status = _get_control_value(context, group, f"hotcue_{hotcue}_status")
             assert status != 0, f"hotcue_{hotcue} could not be set (status={status})"
+
+
+@given("hotcue {hotcue:d} on deck {deck:d} is of type \"{hotcue_type}\"")
+def step_given_hotcue_set(context, hotcue, deck, hotcue_type):
+    group = f"[Channel{deck}]"
+    assert hotcue_type in HOTCUE_TYPE_VALUES.keys(), f"Unknown hotcue type {repr(hotcue_type)}"
+    expected_type = HOTCUE_TYPE_VALUES.get(hotcue_type)
+    _set_control_value(context, group, f"hotcue_{hotcue}_type", expected_type)
+    assert _get_control_value(context, group, f"hotcue_{hotcue}_type") == expected_type, "Unable to set the hotcue type"
 
 
 @given('the hotcue popup label shows "{text}" for hotcue {hotcue:d} on deck {deck:d}')

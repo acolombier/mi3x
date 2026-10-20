@@ -52,6 +52,7 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
                     audioVisualRatioChanged)
     Q_PROPERTY(QColor backgroundColor READ getBackgroundColor WRITE
                     setBackgroundColor NOTIFY backgroundColorChanged)
+    Q_PROPERTY(WaveformRendererSignalBaseOptions options READ
                     options WRITE setOptions NOTIFY optionsChanged)
     Q_CLASSINFO("DefaultProperty", "renderers")
     QML_NAMED_ELEMENT(WaveformDisplay)
@@ -74,6 +75,7 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
         HighDetail = static_cast<int>(
                 allshader::WaveformRendererSignalBase::Option::HighDetail),
     };
+    Q_ENUM(Option);
     Q_DECLARE_FLAGS(Options, Option);
 
     QmlWaveformDisplay(QQuickItem* parent = nullptr);
@@ -102,17 +104,21 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
         WaveformWidgetRenderer::setZoom(zoom);
         emit zoomChanged();
     }
-    double getAudioVisualRatio() const {
-        return m_audioVisualRatio;
+
+    std::chrono::microseconds fromTimerToNextSync(const PerformanceTimer& timer) override;
+    std::chrono::microseconds getSyncInterval() const override {
+        return m_syncInterval;
     }
 
-        return m_syncInterval;
+    double getAudioVisualRatio() const {
+        return m_audioVisualRatio;
     }
 
     void componentComplete() override;
 
     QQmlListProperty<mixxx::qml::QmlWaveformRendererFactory> renderers();
     static void renderers_append(
+            QQmlListProperty<mixxx::qml::QmlWaveformRendererFactory>* property,
             mixxx::qml::QmlWaveformRendererFactory* value);
     static qsizetype renderers_count(
             QQmlListProperty<mixxx::qml::QmlWaveformRendererFactory>* property);

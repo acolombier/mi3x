@@ -35,6 +35,7 @@ Popup {
         return currentTrack.hotcuesModel.getByHotcueNumber(hotcue.hotcueNumber - 1);
     }
     required property var currentTrack
+    property bool failedToConvert: false
     readonly property bool forwardSpan: cueEndPosition >= cuePosition
     readonly property bool hasSpan: isLoopOrJump && trackSamples > 0 && cuePosition >= 0 && cueEndPosition >= 0 && spanSamples > 0
     required property Hotcue hotcue
@@ -58,10 +59,9 @@ Popup {
     readonly property string uid: hotcue.group + "-" + hotcue.hotcueNumber
 
     function convertTo(type) {
-        console.log("HOTCUEPOPUP convertTo requested", type);
         if (!currentTrack || type === hotcue.type)
             return;
-        currentTrack.hotcuesModel.convertTypeByHotcueNumber(hotcue.hotcueNumber - 1, type, hotcue.group);
+        root.failedToConvert = !currentTrack.hotcuesModel.convertTypeByHotcueNumber(hotcue.hotcueNumber - 1, type, hotcue.group);
     }
     function openFrom(button) {
         if (!hotcue.isSet)
@@ -679,6 +679,7 @@ Popup {
                                 Layout.leftMargin: 0
                                 Layout.rightMargin: 0
                                 implicitHeight: 22
+                                normalColor: root.failedToConvert ? 'red' : Theme.buttonNormalColor
                                 objectName: "hotcuePopupTypeLabel"
                                 text: root.cueTypes[root.typeIndex].name
                             }

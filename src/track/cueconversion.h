@@ -22,7 +22,8 @@ constexpr audio::FrameDiff_t kMinimumAudibleLoopSizeFrames = 150;
 /// current beatloop size, play position and quantize setting of the player
 /// group. Mirrors the behavior of WCueMenuPopup and should be kept in
 /// sync with it.
-void convertCueType(
+/// Return whether or not the conversion was succcesful.
+bool convertCueType(
         TrackPointer pTrack,
         const CuePointer& pCue,
         const QString& playerGroup,

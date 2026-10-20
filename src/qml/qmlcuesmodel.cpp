@@ -150,12 +150,11 @@ bool QmlCuesModel::convertTypeByHotcueNumber(
 
     // The model will be reset whenever the track emits cuesUpdated in
     // response to the cue change (-> revisionChanged).
-    mixxx::cueconversion::convertCueType(m_pTrack,
+    return mixxx::cueconversion::convertCueType(m_pTrack,
             pCue,
             playerGroup,
             config,
             static_cast<CueType>(newType));
-    return true;
 }
 
 bool QmlCuesModel::swapPositionsByHotcueNumber(int hotcueNumber) {

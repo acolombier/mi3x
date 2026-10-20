@@ -80,14 +80,14 @@ audio::FramePos getCurrentPlayPositionWithQuantize(
     return position;
 }
 
-void convertCueType(
+bool convertCueType(
         TrackPointer pTrack,
         const CuePointer& pCue,
         const QString& playerGroup,
         UserSettingsPointer pConfig,
         CueType newType) {
     VERIFY_OR_DEBUG_ASSERT(pTrack && pCue) {
-        return;
+        return false;
     }
 
     switch (newType) {
@@ -115,12 +115,12 @@ void convertCueType(
                     ControlObject::get(ConfigKey(playerGroup, "beatloop_size"));
             const auto pBeats = pTrack->getBeats();
             if (beatloopSize <= 0 || !pBeats) {
-                return;
+                return false;
             }
             const auto position = pBeats->findNBeatsFromPosition(
                     cueStartEnd.startPosition, beatloopSize);
             if (position <= pCue->getPosition()) {
-                return;
+                return false;
             }
             pCue->setEndPosition(position);
         }
@@ -140,7 +140,7 @@ void convertCueType(
             const auto newPosition = getCurrentPlayPositionWithQuantize(pTrack, playerGroup);
             if (std::abs(newPosition - cueStartEnd.startPosition) <=
                     cueconversion::kMinimumAudibleLoopSizeFrames) {
-                return;
+                return false;
             }
             cueStartEnd.endPosition = newPosition;
         }
@@ -152,6 +152,7 @@ void convertCueType(
         DEBUG_ASSERT(!"Invalid cue type");
         break;
     }
+    return true;
 }
 
 } // namespace cueconversion
