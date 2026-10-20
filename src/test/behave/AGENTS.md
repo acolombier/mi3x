@@ -831,7 +831,6 @@ TRACKLIST_PATH = "mainWindow/libraryContent/trackList"
 COLUMN_HEADER_PATH = "mainWindow/libraryContent/trackList/columnHeader"
 COLUMN_PICKER_MENU_PATH = "mainWindow/columnPickerMenu"
 TRACK_TABLE_PATH = "mainWindow/libraryContent/trackList/trackTableView"
-TRACK_ROW_PATH = "mainWindow/libraryContent/trackList/trackTableView"
 TRACK_CONTEXT_MENU_PATH = "mainWindow/trackContextMenu"
 ```
 

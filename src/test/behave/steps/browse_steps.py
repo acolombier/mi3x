@@ -502,8 +502,10 @@ def step_sorted_by(context, column, order):
     )
 
 @then("the track at row {row:d} should be selected")
-def step_track_selected(context, row):
-    path = _track_row_path(row)
+@then("the track at row {row:d} should be selected on the {panel} track list")
+@then('the track at row {row:d} on the {panel} track list should be selected')
+def step_track_selected(context, row, panel="left"):
+    path = _track_row_path(row, panel)
     selected = _get_property(context, path, "selected")
     assert selected == "true", f"Track at row {row} is not selected (selected={selected})"
 
@@ -729,12 +731,6 @@ def step_right_tracklist_visible(context, assertion):
         _wait_for_visible(context, RIGHT_TRACKLIST_PATH, timeout=10)
     else:
         _wait_for_hidden(context, RIGHT_TRACKLIST_PATH)
-
-@then('the track at row {row:d} on the right track list should be selected')
-def step_track_selected_right_list(context, row):
-    path = f"{RIGHT_TRACKLIST_PATH}/trackTableView/trackRow_{row}"
-    selected = _get_property(context, path, "selected")
-    assert selected == "true", f"Track at row {row} is not selected (selected={selected})"
 
 @given("a track available in the library")
 @given("a track available in the library {rules}")
