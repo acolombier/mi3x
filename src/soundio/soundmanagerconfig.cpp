@@ -23,6 +23,10 @@ const QString SoundManagerConfig::kAPIIosAudio = QStringLiteral("iOS Audio");
 const QString SoundManagerConfig::kAPICoreAudio = QStringLiteral("Core Audio");
 const QString SoundManagerConfig::kAPIPipewire = QStringLiteral("PipeWire");
 
+#ifdef USE_TEST_UI
+const QString SoundManagerConfig::kAPIMock = QStringLiteral("Mock");
+#endif
+
 const QString SoundManagerConfig::kEmptyComboBox = QStringLiteral("---");
 const unsigned int SoundManagerConfig::kDefaultDeckCount = 2;
 
@@ -521,6 +525,10 @@ bool SoundManagerConfig::hasExternalRecordBroadcast() {
  *              load default API and main device.
  */
 void SoundManagerConfig::loadDefaults(SoundManager* soundManager, unsigned int flags) {
+#ifdef USE_TEST_UI
+    m_api = SoundManagerConfig::kAPIAlsa;
+    return;
+#endif
     if (flags & SoundManagerConfig::API) {
         QList<QString> apiList = soundManager->getHostAPIList();
         if (!apiList.isEmpty()) {

@@ -165,7 +165,7 @@ QList<SoundDevicePointer> SoundManager::getDeviceList(
     };
 
 #ifdef USE_TEST_UI
-    if (filterAPI == "Mock") {
+    if (filterAPI == SoundManagerConfig::kAPIMock) {
         for (const auto& pDevice : m_devices) {
             appendIfMatch(pDevice);
         }
@@ -191,7 +191,7 @@ QList<QString> SoundManager::getHostAPIList() const {
 
 #ifdef USE_TEST_UI
     if (m_testMockingMode) {
-        apiList.push_back("Mock");
+        apiList.push_back(SoundManagerConfig::kAPIMock);
     }
 #endif
 
@@ -404,7 +404,7 @@ SoundDeviceStatus SoundManager::setupDevices() {
 
     std::vector<SoundDevicePointer> devices =
 #ifdef USE_TEST_UI
-            m_config.getAPI() == "Mock"
+            m_config.getAPI() == SoundManagerConfig::kAPIMock
             ? std::vector<SoundDevicePointer>(
                       m_devices.begin(), m_devices.end())
             :
