@@ -17,6 +17,7 @@
 #include "qml/qmldlgpreferencesproxy.h"
 #include "qml/qmlrecordingproxy.h"
 #include "soundio/soundmanager.h"
+#include "util/font.h"
 #include "util/versionstore.h"
 #include "waveform/guitick.h"
 #include "waveform/visualsmanager.h"
@@ -239,6 +240,9 @@ QmlApplication::QmlApplication(
     QQuickAsyncImageProvider* pImageProvider = new AsyncImageProvider(
             m_pCoreServices->getTrackCollectionManager());
     m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
+
+    QString resourcePath = m_pCoreServices->getSettings()->getResourcePath();
+    FontUtils::initializeFonts(resourcePath); // takes a long time
     QmlCoreServices::instance()->setReady();
 
     m_pCoreServices->getControllerManager()->setUpDevices();
