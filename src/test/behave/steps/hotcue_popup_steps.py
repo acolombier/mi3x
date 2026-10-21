@@ -163,6 +163,7 @@ def step_given_popup_label(context, text, hotcue, deck):
 @given("the playhead of deck {deck:d} is at {position:f}")
 def step_given_playhead(context, deck, position):
     _set_control_value(context, f"[Channel{deck}]", "playposition", position)
+    assert _get_control_value(context, f"[Channel{deck}]", "playposition") == position, f"Unable top set the deck {deck} playposition to {position}"
 
 
 # --- Given/When: remember helpers ---
@@ -328,12 +329,16 @@ def step_popup_closed(context):
 
 @then("the hotcue popup label field should be visible")
 def step_label_visible(context):
-    assert _get_bool(context, _popup(context, "hotcuePopupLabelField"), "visible")
+    assert _get_bool(
+        context, _popup(context, "hotcuePopupLabelField"), "visible"
+    ), "hotcue popup label field not visible"
 
 
 @then("the hotcue popup delete button should be visible")
 def step_delete_visible(context):
-    assert _get_bool(context, _popup(context, "hotcuePopupDeleteButton"), "visible")
+    assert _get_bool(
+        context, _popup(context, "hotcuePopupDeleteButton"), "visible"
+    ), "hotcue popup delete button not visible"
 
 
 def _get_swatch_count(context):
@@ -436,37 +441,51 @@ def step_span_swapped(context, hotcue, deck):
 
 @then("the hotcue popup waveform should be visible")
 def step_waveform_visible(context):
-    assert _get_bool(context, _waveform(context, "hotcuePopupWaveformFull"), "visible")
+    assert _get_bool(
+        context, _waveform(context, "hotcuePopupWaveformFull"), "visible"
+    ), "hotcue popup waveform not visible"
 
 
 @then("the hotcue popup start notch should be visible")
 def step_start_notch_visible(context):
-    assert _get_bool(context, _waveform(context, "hotcuePopupStartNotch"), "visible")
+    assert _get_bool(
+        context, _waveform(context, "hotcuePopupStartNotch"), "visible"
+    ), "hotcue popup start notch not visible"
 
 
 @then("the hotcue popup start notch should not be visible")
 def step_start_notch_hidden(context):
-    assert not _get_bool(context, _waveform(context, "hotcuePopupStartNotch"), "visible")
+    assert not _get_bool(
+        context, _waveform(context, "hotcuePopupStartNotch"), "visible"
+    ), "hotcue popup start notch still visible"
 
 
 @then("the hotcue popup end notch should be visible")
 def step_end_notch_visible(context):
-    assert _get_bool(context, _waveform(context, "hotcuePopupEndNotch"), "visible")
+    assert _get_bool(
+        context, _waveform(context, "hotcuePopupEndNotch"), "visible"
+    ), "hotcue popup end notch not visible"
 
 
 @then("the hotcue popup end notch should not be visible")
 def step_end_notch_hidden(context):
-    assert not _get_bool(context, _waveform(context, "hotcuePopupEndNotch"), "visible")
+    assert not _get_bool(
+        context, _waveform(context, "hotcuePopupEndNotch"), "visible"
+    ), "hotcue popup end notch still visible"
 
 
 @then("the span filler should be visible")
 def step_filler_visible(context):
-    assert _get_bool(context, _waveform(context, "hotcuePopupSpanFiller"), "visible")
+    assert _get_bool(
+        context, _waveform(context, "hotcuePopupSpanFiller"), "visible"
+    ), "span filler not visible"
 
 
 @then("the span filler should not be visible")
 def step_filler_hidden(context):
-    assert not _get_bool(context, _waveform(context, "hotcuePopupSpanFiller"), "visible")
+    assert not _get_bool(
+        context, _waveform(context, "hotcuePopupSpanFiller"), "visible"
+    ), "span filler still visible"
 
 
 @then("the hotcue popup should be in split view")
@@ -474,7 +493,8 @@ def step_split_view(context):
     assert _get_bool(
         context, _popup(context, "hotcuePopupWaveform"), "splitView"), "not in split view"
     assert _get_bool(
-        context, _waveform(context, "hotcuePopupWaveformPartial"), "visible")
+        context, _waveform(context, "hotcuePopupWaveformPartial"), "visible"
+    ), "hotcue popup split view target half not visible"
 
 
 @then("the hotcue popup should not be in split view")
@@ -486,39 +506,54 @@ def step_no_split_view(context):
 @then("the split view start half should be visible")
 @then("the split view target half should be visible")
 def step_split_halves_visible(context):
-    assert _get_bool(context, _waveform(context, "hotcuePopupWaveformFull"), "visible")
-    assert _get_bool(context, _waveform(context, "hotcuePopupWaveformPartial"), "visible")
+    assert _get_bool(
+        context, _waveform(context, "hotcuePopupWaveformFull"), "visible"
+    ), "split view start half not visible"
+    assert _get_bool(
+        context, _waveform(context, "hotcuePopupWaveformPartial"), "visible"
+    ), "split view target half not visible"
 
 
 @then("the split view target half should not be visible")
 def step_split_target_hidden(context):
     assert not _get_bool(
-        context, _waveform(context, "hotcuePopupWaveformPartial"), "visible")
+        context, _waveform(context, "hotcuePopupWaveformPartial"), "visible"
+    ), "split view target half still visible"
 
 
 @then("the loop warp seam should be visible")
 def step_loop_seam_visible(context):
-    assert _get_bool(context, _waveform(context, "hotcuePopupLoopSeam"), "visible")
+    assert _get_bool(
+        context, _waveform(context, "hotcuePopupLoopSeam"), "visible"
+    ), "loop warp seam not visible"
 
 
 @then("the jump warp divider should be visible")
 def step_jump_divider_visible(context):
-    assert _get_bool(context, _waveform(context, "hotcuePopupJumpDivider"), "visible")
+    assert _get_bool(
+        context, _waveform(context, "hotcuePopupJumpDivider"), "visible"
+    ), "jump warp divider not visible"
 
 
 @then("the skip shade above the split should be visible")
 def step_shade_top_visible(context):
-    assert _get_bool(context, _waveform(context, "hotcuePopupSkipShadeTop"), "visible")
+    assert _get_bool(
+        context, _waveform(context, "hotcuePopupSkipShadeTop"), "visible"
+    ), "skip shade above the split not visible"
 
 
 @then("the skip shade below the split should be visible")
 def step_shade_bottom_visible(context):
-    assert _get_bool(context, _waveform(context, "hotcuePopupSkipShadeBottom"), "visible")
+    assert _get_bool(
+        context, _waveform(context, "hotcuePopupSkipShadeBottom"), "visible"
+    ), "skip shade below the split not visible"
 
 
 @then("the swap button should be visible")
 def step_swap_visible(context):
-    assert _get_bool(context, _waveform(context, "hotcuePopupSwapButton"), "visible")
+    assert _get_bool(
+        context, _waveform(context, "hotcuePopupSwapButton"), "visible"
+    ), "swap button not visible"
 
 
 def _assert_split_half_position(context, display_path, position):
