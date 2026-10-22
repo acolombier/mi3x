@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from behave import given, when, then
-from mixxx_steps import _get_library_state, _library_command
+from mixxx_helpers import _get_library_state, _library_command
 from spix_helpers import (
     QT_CONTROL_MODIFIER,
     QT_KEY_A,
@@ -398,10 +398,6 @@ def _format_double(value):
     """Format a double the way ConfigObject does (QString::number, 'g', 6)."""
     return format(value, ".6g")
 
-def _rpc(context):
-    return context.mixxx_rpc
-
-
 def _settings_path(*parts):
     return "/".join([SETTINGS_POPUP_ITEM] + list(parts))
 
@@ -494,7 +490,7 @@ def _expectation_matches(actual, expectation):
     return False
 
 
-def _wait_for_library_state(rpc, expected, timeout=30):
+def _wait_for_library_state(context, expected, timeout=30):
     """Wait until the library state matches ``expected``.
 
     Returns ``(matched, last_state)`` so a failure can report the last state
@@ -505,7 +501,7 @@ def _wait_for_library_state(rpc, expected, timeout=30):
     last_state = None
     while time.time() < deadline:
         try:
-            state = _get_library_state(rpc)
+            state = _get_library_state(context)
             last_state = state
             matched = True
             for key, expectation in expected.items():
@@ -568,7 +564,7 @@ def _is_visible(rpc, path):
 
 @given("the settings popup is open")
 def step_settings_popup_open(context):
-    s = _rpc(context)
+    s = context.rpc
     if not _is_visible(s, SETTINGS_POPUP_ITEM):
         _click(s, "mainWindow/showPreferencesButton")
         # Sometimes pretty slow on Windows Server CI runner
@@ -578,7 +574,7 @@ def step_settings_popup_open(context):
 
 @given('the "{category}" category is selected')
 def step_category_selected(context, category):
-    s = _rpc(context)
+    s = context.rpc
     path = _category_path(category)
     _wait_for_visible(s, path)
     index = s.getStringProperty(path, "index")
@@ -588,7 +584,7 @@ def step_category_selected(context, category):
 
 @given('the "{tab}" tab is selected')
 def step_tab_selected(context, tab):
-    s = _rpc(context)
+    s = context.rpc
     path = _tab_path(tab)
     _wait_for_visible(s, path)
     _click(s, path)
@@ -597,7 +593,7 @@ def step_tab_selected(context, tab):
 
 @given('the "{setting}" setting is "{value}"')
 def step_setting_is(context, setting, value):
-    s = _rpc(context)
+    s = context.rpc
     spec = _setting_spec(setting)
     if spec["kind"] != "ratio":
         raise ValueError(f"Cannot preset non-ratio setting: {setting}")
@@ -612,7 +608,7 @@ def step_setting_is(context, setting, value):
 
 @given('the router mode is "{mode}"')
 def step_router_mode_is(context, mode):
-    s = _rpc(context)
+    s = context.rpc
     current = _get_router_mode(s)
     if current != mode:
         _set_router_mode(s, mode)
@@ -620,7 +616,7 @@ def step_router_mode_is(context, mode):
 
 @given('a saved connection exists from "{edge}" on "{entity}" to an output device')
 def step_saved_connection_exists(context, edge, entity):
-    s = _rpc(context)
+    s = context.rpc
     source_path = _edge_path(entity, edge)
     assert _wait_for_visible(s, source_path), f"Source edge {edge} on {entity} not visible"
     _click(s, source_path)
@@ -688,7 +684,6 @@ def step_create_music_directory(context):
 
 @given("the library contains {count:d} music directories")
 def step_library_contains_music_directories(context, count):
-    s = _rpc(context)
     assert count >= 0, "A library cannot contain a negative number of music directories"
     if count == 0:
         return
@@ -700,28 +695,27 @@ def step_library_contains_music_directories(context, count):
         # The last add runs a blocking scan, which also refreshes the sources
         # list in the already-open settings popup via the scanner's
         # onRunningChanged -> loadSources() connection.
-        _library_command(s, "addDirectory", path, scan=(index == count - 1))
+        _library_command(context, "addDirectory", path, scan=(index == count - 1))
 
 
 @given("the tracks directory is in the library")
 def step_tracks_directory_in_library(context):
-    s = _rpc(context)
     tracks_dir = context.config.userdata["tracks_dir"]
-    _library_command(s, "addDirectory", tracks_dir, scan=True)
+    _library_command(context, "addDirectory", tracks_dir, scan=True)
 
 
 # --- When steps ---
 
 @when("I click the settings close button")
 def step_click_close_button(context):
-    s = _rpc(context)
+    s = context.rpc
     _click(s, f"{SETTINGS_POPUP_ITEM}/settingsCloseButton")
     time.sleep(0.3)
 
 
 @when('I select the "{category}" category')
 def step_select_category(context, category):
-    s = _rpc(context)
+    s = context.rpc
     path = _category_path(category)
     assert _wait_for_visible(s, path), f"Category '{category}' not visible"
     index = s.getStringProperty(path, "index")
@@ -731,7 +725,7 @@ def step_select_category(context, category):
 
 @when('I click the "{tab}" tab')
 def step_click_tab(context, tab):
-    s = _rpc(context)
+    s = context.rpc
     path = _tab_path(tab)
     assert _wait_for_visible(s, path), f"Tab '{tab}' not visible"
     _click(s, path)
@@ -743,7 +737,7 @@ def step_click_tab(context, tab):
 @when('I toggle the "{setting}" setting to "{value}" with {method}')
 @when('I set the "{setting}" setting to "{value}" with {method}')
 def step_set_setting(context, setting, value, method=None):
-    s = _rpc(context)
+    s = context.rpc
     spec = _setting_spec(setting)
     path = spec["path"]
     _scroll_setting_into_view(s, path)
@@ -836,7 +830,7 @@ def step_set_setting(context, setting, value, method=None):
 
 @when("I click the {button} button")
 def step_click_action(context, button):
-    s = _rpc(context)
+    s = context.rpc
     path = _active_button(s, button)
     assert _is_visible(s, path), f"{button.title()} ({path}) button not visible"
     _click(s, path)
@@ -845,7 +839,7 @@ def step_click_action(context, button):
 
 @when("I select the music directory at row {row:d}")
 def step_select_music_directory(context, row):
-    s = _rpc(context)
+    s = context.rpc
     path = MUSIC_DIRECTORY_ROW % row
     assert _wait_for_clickable(s, path), f"Music directory row {row} is not visible"
     _click(s, path)
@@ -854,7 +848,7 @@ def step_select_music_directory(context, row):
 
 @when("I click the remove button for the music directory at row {row:d}")
 def step_click_remove_music_directory(context, row):
-    s = _rpc(context)
+    s = context.rpc
     path = SOURCE_REMOVE_BUTTON % row
     assert _wait_for_clickable(s, path), (
         f"Remove button for music directory row {row} is not visible"
@@ -865,7 +859,7 @@ def step_click_remove_music_directory(context, row):
 
 @when("I choose to {action} the tracks of the music directory at row {row:d}")
 def step_choose_track_handling(context, action, row):
-    s = _rpc(context)
+    s = context.rpc
     try:
         option_index = SOURCE_REMOVE_MODE_OPTIONS.index(action)
     except ValueError:
@@ -880,7 +874,7 @@ def step_choose_track_handling(context, action, row):
 
 @when("I add the test music directory {directory_id}")
 def step_add_test_music_directory(context, directory_id):
-    s = _rpc(context)
+    s = context.rpc
     path = context.music_dirs[directory_id]
     before = int(s.getStringProperty(MUSIC_DIRECTORY_LIST, "count"))
     # Route the "Add" button to the test dialog mock and inject the folder,
@@ -914,13 +908,13 @@ def step_add_test_music_directory(context, directory_id):
 
 @when('I set the router mode to "{mode}"')
 def step_set_router_mode(context, mode):
-    s = _rpc(context)
+    s = context.rpc
     _set_router_mode(s, mode)
 
 
 @when('I search for "{text}"')
 def step_search_settings(context, text):
-    s = _rpc(context)
+    s = context.rpc
     _tap(s, SEARCH_SETTING)
     if not _wait_for_search_active(s):
         _tap(s, SEARCH_SETTING)
@@ -944,7 +938,7 @@ def _wait_for_search_active(s, timeout=2):
 @when('I connect the "{edge}" edge on "{entity}" entity to a free output device with {mean}')
 @when('I connect the "{edge}" edge on "{entity}" entity to a free output device')
 def step_connect_edge_to_output_alt(context, edge, entity, mean="two clicks"):
-    s = _rpc(context)
+    s = context.rpc
     source_path = _edge_path(entity, edge)
     assert _wait_for_visible(s, source_path), f"Source edge {edge} on {entity} not visible"
     if mean == "two clicks":
@@ -956,10 +950,10 @@ def step_connect_edge_to_output_alt(context, edge, entity, mean="two clicks"):
         time.sleep(0.5)
     else:
         # FIXME not correctly working
-        source_bb = context.mixxx_rpc.getBoundingBox(source_path)
+        source_bb = context.rpc.getBoundingBox(source_path)
         sink_path = _find_first_free_output_edge(s)
         assert sink_path and _wait_for_visible(s, sink_path), "No free output device edge found"
-        sink_bb = context.mixxx_rpc.getBoundingBox(sink_path)
+        sink_bb = context.rpc.getBoundingBox(sink_path)
         delta = sink_bb[0] - source_bb[0], sink_bb[1] - source_bb[1]
         s.mouseDrag(source_path, 0.5, 0.5, *delta, 1000)
 
@@ -980,7 +974,7 @@ def step_hover_edge(context, edge, entity):
 
 @when('I connect the "{source_edge}" edge on "{source_entity}" to the "{sink_edge}" edge on "{sink_entity}"')
 def step_connect_edge_to_edge(context, source_edge, source_entity, sink_edge, sink_entity):
-    s = _rpc(context)
+    s = context.rpc
     source_path = _edge_path(source_entity, source_edge)
     assert _wait_for_visible(s, source_path), f"Source edge {source_edge} on {source_entity} not visible"
     _click(s, source_path)
@@ -995,19 +989,19 @@ def step_connect_edge_to_edge(context, source_edge, source_entity, sink_edge, si
 
 @then("the settings popup should be visible")
 def step_settings_visible(context):
-    s = _rpc(context)
+    s = context.rpc
     assert _wait_for_visible(s, SETTINGS_POPUP_ITEM), "Settings popup is not visible"
 
 
 @then("the settings popup should not be visible")
 def step_settings_not_visible(context):
-    s = _rpc(context)
+    s = context.rpc
     assert _wait_for_hidden(s, SETTINGS_POPUP_ITEM), "Settings popup is still visible"
 
 
 @then('the "{category}" category should be selected')
 def step_category_should_be_selected(context, category):
-    s = _rpc(context)
+    s = context.rpc
     path = _category_path(category)
     assert _is_visible(s, path), f"Category '{category}' is not visible"
     expected = s.getStringProperty(path, "index")
@@ -1020,14 +1014,14 @@ def step_category_should_be_selected(context, category):
 
 @then('the "{tab}" tab should be visible')
 def step_tab_visible(context, tab):
-    s = _rpc(context)
+    s = context.rpc
     path = _tab_path(tab)
     assert _is_visible(s, path), f"Tab '{tab}' is not visible"
 
 
 @then('the "{tab}" tab should be selected')
 def step_tab_selected_then(context, tab):
-    s = _rpc(context)
+    s = context.rpc
     path = _tab_path(tab)
     assert _wait_for_visible(s, path), f"Tab '{tab}' not visible"
     checked = s.getStringProperty(path, "checked")
@@ -1036,13 +1030,13 @@ def step_tab_selected_then(context, tab):
 
 @then("the engine section should be visible")
 def step_engine_visible(context):
-    s = _rpc(context)
+    s = context.rpc
     assert _is_visible(s, ENGINE_SECTION), "Engine section is not visible"
 
 
 @then("the delays section should be visible")
 def step_delays_visible(context):
-    s = _rpc(context)
+    s = context.rpc
     assert _is_visible(s, DELAYS_SECTION), "Delays section is not visible"
 
 def _button_is_enabled(s, path):
@@ -1060,28 +1054,28 @@ def _button_is_enabled(s, path):
 
 @then("the {button} button should be enabled")
 def step_button_enabled(context, button):
-    s = _rpc(context)
+    s = context.rpc
     path = _active_button(s, button)
     assert _button_is_enabled(s, path), f"{button.title()} button is not enabled"
 
 
 @then("the {button} button should be disabled")
 def step_button_disabled(context, button):
-    s = _rpc(context)
+    s = context.rpc
     path = _active_button(s, button)
     assert not _button_is_enabled(s, path), f"{button.title()} button is not disabled"
 
 
 @then("the {button} button should be visible")
 def step_button_visible(context, button):
-    s = _rpc(context)
+    s = context.rpc
     path = _active_button(s, button)
     assert _is_visible(s, path), f"{button.title()} button is not visible"
 
 
 @then("the {button} button should not be visible")
 def step_button_not_visible(context, button):
-    s = _rpc(context)
+    s = context.rpc
     path = _active_button(s, button)
     assert not _is_visible(s, path), f"{button.title()} button is visible"
 
@@ -1137,13 +1131,13 @@ def _assert_setting_value_matches(s, setting, spec, value):
 
 @then('the "{setting}" setting should be "{value}"')
 def step_setting_should_be(context, setting, value):
-    s = _rpc(context)
+    s = context.rpc
     _assert_setting_value_matches(s, setting, _setting_spec(setting), value)
 
 
 @then('the "{setting}" setting should be enabled')
 def step_setting_should_be_enabled(context, setting):
-    s = _rpc(context)
+    s = context.rpc
     spec = _setting_spec(setting)
     actual = s.getStringProperty(spec["path"], "enabled")
     assert actual == "true", f"Setting '{setting}' should be enabled but enabled={actual}"
@@ -1151,7 +1145,7 @@ def step_setting_should_be_enabled(context, setting):
 
 @then('the "{setting}" setting should be disabled')
 def step_setting_should_be_disabled(context, setting):
-    s = _rpc(context)
+    s = context.rpc
     spec = _setting_spec(setting)
     actual = s.getStringProperty(spec["path"], "enabled")
     assert actual == "false", f"Setting '{setting}' should be disabled but enabled={actual}"
@@ -1159,7 +1153,7 @@ def step_setting_should_be_disabled(context, setting):
 
 @then('the "{setting}" should be saved as "{value}"')
 def step_setting_saved_as(context, setting, value):
-    s = _rpc(context)
+    s = context.rpc
     spec = CONFIG_SAVE_MAP.get(setting)
     if not spec:
         raise ValueError(f"No config mapping for setting: {setting}")
@@ -1176,7 +1170,7 @@ def step_setting_saved_as(context, setting, value):
 
 @then('the "{setting}" config key should be unset')
 def step_setting_key_unset(context, setting):
-    s = _rpc(context)
+    s = context.rpc
     spec = CONFIG_SAVE_MAP.get(setting)
     if not spec:
         raise ValueError(f"No config mapping for setting: {setting}")
@@ -1188,7 +1182,7 @@ def step_setting_key_unset(context, setting):
 
 @then('the "{setting}" should be saved')
 def step_setting_saved(context, setting):
-    s = _rpc(context)
+    s = context.rpc
     spec = CONFIG_SAVE_MAP.get(setting)
     if not spec:
         raise ValueError(f"No config mapping for setting: {setting}")
@@ -1202,7 +1196,7 @@ def step_setting_saved(context, setting):
 
 @then('the "{setting}" on deck {deck:d} should be "{value}"')
 def step_setting_control(context, setting, deck, value):
-    s = _rpc(context)
+    s = context.rpc
     spec = CONTROL_VALUE_MAP.get(setting)
     if not spec:
         raise ValueError(f"No control mapping for setting: {setting}")
@@ -1219,65 +1213,65 @@ def step_setting_control(context, setting, deck, value):
 
 @then("the committing overlay should be visible")
 def step_committing_visible(context):
-    s = _rpc(context)
+    s = context.rpc
     assert _is_visible(s, COMMITTING_OVERLAY), "Committing overlay is not visible"
 
 
 @then("the committing overlay should not be visible after commit")
 @when("the committing overlay is not visible")
 def step_committing_hidden(context):
-    s = _rpc(context)
+    s = context.rpc
     assert _wait_for_hidden(s, COMMITTING_OVERLAY, timeout=15), "Committing overlay did not disappear"
 
 
 @then("the router section should be visible")
 def step_router_visible(context):
-    s = _rpc(context)
+    s = context.rpc
     assert _is_visible(s, ROUTER_SECTION), "Router section is not visible"
 
 
 @then('the router mode should be "{mode}"')
 def step_router_mode_should_be(context, mode):
-    s = _rpc(context)
+    s = context.rpc
     current = _get_router_mode(s)
     assert current == mode, f"Router mode should be '{mode}' but is '{current}'"
 
 
 @then("the outputs column should be visible")
 def step_outputs_visible(context):
-    s = _rpc(context)
+    s = context.rpc
     assert _is_visible(s, OUTPUT_COLUMN), "Outputs column is not visible"
 
 
 @then("the inputs column should be visible")
 def step_inputs_visible(context):
-    s = _rpc(context)
+    s = context.rpc
     assert _is_visible(s, INPUT_COLUMN), "Inputs column is not visible"
 
 
 @then("the input column should not be visible")
 def step_input_not_visible(context):
-    s = _rpc(context)
+    s = context.rpc
     assert not _is_visible(s, INPUT_COLUMN), "Input column should not be visible"
 
 
 @then('the "{entity}" entity should be visible in the router')
 def step_entity_visible(context, entity):
-    s = _rpc(context)
+    s = context.rpc
     path = _entity_path(entity)
     assert _is_visible(s, path), f"Entity '{entity}' is not visible in the router"
 
 
 @then('the "{entity}" entity should not be visible in the router')
 def step_entity_not_visible(context, entity):
-    s = _rpc(context)
+    s = context.rpc
     path = _entity_path(entity)
     assert not _is_visible(s, path), f"Entity '{entity}' should not be visible in the router"
 
 
 @then('the "{edge}" edge on "{entity}" entity should show {state} state')
 def step_edge_state(context, edge, entity, state):
-    s = _rpc(context)
+    s = context.rpc
     path = _edge_path(entity, edge)
     assert _wait_for_visible(s, path), f"Edge {edge} on {entity} not visible"
     actual = s.getStringProperty(path, "state")
@@ -1286,7 +1280,7 @@ def step_edge_state(context, edge, entity, state):
 
 @then('the connection from "{edge}" on "{entity}" should show {state} state')
 def step_connection_state(context, edge, entity, state):
-    s = _rpc(context)
+    s = context.rpc
     path = _edge_path(entity, edge)
     assert _wait_for_visible(s, path), f"Edge {edge} on {entity} not visible"
     connectionObjectName = s.invokeMethod(path, "connectionObjectName", [])
@@ -1296,7 +1290,7 @@ def step_connection_state(context, edge, entity, state):
 
 @then("the router should match the saved configuration")
 def step_router_matches_saved(context):
-    s = _rpc(context)
+    s = context.rpc
     assert _is_visible(s, ROUTER_SECTION), "Router section is not visible"
     has_changes = s.getStringProperty(ROUTER_SECTION, "hasChanges")
     # Require an exact "false": a missing/empty property ("" from spix when
@@ -1308,7 +1302,7 @@ def step_router_matches_saved(context):
 
 @then('the "{option}" option should be visible')
 def step_option_visible(context, option):
-    s = _rpc(context)
+    s = context.rpc
     candidates = []
     idx = _ROUTER_MODE_OPTION_INDEX.get(option)
     if idx is not None:
@@ -1322,7 +1316,7 @@ def step_option_visible(context, option):
 
 @then("the search results should be visible")
 def step_search_results_visible(context):
-    s = _rpc(context)
+    s = context.rpc
     result_list = f"{SETTINGS_POPUP_ITEM}/settingResultList"
     assert _wait_for_visible(s, result_list, timeout=10), "Search results are not visible"
 
@@ -1352,7 +1346,7 @@ def _read_float_property(s, path, prop):
 
 
 def _waveform_color_props(context, band, color):
-    s = _rpc(context)
+    s = context.rpc
     assert band in COLOR_BAND_MAP, f"Unknown waveform color '{band}'"
     actual = s.getStringProperty(WAVEFORM_PREVIEW_PATH, "colorCode" if band == "all" else f"{band}ColorCode")
     assert actual.lower() == color.lower(), (
@@ -1361,7 +1355,7 @@ def _waveform_color_props(context, band, color):
 
 
 def _assert_deck_until_mark(context, prop, deck, expected, description):
-    s = _rpc(context)
+    s = context.rpc
     actual = s.getStringProperty(_deck_waveform_path(deck), prop)
     assert actual == str(expected).lower(), (
         f"The until-marker hint on deck {deck} should "
@@ -1372,7 +1366,7 @@ def _assert_deck_until_mark(context, prop, deck, expected, description):
 
 @when('I pick the color "{color}" for the "{band}" waveform color')
 def step_pick_waveform_color(context, color, band):
-    s = _rpc(context)
+    s = context.rpc
     assert band in COLOR_BAND_MAP, f"Unknown waveform color '{band}'"
     index = COLOR_BAND_MAP[band]
     swatch_path = f"mainWindow/waveformColorSwatch_{index}"
@@ -1399,14 +1393,14 @@ def step_pick_waveform_color(context, color, band):
 
 @then('the "{setting}" setting should not be visible')
 def step_setting_not_visible(context, setting):
-    s = _rpc(context)
+    s = context.rpc
     spec = _setting_spec(setting)
     assert _wait_for_hidden(s, spec["path"]), f"Setting '{setting}' is still visible"
 
 
 @then("the waveform preview should be at zoom {zoom:g}")
 def step_preview_waveform_zoom(context, zoom):
-    s = _rpc(context)
+    s = context.rpc
     actual = _read_float_property(s, WAVEFORM_PREVIEW_PATH, "zoom")
     assert abs(actual - zoom) < 0.01, (
         f"The waveform preview should be at zoom {zoom} but is {actual}"
@@ -1415,7 +1409,7 @@ def step_preview_waveform_zoom(context, zoom):
 
 @then("the waveform preview beat grid should be {pct:d}% opaque")
 def step_preview_waveform_beat_grid(context, pct):
-    s = _rpc(context)
+    s = context.rpc
     actual = _read_float_property(s, WAVEFORM_PREVIEW_PATH, "beatGridOpacity")
     expected = pct / 100
     assert abs(actual - expected) < 0.01, (
@@ -1426,7 +1420,7 @@ def step_preview_waveform_beat_grid(context, pct):
 
 @then("the waveform preview play marker should sit at {pct:d}%")
 def step_preview_waveform_play_marker(context, pct):
-    s = _rpc(context)
+    s = context.rpc
     actual = _read_float_property(s, WAVEFORM_PREVIEW_PATH, "playMarkerPosition")
     expected = pct / 100
     assert abs(actual - expected) < 0.01, (
@@ -1437,7 +1431,7 @@ def step_preview_waveform_play_marker(context, pct):
 
 @then('the waveform preview until-marker hint should show beats')
 def step_preview_waveform_until_mark_beats(context):
-    s = _rpc(context)
+    s = context.rpc
     actual = s.getStringProperty(WAVEFORM_PREVIEW_PATH, "untilMarkShowBeats")
     assert actual == "true", (
         f"The waveform preview until-marker hint should show beats "
@@ -1447,7 +1441,7 @@ def step_preview_waveform_until_mark_beats(context):
 
 @then('the waveform preview until-marker hint should not show beats')
 def step_preview_waveform_until_mark_beats_off(context):
-    s = _rpc(context)
+    s = context.rpc
     actual = s.getStringProperty(WAVEFORM_PREVIEW_PATH, "untilMarkShowBeats")
     assert actual == "false", (
         f"The waveform preview until-marker hint should not show beats "
@@ -1457,7 +1451,7 @@ def step_preview_waveform_until_mark_beats_off(context):
 
 @then('the waveform preview until-marker hint should show the remaining time')
 def step_preview_waveform_until_mark_time(context):
-    s = _rpc(context)
+    s = context.rpc
     actual = s.getStringProperty(WAVEFORM_PREVIEW_PATH, "untilMarkShowTime")
     assert actual == "true", (
         f"The waveform preview until-marker hint should show the remaining "
@@ -1467,7 +1461,7 @@ def step_preview_waveform_until_mark_time(context):
 
 @then('the waveform preview until-marker hint should not show the remaining time')
 def step_preview_waveform_until_mark_time_off(context):
-    s = _rpc(context)
+    s = context.rpc
     actual = s.getStringProperty(WAVEFORM_PREVIEW_PATH, "untilMarkShowTime")
     assert actual == "false", (
         f"The waveform preview until-marker hint should not show the remaining "
@@ -1477,7 +1471,7 @@ def step_preview_waveform_until_mark_time_off(context):
 
 @then('the waveform preview until-marker hint should be placed at the "{placement}"')
 def step_preview_waveform_until_mark_placement(context, placement):
-    s = _rpc(context)
+    s = context.rpc
     actual = s.getStringProperty(WAVEFORM_PREVIEW_PATH, "untilMarkAlignName")
     assert actual == placement, (
         f"The waveform preview until-marker hint should be placed at the "
@@ -1487,7 +1481,7 @@ def step_preview_waveform_until_mark_placement(context, placement):
 
 @then('the waveform preview until-marker hint should use a {size:d}pt font')
 def step_preview_waveform_until_mark_font(context, size):
-    s = _rpc(context)
+    s = context.rpc
     actual = _read_float_property(s, WAVEFORM_PREVIEW_PATH, "untilMarkTextSize")
     assert abs(actual - size) < 0.01, (
         f"The waveform preview until-marker hint should use a {size}pt font "
@@ -1497,7 +1491,7 @@ def step_preview_waveform_until_mark_font(context, size):
 
 @then('the waveform preview should have the "{band}" band gain set to "{value}"')
 def step_preview_waveform_band_gain(context, band, value):
-    s = _rpc(context)
+    s = context.rpc
     prop = GAIN_BAND_MAP[band]["preview"]
     actual = _read_float_property(s, WAVEFORM_PREVIEW_PATH, prop)
     assert abs(actual - float(value)) < 1e-3, (
@@ -1508,7 +1502,7 @@ def step_preview_waveform_band_gain(context, band, value):
 
 @then('the waveform preview should render with the selected options')
 def step_preview_waveform_option(context):
-    s = _rpc(context)
+    s = context.rpc
     bits = 0
     for name, bit in WAVEFORM_OPTION_BITS.items():
         selected = s.getStringProperty(_setting_spec(name)["path"], "selected")
@@ -1535,7 +1529,7 @@ def step_preview_waveform_color(context, band, color):
 
 @then("the beat grid on deck {deck:d} should fade to {pct:d}% opacity")
 def step_deck_waveform_beat_grid(context, deck, pct):
-    s = _rpc(context)
+    s = context.rpc
     actual = _read_float_property(s, _deck_waveform_path(deck), "beatGridAlpha")
     expected = pct / 100
     assert abs(actual - expected) < 0.01, (
@@ -1546,7 +1540,7 @@ def step_deck_waveform_beat_grid(context, deck, pct):
 
 @then("the play marker on deck {deck:d} should sit at {pct:d}%")
 def step_deck_waveform_play_marker(context, deck, pct):
-    s = _rpc(context)
+    s = context.rpc
     actual = _read_float_property(
             s, _deck_waveform_path(deck), "playMarkerPosition")
     expected = pct / 100
@@ -1578,7 +1572,7 @@ def step_deck_waveform_until_mark_time_off(context, deck):
 
 @then('the until-marker hint on deck {deck:d} should be placed at the "{placement}"')
 def step_deck_waveform_until_mark_placement(context, deck, placement):
-    s = _rpc(context)
+    s = context.rpc
     actual = s.getStringProperty(_deck_waveform_path(deck), "untilMarkAlignName")
     assert actual == placement, (
         f"The until-marker hint on deck {deck} should be placed at the "
@@ -1588,7 +1582,7 @@ def step_deck_waveform_until_mark_placement(context, deck, placement):
 
 @then('the until-marker hint on deck {deck:d} should use a {size:d}pt font')
 def step_deck_waveform_until_mark_font(context, deck, size):
-    s = _rpc(context)
+    s = context.rpc
     actual = _read_float_property(s, _deck_waveform_path(deck), "untilMarkTextSize")
     assert abs(actual - size) < 0.01, (
         f"The until-marker hint on deck {deck} should use a {size}pt font "
@@ -1598,7 +1592,7 @@ def step_deck_waveform_until_mark_font(context, deck, size):
 
 @then('the waveform on deck {deck:d} should have the "{band}" band gain set to "{value}"')
 def step_deck_waveform_band_gain(context, deck, band, value):
-    s = _rpc(context)
+    s = context.rpc
     prop = GAIN_BAND_MAP[band]["deck"]
     actual = _read_float_property(s, _deck_waveform_path(deck), prop)
     assert abs(actual - float(value)) < 1e-3, (
@@ -1609,7 +1603,7 @@ def step_deck_waveform_band_gain(context, deck, band, value):
 
 @then("the zoom of the waveform on deck {deck_a:d} should be equal to the zoom on deck {deck_b:d}")
 def step_deck_waveform_zoom_equal(context, deck_a, deck_b):
-    s = _rpc(context)
+    s = context.rpc
     a = _read_float_property(s, _deck_waveform_path(deck_a), "waveformZoom")
     b = _read_float_property(s, _deck_waveform_path(deck_b), "waveformZoom")
     assert abs(a - b) < 1e-6, (
@@ -1656,7 +1650,7 @@ def _scroll_setting_into_view(s, path):
 
 @then("the settings categories should {assertion} visible")
 def step_settings_categories_visible(context, assertion):
-    s = _rpc(context)
+    s = context.rpc
     expected = assertion == "be"
     assert _is_visible(s, CATEGORIES_ITEM) is expected, (
         f"Settings categories should {assertion} visible"
@@ -1665,7 +1659,7 @@ def step_settings_categories_visible(context, assertion):
 
 @then("the button to reveal the categories should {assertion} visible")
 def step_categories_button_visible(context, assertion):
-    s = _rpc(context)
+    s = context.rpc
     expected = assertion == "be"
     assert _is_visible(s, SHOW_CATEGORIES_BUTTON) is expected, (
         f"Categories button should {assertion} visible"
@@ -1674,7 +1668,7 @@ def step_categories_button_visible(context, assertion):
 
 @when("I click the button to reveal the categories")
 def step_click_categories_button(context):
-    s = _rpc(context)
+    s = context.rpc
     assert _wait_for_visible(s, SHOW_CATEGORIES_BUTTON), "Categories button is not visible"
     _click(s, SHOW_CATEGORIES_BUTTON)
     time.sleep(0.3)
@@ -1682,14 +1676,14 @@ def step_click_categories_button(context):
 
 @then('the "{setting}" setting should be visible')
 def step_setting_visible(context, setting):
-    s = _rpc(context)
+    s = context.rpc
     spec = _setting_spec(setting)
     assert _wait_for_visible(s, spec["path"]), f"Setting '{setting}' is not visible"
 
 
 @then('the "{setting}" setting should be expanded')
 def step_setting_expanded(context, setting):
-    s = _rpc(context)
+    s = context.rpc
     spec = _setting_spec(setting)
     assert _wait_for_visible(s, f"{spec['path']}/option0"), (
         f"Setting '{setting}' should be expanded but its option pills are not visible"
@@ -1711,7 +1705,7 @@ LIBRARY_GRIDS = {
 @then('the {grid} grid should be displayed in {columns:d} columns')
 @then('the {grid} grid should be displayed in {columns:d} column')
 def step_grid_columns(context, grid, columns):
-    s = _rpc(context)
+    s = context.rpc
     path = LIBRARY_GRIDS.get(grid, f"mainWindow/{grid}")
     assert _wait_for_visible(s, path), f"Grid '{grid}' is not visible"
     actual = int(s.getStringProperty(path, "columns"))
@@ -1728,7 +1722,7 @@ SPATIAL_ITEM_PATHS = {
 
 @then('the {item} should be below the {target}')
 def step_below(context, item, target):
-    s = _rpc(context)
+    s = context.rpc
     item_path = SPATIAL_ITEM_PATHS[item]
     target_path = SPATIAL_ITEM_PATHS[target]
     # Hidden or zero-sized items make the geometric comparison below vacuous
@@ -1746,7 +1740,7 @@ def step_below(context, item, target):
 
 @then('the {item} should not overlap the {target}')
 def step_not_overlap(context, item, target):
-    s = _rpc(context)
+    s = context.rpc
     item_path = SPATIAL_ITEM_PATHS[item]
     target_path = SPATIAL_ITEM_PATHS[target]
     assert _is_visible(s, item_path), f"'{item}' is not visible"
@@ -1763,7 +1757,7 @@ def step_not_overlap(context, item, target):
 
 @then("the music directory list should be empty")
 def step_music_directory_list_empty(context):
-    s = _rpc(context)
+    s = context.rpc
     ok, actual = _wait_for_music_directory_count(s, 0)
     assert ok, (
         f"The music directory list should be empty but contains {actual}"
@@ -1773,7 +1767,7 @@ def step_music_directory_list_empty(context):
 @then("the music directory list should contain {count:d} source")
 @then("the music directory list should contain {count:d} sources")
 def step_music_directory_list_count(context, count):
-    s = _rpc(context)
+    s = context.rpc
     ok, actual = _wait_for_music_directory_count(s, count)
     assert ok, (
         f"The music directory list should contain {count} sources but "
@@ -1783,11 +1777,10 @@ def step_music_directory_list_count(context, count):
 
 @then("the library state should match the following")
 def step_library_state_matches(context):
-    s = _rpc(context)
     expected = {}
     for row in context.table:
         expected[row["key"]] = _parse_library_state_expectation(row["value"])
-    matched, last_state = _wait_for_library_state(s, expected)
+    matched, last_state = _wait_for_library_state(context, expected)
     assert matched, (
         f"The library state should match {expected} but the last observed "
         f"state is {last_state}"
@@ -1796,7 +1789,7 @@ def step_library_state_matches(context):
 
 @then("the {button} button of the music directory at row {row:d} should be visible")
 def step_source_button_visible(context, button, row):
-    s = _rpc(context)
+    s = context.rpc
     path = SOURCE_REMOVE_BUTTON % row if button == "remove" else SOURCE_RELINK_BUTTON % row
     assert _wait_for_clickable(s, path), (
         f"The {button} button for music directory row {row} is not visible"
@@ -1805,7 +1798,7 @@ def step_source_button_visible(context, button, row):
 
 @then('the "{setting}" setting should be compacted')
 def step_setting_compacted(context, setting):
-    s = _rpc(context)
+    s = context.rpc
     spec = _setting_spec(setting)
     assert _wait_for_visible(s, f"{spec['path']}/nextButton"), (
         f"Setting '{setting}' should be compacted but its spinbox buttons are not visible"
@@ -1814,7 +1807,7 @@ def step_setting_compacted(context, setting):
 
 @when("I scroll down in the settings")
 def step_scroll_down_settings(context):
-    s = _rpc(context)
+    s = context.rpc
     bar = _active_scrollbar(s)
     assert _wait_for_visible(s, bar), "The vertical scrollbar is not visible (nothing to scroll)"
     before = s.getStringProperty(bar, "position")
@@ -1848,7 +1841,7 @@ def step_scroll_down_settings(context):
 
 @then('the "{setting}" setting should {assertion} visible on screen')
 def step_setting_on_screen(context, setting, assertion):
-    s = _rpc(context)
+    s = context.rpc
     spec = _setting_spec(setting)
     expected = assertion == "be"
     assert _wait_for_visible(s, spec["path"]), f"Setting '{setting}' is not present"

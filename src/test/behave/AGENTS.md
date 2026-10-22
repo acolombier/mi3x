@@ -539,6 +539,7 @@ The `--serve` mode registers a custom handler via
 |-------------------|-----------------------|------------------------------------------------------------------------|-----------------------------------------------------------|
 | `getControlValue` | `"[Group],key"`       | `double` value stored in `mainWindow.lastControlValue` window property | `rpc.getStringProperty("mainWindow", "lastControlValue")` |
 | `setControlValue` | `"[Group],key,value"` | Sets a ControlObject value                                             | None                                                      |
+| `setHotcueLabel`  | JSON (see below)      | Sets a hotcue's label on the track loaded into the group               | None                                                      |
 | `loadTrack`       | `"deck,filepath"`     | Loads a track file onto the specified deck                             | None                                                      |
 | `library`         | JSON (see below)      | Adds/removes library directories, optionally triggers a scan           | None                                                      |
 | `getLibraryState` | (empty)               | Returns a JSON snapshot of the library state (see below)               | `rpc.getStringProperty("mainWindow", "lastLibraryState")` |
@@ -560,6 +561,24 @@ JSON payload:
   skips if the directory is already watched (`AlreadyWatching`).
 - `removeDirectory`: calls `TrackCollectionManager::removeDirectory()`.
 - `scan`: when `true`, calls `startLibraryScan()` after the operation.
+
+### `setHotcueLabel` command
+
+JSON payload:
+
+```json
+{
+  "group": "[Channel1]",
+  "hotcueNumber": 1,
+  "label": "Hallo"
+}
+```
+
+- `hotcueNumber` is 1-based, matching the API used by the hotcue popup.
+- Maps to `Track::findHotcueByIndex(hotcueNumber - 1)` + `Cue::setLabel()`
+  on the track loaded into the group; the cue must already be set.
+- Purely constrains system state for `Given` steps without driving the UI
+  (UI-driving label steps bias the test; see the step-DSL rules above).
 
 ### `getLibraryState` command
 
@@ -899,7 +918,7 @@ only escape hatch is `MIXXX_TEST_RPC_TIMEOUT`, which covers process startup
 - `before_all`: initiates `context._session` dict for cross-scenario state
 - `before_feature`: patches every scenario with the custom autoretry wrapper
   (max attempts from `--retry`, default 1)
-- `before_scenario`: restores `context.mixxx`, `context.mixxx_rpc`,
+- `before_scenario`: restores `context.mixxx`, `context.rpc`,
   `context.profile_dir`, `context.active_profile_type` from session; skips
   if `fail_early` is set and a previous scenario failed all retries
 - `after_scenario`: computes the outcome (including `@xfail`/`@xpass`
@@ -1028,15 +1047,15 @@ from steps.mixxx_steps import _get_control_value
 
 @then('the play button should be pressed')
 def step_play_pressed(context):
-    value = _get_control_value(context.mixxx_rpc, "[Channel1]", "play")
+    value = _get_control_value(context.rpc, "[Channel1]", "play")
     assert float(value) > 0, f"Play is not pressed (value={value})"
 ```
 
 Or use `command("getControlValue", "[Group],key")` directly:
 
 ```python
-context.mixxx_rpc.command("getControlValue", "[Channel1],play")
-value = context.mixxx_rpc.getStringProperty("mainWindow", "lastControlValue")
+context.rpc.command("getControlValue", "[Channel1],play")
+value = context.rpc.getStringProperty("mainWindow", "lastControlValue")
 ```
 
 ## Tagging
