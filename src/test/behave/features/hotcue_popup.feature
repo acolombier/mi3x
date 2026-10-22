@@ -13,6 +13,7 @@ Feature: Hotcue popup editing
     And Mixxx is open and ready to operate
     And a track is loaded on deck 1
     And hotcue 1 is set on deck 1
+    And hotcue 1 on deck 1 is of type "CUE"
 
   Scenario: The popup opens on hotcue right-click
     When I right-click hotcue 1 on deck 1
@@ -41,7 +42,7 @@ Feature: Hotcue popup editing
     Then the hotcue popup label should show "Drop here"
 
   Scenario: The committed label is restored when the popup reopens
-    Given the hotcue popup label shows "Drop here" for hotcue 1 on deck 1
+    Given the label of hotcue 1 on deck 1 is "Drop here"
     When I press Escape in the hotcue popup
     And I right-click hotcue 1 on deck 1
     Then the hotcue popup label should show "Drop here"
@@ -54,7 +55,7 @@ Feature: Hotcue popup editing
 
   Scenario: Cycling the cue type with the arrows
     Given the hotcue popup is open for hotcue 1 on deck 1
-    And the hotcue type name of hotcue 1 on deck 1 is "CUE"
+    And hotcue 1 on deck 1 is of type "CUE"
     When I click the "next type" arrow in the popup
     Then the hotcue type name of hotcue 1 on deck 1 should be "LOOP"
     When I click the "previous type" arrow in the popup
@@ -134,7 +135,7 @@ Feature: Hotcue popup editing
     And the split view start half should display the span start position
     And the split view target half should display the span end position
     And the hotcue span of hotcue 1 on deck 1 is remembered
-    When I click the swap button in the popup
+    When I click the "swap" button in the popup
     Then the hotcue span of hotcue 1 on deck 1 should be swapped
     And the split view start half should display the span start position
     And the split view target half should display the span end position
@@ -157,8 +158,3 @@ Feature: Hotcue popup editing
     When I click the "previous type" arrow in the popup
     Then the hotcue type name of hotcue 1 on deck 1 should be "JUMP"
     And the hotcue jump target of hotcue 1 on deck 1 should be at the playhead
-
-# -----------------------------------------------------------------------
-# End of AI-generated text (drafted autonomously by an AI agent, for a
-# human reviewer to check, amend, and submit).
-# -----------------------------------------------------------------------

@@ -1,14 +1,25 @@
-import json
 import time
 
-from behave import given, then, when
+from behave import given, when, then
+from mixxx_helpers import (
+    _click,
+    _deck_group,
+    _deck_hotcue_path,
+    _get_bb,
+    _get_control_value,
+    _get_property,
+    _is_visible,
+    _remember,
+    _remembered_value,
+    _wait_for_visible,
+    _set_control_value,
+    _set_hotcue_label,
+)
 from spix_helpers import (
     QT_KEY_ENTER,
+    QT_KEY_ESCAPE,
     QT_RIGHT_BUTTON,
-    wait_visible,
 )
-
-QT_KEY_ESCAPE = 0x01000000
 
 # The hotcue popup is re-parented to the window overlay when opened, where
 # it is reachable through its generated QQuickPopupItem ("HotcuePopup");
@@ -18,11 +29,13 @@ QT_KEY_ESCAPE = 0x01000000
 # popup with identical child names.
 POPUP_POPUP_ITEM = "mainWindow/HotcuePopup"
 
-POPUP_BUTTON_NAMES = {
-    "delete": "hotcuePopupDeleteButton",
+# name -> (location, element objectName). "waveform" elements live in the
+# popup's waveform patch, "popup" ones in the popup content tree.
+POPUP_BUTTONS = {
+    "delete": ("popup", "hotcuePopupDeleteButton"),
     "swap": ("waveform", "hotcuePopupSwapButton"),
-    "previous type": "hotcuePopupTypePrev",
-    "next type": "hotcuePopupTypeNext",
+    "previous type": ("popup", "hotcuePopupTypePrev"),
+    "next type": ("popup", "hotcuePopupTypeNext"),
 }
 
 HOTCUE_TYPE_VALUES = {"CUE": 1, "LOOP": 4, "JUMP": 5}
@@ -54,54 +67,66 @@ def _waveform(context, name, hotcue=None, deck=None):
     return f"{_popup(context, 'hotcuePopupWaveform', hotcue, deck)}/{name}"
 
 
-def _rpc(context):
-    return context.mixxx_rpc
-
-
-def _click(context, path):
-    _rpc(context).mouseClick(path)
-
-
-def _wait_for_visible(context, path, timeout=5):
-    wait_visible(_rpc(context), path, timeout)
-
-
-def _get_property(context, path, prop):
-    return _rpc(context).getStringProperty(path, prop)
-
-
-def _get_bool(context, path, prop):
-    value = _get_property(context, path, prop)
-    return value in (True, "true", "1")
-
-
-def _get_control_value(context, group, key):
-    rpc = _rpc(context)
-    rpc.command("getControlValue", f"{group},{key}")
-    return float(rpc.getStringProperty("mainWindow", "lastControlValue"))
-
-
-def _set_control_value(context, group, key, value):
-    _rpc(context).command("setControlValue", f"{group},{key},{value}")
-
-
-def _get_bb(context, path):
-    value = _rpc(context).getBoundingBox(path)
-    if isinstance(value, str):
-        value = json.loads(value)
-    keys = ("x", "y", "width", "height")
-    return dict(zip(keys, (float(v) for v in value)))
-
-
 def _is_open(context, hotcue=None, deck=None):
     # The Popup object itself is not reachable as an Item by spix, so "open"
     # is recognized through the visibility of the popup content tree
-    return _get_bool(context, _popup(context, "hotcuePopupContent", hotcue, deck), "visible")
+    return _is_visible(context, _popup(context, "hotcuePopupContent", hotcue, deck))
 
 
-def _remember(context, key, value):
-    context._remembered_hc = getattr(context, "_remembered_hc", {})
-    context._remembered_hc[key] = value
+def _open_hotcue_popup(context, deck, hotcue):
+    context._popup_deck = deck
+    context._popup_hotcue = hotcue
+    path = _deck_hotcue_path(deck, hotcue)
+    popup_path = _popup(context, "hotcuePopupContent")
+    # AGENTS.md click-retry exception: the popup opens via tap on the
+    # hotcue button's TapHandler, and spix synthetic taps can be dropped
+    # under load; each retry is verified against the popup being visible.
+    # The popup is modal while open, so further right-clicks on the button
+    # cannot toggle it again.
+    deadline = time.time() + 15.0
+    while not _is_visible(context, popup_path):
+        if time.time() >= deadline:
+            break
+        context.rpc.mouseClickWithButton(path, QT_RIGHT_BUTTON, 0)
+        time.sleep(0.3)
+    assert _is_visible(context, popup_path), (
+        f"the hotcue popup for hotcue {hotcue} on deck {deck} did not open")
+
+
+def _wait_until_label_set(context, text, timeout_s=2.0):
+    hotcue = getattr(context, "_popup_hotcue", 1)
+    deck = getattr(context, "_popup_deck", 1)
+    deadline = time.time() + timeout_s
+    while True:
+        value = _get_property(
+            context, _deck_hotcue_path(deck, hotcue), "labelText")
+        if value == text or time.time() >= deadline:
+            return value
+        time.sleep(0.1)
+
+
+def _read_zoom(context, prop="zoom"):
+    try:
+        return float(_get_property(
+            context, _popup(context, "hotcuePopupWaveform"), prop))
+    except (TypeError, ValueError):
+        return None
+
+
+def _set_zoom(context, value):
+    zoom_path = _popup(context, "hotcuePopupWaveform")
+    context.rpc.setStringProperty(zoom_path, "zoom", str(value))
+    deadline = time.time() + 5.0
+    while time.time() < deadline:
+        zoom = _read_zoom(context)
+        if zoom is not None and abs(value - zoom) <= 1e-3:
+            break
+        time.sleep(0.1)
+    else:
+        raise AssertionError(
+            f"could not apply the {zoom_path!r} zoom value {value!r}")
+    # Let the zoom and splitView animations settle
+    time.sleep(2)
 
 
 # --- Given: popup state ---
@@ -109,61 +134,65 @@ def _remember(context, key, value):
 
 @given("the hotcue popup is open for hotcue {hotcue:d} on deck {deck:d}")
 def step_given_popup_open(context, hotcue, deck):
-    context._popup_hotcue = hotcue
-    context._popup_deck = deck
-    _rpc(context).mouseClickWithButton(
-        f"mainWindow/deck{deck}/hotcue_{hotcue}", QT_RIGHT_BUTTON, 0
-    )
-    _wait_for_visible(context, _popup(context, "hotcuePopupContent"))
+    _open_hotcue_popup(context, deck, hotcue)
 
 
 @given("hotcue {hotcue:d} is set on deck {deck:d}")
-def step_given_hotcue_set(context, hotcue, deck):
+def step_given_hotcue_is_set(context, hotcue, deck):
+    group = _deck_group(deck)
+
+    def status_value():
+        return _get_control_value(context, group, f"hotcue_{hotcue}_status")
+
+    if status_value() == 0:
+        _click(context, _deck_hotcue_path(deck, hotcue))
+        deadline = time.time() + 1.0
+        while status_value() == 0 and time.time() < deadline:
+            time.sleep(0.1)
+    if status_value() == 0:
+        # Under load the click can be dropped (the hotcue button reacts to
+        # a TapHandler); pulse the set control instead, the status control
+        # is momentary and cannot create the cue.
+        _set_control_value(context, group, f"hotcue_{hotcue}_set", 1)
+        deadline = time.time() + 1.0
+        while status_value() == 0 and time.time() < deadline:
+            time.sleep(0.1)
+        _set_control_value(context, group, f"hotcue_{hotcue}_set", 0)
+    assert status_value() != 0, (
+        f"hotcue_{hotcue} could not be set (status={status_value()})")
     context._popup_hotcue = hotcue
     context._popup_deck = deck
-    group = f"[Channel{deck}]"
-    status = _get_control_value(context, group, f"hotcue_{hotcue}_status")
-    if status == 0:
-        path = f"mainWindow/deck{deck}/hotcue_{hotcue}"
-        _click(context, path)
-        status = _get_control_value(context, group, f"hotcue_{hotcue}_status")
-        if status == 0:
-            # Last resort: mark the hotcue as set via its status control
-            _set_control_value(context, group, f"hotcue_{hotcue}_status", 1)
-            status = _get_control_value(context, group, f"hotcue_{hotcue}_status")
-            assert status != 0, f"hotcue_{hotcue} could not be set (status={status})"
 
 
-@given("hotcue {hotcue:d} on deck {deck:d} is of type \"{hotcue_type}\"")
-def step_given_hotcue_set(context, hotcue, deck, hotcue_type):
-    group = f"[Channel{deck}]"
-    assert hotcue_type in HOTCUE_TYPE_VALUES.keys(), f"Unknown hotcue type {repr(hotcue_type)}"
-    expected_type = HOTCUE_TYPE_VALUES.get(hotcue_type)
-    _set_control_value(context, group, f"hotcue_{hotcue}_type", expected_type)
-    assert _get_control_value(context, group, f"hotcue_{hotcue}_type") == expected_type, "Unable to set the hotcue type"
+@given('hotcue {hotcue:d} on deck {deck:d} is of type "{hotcue_type}"')
+def step_given_hotcue_type(context, hotcue, deck, hotcue_type):
+    assert hotcue_type in HOTCUE_TYPE_VALUES, f"Unknown hotcue type {repr(hotcue_type)}"
+    expected_type = HOTCUE_TYPE_VALUES[hotcue_type]
+    _set_control_value(
+        context, _deck_group(deck), f"hotcue_{hotcue}_type", expected_type)
+    actual = _get_control_value(
+        context, _deck_group(deck), f"hotcue_{hotcue}_type")
+    assert actual == expected_type, f"Unable to set the hotcue type (is {actual})"
 
 
-@given('the hotcue popup label shows "{text}" for hotcue {hotcue:d} on deck {deck:d}')
-def step_given_popup_label(context, text, hotcue, deck):
+@given('the label of hotcue {hotcue:d} on deck {deck:d} is "{text}"')
+def step_given_hotcue_label(context, text, hotcue, deck):
     context._popup_hotcue = hotcue
     context._popup_deck = deck
-    if not _is_open(context, hotcue, deck):
-        _rpc(context).mouseClickWithButton(
-            f"mainWindow/deck{deck}/hotcue_{hotcue}", QT_RIGHT_BUTTON, 0
-        )
-        _wait_for_visible(context, _popup(context, "hotcuePopupContent"))
-    label = _popup(context, "hotcuePopupLabelField")
-    _click(context, label)
-    rpc = _rpc(context)
-    rpc.inputText(label, text)
-    rpc.enterKey(label, QT_KEY_ENTER, 0)
-    wait_until_label_set(context, text)
+    group = _deck_group(deck)
+    _set_hotcue_label(context, group, hotcue, text)
+    value = _wait_until_label_set(context, text)
+    assert value == text, (
+        f"The committed label could not be set (shows {value!r}, expected {text!r})")
 
 
 @given("the playhead of deck {deck:d} is at {position:f}")
 def step_given_playhead(context, deck, position):
-    _set_control_value(context, f"[Channel{deck}]", "playposition", position)
-    assert _get_control_value(context, f"[Channel{deck}]", "playposition") == position, f"Unable top set the deck {deck} playposition to {position}"
+    group = _deck_group(deck)
+    _set_control_value(context, group, "playposition", position)
+    actual = _get_control_value(context, group, "playposition")
+    assert actual == position, (
+        f"Unable to set the deck {deck} playposition to {position}")
 
 
 # --- Given/When: remember helpers ---
@@ -173,44 +202,35 @@ def step_given_playhead(context, deck, position):
 @when("I remember the hotcue color of hotcue {hotcue:d} on deck {deck:d}")
 @when("the hotcue color of hotcue {hotcue:d} on deck {deck:d} is remembered")
 def step_remember_hotcue_color(context, hotcue, deck):
-    group = f"[Channel{deck}]"
-    _remember(context, f"{deck}_color_{hotcue}", _get_control_value(
-        context, group, f"hotcue_{hotcue}_color"
-    ))
+    _remember(
+        context,
+        ("hotcue color", deck, hotcue),
+        _get_control_value(
+            context, _deck_group(deck), f"hotcue_{hotcue}_color"),
+    )
 
 
 @given("the hotcue span of hotcue {hotcue:d} on deck {deck:d} is remembered")
 @when("I remember the hotcue span of hotcue {hotcue:d} on deck {deck:d}")
 @then("the hotcue span of hotcue {hotcue:d} on deck {deck:d} is remembered")
 def step_remember_hotcue_span(context, hotcue, deck):
-    group = f"[Channel{deck}]"
-    _remember(context, f"{deck}_span_{hotcue}", (
+    group = _deck_group(deck)
+    _remember(context, ("hotcue span", deck, hotcue), (
         _get_control_value(context, group, f"hotcue_{hotcue}_position"),
-        _get_control_value(context, group, f"hotcue_{hotcue}_endposition"),
+        _get_control_value(
+            context, group, f"hotcue_{hotcue}_endposition"),
     ))
 
 
 @given("the beatloop size of deck {deck:d} is set to {beats:d}")
 @given("the beatloop size is set to {beats:d}")
-def step_given_beatloop_size(context, deck=1, beats=4):
-    if deck is None:
-        deck = 1
-    _set_control_value(context, f"[Channel{deck}]", "beatloop_size", beats)
+def step_given_beatloop_size(context, beats, deck=1):
+    _set_control_value(context, _deck_group(deck), "beatloop_size", beats)
 
 
 @given("quantize is disabled on deck {deck:d}")
 def step_given_quantize_disabled(context, deck):
-    _set_control_value(context, f"[Channel{deck}]", "quantize", 0)
-
-
-@given('the hotcue type name of hotcue {hotcue:d} on deck {deck:d} is "{type_name}"')
-@when('the hotcue type name of hotcue {hotcue:d} on deck {deck:d} is "{type_name}"')
-def step_given_type_is(context, hotcue, deck, type_name):
-    actual = HOTCUE_TYPE_NAMES.get(
-        int(_get_control_value(context, f"[Channel{deck}]", f"hotcue_{hotcue}_type"))
-    )
-    if actual != type_name:
-        raise AssertionError(f"hotcue type is {actual}, expected {type_name}")
+    _set_control_value(context, _deck_group(deck), "quantize", 0)
 
 
 # --- When: popup interactions ---
@@ -218,100 +238,74 @@ def step_given_type_is(context, hotcue, deck, type_name):
 
 @when("I right-click hotcue {hotcue:d} on deck {deck:d}")
 def step_right_click_hotcue(context, hotcue, deck):
-    context._popup_hotcue = hotcue
-    context._popup_deck = deck
-    _rpc(context).mouseClickWithButton(
-        f"mainWindow/deck{deck}/hotcue_{hotcue}", QT_RIGHT_BUTTON, 0
-    )
-    _wait_for_visible(context, _popup(context, "hotcuePopupContent"))
+    _open_hotcue_popup(context, deck, hotcue)
 
 
 @when('I click the "{name}" button in the popup')
-def step_click_popup_button(context, name):
-    spec = POPUP_BUTTON_NAMES[name]
-    path = _waveform(context, spec[1]) if isinstance(spec, tuple) else _popup(context, spec)
-    _click(context, path)
-
-
 @when('I click the "{name}" arrow in the popup')
-def step_click_popup_arrow(context, name):
-    _click(context, _popup(context, POPUP_BUTTON_NAMES[name]))
+def step_click_popup_button(context, name):
+    try:
+        location, element = POPUP_BUTTONS[name]
+    except KeyError:
+        raise ValueError(f'Unknown popup button "{name}"')
+    if location == "waveform":
+        path = _waveform(context, element)
+    else:
+        path = _popup(context, element)
+    _click(context, path)
 
 
 @when("I click hotcue color swatch {num:d} in the popup")
 def step_click_swatch(context, num):
-    _click(
-        context,
-        f"{_popup(context, 'hotcuePopupSwatch_')}{num - 1}",
-    )
+    _click(context, f"{_popup(context, 'hotcuePopupSwatch_')}{num - 1}")
 
 
 @when('I enter "{text}" in the hotcue popup label field')
 def step_enter_label(context, text):
     label = _popup(context, "hotcuePopupLabelField")
+    _wait_for_visible(context, label),
     _click(context, label)
-    _rpc(context).inputText(label, text)
+    context.rpc.inputText(label, text)
 
 
 @when('I press "{key}" in the hotcue popup label field')
 @when("I press Enter in the hotcue popup label field")
-def step_press_enter(context, key=None):
+def step_press_label_key(context, key=None):
     keymap = {"Enter": QT_KEY_ENTER, "Escape": QT_KEY_ESCAPE}
     keycode = QT_KEY_ENTER if key is None else keymap[key]
-    _rpc(context).enterKey(_popup(context, "hotcuePopupLabelField"), keycode, 0)
+    context.rpc.enterKey(_popup(context, "hotcuePopupLabelField"), keycode, 0)
 
 
 @when("I press Escape in the hotcue popup")
 def step_press_escape_popup(context):
     # No item inside the popup is focused, so the Escape key event is
     # delivered to the popup item, which discards the popup
-    _rpc(context).enterKey(_popup(context, "hotcuePopupContent"), QT_KEY_ESCAPE, 0)
-
-def _read_zoom(context, zoom_path, prop="zoom"):
-    value = _get_property(context, zoom_path, prop)
-    try:
-        return float(value)
-    except ValueError:
-        return None
+    context.rpc.enterKey(_popup(context, "hotcuePopupContent"), QT_KEY_ESCAPE, 0)
 
 
 @when("I zoom the hotcue popup waveform in by {steps:d} steps")
 def step_zoom_in(context, steps):
-    zoom_path = _popup(context, "hotcuePopupWaveform")
-    zoom = _read_zoom(context, zoom_path)
-    assert zoom is not None, f"could not read the {zoom_path!r} zoom property"
-    value = max(MIN_ZOOM, zoom - steps)
-    _rpc(context).setStringProperty(zoom_path, "zoom", str(value))
-    # Let the zoom and splitView animations settle
-    time.sleep(2)
+    zoom = _read_zoom(context)
+    assert zoom is not None, (
+        "could not read the hotcue popup waveform zoom property")
+    _set_zoom(context, max(MIN_ZOOM, zoom - steps))
 
 
 @when("I zoom the hotcue popup waveform out by {steps:d} steps")
 def step_zoom_out(context, steps):
-    zoom_path = _popup(context, "hotcuePopupWaveform")
-    zoom = _read_zoom(context, zoom_path)
-    assert zoom is not None, f"could not read the {zoom_path!r} zoom property"
-    value = min(MAX_ZOOM, zoom + steps)
-    _rpc(context).setStringProperty(zoom_path, "zoom", str(value))
-    # Let the zoom and splitView animations settle
-    time.sleep(2)
+    zoom = _read_zoom(context)
+    assert zoom is not None, (
+        "could not read the hotcue popup waveform zoom property")
+    _set_zoom(context, min(MAX_ZOOM, zoom + steps))
 
 
 @when("I zoom the hotcue popup waveform out to fit the span")
 def step_zoom_out_fit(context):
     # Write the ideal zoom that the popup targeting the span would apply;
     # writing it directly breaks the binding the same way a wheel event would
-    zoom_path = _popup(context, "hotcuePopupWaveform")
-    ideal = _read_zoom(context, zoom_path, "idealZoom")
+    ideal = _read_zoom(context, "idealZoom")
     assert ideal is not None, "could not read the ideal zoom"
-    ideal = max(MIN_ZOOM, min(MAX_ZOOM, ideal))
-    _rpc(context).setStringProperty(zoom_path, "zoom", str(ideal))
-    time.sleep(2)
-
-
-@when("I click the swap button in the popup")
-def step_click_swap(context):
-    _click(context, _waveform(context, "hotcuePopupSwapButton"))
+    _set_zoom(context, max(MIN_ZOOM, min(MAX_ZOOM, ideal)))
 
 
 # --- Then: popup assertions ---
@@ -328,82 +322,64 @@ def step_popup_closed(context):
 
 
 @then("the hotcue popup label field should be visible")
-def step_label_visible(context):
-    assert _get_bool(
-        context, _popup(context, "hotcuePopupLabelField"), "visible"
-    ), "hotcue popup label field not visible"
+def step_label_is_visible(context):
+    assert _is_visible(context, _popup(context, "hotcuePopupLabelField")), (
+        "hotcue popup label field not visible")
 
 
 @then("the hotcue popup delete button should be visible")
-def step_delete_visible(context):
-    assert _get_bool(
-        context, _popup(context, "hotcuePopupDeleteButton"), "visible"
-    ), "hotcue popup delete button not visible"
+def step_delete_is_visible(context):
+    assert _is_visible(context, _popup(context, "hotcuePopupDeleteButton")), (
+        "hotcue popup delete button not visible")
 
 
-def _get_swatch_count(context):
+def _swatch_count(context):
     return int(float(_get_property(
         context, _popup(context, "hotcuePopupSwatches"), "count")))
 
 
 @then("the hotcue popup color swatches should be visible")
-def step_swatches_visible(context):
-    count = _get_swatch_count(context)
+def step_swatches_is_visible(context):
+    count = _swatch_count(context)
     assert count >= 1, f"unexpected swatch count {count}"
     for i in range(count):
-        assert _get_bool(
-            context, f"{_popup(context, 'hotcuePopupSwatch_')}{i}", "visible"
-        ), f"swatch {i} not visible"
+        assert _is_visible(
+            context, f"{_popup(context, 'hotcuePopupSwatch_')}{i}"), (
+            f"swatch {i} not visible")
 
-
-def wait_until_label_set(context, text, timeout_s=2.0):
-    import time
-    hotcue = getattr(context, "_popup_hotcue", 1)
-    deck = getattr(context, "_popup_deck", 1)
-    deadline = time.time() + timeout_s
-    value = ""
-    while time.time() < deadline:
-        value = _get_property(
-            context, f"mainWindow/deck{deck}/hotcue_{hotcue}", "labelText")
-        if value == text:
-            return value
-        time.sleep(0.1)
-    return value
 
 @then('the hotcue popup label should show "{text}"')
 def step_label_shows(context, text):
     # The deck hotcue button label mirrors the committed cue label; allow
     # the model update to settle before reading
-    import time
-    hotcue = getattr(context, "_popup_hotcue", 1)
-    deck = getattr(context, "_popup_deck", 1)
-    value = wait_until_label_set(context, text)
+    value = _wait_until_label_set(context, text)
     assert value == text, f"label shows {value!r}, expected {text!r}"
 
 
 @then('the hotcue type name of hotcue {hotcue:d} on deck {deck:d} should be "{type_name}"')
 def step_type_should_be(context, hotcue, deck, type_name):
-    value = int(_get_control_value(context, f"[Channel{deck}]", f"hotcue_{hotcue}_type"))
+    value = int(_get_control_value(
+        context, _deck_group(deck), f"hotcue_{hotcue}_type"))
     actual = HOTCUE_TYPE_NAMES.get(value)
     assert actual == type_name, f"hotcue type is {actual}, expected {type_name}"
 
 
 @then("the hotcue color of hotcue {hotcue:d} on deck {deck:d} should have changed")
 def step_color_changed(context, hotcue, deck):
-    import time
-    group = f"[Channel{deck}]"
-    key = f"{deck}_color_{hotcue}"
-    before = context._remembered_hc[key]
-    after = _get_control_value(context, group, f"hotcue_{hotcue}_color")
-    time.sleep(1.0)
-    settled = _get_control_value(context, group, f"hotcue_{hotcue}_color")
-    assert before != after or before != settled, (
-        f"hotcue color unchanged (before={before}, after={after}, settled={settled})")
+    group = _deck_group(deck)
+    before = _remembered_value(context, ("hotcue color", deck, hotcue))
+    deadline = time.time() + 2.0
+    while True:
+        after = _get_control_value(context, group, f"hotcue_{hotcue}_color")
+        if after != before or time.time() >= deadline:
+            break
+        time.sleep(0.1)
+    assert after != before, f"hotcue color unchanged (stayed at {before})"
 
 
 @then("the hotcue span length of hotcue {hotcue:d} on deck {deck:d} should be {beats:d} beats")
 def step_span_length_beats(context, hotcue, deck, beats):
-    group = f"[Channel{deck}]"
+    group = _deck_group(deck)
     start = _get_control_value(context, group, f"hotcue_{hotcue}_position")
     end = _get_control_value(context, group, f"hotcue_{hotcue}_endposition")
     bpm = _get_control_value(context, group, "bpm")
@@ -417,7 +393,7 @@ def step_span_length_beats(context, hotcue, deck, beats):
 
 @then("the hotcue jump target of hotcue {hotcue:d} on deck {deck:d} should be at the playhead")
 def step_jump_target_playhead(context, hotcue, deck):
-    group = f"[Channel{deck}]"
+    group = _deck_group(deck)
     end = _get_control_value(context, group, f"hotcue_{hotcue}_endposition")
     playposition = _get_control_value(context, group, "playposition")
     track_samples = _get_control_value(context, group, "track_samples")
@@ -428,10 +404,12 @@ def step_jump_target_playhead(context, hotcue, deck):
 
 @then("the hotcue span of hotcue {hotcue:d} on deck {deck:d} should be swapped")
 def step_span_swapped(context, hotcue, deck):
-    group = f"[Channel{deck}]"
-    start, end = context._remembered_hc[f"{deck}_span_{hotcue}"]
-    new_start = _get_control_value(context, group, f"hotcue_{hotcue}_position")
-    new_end = _get_control_value(context, group, f"hotcue_{hotcue}_endposition")
+    group = _deck_group(deck)
+    start, end = _remembered_value(context, ("hotcue span", deck, hotcue))
+    new_start = _get_control_value(
+        context, group, f"hotcue_{hotcue}_position")
+    new_end = _get_control_value(
+        context, group, f"hotcue_{hotcue}_endposition")
     assert abs(new_start - end) < 1e-3, f"start {new_start} != remembered end {end}"
     assert abs(new_end - start) < 1e-3, f"end {new_end} != remembered start {start}"
 
@@ -440,135 +418,124 @@ def step_span_swapped(context, hotcue, deck):
 
 
 @then("the hotcue popup waveform should be visible")
-def step_waveform_visible(context):
-    assert _get_bool(
-        context, _waveform(context, "hotcuePopupWaveformFull"), "visible"
-    ), "hotcue popup waveform not visible"
+def step_waveform_is_visible(context):
+    assert _is_visible(
+        context, _waveform(context, "hotcuePopupWaveformFull")), (
+        "hotcue popup waveform not visible")
 
 
 @then("the hotcue popup start notch should be visible")
-def step_start_notch_visible(context):
-    assert _get_bool(
-        context, _waveform(context, "hotcuePopupStartNotch"), "visible"
-    ), "hotcue popup start notch not visible"
+def step_start_notch_is_visible(context):
+    assert _is_visible(context, _waveform(context, "hotcuePopupStartNotch")), (
+        "hotcue popup start notch not visible")
 
 
 @then("the hotcue popup start notch should not be visible")
 def step_start_notch_hidden(context):
-    assert not _get_bool(
-        context, _waveform(context, "hotcuePopupStartNotch"), "visible"
-    ), "hotcue popup start notch still visible"
+    assert not _is_visible(context, _waveform(context, "hotcuePopupStartNotch")), (
+        "hotcue popup start notch still visible")
 
 
 @then("the hotcue popup end notch should be visible")
-def step_end_notch_visible(context):
-    assert _get_bool(
-        context, _waveform(context, "hotcuePopupEndNotch"), "visible"
-    ), "hotcue popup end notch not visible"
+def step_end_notch_is_visible(context):
+    assert _is_visible(context, _waveform(context, "hotcuePopupEndNotch")), (
+        "hotcue popup end notch not visible")
 
 
 @then("the hotcue popup end notch should not be visible")
 def step_end_notch_hidden(context):
-    assert not _get_bool(
-        context, _waveform(context, "hotcuePopupEndNotch"), "visible"
-    ), "hotcue popup end notch still visible"
+    assert not _is_visible(context, _waveform(context, "hotcuePopupEndNotch")), (
+        "hotcue popup end notch still visible")
 
 
 @then("the span filler should be visible")
-def step_filler_visible(context):
-    assert _get_bool(
-        context, _waveform(context, "hotcuePopupSpanFiller"), "visible"
-    ), "span filler not visible"
+def step_filler_is_visible(context):
+    assert _is_visible(context, _waveform(context, "hotcuePopupSpanFiller")), (
+        "span filler not visible")
 
 
 @then("the span filler should not be visible")
 def step_filler_hidden(context):
-    assert not _get_bool(
-        context, _waveform(context, "hotcuePopupSpanFiller"), "visible"
-    ), "span filler still visible"
+    assert not _is_visible(context, _waveform(context, "hotcuePopupSpanFiller")), (
+        "span filler still visible")
 
 
 @then("the hotcue popup should be in split view")
 def step_split_view(context):
-    assert _get_bool(
-        context, _popup(context, "hotcuePopupWaveform"), "splitView"), "not in split view"
-    assert _get_bool(
-        context, _waveform(context, "hotcuePopupWaveformPartial"), "visible"
-    ), "hotcue popup split view target half not visible"
+    assert _get_property(
+        context, _popup(context, "hotcuePopupWaveform"), "splitView") == "true", (
+        "not in split view")
+    assert _is_visible(
+        context, _waveform(context, "hotcuePopupWaveformPartial")), (
+        "hotcue popup split view target half not visible")
 
 
 @then("the hotcue popup should not be in split view")
 def step_no_split_view(context):
-    assert not _get_bool(
-        context, _popup(context, "hotcuePopupWaveform"), "splitView"), "in split view"
+    assert _get_property(
+        context, _popup(context, "hotcuePopupWaveform"), "splitView") != "true", (
+        "in split view")
 
 
 @then("the split view start half should be visible")
 @then("the split view target half should be visible")
-def step_split_halves_visible(context):
-    assert _get_bool(
-        context, _waveform(context, "hotcuePopupWaveformFull"), "visible"
-    ), "split view start half not visible"
-    assert _get_bool(
-        context, _waveform(context, "hotcuePopupWaveformPartial"), "visible"
-    ), "split view target half not visible"
+def step_split_halves_is_visible(context):
+    assert _is_visible(
+        context, _waveform(context, "hotcuePopupWaveformFull")), (
+        "split view start half not visible")
+    assert _is_visible(
+        context, _waveform(context, "hotcuePopupWaveformPartial")), (
+        "split view target half not visible")
 
 
 @then("the split view target half should not be visible")
 def step_split_target_hidden(context):
-    assert not _get_bool(
-        context, _waveform(context, "hotcuePopupWaveformPartial"), "visible"
-    ), "split view target half still visible"
+    assert not _is_visible(
+        context, _waveform(context, "hotcuePopupWaveformPartial")), (
+        "split view target half still visible")
 
 
 @then("the loop warp seam should be visible")
-def step_loop_seam_visible(context):
-    assert _get_bool(
-        context, _waveform(context, "hotcuePopupLoopSeam"), "visible"
-    ), "loop warp seam not visible"
+def step_loop_seam_is_visible(context):
+    assert _is_visible(context, _waveform(context, "hotcuePopupLoopSeam")), (
+        "loop warp seam not visible")
 
 
 @then("the jump warp divider should be visible")
-def step_jump_divider_visible(context):
-    assert _get_bool(
-        context, _waveform(context, "hotcuePopupJumpDivider"), "visible"
-    ), "jump warp divider not visible"
+def step_jump_divider_is_visible(context):
+    assert _is_visible(context, _waveform(context, "hotcuePopupJumpDivider")), (
+        "jump warp divider not visible")
 
 
 @then("the skip shade above the split should be visible")
-def step_shade_top_visible(context):
-    assert _get_bool(
-        context, _waveform(context, "hotcuePopupSkipShadeTop"), "visible"
-    ), "skip shade above the split not visible"
+def step_shade_top_is_visible(context):
+    assert _is_visible(context, _waveform(context, "hotcuePopupSkipShadeTop")), (
+        "skip shade above the split not visible")
 
 
 @then("the skip shade below the split should be visible")
-def step_shade_bottom_visible(context):
-    assert _get_bool(
-        context, _waveform(context, "hotcuePopupSkipShadeBottom"), "visible"
-    ), "skip shade below the split not visible"
+def step_shade_bottom_is_visible(context):
+    assert _is_visible(context, _waveform(context, "hotcuePopupSkipShadeBottom")), (
+        "skip shade below the split not visible")
 
 
 @then("the swap button should be visible")
-def step_swap_visible(context):
-    assert _get_bool(
-        context, _waveform(context, "hotcuePopupSwapButton"), "visible"
-    ), "swap button not visible"
+def step_swap_is_visible(context):
+    assert _is_visible(context, _waveform(context, "hotcuePopupSwapButton")), (
+        "swap button not visible")
 
 
 def _assert_split_half_position(context, display_path, position):
-    import time
-    group = f"[Channel{getattr(context, '_popup_deck', 1)}]"
+    group = _deck_group(getattr(context, "_popup_deck", 1))
     track_samples = _get_control_value(context, group, "track_samples")
     expected = position / track_samples
-    value = None
     deadline = time.time() + 2.0
-    while time.time() < deadline:
+    while True:
         value = float(_get_property(context, display_path, "position"))
-        if abs(value - expected) <= 0.005:
-            return
+        if abs(value - expected) <= 0.005 or time.time() >= deadline:
+            break
         time.sleep(0.1)
-    assert False, (
+    assert abs(value - expected) <= 0.005, (
         f"{display_path} position {value!r} does not display the expected "
         f"track ratio {expected!r}")
 
@@ -576,21 +543,23 @@ def _assert_split_half_position(context, display_path, position):
 @then("the split view start half should display the span start position")
 def step_split_start_half_position(context):
     hotcue = getattr(context, "_popup_hotcue", 1)
-    group = f"[Channel{getattr(context, '_popup_deck', 1)}]"
+    group = _deck_group(getattr(context, "_popup_deck", 1))
     _assert_split_half_position(
         context,
         _waveform(context, "hotcuePopupWaveformFull"),
-        _get_control_value(context, group, f"hotcue_{hotcue}_position"))
+        _get_control_value(
+            context, group, f"hotcue_{hotcue}_position"))
 
 
 @then("the split view target half should display the span end position")
 def step_split_target_half_position(context):
     hotcue = getattr(context, "_popup_hotcue", 1)
-    group = f"[Channel{getattr(context, '_popup_deck', 1)}]"
+    group = _deck_group(getattr(context, "_popup_deck", 1))
     _assert_split_half_position(
         context,
         _waveform(context, "hotcuePopupWaveformPartial"),
-        _get_control_value(context, group, f"hotcue_{hotcue}_endposition"))
+        _get_control_value(
+            context, group, f"hotcue_{hotcue}_endposition"))
 
 
 # --- Then: geometry assertions ---
@@ -615,7 +584,9 @@ def step_filler_two_thirds(context):
 
 def _assert_centered_on_edge(context, edge):
     filler = _get_bb(context, _waveform(context, "hotcuePopupSpanFiller"))
-    notch = _get_bb(context, _waveform(context, "hotcuePopupStartNotch" if edge == "start" else "hotcuePopupEndNotch"))
+    notch_path = (
+        "hotcuePopupStartNotch" if edge == "start" else "hotcuePopupEndNotch")
+    notch = _get_bb(context, _waveform(context, notch_path))
     center = notch["x"] + notch["width"] / 2
     expected = filler["x"] if edge == "start" else filler["x"] + filler["width"]
     assert abs(center - expected) <= 3, f"notch center {center} != filler {edge} {expected}"
