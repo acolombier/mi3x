@@ -50,6 +50,7 @@ void persistLibraryJsonState(const QJsonObject& state) {
 } // namespace
 
 int runServeMode(int argc, char** argv) {
+    spix::AnyRpcServer server(9000);
     QCoreApplication::setOrganizationDomain("mixxx.org");
     QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 
@@ -81,7 +82,6 @@ int runServeMode(int argc, char** argv) {
         }
     }
 
-    spix::AnyRpcServer server(9000);
     auto pPlayerManager = pCoreServices->getPlayerManager();
     auto pTrackCollectionManager = pCoreServices->getTrackCollectionManager();
 

@@ -123,7 +123,7 @@ def _reset_session(context):
     session["active_profile_type"] = None
     session["profile_dir"] = None
     context.mixxx = None
-    context.mixxx_rpc = None
+    context.rpc = None
 
 
 def patch_scenario_with_autoretry(context, scenario, max_attempts=3):
@@ -205,7 +205,7 @@ def before_scenario(context, scenario):
     session = context._session
     if session.get("mixxx") is not None:
         context.mixxx = session["mixxx"]
-        context.mixxx_rpc = session["rpc"]
+        context.rpc = session["rpc"]
         context.profile_dir = session["profile_dir"]
         context.active_profile_type = session["active_profile_type"]
 
