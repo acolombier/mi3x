@@ -159,7 +159,7 @@ class RobustRpcProxy:
 # --- Static path resolution ---
 
 BUTTON_PATHS = {
-    "LIBRARY": "mainWindow/library",
+    "LIBRARY": "mainWindow/maximizeLibraryButton",
     "4DECKS": "mainWindow/show4DecksButton",
     "EDIT": "mainWindow/editDeckButton",
     "PREFERENCES": "mainWindow/showPreferencesButton",
@@ -280,7 +280,7 @@ def _find_sidebar_named_entity_path(context, entity, name, expand_if_needed=Fals
     while row < rows:
         path = f"{LIBRARY_TREEVIEW_PATH}/index{row}"
         depth = int(context.rpc.invokeMethod(LIBRARY_TREEVIEW_PATH, "depth", [row]))
-        label = context.rpc.getStringProperty(f"{path}/label", "text")
+        label = context.rpc.getStringProperty(f"{path}/labelItem", "text")
         row += 1
 
         if not in_section:
@@ -335,7 +335,7 @@ def _sidebar_feature_row_path(context, feature):
     rows = int(context.rpc.getStringProperty(LIBRARY_TREEVIEW_PATH, "rows"))
     for row in range(rows):
         path = f"{LIBRARY_TREEVIEW_PATH}/index{row}"
-        label = context.rpc.getStringProperty(f"{path}/label", "text")
+        label = context.rpc.getStringProperty(f"{path}/labelItem", "text")
         if label == feature:
             return path
     return None
@@ -352,18 +352,18 @@ DECK_BUTTON_PATHS = {
     "play": "playButton",
     "cue": "cueButton",
     "beatjump": "beatjump",
-    "beatjump_forward": "beatjumpForwardButton",
-    "beatjump_backward": "beatjumpBackwardButton",
+    "beatjump_forward": "jumpForwardButton",
+    "beatjump_backward": "jumpBackButton",
     "hotcue": "hotcueAndStem",
     "loop_in": "loopIn",
     "loop_out": "loopOut",
     "rate": "rateSlider",
-    "reloop_toggle": "reloopToggle",
+    "reloop_toggle": "loopRecallButton",
     "spinny": "spinny",
     "sync": "syncButton",
     "range": "rangeButton",
-    "loop_halve": "loopHalve",
-    "loop_double": "loopDouble",
+    "loop_halve": "loopSizeHalfButton",
+    "loop_double": "loopSizeDoubleButton",
     "tempo": "rateSlider",
 }
 
@@ -403,10 +403,10 @@ KNOWN_COLUMNS = [
 
 SEARCH_PANE_PATH = f"{LIBRARY_CONTENT}/browsingView/searchPane"
 SEARCH_FIELD_PATH = f"{SEARCH_PANE_PATH}/searchField"
-SEARCH_CLEAR_BUTTON_PATH = f"{SEARCH_PANE_PATH}/searchClearButton"
-SEARCH_SUGGESTION_LIST_PATH = f"{SEARCH_PANE_PATH}/searchSuggestionList"
-SEARCH_SUGGESTION_FIELD_LIST_PATH = f"{SEARCH_PANE_PATH}/searchSuggestionFieldList"
-SEARCH_RECENT_LIST_PATH = f"{SEARCH_PANE_PATH}/searchRecentList"
+SEARCH_CLEAR_BUTTON_PATH = f"{SEARCH_PANE_PATH}/clearButton"
+SEARCH_SUGGESTION_LIST_PATH = f"{SEARCH_PANE_PATH}/suggestionList"
+SEARCH_SUGGESTION_FIELD_LIST_PATH = f"{SEARCH_PANE_PATH}/suggestionFieldList"
+SEARCH_RECENT_LIST_PATH = f"{SEARCH_PANE_PATH}/recentList"
 SPLIT_VIEW_BUTTON_PATH = f"{LIBRARY_CONTENT}/tracklistMenu/splitViewButton"
 RIGHT_TRACKLIST_PATH = f"{LIBRARY_CONTENT}/rightTrackList"
 RIGHT_TRACKLIST_TABLE_PATH = f"{RIGHT_TRACKLIST_PATH}/trackTableView"
@@ -447,8 +447,8 @@ def _find_list_row_path(context, list_path, row_prefix, needle, row_properties,
 
 def _suggestion_row_path(context, needle, timeout=5):
     """Path of the suggestion row displaying needle: field suggestions
-    ("Artist:") live in searchSuggestionFieldList and match the rows'
-    display; value suggestions live in searchSuggestionList and match the
+    ("Artist:") live in suggestionFieldList and match the rows'
+    display; value suggestions live in suggestionList and match the
     rows' value."""
     if needle.endswith(":"):
         return _find_list_row_path(
@@ -691,7 +691,7 @@ def step_open_and_ready(context):
         # A fresh instance has no mock devices registered; the sync below
         # must know that to avoid a pointless reload on device-less spawns.
         session["registered_devices"] = _mock_devices_key(None)
-        _wait_for_hidden(context, "mainWindow/splashScreen", timeout=30) # FIXME: First launch on Windows 10 CI runner is quite slow
+        _wait_for_hidden(context, "mainWindow/splash", timeout=30) # FIXME: First launch on Windows 10 CI runner is quite slow
         if context.active_profile_type == "library-ready":
             _library_command(context, "addDirectory", tracks_dir, scan=True)
 
@@ -714,8 +714,8 @@ def step_open_and_ready(context):
         session["registered_devices"] = desired_devices
     time.sleep(0.5)
 
-    _wait_for_visible(context, "mainWindow/library")
-    _wait_for_hidden(context, "mainWindow/splashScreen", timeout=30) # FIXME: First launch on Windows 10 CI runner is quite slow
+    _wait_for_visible(context, "mainWindow/maximizeLibraryButton")
+    _wait_for_hidden(context, "mainWindow/splash", timeout=30) # FIXME: First launch on Windows 10 CI runner is quite slow
     context.rpc.setStringProperty("mainWindow", "enableDiagnosticClick", "true")
     session["ready_key"] = _session_key(context)
 
@@ -1184,7 +1184,7 @@ def step_library(context):
 @then(u'the create popup for the library source should show an error state')
 def step_library(context):
     rpc = context.rpc
-    errors = rpc.getStringProperty(f"{LIBRARY_TREEVIEW_CREATE_POPUP}/name", "hasError")
+    errors = rpc.getStringProperty(f"{LIBRARY_TREEVIEW_CREATE_POPUP}/newItemName", "hasError")
     assert errors == "true", f"The create entity popup should show an error but is showing none (is: {repr(errors)})"
 
 @then(u'the library should not create a duplicate {entity} named "{name}"')
@@ -1198,7 +1198,7 @@ def step_library(context, entity, name):
     while row < rows:
         path = f"{LIBRARY_TREEVIEW_PATH}/index{row}"
         depth = int(rpc.invokeMethod(LIBRARY_TREEVIEW_PATH, "depth", [row]))
-        label = rpc.getStringProperty(f"{path}/label", "text")
+        label = rpc.getStringProperty(f"{path}/labelItem", "text")
         row += 1
 
         if not in_section:
@@ -1231,7 +1231,7 @@ def step_library(context, name):
     assert _is_visible(context, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
     row = int(rpc.getStringProperty(LIBRARY_TREEVIEW_PATH, "currentRow"))
     path = f"{LIBRARY_TREEVIEW_PATH}/index{row}"
-    label = rpc.getStringProperty(f"{path}/label", "text")
+    label = rpc.getStringProperty(f"{path}/labelItem", "text")
     assert label == name, f"The expected selected source is {repr(label)} but should be {repr(name)}"
 
 
@@ -1243,7 +1243,7 @@ def step_library(context, entity, name):
 
 @when(u'I enter "{name}" as the new {entity} context-menu input and submit')
 def step_library(context, entity, name):
-    path = f"mainWindow/contextMenuCreateEntityItem/input"
+    path = "mainWindow/contextMenuCreateEntityItem/input"
     _wait_for_visible(context, path)
     context.rpc.inputText(path, name)
     context.rpc.enterKey(path, QT_KEY_ENTER, 0)
@@ -1618,15 +1618,22 @@ def step_select_suggestion(context, suggestion):
 
 # --- When: library sidebar ---
 
-@when('I select the source "{feature}" in the library sidebar')
-def step_select_source_sidebar(context, feature):
+@when('I {action} the source "{feature}" in the library sidebar')
+def step_select_source_sidebar(context, action, feature):
+    target_property = ({
+        "expand": "expanded",
+        "select": "current",
+    }).get(action)
+    assert target_property, f"Action {repr(action)} is not supported"
+
     path = _sidebar_feature_row_path(context, feature)
     assert path, f"Could not find the feature \"{feature}\" in the library sidebar"
     # If a popup is still active (e.g item creation, context-menu, ...), the first click will only close the menu, so we retry twice
     for attempt in range(2):
-        is_expanded = _get_property(context, path, "expanded") == "true"
-        is_current = _get_property(context, path, "current") == "true"
-        if is_expanded and is_current:
+        prop = _get_property(context, path, target_property)
+        print(target_property, prop)
+        assert target_property, f"Could not fetch the feature \"{feature}\" sidebar property ({target_property}={repr(prop)})"
+        if prop == "true":
             return
         _wait_for_visible(context, path)
         _click(context, path)
@@ -1643,13 +1650,8 @@ def step_select_named_entity_sidebar(context, entity, name):
 
 @when('I initiate creating a new item in the selected library source')
 def step_select_source_sidebar_feature_create(context):
-    s = context.rpc
     assert _is_visible(context, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
-    selected = s.invokeMethod(LIBRARY_TREEVIEW_PATH, "getSelectedPath", [])
-    path = f"{LIBRARY_TREEVIEW_PATH}/index{selected}"
-    assert path and _is_visible(context, path), "No library sidebar feature currently selected"
-
-    path = f"{path}/newItem"
+    path = f"{LIBRARY_TREEVIEW_PATH}/newItem"
     _wait_for_visible(context, path)
     _click(context, path)
 
@@ -1658,7 +1660,7 @@ def step_select_source_sidebar_feature_create_type(context, label):
     s = context.rpc
     assert _is_visible(context, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
     _wait_for_visible(context, LIBRARY_TREEVIEW_CREATE_POPUP)
-    path = f"{LIBRARY_TREEVIEW_CREATE_POPUP}/name"
+    path = f"{LIBRARY_TREEVIEW_CREATE_POPUP}/newItemName"
     _wait_for_visible(context, path)
     _click(context, path)
 
@@ -2060,7 +2062,7 @@ def step_search_placeholder_visible(context, text):
     while time.time() < deadline:
         for path in (
                 f"{SEARCH_PANE_PATH}/searchPlaceholder",
-                f"{SEARCH_PANE_PATH}/searchCollapsedPlaceholder"):
+                f"{SEARCH_PANE_PATH}/collapsedPlaceholder"):
             if _is_visible(context, path):
                 seen = _get_property(context, path, "text") or ""
                 if seen == text:
@@ -2072,7 +2074,7 @@ def step_search_placeholder_visible(context, text):
 
 @then('the search hint "{text}" should be visible')
 def step_search_hint_visible(context, text):
-    path = f"{SEARCH_PANE_PATH}/searchTabHint"
+    path = f"{SEARCH_PANE_PATH}/typingTip"
     deadline = time.time() + 5
     seen = ""
     while time.time() < deadline:

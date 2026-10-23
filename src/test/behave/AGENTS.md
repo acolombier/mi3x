@@ -478,7 +478,8 @@ Everything lands in `src\test\behave\artifacts\`:
 ### Extending coverage on Windows
 
 Adding features and steps is platform-independent — write the Gherkin, add the
-step definitions, add `objectName`s in QML, rebuild `mixxx-test`. Specifically:
+step definitions, add item names in QML (see the naming convention under Path
+Resolution), rebuild `mixxx-test`. Specifically:
 
 - **Steps are shared.** `steps/mixxx_steps.py` is the same file on both
   platforms; do not add Windows-only branches to a step. Platform differences
@@ -708,39 +709,60 @@ Available via XML-RPC on `http://localhost:9000/`:
 
 ## Path Resolution
 
-Spix resolves items by their `objectName` in the QML object tree, using `/`
-as separator. The path `mainWindow/libraryContent/trackList/columnHeader/Title`
-means:
+Spix resolves path segments with `/` as separator. For each segment it finds
+the first matching descendant (DFS) whose **item name** matches: the name is
+the item's `objectName` when set, otherwise — as fallback — its **QML `id`**
+(spix `GetObjectName()` = `objectName` or `qmlContext()->nameForObject()`).
+The path `mainWindow/libraryContent/trackList/columnHeader/Title` means:
 
-- Find the `ApplicationWindow` with `objectName: "mainWindow"`
-- Find its child with `objectName: "libraryContent"` (Loader → Library.qml root)
-- Find its descendant with `objectName: "trackList"` (TrackList.qml root
+- Find the `ApplicationWindow` whose item name is `mainWindow`
+- Find its descendant whose item name is `libraryContent` (Loader →
+  Library.qml root)
+- Find its descendant whose item name is `trackList` (TrackList.qml root
   Rectangle)
-- Find child `HorizontalHeaderView` with `objectName: "columnHeader"`
-- Find the column delegate whose `objectName == "Title"` (set to `display`
+- Find the `HorizontalHeaderView` whose item name is `columnHeader`
+- Find the column delegate whose item name is `"Title"` (set to `display`
   property of the model)
+
+**Naming convention**: do not set `objectName` to the same string as the
+item's QML `id` — the id already resolves and the duplicate only adds churn.
+Set an explicit `objectName` only when the name must differ per instance, or for
+`Menu` popups whose `contentItem` has no id. Note that for a component
+instantiated elsewhere (e.g. `Deck { id: deck1; objectName: "deck1" }` in
+`MainWindow.qml`), the outer `id:` is **not** visible to spix — only ids
+declared in the component's own file — so per-instance instance-side
+objectNames cannot be replaced by the outer id.
+**Id-collision trap**: the id fallback makes *every* id in the subtree a
+potential match target, including ids of internal items declared in *ancestor*
+component files (e.g. `Mixxx/Controls/Slider.qml` has an internal
+`Item { id: handleItem }` that fills the whole slider; `Fader.qml`'s injected
+handle visual also uses `id: handleItem`). If both resolve to the same name,
+DFS picks the first — so `res/qml/Fader.qml`'s handle must keep its explicit
+`objectName: "handle"`. Before removing an `objectName`, check for ids with
+the same string anywhere in the item's ancestor and descendant files.
 
 ### ObjectName Map
 
-| QML File | objectName | Notes |
+| QML File | Item name | Notes |
 | --- | --- | --- |
 | `main.qml` | `"mainWindow"` | Root `ApplicationWindow` |
-| `main.qml` | `"splashScreen"` | Splash `Rectangle` (fades, then hides) |
-| `MainWindow.qml` | `"library"` | Toolbar "Library" toggle button |
+| `main.qml` | `"splash"` | Splash `Rectangle` (QML id; fades, then hides) |
+| `MainWindow.qml` | `"maximizeLibraryButton"` | Toolbar "Library" toggle button (QML id) |
 | `MainWindow.qml` | `"libraryContent"` | Loader that shows `Library.qml` |
+| `Library/SearchPane.qml` | `"searchPane"` | Search pane root (QML id) |
 | `Library/TrackList.qml` | `"trackList"` | Root Rectangle |
 | `Library/TrackList.qml` | `"columnHeader"` | `HorizontalHeaderView` |
-| `Library/TrackList.qml` | `"columnPickerMenu"` | Column visibility `Menu` |
+| `Library/TrackList.qml` | `"columnPickerMenu"` | Column visibility `Menu` (contentItem) |
 | `Library/TrackList.qml` | `"trackTableView"` | `TableView` |
 | `Library/TrackList.qml` | `<display value>` | Column header delegate: `objectName: display` |
-| `Library/Track.qml` | `"trackContextMenu"` | Right-click context `Menu` |
+| `Library/Track.qml` | `"trackContextMenu"` | Right-click context `Menu` (contentItem) |
 | `Library/Cell.qml` | `"trackRow_" + row` | Row `Rectangle`, dynamic per-row |
 
 ### Path Constants (from `mixxx_steps.py`)
 
 ```python
 BUTTON_PATHS = {
-    "LIBRARY": "mainWindow/library",
+    "LIBRARY": "mainWindow/maximizeLibraryButton",
     "4DECKS": "mainWindow/show4DecksButton",
     "EDIT": "mainWindow/editDeckButton",
 }
@@ -1035,7 +1057,8 @@ After the last attempt the wrapper:
 
 1. Create `features/<name>.feature` with `Feature:` header and
    `Background:` / `Scenario:` blocks
-2. Add objectNames in QML as needed (`objectName: "myElement"`)
+2. Add item names in QML as needed (`objectName: "myElement"` when the QML `id`
+   is not addressable; see the naming convention under Path Resolution)
 3. CMake auto-discovers `*.feature` files — no registration needed
 
 ## How to Read a ControlObject from a Test

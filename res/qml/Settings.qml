@@ -55,7 +55,6 @@ Popup {
             border.color: Theme.darkGray3
             border.width: 6
             color: Theme.darkGray
-            objectName: "settingsCategories"
             visible: root.width > root.smallScreenWidth || showCategories.checked
             width: Math.min(280, root.width * 0.25)
             z: 100
@@ -79,7 +78,6 @@ Popup {
                     Layout.fillWidth: true
                     color: Theme.midGray
                     height: 30
-                    objectName: "searchSetting"
 
                     Text {
                         id: searchInputPlaceholder
@@ -93,7 +91,6 @@ Popup {
                         id: searchInput
 
                         anchors.verticalCenter: parent.verticalCenter
-                        objectName: "searchInput"
                         visible: parent.active
                         width: parent.width
 
@@ -120,7 +117,6 @@ Popup {
                     currentIndex: 0
                     focus: true
                     model: sectionProperties
-                    objectName: "categoryList"
                     visible: !searchSetting.active
 
                     delegate: Rectangle {
@@ -247,7 +243,6 @@ Popup {
 
                     activeColor: Theme.white
                     checkable: true
-                    objectName: "showCategoriesButton"
                     text: "M"
                     visible: root.width <= root.smallScreenWidth
                 }
@@ -279,7 +274,6 @@ Popup {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
                 color: Theme.darkGray3
-                objectName: "tabBar"
                 visible: tabs?.length > 0
 
                 RowLayout {

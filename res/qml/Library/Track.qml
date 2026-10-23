@@ -72,7 +72,7 @@ Item {
                         }
                     }
 
-                    onObjectAdded: (index, object) => loadToDeckMenu.insertItem(index, object)
+                    onObjectAdded: (index, object) => loadToDeckMenu.insertItem(Math.min(count, object.modelData), object)
                     onObjectRemoved: (index, object) => loadToDeckMenu.removeItem(object)
                 }
             }
@@ -214,14 +214,14 @@ Item {
 
         function cancelEditing() {
             createEntityItem.creating = false;
-            crateNewName.text = "";
+            input.text = "";
         }
         function startEditing() {
             createEntityItem.creating = true;
-            crateNewName.forceActiveFocus();
+            input.forceActiveFocus();
         }
         function startKeyHandler(event) {
-            if (Window.activeFocusItem != crateNewName) {
+            if (Window.activeFocusItem != input) {
                 startEditing();
             }
             event.accepted = true;
@@ -231,7 +231,7 @@ Item {
             objectName: "contextMenuCreateEntityItem"
 
             TextInput {
-                id: crateNewName
+                id: input
 
                 anchors.fill: parent
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -240,7 +240,6 @@ Item {
                 clip: true
                 color: acceptableInput ? "#000000" : 'red'
                 horizontalAlignment: TextInput.AlignLeft
-                objectName: "input"
                 visible: createEntityItem.creating
 
                 onAccepted: {
