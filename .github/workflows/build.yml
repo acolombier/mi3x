@@ -352,6 +352,10 @@ jobs:
         with:
           cmake-version: "4.2.x"
 
+      - name: "[Linux] Bypass Azure APT cache"
+        if: vars.BYPASS_AZURE_APT_MIRROR != null && runner.os == 'Linux'
+        run: sudo sed -i '/azure\.archive\.ubuntu\.com/d' /etc/apt/apt-mirrors.txt
+
       - name: "[macOS/Linux] Set up build environment"
         if: matrix.buildenv_script != null && runner.os != 'Windows'
         run: ${{ matrix.buildenv_script }} setup
@@ -876,6 +880,10 @@ jobs:
           $env:Path += ";$cmakePath"
           cmake --version
 
+      - name: "[Linux] Bypass Azure APT cache"
+        if: vars.BYPASS_AZURE_APT_MIRROR != null && runner.os == 'Linux'
+        run: sudo sed -i '/azure\.archive\.ubuntu\.com/d' /etc/apt/apt-mirrors.txt
+
       - name: "[macOS/Linux] Set up build environment"
         if: matrix.platform.buildenv_script != null && runner.os != 'Windows'
         run: ${{ matrix.platform.buildenv_script }} setup
@@ -895,7 +903,7 @@ jobs:
         run: ${{ matrix.platform.buildenv_script }} name
 
       - name: "[macOS/Windows] Restore buildenv archive cache"
-        if: runner.os != 'Linux'
+        if: env.BUILDENV_NAME != null
         uses: actions/cache/restore@v6
         with:
           path: ${{ matrix.platform.buildenv_basepath }}/${{ env.BUILDENV_NAME }}.zip
