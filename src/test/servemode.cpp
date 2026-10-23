@@ -22,11 +22,13 @@
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #include "library/trackset/crate/cratesummary.h"
+#include "mixer/basetrackplayer.h"
 #include "mixer/playermanager.h"
 #include "mixxxapplication.h"
 #include "mixxxtest.h"
 #include "qml/qmlapplication.h"
 #include "soundio/soundmanager.h"
+#include "track/cue.h"
 #include "track/track.h"
 #include "util/assert.h"
 #include "util/cmdlineargs.h"
@@ -48,6 +50,7 @@ void persistLibraryJsonState(const QJsonObject& state) {
 } // namespace
 
 int runServeMode(int argc, char** argv) {
+    spix::AnyRpcServer server(9000);
     QCoreApplication::setOrganizationDomain("mixxx.org");
     QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 
@@ -79,7 +82,6 @@ int runServeMode(int argc, char** argv) {
         }
     }
 
-    spix::AnyRpcServer server(9000);
     auto pPlayerManager = pCoreServices->getPlayerManager();
     auto pTrackCollectionManager = pCoreServices->getTrackCollectionManager();
 
@@ -429,6 +431,38 @@ int runServeMode(int argc, char** argv) {
                 } else if (command == "reloadQml") {
                     qmlApplication.loadQml(qmlApplication.mainFilePath());
                     qDebug() << "reloadQml: QML engine reloaded";
+                } else if (command == "setHotcueLabel") {
+                    // Payload: {"group": "[Channel1]", "hotcueNumber": 1,
+                    // "label": "Hallo"} — hotcueNumber is 1-based, matching
+                    // the API exposed by the hotcue popup.
+                    QJsonDocument doc =
+                            QJsonDocument::fromJson(
+                                    QByteArray::fromStdString(payload));
+                    QJsonObject obj = doc.object();
+                    QString group = obj["group"].toString();
+                    int hotcueNumber = obj["hotcueNumber"].toInt();
+                    QString label = obj["label"].toString();
+                    if (group.isEmpty() || hotcueNumber <= 0) {
+                        qWarning() << "setHotcueLabel: invalid payload, expected "
+                                      "'{\"group\",\"hotcueNumber\",\"label\"}', got:"
+                                   << payload;
+                        return;
+                    }
+                    auto pPlayer = pPlayerManager->getPlayer(group);
+                    TrackPointer pTrack =
+                            pPlayer ? pPlayer->getLoadedTrack() : nullptr;
+                    CuePointer pCue;
+                    if (pTrack) {
+                        pCue = pTrack->findHotcueByIndex(hotcueNumber - 1);
+                    }
+                    if (!pCue.get()) {
+                        qWarning() << "setHotcueLabel: hotcue" << hotcueNumber
+                                   << "is not set on" << group;
+                        return;
+                    }
+                    pCue->setLabel(label);
+                    qDebug() << "setHotcueLabel:" << group << "hotcue"
+                             << hotcueNumber << "=" << label;
                 } else {
                     qWarning() << "Unknown generic command:" << QString::fromStdString(command);
                 }

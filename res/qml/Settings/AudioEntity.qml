@@ -14,7 +14,6 @@ Item {
     property alias handleSource: handleSourceEdge
     property var metaType: null
     required property string name
-    objectName: "entity_" + name.replace('/','') // '/' is used as separator on Spix
 
     signal connect(var entity)
     signal disconnect(var entity)
@@ -22,6 +21,8 @@ Item {
     signal scrolled
 
     implicitHeight: 52 + 26 * gatewayRepeater.visibleChannels
+    objectName: "entity_" + name.replace('/', '') // '/' is used as separator on Spix
+
     width: 105
     z: 10
 
@@ -71,7 +72,6 @@ Item {
 
                 Repeater {
                     id: node
-                    objectName: "node"
 
                     readonly property string address: root.gateways[index].address || root.gateways[index].name
                     readonly property bool advanced: root.gateways[index].advanced || false
@@ -108,12 +108,6 @@ Item {
                     Item {
                         id: channel
 
-                        Component.onCompleted: {
-                            if (channel.index === 0) {
-                                root.gatewayReady(address, node);
-                            }
-                        }
-
                         property bool counted: channel.index == 0
                         property alias edgeItem: edge
                         required property int index
@@ -122,6 +116,11 @@ Item {
                         visible: (edgeItem.connection?.ready || index == node.connectionCount) && (!node.advanced || root.advanced)
                         width: parent.width
 
+                        Component.onCompleted: {
+                            if (channel.index === 0) {
+                                root.gatewayReady(address, node);
+                            }
+                        }
                         onVisibleChanged: {
                             if (counted != channel.visible)
                                 gatewayRepeater.visibleChannels += channel.visible ? 1 : -1;
@@ -157,16 +156,16 @@ Item {
                                 property int previousIndex: node.channelAssignation[channel.index] ?? 0
 
                                 Layout.minimumWidth: implicitWidth
-                                implicitWidth: 66
                                 clip: true
                                 currentIndex: node.channelAssignation[channel.index] ?? 0
                                 font.pixelSize: 12
+                                implicitWidth: 66
+                                indicator.visible: false
                                 model: {
                                     return [...Array(node.channels.length / 2)].map((e, i) => `Ch ${i * 2 + node.channels[0] + 1} - ${i * 2 + node.channels[0] + 2}`);
                                 }
                                 spacing: 2
                                 visible: node.count > 1 && node.channels.length > 2
-                                indicator.visible: false
 
                                 onActivated: activatedIndex => {
                                     let alreadyAssigned = node.channelAssignation.indexOf(activatedIndex);
@@ -177,12 +176,6 @@ Item {
                         }
                         Rectangle {
                             id: edge
-                            objectName: "edge_" + node.address + index
-
-                            // Used for testing
-                            function connectionObjectName(){
-                                return edge.connection?.objectName
-                            }
 
                             property var address: node.address
                             property var advanced: node.advanced
@@ -194,6 +187,10 @@ Item {
                             property int instance: index / (node.channels.length / 2)
                             property string type: node.type
 
+                            // Used for testing
+                            function connectionObjectName() {
+                                return edge.connection?.objectName;
+                            }
                             function updateConnectionPosition() {
                                 if (edge.connection && edge.connection.source == edge) {
                                     edge.connection.sourcePosition = edge.mapToItem(edge.connection.router, edge.width / 2, edge.height / 2);
@@ -206,6 +203,7 @@ Item {
                             anchors.verticalCenter: inputLabel.verticalCenter
                             color: Theme.midGray
                             height: width
+                            objectName: "edge_" + node.address + index
                             radius: width / 2
                             width: 15
                             z: 100

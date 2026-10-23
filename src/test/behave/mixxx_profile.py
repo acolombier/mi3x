@@ -361,8 +361,7 @@ class MixxxProcess:
             print(f"Using an existing process. Make sure to run it first")
             return
         if timeout is None:
-            # First start may be quite slow on Windows Server runner and on Ubuntu, due to what seems to be occasional slowdown induced by ALSA setup.
-            timeout = int(os.environ.get("MIXXX_TEST_RPC_TIMEOUT", "40"))
+            timeout = int(os.environ.get("MIXXX_TEST_RPC_TIMEOUT", "20"))
         env = os.environ.copy()
         if self.display:
             env["DISPLAY"] = self.display

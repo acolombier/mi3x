@@ -417,6 +417,15 @@ Rectangle {
                     track.crates: root.model.crate
                     track.playlists: root.model.playlist
 
+                    // Pooled items remains parented and set with their previous property, meaning
+                    // that Spix, used for testing, may accidentally picked a pooled, now stale item.
+                    TableView.onPooled: {
+                        objectName = "";
+                    }
+                    TableView.onReused: {
+                        objectName = Qt.binding(() => "trackRow_" + row);
+                    }
+
                     Text {
                         anchors.fill: parent
                         color: Theme.textColor

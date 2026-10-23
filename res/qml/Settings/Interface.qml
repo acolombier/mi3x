@@ -220,93 +220,14 @@ Category {
             key: "rate_dir"
         }
     }
-    component WaveformMaskComponent: Item {
-        id: waveformMask
-
-        property color rimColor: "#000000"
-        property real size: 10
-
-        anchors.fill: parent
-
-        Rectangle {
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            height: waveformMask.size
-
-            gradient: Gradient {
-                orientation: Gradient.Vertical
-
-                GradientStop {
-                    color: waveformMask.rimColor
-                    position: 0
-                }
-                GradientStop {
-                    color: "transparent"
-                    position: 1
-                }
-            }
-        }
-        Rectangle {
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.right: parent.right
-            height: waveformMask.size
-
-            gradient: Gradient {
-                orientation: Gradient.Vertical
-
-                GradientStop {
-                    color: "transparent"
-                    position: 0
-                }
-                GradientStop {
-                    color: waveformMask.rimColor
-                    position: 1
-                }
-            }
-        }
-        Rectangle {
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            width: waveformMask.size
-
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
-
-                GradientStop {
-                    color: waveformMask.rimColor
-                    position: 0
-                }
-                GradientStop {
-                    color: "transparent"
-                    position: 1
-                }
-            }
-        }
-        Rectangle {
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.right: parent.right
-            width: waveformMask.size
-
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
-
-                GradientStop {
-                    color: "transparent"
-                    position: 0
-                }
-                GradientStop {
-                    color: waveformMask.rimColor
-                    position: 1
-                }
-            }
-        }
-    }
     ScrollView {
         id: scrollView
+
+        anchors.bottom: buttonActions.top
+        anchors.bottomMargin: 18
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
 
         ScrollBar.vertical: ScrollBar {
             anchors.bottom: parent.bottom
@@ -315,11 +236,6 @@ Category {
             objectName: "interfaceSettingsScrollBar"
             policy: ScrollBar.AsNeeded
         }
-        anchors.bottom: buttonActions.top
-        anchors.bottomMargin: 18
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
 
         Item {
             implicitHeight: [themeColorTab.implicitHeight, waveformTab.implicitHeight, decksTab.implicitHeight][root.selectedIndex]
@@ -327,23 +243,24 @@ Category {
 
             Mixxx.SettingGroup {
                 id: themeColorTab
+
                 property bool dirty: false
 
-                width: scrollView.width
                 implicitHeight: themeColorTabColumn.y + themeColorTabColumn.height
-
                 label: "Theme & Color"
                 visible: root.selectedIndex == 0
+                width: scrollView.width
 
                 onActivated: {
                     root.selectedIndex = 0;
                 }
 
                 ColumnLayout {
-                    y: 20
                     id: themeColorTabColumn
-                    width: themeColorTab.width
+
                     spacing: 0
+                    width: themeColorTab.width
+                    y: 20
 
                     RowLayout {
                         id: theme
@@ -681,11 +598,11 @@ Category {
 
                                                     anchors.fill: parent
                                                     color: Theme.accentColor
+
                                                     border {
                                                         color: "#0E2A54"
                                                         width: 1
                                                     }
-
                                                     Text {
                                                         id: textLabel
 
@@ -1023,18 +940,16 @@ Category {
             Mixxx.SettingGroup {
                 id: waveformTab
 
-                objectName: "waveformSettingsTab"
-
                 readonly property real beatgridOpacity: beatGridAlphaInput.value / 100
+                readonly property color colorCode: waveformDropdown.colorCode.toString()
                 readonly property real defaultZoom: defaultZoomInput.value / 10
                 property bool dirty: false
-                readonly property color colorCode: waveformDropdown.colorCode.toString()
-                readonly property color highColorCode: waveformDropdown.highColor.toString()
-                readonly property color lowColorCode: waveformDropdown.lowColor.toString()
-                readonly property color midColorCode: waveformDropdown.midColor.toString()
                 readonly property double globalGain: visualGainAllInput.value / 100
+                readonly property color highColorCode: waveformDropdown.highColor.toString()
                 readonly property double highGain: visualGainHighInput.value / 100
+                readonly property color lowColorCode: waveformDropdown.lowColor.toString()
                 readonly property double lowGain: visualGainLowInput.value / 100
+                readonly property color midColorCode: waveformDropdown.midColor.toString()
                 readonly property double middleGain: visualGainMediumInput.value / 100
                 readonly property int playMarkerAlign: untilMarkAlignInput.selected === "top" ? Qt.AlignTop : untilMarkAlignInput.selected === "bottom" ? Qt.AlignBottom : Qt.AlignVCenter
                 readonly property real playMarkerPosition: playMarkerPositionInput.value / 100
@@ -1110,11 +1025,11 @@ Category {
                 }
 
                 anchors.fill: parent
-                label: "Waveform"
-                visible: root.selectedIndex == 1
-
-                width: scrollView.width
                 implicitHeight: waveformTabColumn.y + waveformTabColumn.height
+                label: "Waveform"
+                objectName: "waveformSettingsTab"
+                visible: root.selectedIndex == 1
+                width: scrollView.width
 
                 onActivated: {
                     root.selectedIndex = 1;
@@ -1122,9 +1037,9 @@ Category {
 
                 ColumnLayout {
                     id: waveformTabColumn
+
                     anchors.fill: parent
                     anchors.topMargin: 20
-
                     width: themeColorTab.width
 
                     RowLayout {
@@ -1153,9 +1068,8 @@ Category {
                                 SettingComponents.Slider {
                                     id: endOfTrackWarningInput
 
-                                    Layout.preferredWidth: parent.columns === 1 ? undefined : waveformTab.width * 0.35
                                     Layout.fillWidth: parent.columns === 1
-
+                                    Layout.preferredWidth: parent.columns === 1 ? undefined : waveformTab.width * 0.35
                                     markers: [0, 10, 30, 60, 120]
                                     max: 120
                                     objectName: "setting_endOfTrackWarning"
@@ -1178,9 +1092,8 @@ Category {
                                 SettingComponents.Slider {
                                     id: beatGridAlphaInput
 
-                                    Layout.preferredWidth: parent.columns === 1 ? undefined : waveformTab.width * 0.35
                                     Layout.fillWidth: parent.columns === 1
-
+                                    Layout.preferredWidth: parent.columns === 1 ? undefined : waveformTab.width * 0.35
                                     markers: [0, 50, 100]
                                     objectName: "setting_beatGridAlpha"
                                     suffix: "%"
@@ -1202,9 +1115,8 @@ Category {
                                 SettingComponents.Slider {
                                     id: defaultZoomInput
 
-                                    Layout.preferredWidth: parent.columns === 1 ? undefined : waveformTab.width * 0.35
                                     Layout.fillWidth: parent.columns === 1
-
+                                    Layout.preferredWidth: parent.columns === 1 ? undefined : waveformTab.width * 0.35
                                     markers: [10, 30, 50, 100]
                                     objectName: "setting_defaultZoom"
                                     suffix: "%"
@@ -1267,12 +1179,6 @@ Category {
 
                             ComboBox {
                                 id: waveformDropdown
-
-                                objectName: "setting_waveformType"
-
-                                onWidthChanged: {
-                                    print(waveformDropdown.width)
-                                }
 
                                 property var axesColor: '#a1a1a1a1'
                                 property var backgroundColor: "#0F0F0E"
@@ -1342,6 +1248,7 @@ Category {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 102
                                 model: ["Filtered", "HSV", "RGB", "Simple", "Stacked"]
+                                objectName: "setting_waveformType"
 
                                 background: Rectangle {
                                     // border.width: control.highlighted ?  1 : 0
@@ -1379,27 +1286,13 @@ Category {
 
                                             Mixxx.WaveformDisplay {
                                                 id: previewWaveform
-                                                objectName: "waveformPreview"
-
-                                                anchors.fill: parent
-                                                backgroundColor: "#0F0F0E"
-                                                options: (waveformOptionHighDetailsInput.isOn ? Mixxx.WaveformDisplay.Options.HighDetail : 0) + (waveformOptionStereoInput.isOn ? Mixxx.WaveformDisplay.Options.SplitStereoSignal : 0)
-                                                player: waveformDropdown.player.isLoaded ? waveformDropdown.player : null
-                                                position: waveformDropdown.playbackProgress
-                                                renderers: [waveformDropdown.currentSignalRender, waveformDropdown.beatsRenderer, parent.markRenderer]
-                                                track: waveformDropdown.player.isLoaded ? null : waveformDropdown.track
-                                                zoom: waveformTab.defaultZoom
 
                                                 // Test feedback surface: what the
                                                 // embedded preview actually
                                                 // renders, read back through the
                                                 // renderers bound into it.
                                                 readonly property real beatGridOpacity: waveformDropdown.beatsRenderer.color.a
-                                                readonly property real playMarkerPosition: parent.markRenderer.playMarkerPosition
-                                                readonly property string untilMarkAlignName: parent.markRenderer.untilMark.align === Qt.AlignTop ? "top" : parent.markRenderer.untilMark.align === Qt.AlignBottom ? "bottom" : "center"
-                                                readonly property bool untilMarkShowBeats: parent.markRenderer.untilMark.showBeats
-                                                readonly property bool untilMarkShowTime: parent.markRenderer.untilMark.showTime
-                                                readonly property real untilMarkTextSize: parent.markRenderer.untilMark.textSize
+                                                readonly property color colorCode: waveformDropdown.currentSignalRender.color
                                                 // The Simple renderer folds every
                                                 // band into a single gain and has
                                                 // no per-band colors.
@@ -1407,10 +1300,24 @@ Category {
                                                 readonly property real gainHigh: waveformDropdown.currentSignalRender.gainHigh !== undefined ? waveformDropdown.currentSignalRender.gainHigh : waveformDropdown.currentSignalRender.gain
                                                 readonly property real gainLow: waveformDropdown.currentSignalRender.gainLow !== undefined ? waveformDropdown.currentSignalRender.gainLow : waveformDropdown.currentSignalRender.gain
                                                 readonly property real gainMid: waveformDropdown.currentSignalRender.gainMid !== undefined ? waveformDropdown.currentSignalRender.gainMid : waveformDropdown.currentSignalRender.gain
-                                                readonly property color colorCode: waveformDropdown.currentSignalRender.color
+                                                readonly property color highColorCode: waveformDropdown.currentSignalRender.highColor
                                                 readonly property color lowColorCode: waveformDropdown.currentSignalRender.lowColor
                                                 readonly property color midColorCode: waveformDropdown.currentSignalRender.midColor
-                                                readonly property color highColorCode: waveformDropdown.currentSignalRender.highColor
+                                                readonly property real playMarkerPosition: parent.markRenderer.playMarkerPosition
+                                                readonly property string untilMarkAlignName: parent.markRenderer.untilMark.align === Qt.AlignTop ? "top" : parent.markRenderer.untilMark.align === Qt.AlignBottom ? "bottom" : "center"
+                                                readonly property bool untilMarkShowBeats: parent.markRenderer.untilMark.showBeats
+                                                readonly property bool untilMarkShowTime: parent.markRenderer.untilMark.showTime
+                                                readonly property real untilMarkTextSize: parent.markRenderer.untilMark.textSize
+
+                                                anchors.fill: parent
+                                                backgroundColor: "#0F0F0E"
+                                                objectName: "waveformPreview"
+                                                options: (waveformOptionHighDetailsInput.isOn ? Mixxx.WaveformDisplay.Options.HighDetail : 0) + (waveformOptionStereoInput.isOn ? Mixxx.WaveformDisplay.Options.SplitStereoSignal : 0)
+                                                player: waveformDropdown.player.isLoaded ? waveformDropdown.player : null
+                                                position: waveformDropdown.playbackProgress
+                                                renderers: [waveformDropdown.currentSignalRender, waveformDropdown.beatsRenderer, parent.markRenderer]
+                                                track: waveformDropdown.player.isLoaded ? null : waveformDropdown.track
+                                                zoom: waveformTab.defaultZoom
                                             }
                                             WaveformMaskComponent {
                                                 anchors.fill: parent
@@ -1428,8 +1335,9 @@ Category {
                                             }
                                             GridLayout {
                                                 columnSpacing: 0
-                                                rowSpacing: 0
                                                 columns: waveformDropdown.width > 500 ? 2 : 1
+                                                rowSpacing: 0
+
                                                 Text {
                                                     Layout.alignment: Qt.AlignHCenter
                                                     color: "#FFFFFF"
@@ -1454,8 +1362,9 @@ Category {
                                             }
                                             GridLayout {
                                                 columnSpacing: 0
-                                                rowSpacing: 0
                                                 columns: waveformDropdown.width > 500 ? 2 : 1
+                                                rowSpacing: 0
+
                                                 Text {
                                                     Layout.alignment: Qt.AlignHCenter
                                                     color: "#FFFFFF"
@@ -1480,8 +1389,9 @@ Category {
                                             }
                                             GridLayout {
                                                 columnSpacing: 0
-                                                rowSpacing: 0
                                                 columns: waveformDropdown.width > 500 ? 2 : 1
+                                                rowSpacing: 0
+
                                                 Text {
                                                     Layout.alignment: Qt.AlignHCenter
                                                     color: "#FFFFFF"
@@ -1491,6 +1401,7 @@ Category {
                                                 RowLayout {
                                                     Layout.margins: 4
                                                     implicitHeight: 18
+
                                                     Repeater {
                                                         model: waveformDropdown.currentSignalRender.color === undefined ? [waveformDropdown.lowColor, waveformDropdown.midColor, waveformDropdown.highColor] : [waveformDropdown.lowColor]
 
@@ -1632,6 +1543,9 @@ Category {
                                     currentIndex = selectedIndex;
                                 }
                                 onCurrentIndexChanged: waveformTab.dirty = true
+                                onWidthChanged: {
+                                    print(waveformDropdown.width);
+                                }
 
                                 Timer {
                                     interval: 25
@@ -1730,8 +1644,6 @@ Category {
                                         RatioChoice {
                                             id: untilMarkShowBeatsInput
 
-                                            objectName: "setting_untilMarkShowBeats"
-
                                             readonly property bool isOn: selected == "on"
 
                                             function load(value) {
@@ -1739,6 +1651,7 @@ Category {
                                             }
 
                                             inactiveColor: Theme.darkGray4
+                                            objectName: "setting_untilMarkShowBeats"
                                             options: ["on", "off"]
 
                                             onSelectedChanged: waveformTab.dirty = true
@@ -1764,8 +1677,6 @@ Category {
                                         RatioChoice {
                                             id: untilMarkAlignInput
 
-                                            objectName: "setting_untilMarkAlign"
-
                                             function load(value) {
                                                 switch (value) {
                                                 case 0:
@@ -1782,6 +1693,7 @@ Category {
                                                 }
                                             }
 
+                                            objectName: "setting_untilMarkAlign"
                                             options: ["top", "center", "bottom"]
                                             selected: "center"
 
@@ -1808,8 +1720,6 @@ Category {
                                         RatioChoice {
                                             id: untilMarkShowTimeInput
 
-                                            objectName: "setting_untilMarkShowTime"
-
                                             readonly property bool isOn: selected == "on"
 
                                             function load(value) {
@@ -1817,6 +1727,7 @@ Category {
                                             }
 
                                             inactiveColor: Theme.darkGray4
+                                            objectName: "setting_untilMarkShowTime"
                                             options: ["on", "off"]
 
                                             onSelectedChanged: waveformTab.dirty = true
@@ -1842,12 +1753,11 @@ Category {
                                         Skin.ComboBox {
                                             id: untilMarkTextPointSizeInput
 
-                                            objectName: "setting_untilMarkTextPointSize"
-
                                             property var fontSizes: [10, 12, 15, 18, 24, 32, 48]
                                             readonly property int value: fontSizes[currentIndex] ?? 10
 
                                             model: fontSizes.map(i => `${i} pt`)
+                                            objectName: "setting_untilMarkTextPointSize"
 
                                             onCurrentIndexChanged: waveformTab.dirty = true
                                         }
@@ -1892,8 +1802,8 @@ Category {
                                     id: visualGainAllInput
 
                                     markers: [50, 100, 150, 300, 500]
-                                    min: 50
                                     max: 500
+                                    min: 50
                                     objectName: "setting_visualGainAll"
                                     suffix: "%"
                                     value: 100
@@ -1928,11 +1838,10 @@ Category {
                                         columns: waveformTab.width < 1000 ? 2 : 3
 
                                         Mixxx.SettingParameter {
+                                            Layout.column: 0
                                             Layout.fillWidth: waveformTab.width >= 1000
                                             Layout.preferredWidth: waveformTab.width < 1000 ? 100 : undefined
-                                            Layout.column: 0
                                             Layout.row: 0
-
                                             label: "Low"
 
                                             Text {
@@ -1948,26 +1857,24 @@ Category {
                                         SettingComponents.Slider {
                                             id: visualGainLowInput
 
-                                            Layout.fillWidth: true
                                             Layout.column: waveformTab.width < 1000 ? 1 : 0
+                                            Layout.fillWidth: true
                                             Layout.row: waveformTab.width < 1000 ? 0 : 1
-
-                                            objectName: "setting_visualGainLow"
                                             markers: [50, 100, 150, 300, 500]
-                                            min: 50
                                             max: 500
+                                            min: 50
+                                            objectName: "setting_visualGainLow"
                                             suffix: "%"
                                             value: 100
 
                                             onValueChanged: waveformTab.dirty = true
                                         }
                                         Mixxx.SettingParameter {
+                                            Layout.column: waveformTab.width < 1000 ? 0 : 1
                                             Layout.fillWidth: waveformTab.width >= 1000
                                             Layout.preferredWidth: waveformTab.width < 1000 ? 100 : undefined
-                                            label: "Middle"
-
-                                            Layout.column: waveformTab.width < 1000 ? 0 : 1
                                             Layout.row: waveformTab.width < 1000 ? 1 : 0
+                                            label: "Middle"
 
                                             Text {
                                                 anchors.fill: parent
@@ -1982,26 +1889,23 @@ Category {
                                         SettingComponents.Slider {
                                             id: visualGainMediumInput
 
-                                            objectName: "setting_visualGainMedium"
-
-                                            Layout.fillWidth: true
                                             Layout.column: 1
+                                            Layout.fillWidth: true
                                             Layout.row: 1
-
                                             markers: [50, 100, 150, 300, 500]
-                                            min: 50
                                             max: 500
+                                            min: 50
+                                            objectName: "setting_visualGainMedium"
                                             suffix: "%"
                                             value: 100
 
                                             onValueChanged: waveformTab.dirty = true
                                         }
                                         Mixxx.SettingParameter {
+                                            Layout.column: waveformTab.width < 1000 ? 0 : 2
                                             Layout.fillWidth: waveformTab.width >= 1000
                                             Layout.preferredWidth: waveformTab.width < 1000 ? 100 : undefined
-                                            Layout.column: waveformTab.width < 1000 ? 0 : 2
                                             Layout.row: waveformTab.width < 1000 ? 2 : 0
-
                                             label: "High"
 
                                             Text {
@@ -2017,15 +1921,13 @@ Category {
                                         SettingComponents.Slider {
                                             id: visualGainHighInput
 
-                                            objectName: "setting_visualGainHigh"
-
-                                            Layout.fillWidth: true
                                             Layout.column: waveformTab.width < 1000 ? 1 : 2
+                                            Layout.fillWidth: true
                                             Layout.row: waveformTab.width < 1000 ? 2 : 1
-
                                             markers: [50, 100, 150, 300, 500]
-                                            min: 50
                                             max: 500
+                                            min: 50
+                                            objectName: "setting_visualGainHigh"
                                             suffix: "%"
                                             value: 100
 
@@ -2049,14 +1951,9 @@ Category {
                 Item {
                     id: colorPickerTest
 
-                    objectName: "colorPickerTest"
-                    visible: false
-                    width: 0
-                    height: 0
-
-                    property bool testMode: false
                     property int openCount: 0
                     property string selectedColor: ""
+                    property bool testMode: false
 
                     signal accepted(int index)
 
@@ -2066,6 +1963,11 @@ Category {
                             accepted(index);
                         }
                     }
+
+                    height: 0
+                    visible: false
+                    width: 0
+
                     onAccepted: index => {
                         const color = colorPickerTest.selectedColor;
                         if (index === 0) {
@@ -2083,21 +1985,21 @@ Category {
 
                 property bool dirty: false
 
-                width: scrollView.width
                 implicitHeight: decksTabColumn.y + decksTabColumn.height
-
                 label: "Decks"
                 visible: root.selectedIndex == 2
+                width: scrollView.width
 
                 onActivated: {
                     root.selectedIndex = 2;
                 }
 
                 ColumnLayout {
-                    y: 20
                     id: decksTabColumn
-                    width: decksTab.width
+
                     spacing: 0
+                    width: decksTab.width
+                    y: 20
 
                     GridLayout {
                         id: deckPane
@@ -2251,9 +2153,9 @@ Category {
                                 id: trackTimeDisplayInput
 
                                 maxWidth: deckPane.width * 0.28
+                                normalizedWidth: false
                                 objectName: "setting_trackTimeDisplay"
                                 options: ["elapsed", "remaining", "both"]
-                                normalizedWidth: false
 
                                 onSelectedChanged: decksTab.dirty = true
                             }
@@ -2335,11 +2237,11 @@ Category {
                             }
                             RatioChoice {
                                 id: loadingTrackWhenPlayingInput
-                                maxWidth: deckPane.width * 0.28
 
+                                maxWidth: deckPane.width * 0.28
+                                normalizedWidth: false
                                 objectName: "setting_loadingTrackWhenPlaying"
                                 options: ["reject", "allow", "when stopped",]
-                                normalizedWidth: false
 
                                 onSelectedChanged: decksTab.dirty = true
                             }
@@ -2474,9 +2376,9 @@ Category {
                                             id: syncModeInput
 
                                             maxWidth: deckPane.width * 0.38
+                                            normalizedWidth: false
                                             objectName: "setting_syncMode"
                                             options: ["follow soft leader", "use steady"]
-                                            normalizedWidth: false
 
                                             onSelectedChanged: decksTab.dirty = true
                                         }
@@ -2538,9 +2440,9 @@ Category {
                                             id: keylockModeInput
 
                                             maxWidth: deckPane.width * 0.34
+                                            normalizedWidth: false
                                             objectName: "setting_keylockMode"
                                             options: ["original key", "current key"]
-                                            normalizedWidth: false
 
                                             onSelectedChanged: decksTab.dirty = true
                                         }
@@ -2790,10 +2692,10 @@ Category {
             }
         }
         Row {
+            readonly property bool hasChanges: root.selectedIndex == 0 && themeColorTab.dirty || root.selectedIndex == 1 && waveformTab.dirty || root.selectedIndex == 2 && decksTab.dirty
+
             anchors.right: parent.right
             spacing: 10
-
-            readonly property bool hasChanges: root.selectedIndex == 0 && themeColorTab.dirty || root.selectedIndex == 1 && waveformTab.dirty || root.selectedIndex == 2 && decksTab.dirty
 
             Text {
                 id: errorMessage
@@ -2886,6 +2788,91 @@ Category {
             elapsed: 83.45
             mode: parent.mode
             remaining: 147.23
+        }
+    }
+    component WaveformMaskComponent: Item {
+        id: waveformMask
+
+        property color rimColor: "#000000"
+        property real size: 10
+
+        anchors.fill: parent
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: waveformMask.size
+
+            gradient: Gradient {
+                orientation: Gradient.Vertical
+
+                GradientStop {
+                    color: waveformMask.rimColor
+                    position: 0
+                }
+                GradientStop {
+                    color: "transparent"
+                    position: 1
+                }
+            }
+        }
+        Rectangle {
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: waveformMask.size
+
+            gradient: Gradient {
+                orientation: Gradient.Vertical
+
+                GradientStop {
+                    color: "transparent"
+                    position: 0
+                }
+                GradientStop {
+                    color: waveformMask.rimColor
+                    position: 1
+                }
+            }
+        }
+        Rectangle {
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.top: parent.top
+            width: waveformMask.size
+
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+
+                GradientStop {
+                    color: waveformMask.rimColor
+                    position: 0
+                }
+                GradientStop {
+                    color: "transparent"
+                    position: 1
+                }
+            }
+        }
+        Rectangle {
+            anchors.bottom: parent.bottom
+            anchors.right: parent.right
+            anchors.top: parent.top
+            width: waveformMask.size
+
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+
+                GradientStop {
+                    color: "transparent"
+                    position: 0
+                }
+                GradientStop {
+                    color: waveformMask.rimColor
+                    position: 1
+                }
+            }
         }
     }
 }

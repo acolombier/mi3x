@@ -69,11 +69,17 @@ Feature: Library
     When I double-click the track at row 1
     Then a track is loaded on deck 1
 
-  Scenario: Track can be loaded via context menu
-    Given no track is loaded on deck 1
-    When I right-click the track at row 1
-    And I select "Load to" > "Deck" > "Deck 1" on the track menu
-    Then a track is loaded on deck 1
+  Scenario Outline: Track can be loaded via context menu
+    Given no track is loaded on deck <deck>
+    When I right-click the track at row <row>
+    And I select "Load to" > "Deck" > "Deck <deck>" on the track menu
+    Then a track is loaded on deck <deck>
+
+    Examples:
+      | deck | row |
+      | 1    | 1   |
+      | 2    | 18  |
+      | 1    | 26  |
 
   @category/responsiveness
   Scenario: Library collapses when the window is too short
@@ -85,11 +91,11 @@ Feature: Library
 
   # --- Library search (floating search bar in the bottom right of the library) ---
   #
-  # Requires objectNames on the search pane UI (res/qml/Library.qml):
-  #   searchPane, searchField, searchClearButton, searchSuggestionFieldList
-  #   (field suggestions, e.g. "Artist:"), searchSuggestionList (value
-  #   suggestions), searchRecentList, searchPlaceholder,
-  #   searchCollapsedPlaceholder, searchTabHint and the read-only properties
+  # Requires item names on the search pane (res/qml/Library/SearchPane.qml;
+  # resolved by QML id): searchPane, searchField, clearButton,
+  # suggestionFieldList (field suggestions, e.g. "Artist:"), suggestionList
+  #   (value suggestions), recentList, searchPlaceholder,
+  #   collapsedPlaceholder, typingTip and the read-only properties
   #   activated, activeTokenIndex, criteriaCount, criteriaFields, activeQuery,
   #   suggestionTexts (value-suggestion texts, JSON list).
   # At the track list (res/qml/Library/TrackList.qml):
@@ -411,7 +417,7 @@ Feature: Library
     When I enter "MyTestPlaylist" as the new item name
     And I confirm the create action
     Then a playlist named "MyTestPlaylist" should exist in the library
-    When I select the source "Playlists" in the library sidebar
+    When I expand the source "Playlists" in the library sidebar
     Then a playlist named "MyTestPlaylist" should appear in the library sidebar
 
   Scenario: Creating a new crate via sidebar
@@ -421,7 +427,7 @@ Feature: Library
     When I enter "MyTestCrate" as the new item name
     And I confirm the create action
     Then a crate named "MyTestCrate" should exist in the library
-    When I select the source "Crates" in the library sidebar
+    When I expand the source "Crates" in the library sidebar
     Then a crate named "MyTestCrate" should appear in the library sidebar
 
   Scenario: Creating playlist via track context menu
@@ -430,7 +436,7 @@ Feature: Library
     When I enter "MyTestPlaylist" as the new playlist context-menu input and submit
     Then a playlist named "MyTestPlaylist" should exist in the library
     When I discard the track menu
-    And I select the source "Playlists" in the library sidebar
+    And I expand the source "Playlists" in the library sidebar
     Then a playlist named "MyTestPlaylist" should appear in the library sidebar
 
   Scenario: Creating crate via track context menu
@@ -439,7 +445,7 @@ Feature: Library
     When I enter "MyTestCrate" as the new crate context-menu input and submit
     Then a crate named "MyTestCrate" should exist in the library
     When I discard the track menu
-    And I select the source "Crates" in the library sidebar
+    And I expand the source "Crates" in the library sidebar
     Then a crate named "MyTestCrate" should appear in the library sidebar
 
   Scenario: Playlist source create requires a valid name

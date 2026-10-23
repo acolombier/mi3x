@@ -263,7 +263,6 @@ Category {
             Layout.alignment: Qt.AlignVCenter
             Layout.rightMargin: 16
             color: "#7D3B3B"
-            objectName: "errorMessage"
             text: ""
         }
         Skin.FormButton {

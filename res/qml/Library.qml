@@ -97,7 +97,6 @@ Item {
             SplitView.fillHeight: true
             SplitView.minimumHeight: 200
             SplitView.preferredWidth: root.width * 0.75
-            objectName: "browsingView"
 
             SplitView {
                 id: trackListSplitView
@@ -148,7 +147,6 @@ Item {
                 anchors.bottom: parent.bottom
                 anchors.right: parent.right
                 anchors.top: parent.top
-                objectName: "tracklistMenu"
                 padding: 4
                 spacing: 11
                 width: 36
@@ -162,7 +160,6 @@ Item {
                     icon.source: "images/splitview.svg"
                     icon.width: 16
                     implicitWidth: implicitHeight
-                    objectName: "splitViewButton"
 
                     onCheckedChanged: {
                         if (checked) {
@@ -225,7 +222,6 @@ Item {
 
                 activeSidebar: root.activeSidebar
                 focusOutTarget: browsingView
-                objectName: "searchPane"
             }
         }
     }
