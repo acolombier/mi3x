@@ -51,6 +51,10 @@ ApplicationWindow {
             if (status === Loader.Error) {
                 console.error("Failed to load the Mixxx main window");
                 Qt.quit();
+            } else if (status === Loader.Ready) {
+                // Keep the loader synchronous going forward so all UI operation such as layout
+                // invalidation won't induce weird visual artifacts or delays.
+                content.asynchronous = false;
             }
         }
     }
