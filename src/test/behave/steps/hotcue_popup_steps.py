@@ -47,7 +47,7 @@ MIN_ZOOM = 1.0
 def _uid(context, hotcue=None, deck=None):
     hotcue = hotcue or getattr(context, "_popup_hotcue", 1)
     deck = deck or getattr(context, "_popup_deck", 1)
-    return f"[Channel{deck}]-{hotcue}"
+    return f"Channel{deck}-{hotcue}"
 
 
 def _popup(context, name, hotcue=None, deck=None):

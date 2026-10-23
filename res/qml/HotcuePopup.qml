@@ -56,7 +56,7 @@ Popup {
 
     /// Unique id of the popup instance in the scene object tree, used to
     /// disambiguate objectNames for UI tests
-    readonly property string uid: hotcue.group + "-" + hotcue.hotcueNumber
+    readonly property string uid: hotcue.group?.slice(1, -1) + "-" + hotcue.hotcueNumber
 
     function convertTo(type) {
         if (!currentTrack || type === hotcue.type)

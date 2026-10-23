@@ -25,7 +25,7 @@ constexpr audio::FrameDiff_t kMinimumAudibleLoopSizeFrames = 150;
 /// Return whether or not the conversion was succcesful.
 bool convertCueType(
         TrackPointer pTrack,
-        const CuePointer& pCue,
+        CuePointer pCue,
         const QString& playerGroup,
         UserSettingsPointer pConfig,
         CueType newType);

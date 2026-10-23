@@ -82,11 +82,11 @@ audio::FramePos getCurrentPlayPositionWithQuantize(
 
 bool convertCueType(
         TrackPointer pTrack,
-        const CuePointer& pCue,
+        CuePointer pCue,
         const QString& playerGroup,
         UserSettingsPointer pConfig,
         CueType newType) {
-    VERIFY_OR_DEBUG_ASSERT(pTrack && pCue) {
+    VERIFY_OR_DEBUG_ASSERT(pTrack && pCue.get()) {
         return false;
     }
 
