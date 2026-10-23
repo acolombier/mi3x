@@ -69,11 +69,17 @@ Feature: Library
     When I double-click the track at row 1
     Then a track is loaded on deck 1
 
-  Scenario: Track can be loaded via context menu
-    Given no track is loaded on deck 1
-    When I right-click the track at row 1
-    And I select "Load to" > "Deck" > "Deck 1" on the track menu
-    Then a track is loaded on deck 1
+  Scenario Outline: Track can be loaded via context menu
+    Given no track is loaded on deck <deck>
+    When I right-click the track at row <row>
+    And I select "Load to" > "Deck" > "Deck <deck>" on the track menu
+    Then a track is loaded on deck <deck>
+
+    Examples:
+      | deck | row |
+      | 1    | 1   |
+      | 2    | 12  |
+      | 1    | 18  |
 
   @category/responsiveness
   Scenario: Library collapses when the window is too short
