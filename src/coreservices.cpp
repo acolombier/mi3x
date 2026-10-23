@@ -651,10 +651,12 @@ void CoreServices::initialize(QApplication* pApp) {
     if (m_pTrackCollectionManager->internalCollection()
                     ->loadRootDirs()
                     .isEmpty()) {
+#ifndef Q_OS_ANDROID
         if (CmdlineArgs::Instance().getDeveloper()) {
             qInfo() << "No music directory configured - skipping first-run "
                        "directory prompt because developer mode is enabled";
         } else {
+#endif
 #if defined(Q_OS_IOS) || defined(Q_OS_WASM)
         // On the web and iOS, we are running in a sandbox (a virtual file
         // system on the web). Since we are generally limited to paths within
@@ -724,7 +726,9 @@ void CoreServices::initialize(QApplication* pApp) {
         if (!fd.isEmpty() && m_pLibrary->requestAddDir(fd)) {
             musicDirAdded = true;
         }
+#ifndef Q_OS_ANDROID
         }
+#endif
     }
 
     emit initializationProgressUpdate(60, tr("controllers"));

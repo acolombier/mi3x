@@ -9,24 +9,13 @@ import "Theme"
 import "Settings" as Settings
 
 Popup {
-    id: root
-
-    property var activeCategory: null
-    property alias activeCategoryIndex: categoryList.currentIndex
+    id: popup
 
     // Used to show click interaction on the Window. Mainly relevant on automated testing
     property bool enableDiagnosticClick: false
-    readonly property var manager: managerItem
-    property alias sections: managerItem.data
 
     // FIXME change to `final` when supported
     readonly property real smallScreenWidth: 1200
-
-    function updateActiveCategory() {
-        root.activeCategory?.deactivated();
-        root.activeCategory = managerItem.data[categoryList.currentIndex] ?? null;
-        root.activeCategory?.activated();
-    }
 
     focus: true
     horizontalPadding: 20
@@ -38,351 +27,390 @@ Popup {
         color: Theme.darkGray2
         opacity: parent.radius < 0 ? Math.max(0.1, 1 + parent.radius / 8) : 1
         radius: 8
-    }
-    contentItem: Item {
 
-        // Used for testing
-        readonly property int activeCategoryIndex: root.activeCategoryIndex
-
-        anchors.centerIn: parent
-        height: parent.height - 40
-        objectName: "settingsPopupItem"
-        width: parent.width - 40
-
-        Rectangle {
-            id: categories
-
-            border.color: Theme.darkGray3
-            border.width: 6
-            color: Theme.darkGray
-            objectName: "settingsCategories"
-            visible: root.width > root.smallScreenWidth || showCategories.checked
-            width: Math.min(280, root.width * 0.25)
-            z: 100
-
-            anchors {
-                bottom: parent.bottom
-                left: parent.left
-                top: parent.top
-            }
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 6
-                spacing: 0
-
-                Rectangle {
-                    id: searchSetting
-
-                    property bool active: false
-                    property alias input: searchInput
-
-                    Layout.fillWidth: true
-                    color: Theme.midGray
-                    height: 30
-                    objectName: "searchSetting"
-
-                    Text {
-                        id: searchInputPlaceholder
-
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.white
-                        text: 'Search...'
-                        visible: !parent.active
-                    }
-                    TextInput {
-                        id: searchInput
-
-                        anchors.verticalCenter: parent.verticalCenter
-                        objectName: "searchInput"
-                        visible: parent.active
-                        width: parent.width
-
-                        onActiveFocusChanged: {
-                            parent.active = activeFocus;
-                        }
-                        onTextEdited: {
-                            root.manager.search(text);
-                        }
-                    }
-                    TapHandler {
-                        onTapped: {
-                            parent.active = true;
-                            searchInput.forceActiveFocus();
-                        }
-                    }
-                }
-                ListView {
-                    id: categoryList
-
-                    Layout.fillHeight: true
-                    Layout.fillWidth: true
-                    clip: true
-                    currentIndex: 0
-                    focus: true
-                    model: sectionProperties
-                    objectName: "categoryList"
-                    visible: !searchSetting.active
-
-                    delegate: Rectangle {
-                        required property int index
-                        required property var label
-
-                        color: ListView.isCurrentItem ? Theme.darkGray3 : Theme.darkGray2
-                        height: 38
-                        objectName: "category_" + label
-                        width: ListView.view.width
-
-                        Image {
-                            id: handleImage
-
-                            anchors.left: parent.left
-                            anchors.leftMargin: 8
-                            anchors.verticalCenter: parent.verticalCenter
-                            fillMode: Image.PreserveAspectFit
-                            height: 24
-                            layer.enabled: true
-                            source: "images/gear.svg"
-
-                            layer.effect: MultiEffect {
-                                brightness: 1.0
-                                colorization: 1.0
-                                colorizationColor: parent.ListView.isCurrentItem ? Theme.accentColor : Theme.midGray
-                            }
-                        }
-                        Text {
-                            anchors.left: handleImage.right
-                            anchors.leftMargin: 8
-                            anchors.verticalCenter: parent.verticalCenter
-                            color: Theme.white
-                            font.bold: parent.ListView.isCurrentItem
-                            text: label
-                        }
-                        TapHandler {
-                            onTapped: {
-                                categoryList.currentIndex = index;
-                                showCategories.checked = false;
-                            }
-                        }
-                    }
-                }
-                ListView {
-                    id: settingResultList
-
-                    Layout.fillHeight: true
-                    Layout.fillWidth: true
-                    clip: true
-                    focus: true
-                    model: root.manager.model
-                    visible: searchSetting.active
-
-                    delegate: Rectangle {
-                        required property var display
-                        required property int index
-                        required property var toolTip
-                        required property var whatsThis
-
-                        color: Theme.darkGray2
-                        height: 40
-                        width: ListView.view.width
-
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 4
-
-                            Text {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: implicitHeight
-                                color: Theme.white
-                                text: searchSetting.input.text ? display.replace(searchSetting.input.text, `<b>${searchSetting.input.text}</b>`) : display
-                                textFormat: Text.RichText
-                            }
-                            Text {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: implicitHeight
-                                color: Theme.midGray
-                                font.pixelSize: 10
-                                text: searchSetting.input.text ? whatsThis.replace(searchSetting.input.text, `<b>${searchSetting.input.text}</b>`) : whatsThis
-                                textFormat: Text.RichText
-                            }
-                        }
-                        TapHandler {
-                            onTapped: {
-                                for (let setting of toolTip) {
-                                    setting.activated();
-                                }
-                                parent.forceActiveFocus();
-                                showCategories.checked = false;
-                            }
-                        }
-                    }
-                }
-            }
+        BusyIndicator {
+            anchors.centerIn: parent
+            visible: loader.item == null || status != Loader.Ready
         }
-        ColumnLayout {
+    }
+    contentItem: Loader {
+        id: loader
+
+        active: popup.opened
+        anchors.fill: parent
+        anchors.margins: 10
+        asynchronous: true
+        sourceComponent: content
+        visible: item !== null && status == Loader.Ready
+
+        Binding on asynchronous {
+            delayed: true
+            value: !popup.opened || timeout.running
+        }
+
+        // Accelerate the load of the setting popup after a specific delay
+        Timer {
+            id: timeout
+
+            // This delay could be tailored to the platform. FOr example, we could image Mixxx.Core exposing a performance score to help computing this: an old RPI/Android phone could use 2 second async, to ensure no impact of the audio engine, while a modern desktop likely doesn't need more than 250ms.
+            interval: 500
+            repeat: false
+            running: popup.opened
+        }
+        Component {
             id: content
 
-            states: [
-                State {
-                    when: root.width <= root.smallScreenWidth
+            Item {
+                id: root
 
-                    AnchorChanges {
-                        anchors.left: parent.left
-                        target: content
+                property var activeCategory: null
+                property alias activeCategoryIndex: categoryList.currentIndex
+                readonly property var manager: managerItem
+                property alias sections: managerItem.data
+
+                function updateActiveCategory() {
+                    root.activeCategory?.deactivated();
+                    root.activeCategory = managerItem.data[categoryList.currentIndex] ?? null;
+                    root.activeCategory?.activated();
+                }
+
+                anchors.fill: parent
+                objectName: "settingsPopupItem"
+
+                Component.onCompleted: updateActiveCategory()
+                onActiveCategoryIndexChanged: updateActiveCategory()
+                onSectionsChanged: updateActiveCategory()
+
+                ListModel {
+                    id: sectionProperties
+
+                }
+                Rectangle {
+                    id: categories
+
+                    border.color: Theme.darkGray3
+                    border.width: 6
+                    color: Theme.darkGray
+                    objectName: "settingsCategories"
+                    visible: root.width > popup.smallScreenWidth || showCategories.checked
+                    width: Math.min(280, root.width * 0.25)
+                    z: 100
+
+                    anchors {
+                        bottom: parent.bottom
+                        left: parent.left
+                        top: parent.top
                     }
-                }
-            ]
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 6
+                        spacing: 0
 
-            anchors {
-                bottom: parent.bottom
-                left: categories.right
-                right: parent.right
-                top: parent.top
-            }
-            RowLayout {
-                Layout.alignment: Qt.AlignVCenter
-                Layout.fillWidth: true
+                        Rectangle {
+                            id: searchSetting
 
-                Skin.Button {
-                    id: showCategories
+                            property bool active: false
+                            property alias input: searchInput
 
-                    activeColor: Theme.white
-                    checkable: true
-                    objectName: "showCategoriesButton"
-                    text: "M"
-                    visible: root.width <= root.smallScreenWidth
-                }
-                Text {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 36
-                    color: Theme.white
-                    font.pixelSize: 16
-                    font.weight: Font.DemiBold
-                    horizontalAlignment: Text.AlignHCenter
-                    text: "Settings"
-                }
-                Skin.Button {
-                    activeColor: Theme.white
-                    objectName: "settingsCloseButton"
-                    text: "X"
+                            Layout.fillWidth: true
+                            color: Theme.midGray
+                            height: 30
+                            objectName: "searchSetting"
 
-                    onPressed: {
-                        root.close();
-                    }
-                }
-            }
-            Rectangle {
-                id: tabBar
+                            Text {
+                                id: searchInputPlaceholder
 
-                readonly property int selectedIndex: root.activeCategory?.selectedIndex ?? 0
-                readonly property var tabs: root.activeCategory?.tabs ?? []
+                                anchors.verticalCenter: parent.verticalCenter
+                                color: Theme.white
+                                text: 'Search...'
+                                visible: !parent.active
+                            }
+                            TextInput {
+                                id: searchInput
 
-                Layout.fillWidth: true
-                Layout.preferredHeight: 30
-                color: Theme.darkGray3
-                objectName: "tabBar"
-                visible: tabs?.length > 0
+                                anchors.verticalCenter: parent.verticalCenter
+                                objectName: "searchInput"
+                                visible: parent.active
+                                width: parent.width
 
-                RowLayout {
-                    anchors.fill: parent
-
-                    Repeater {
-                        model: tabBar.tabs
-
-                        Skin.Button {
-                            required property int index
-                            required property string modelData
-
-                            Layout.alignment: Qt.AlignHCenter
-                            Layout.preferredHeight: 22
-                            Layout.preferredWidth: parent.width / (tabBar.tabs.length + 2)
-                            activeColor: Theme.white
-                            checked: tabBar.selectedIndex == index
-                            objectName: "tab_" + modelData
-                            text: modelData
-
-                            onPressed: {
-                                if (root.activeCategory?.selectedIndex || root.activeCategory?.selectedIndex === 0) {
-                                    root.activeCategory.selectedIndex = index;
+                                onActiveFocusChanged: {
+                                    parent.active = activeFocus;
                                 }
-                                parent.forceActiveFocus();
-                                showCategories.checked = false;
+                                onTextEdited: {
+                                    root.manager.search(text);
+                                }
+                            }
+                            TapHandler {
+                                onTapped: {
+                                    parent.active = true;
+                                    searchInput.forceActiveFocus();
+                                }
+                            }
+                        }
+                        ListView {
+                            id: categoryList
+
+                            Layout.fillHeight: true
+                            Layout.fillWidth: true
+                            clip: true
+                            currentIndex: 0
+                            focus: true
+                            model: sectionProperties
+                            objectName: "categoryList"
+                            visible: !searchSetting.active
+
+                            delegate: Rectangle {
+                                required property int index
+                                required property var label
+
+                                color: ListView.isCurrentItem ? Theme.darkGray3 : Theme.darkGray2
+                                height: 38
+                                objectName: "category_" + label
+                                width: ListView.view.width
+
+                                Image {
+                                    id: handleImage
+
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 8
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    fillMode: Image.PreserveAspectFit
+                                    height: 24
+                                    layer.enabled: true
+                                    source: "images/gear.svg"
+
+                                    layer.effect: MultiEffect {
+                                        brightness: 1.0
+                                        colorization: 1.0
+                                        colorizationColor: parent.ListView.isCurrentItem ? Theme.accentColor : Theme.midGray
+                                    }
+                                }
+                                Text {
+                                    anchors.left: handleImage.right
+                                    anchors.leftMargin: 8
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    color: Theme.white
+                                    font.bold: parent.ListView.isCurrentItem
+                                    text: label
+                                }
+                                TapHandler {
+                                    onTapped: {
+                                        categoryList.currentIndex = index;
+                                        showCategories.checked = false;
+                                    }
+                                }
+                            }
+                        }
+                        ListView {
+                            id: settingResultList
+
+                            Layout.fillHeight: true
+                            Layout.fillWidth: true
+                            clip: true
+                            focus: true
+                            model: root.manager.model
+                            visible: searchSetting.active
+
+                            delegate: Rectangle {
+                                required property var display
+                                required property int index
+                                required property var toolTip
+                                required property var whatsThis
+
+                                color: Theme.darkGray2
+                                height: 40
+                                width: ListView.view.width
+
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 4
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: implicitHeight
+                                        color: Theme.white
+                                        text: searchSetting.input.text ? display.replace(searchSetting.input.text, `<b>${searchSetting.input.text}</b>`) : display
+                                        textFormat: Text.RichText
+                                    }
+                                    Text {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: implicitHeight
+                                        color: Theme.midGray
+                                        font.pixelSize: 10
+                                        text: searchSetting.input.text ? whatsThis.replace(searchSetting.input.text, `<b>${searchSetting.input.text}</b>`) : whatsThis
+                                        textFormat: Text.RichText
+                                    }
+                                }
+                                TapHandler {
+                                    onTapped: {
+                                        for (let setting of toolTip) {
+                                            setting.activated();
+                                        }
+                                        parent.forceActiveFocus();
+                                        showCategories.checked = false;
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
-            Mixxx.SettingParameterManager {
-                id: managerItem
+                ColumnLayout {
+                    id: content
 
-                Layout.fillHeight: true
-                Layout.fillWidth: true
-                Layout.leftMargin: 20
+                    states: [
+                        State {
+                            when: root.width <= popup.smallScreenWidth
 
-                Component.onCompleted: {
-                    let activateBuilder = index => function () {
-                            categoryList.currentIndex = index;
-                        };
-                    let visibleBuilder = index => function () {
-                            return categoryList.currentIndex == index;
-                        };
-                    for (let index = 0; index < data.length; index++) {
-                        let child = data[index];
-                        if (!child.label)
-                            continue;
-                        sectionProperties.append({
-                            label: child.label
-                        });
-                        child.visible = Qt.binding(visibleBuilder(index));
-                        child.activated.connect(activateBuilder(index));
-                        child.anchors.fill = this;
+                            AnchorChanges {
+                                anchors.left: parent.left
+                                target: content
+                            }
+                        }
+                    ]
+
+                    anchors {
+                        bottom: parent.bottom
+                        left: categories.right
+                        right: parent.right
+                        top: parent.top
                     }
-                    // This is needed to ensure the right category is displayed.
-                    // It would seems there is a bug, where the component's layout appears out of date.
-                    // Setting the value to its current one seems to be triggering a component update which help fixing the layout
-                    root.activeCategoryIndex = root.activeCategoryIndex;
-                }
+                    RowLayout {
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.fillWidth: true
 
-                Settings.SoundHardware {
-                }
-                Settings.Library {
-                }
-                Settings.Controller {
-                }
-                Settings.Interface {
-                }
-                Settings.MixerEffect {
-                }
-                Settings.AutoDJ {
-                }
-                Settings.Broadcast {
-                    objectName: "broadcastPage"
-                }
-                Settings.Recording {
-                    objectName: "recordingPage"
-                }
-                Settings.Analyzer {
-                    objectName: "analyzerPage"
-                }
-                Settings.StatsPerformance {
+                        Skin.Button {
+                            id: showCategories
+
+                            activeColor: Theme.white
+                            checkable: true
+                            objectName: "showCategoriesButton"
+                            text: "M"
+                            visible: root.width <= popup.smallScreenWidth
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 36
+                            color: Theme.white
+                            font.pixelSize: 16
+                            font.weight: Font.DemiBold
+                            horizontalAlignment: Text.AlignHCenter
+                            text: "Settings"
+                        }
+                        Skin.Button {
+                            activeColor: Theme.white
+                            objectName: "settingsCloseButton"
+                            text: "X"
+
+                            onPressed: {
+                                popup.close();
+                            }
+                        }
+                    }
+                    Rectangle {
+                        id: tabBar
+
+                        readonly property int selectedIndex: root.activeCategory?.selectedIndex ?? 0
+                        readonly property var tabs: root.activeCategory?.tabs ?? []
+
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 30
+                        color: Theme.darkGray3
+                        objectName: "tabBar"
+                        visible: tabs?.length > 0
+
+                        RowLayout {
+                            anchors.fill: parent
+
+                            Repeater {
+                                model: tabBar.tabs
+
+                                Skin.Button {
+                                    required property int index
+                                    required property string modelData
+
+                                    Layout.alignment: Qt.AlignHCenter
+                                    Layout.preferredHeight: 22
+                                    Layout.preferredWidth: parent.width / (tabBar.tabs.length + 2)
+                                    activeColor: Theme.white
+                                    checked: tabBar.selectedIndex == index
+                                    objectName: "tab_" + modelData
+                                    text: modelData
+
+                                    onPressed: {
+                                        if (root.activeCategory?.selectedIndex || root.activeCategory?.selectedIndex === 0) {
+                                            root.activeCategory.selectedIndex = index;
+                                        }
+                                        parent.forceActiveFocus();
+                                        showCategories.checked = false;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Mixxx.SettingParameterManager {
+                        id: managerItem
+
+                        Layout.fillHeight: true
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 20
+
+                        Component.onCompleted: {
+                            let activateBuilder = index => function () {
+                                    categoryList.currentIndex = index;
+                                };
+                            let visibleBuilder = index => function () {
+                                    return categoryList.currentIndex == index;
+                                };
+                            for (let index = 0; index < data.length; index++) {
+                                let child = data[index];
+                                if (!child.label)
+                                    continue;
+                                sectionProperties.append({
+                                    label: child.label
+                                });
+                                child.visible = Qt.binding(visibleBuilder(index));
+                                child.activated.connect(activateBuilder(index));
+                                child.anchors.fill = this;
+                            }
+                            // This is needed to ensure the right category is displayed.
+                            // It would seems there is a bug, where the component's layout appears out of date.
+                            // Setting the value to its current one seems to be triggering a component update which help fixing the layout
+                            root.activeCategoryIndex = root.activeCategoryIndex;
+                        }
+
+                        Settings.SoundHardware {
+                        }
+                        Settings.Library {
+                        }
+                        Settings.Controller {
+                        }
+                        Settings.Interface {
+                        }
+                        Settings.MixerEffect {
+                        }
+                        Settings.AutoDJ {
+                        }
+                        Settings.Broadcast {
+                        }
+                        Settings.Recording {
+                        }
+                        Settings.Analyzer {
+                        }
+                        Settings.StatsPerformance {
+                        }
+                    }
                 }
             }
         }
     }
 
-    Component.onCompleted: updateActiveCategory()
-    onActiveCategoryIndexChanged: updateActiveCategory()
     onClosed: {
         Mixxx.Core.removeOpenedPopup(this);
     }
     onOpened: {
         Mixxx.Core.addOpenedPopup(this);
     }
-    onSectionsChanged: updateActiveCategory()
 
-    ListModel {
-        id: sectionProperties
-
-    }
     // Testing automation resources
     Rectangle {
         id: click

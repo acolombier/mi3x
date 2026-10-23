@@ -86,17 +86,20 @@ Item {
             }
         }
     }
+    // Mouse-only gesture path; finger touches are routed through the
+    // window-wide TouchHub reached via the TouchClient below.
     DragHandler {
         id: dragHandler
 
         property vector2d lastTranslation: Qt.vector2d(0, 0)
         property real value
 
-        target: null
-        enabled: !Mixxx.Core.hasPopup
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         dragThreshold: 0
+        enabled: !Mixxx.Core.hasPopup
         maximumPointCount: 1
         minimumPointCount: 1
+        target: null
 
         onActiveChanged: {
             dragHandler.value = root.value;
@@ -128,6 +131,59 @@ Item {
         value: dragHandler.value
         when: dragHandler.active
     }
+    TouchClient {
+        id: dragArea
+
+        property real dragValue
+
+        anchors.fill: parent
+        gestureEnabled: !Mixxx.Core.hasPopup
+        sourceItem: root
+
+        onActiveChanged: {
+            dragArea.active && dragArea.fromTouch ? hud.open() : hud.close();
+        }
+        onGestureCancelled: {
+            hud.close();
+        }
+        onMovedAt: (dx, dy, x, y) => {
+            let dist;
+            if (dragArea.axisLocked) {
+                // Only the locked axis moves the knob: up (dy < 0) and
+                // left (dx < 0) increase the value.
+                dist = dragArea.axis === 0 ? dx : -dy;
+
+                // For legacy (MIDI) reasons this is tuned to 127.
+                dragValue = Mixxx.MathUtils.clamp(dragValue + dist / 127, 0, 1);
+                root.turned(dragValue);
+            } else {
+                const y_dominant = Math.abs(dy) > Math.abs(dx);
+                dist = Math.sqrt(dx * dx + dy * dy);
+                // If y is dominant, then treat an increase in dy as negative (y is
+                // pointed downward). Otherwise, if y is not dominant and x has
+                // decreased, then treat it as negative.
+                if ((y_dominant && dy > 0) || (!y_dominant && dx < 0))
+                    dist = -dist;
+            }
+        }
+        onPressedAt: (x, y) => {
+            dragValue = root.value;
+        }
+    }
+    Binding {
+        property: "value"
+        target: root
+        value: dragArea.dragValue
+        when: dragArea.active
+    }
+    ValueHud {
+        id: hud
+
+        axis: dragArea.axis
+        fillColor: root.arcColor.a > 0 ? root.arcColor : "#01dcfc"
+        sourceItem: root
+        value: dragArea.active ? dragArea.dragValue : root.value
+    }
 
     // TODO: Replace this with a WheelHandler once we switch to Qt >= 5.14.
     MouseArea {
@@ -141,7 +197,7 @@ Item {
         onWheel: {
             const value = (wheel.angleDelta.y < 0) ? Math.min(root.max, root.value + root.wheelStepSize) : Math.max(root.min, root.value - root.wheelStepSize);
             root.turned(value);
-            dragHandler.value = value;
+            dragArea.dragValue = value;
         }
     }
     Binding {

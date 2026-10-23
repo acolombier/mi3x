@@ -401,21 +401,20 @@ Rectangle {
             }
             DelegateChoice {
                 Cell {
-                    // required property bool selected
-
-                    // readonly property alias dragImage: dragImageSource
-
-                    // Drag.dragType: Drag.Automatic
-                    // Drag.mimeData: {
-                    //     "text/uri-list": file_url.toString(),
-                    //     "text/plain": file_url.toString()
-                    // }
-                    // Drag.supportedActions: Qt.CopyAction
-                    // anchors.fill: parent
                     color: selected ? Theme.accentColor : (row % 2 == 0 ? Theme.sunkenBackgroundColor : Theme.backgroundColor)
+                    objectName: "trackRow_" + row
                     track.capabilities: root.sidebar.tracklist ? root.sidebar.tracklist.getCapabilities() : Mixxx.LibraryTrackListModel.Capability.None
                     track.crates: root.model.crate
                     track.playlists: root.model.playlist
+
+                    // Pooled items remains parented and set with their previous property, meaning
+                    // that Spix, used for testing, may accidentally picked a pooled, now stale item.
+                    TableView.onPooled: {
+                        objectName = "";
+                    }
+                    TableView.onReused: {
+                        objectName = Qt.binding(() => "trackRow_" + row);
+                    }
 
                     Text {
                         anchors.fill: parent
