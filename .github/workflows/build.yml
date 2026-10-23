@@ -991,7 +991,7 @@ jobs:
           # In the future, we could run both xwayland and xfb
           MIXXX_TEST_DISPLAY_BACKEND: ${{ runner.os == 'Linux' && 'xwayland' || '' }}
           MIXXX_TEST_RECORD: ${{ matrix.platform.artifacts_slug != 'windows-winarm' && '1' || '' }}
-          MIXXX_TEST_ARTIFACTS: ${{ github.workspace }}/src/test/behave/artifacts"
+          MIXXX_TEST_ARTIFACTS: ${{ github.workspace }}/src/test/behave/artifacts
 
       - name: "Install @actions/artifact for video upload"
         if: always() && steps.e2e_test.outcome != 'skipped'
