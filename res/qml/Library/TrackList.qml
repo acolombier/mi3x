@@ -29,7 +29,7 @@ Rectangle {
     }
     required property var model
     property var movedColumn: new Object()
-    property var sidebar: model.sidebar()
+    property var sidebar: model.sidebar
 
     // Restore the library columns to their default order, visibility and sort
     // state. Used by the E2E test harness to reset state between scenarios
@@ -282,6 +282,11 @@ Rectangle {
         function columnShouldAutoHide(column) {
             return column?.display == Mixxx.TrackListColumn.Display.Auto && column?.autoHideWidth > 0 && column?.autoHideWidth > root.width;
         }
+
+        // E2E test function
+        function currentlyActiveModel() {
+            return view.model.sourceModel.objectName;
+        }
         function getColumn(index) {
             return model.columns[root.movedColumn[index] !== undefined ? root.movedColumn[index] : index];
         }
@@ -299,6 +304,8 @@ Rectangle {
 
             Mixxx.PlayerManager.loadLocationUrlIntoNextAvailableDeck(urls[0], play);
         }
+
+        // End E2E test function
 
         anchors.bottom: parent.bottom
         anchors.left: parent.left
@@ -397,6 +404,8 @@ Rectangle {
                     color: selected ? Theme.accentColor : (row % 2 == 0 ? Theme.sunkenBackgroundColor : Theme.backgroundColor)
                     objectName: "trackRow_" + row
                     track.capabilities: root.sidebar.tracklist ? root.sidebar.tracklist.getCapabilities() : Mixxx.LibraryTrackListModel.Capability.None
+                    track.crates: root.model.crate
+                    track.playlists: root.model.playlist
 
                     // Pooled items remains parented and set with their previous property, meaning
                     // that Spix, used for testing, may accidentally picked a pooled, now stale item.

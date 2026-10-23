@@ -571,7 +571,8 @@ def step_settings_popup_open(context):
     s = _rpc(context)
     if not _is_visible(s, SETTINGS_POPUP_ITEM):
         _click(s, "mainWindow/showPreferencesButton")
-        assert _wait_for_visible(s, SETTINGS_POPUP_ITEM), "Settings popup did not open"
+        # Sometimes pretty slow on Windows Server CI runner
+        assert _wait_for_visible(s, SETTINGS_POPUP_ITEM, timeout=10), "Settings popup did not open"
         time.sleep(0.5)
 
 

@@ -18,7 +18,8 @@ namespace qml {
 class QmlLibrarySourceTree : public QQuickItem {
     Q_OBJECT
     Q_INTERFACES(QQmlParserStatus)
-    Q_PROPERTY(QQmlListProperty<mixxx::qml::QmlLibraryAbstractSource> sources READ sources)
+    Q_PROPERTY(QQmlListProperty<mixxx::qml::QmlLibraryAbstractSource> sources READ qmlSources)
+    Q_PROPERTY(mixxx::qml::QmlSidebarModelProxy* sidebar READ sidebar)
     Q_PROPERTY(QQmlListProperty<mixxx::qml::QmlLibraryTrackListColumn> defaultColumns READ
                     defaultColumns CONSTANT)
     Q_CLASSINFO("DefaultProperty", "sources")
@@ -35,8 +36,11 @@ class QmlLibrarySourceTree : public QQuickItem {
         return {this, &m_defaultColumns};
     }
 
-    QQmlListProperty<mixxx::qml::QmlLibraryAbstractSource> sources();
-    Q_INVOKABLE mixxx::qml::QmlSidebarModelProxy* sidebar() const {
+    const QList<QmlLibraryAbstractSource*>& sources() const {
+        return m_sources;
+    }
+    QQmlListProperty<mixxx::qml::QmlLibraryAbstractSource> qmlSources();
+    mixxx::qml::QmlSidebarModelProxy* sidebar() const {
         return m_model.get();
     };
     Q_INVOKABLE mixxx::qml::QmlLibraryTrackListModel* allTracks() const;

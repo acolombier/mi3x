@@ -13,13 +13,15 @@
 #include "qmllibraryproxy.h"
 #include "qmllibrarytracklistmodel.h"
 #include "qmlsidebarmodelproxy.h"
+#include "util/parented_ptr.h"
 
 namespace mixxx {
 namespace qml {
 
 QmlLibrarySourceTree::QmlLibrarySourceTree(QQuickItem* parent)
         : QQuickItem(parent),
-          m_model(new QmlSidebarModelProxy(this)) {
+          m_model(make_parented<QmlSidebarModelProxy>(this)) {
+    QJSEngine::setObjectOwnership(m_model.get(), QJSEngine::CppOwnership);
 }
 QmlLibrarySourceTree::~QmlLibrarySourceTree() = default;
 
@@ -29,39 +31,39 @@ Q_INVOKABLE QmlLibraryTrackListModel* QmlLibrarySourceTree::allTracks() const {
 };
 
 void QmlLibrarySourceTree::append_source(
-        QQmlListProperty<QmlLibraryAbstractSource>* list, QmlLibraryAbstractSource* source) {
-    reinterpret_cast<QList<QmlLibraryAbstractSource*>*>(list->data)->append(source);
-    QmlLibrarySourceTree* librarySourceTree = qobject_cast<QmlLibrarySourceTree*>(list->object);
-    if (librarySourceTree && librarySourceTree->isComponentComplete()) {
-        librarySourceTree->m_model->update(librarySourceTree->m_sources);
+        QQmlListProperty<QmlLibraryAbstractSource>* p, QmlLibraryAbstractSource* source) {
+    reinterpret_cast<QList<QmlLibraryAbstractSource*>*>(p->data)->append(source);
+    QmlLibrarySourceTree* librarySourceTree = qobject_cast<QmlLibrarySourceTree*>(p->object);
+    if (librarySourceTree->isComponentComplete()) {
+        librarySourceTree->m_model->update();
     }
 }
 
 void QmlLibrarySourceTree::clear_source(QQmlListProperty<QmlLibraryAbstractSource>* p) {
     reinterpret_cast<QList<QmlLibraryAbstractSource*>*>(p->data)->clear();
     QmlLibrarySourceTree* librarySourceTree = qobject_cast<QmlLibrarySourceTree*>(p->object);
-    if (librarySourceTree) {
-        librarySourceTree->m_model->update(librarySourceTree->m_sources);
+    if (librarySourceTree->isComponentComplete()) {
+        librarySourceTree->m_model->update();
     }
 }
 void QmlLibrarySourceTree::replace_source(QQmlListProperty<QmlLibraryAbstractSource>* p,
         qsizetype idx,
         QmlLibraryAbstractSource* v) {
-    return reinterpret_cast<QList<QmlLibraryAbstractSource*>*>(p->data)->replace(idx, v);
+    reinterpret_cast<QList<QmlLibraryAbstractSource*>*>(p->data)->replace(idx, v);
     QmlLibrarySourceTree* librarySourceTree = qobject_cast<QmlLibrarySourceTree*>(p->object);
-    if (librarySourceTree && librarySourceTree->isComponentComplete()) {
-        librarySourceTree->m_model->update(librarySourceTree->m_sources);
+    if (librarySourceTree->isComponentComplete()) {
+        librarySourceTree->m_model->update();
     }
 }
 void QmlLibrarySourceTree::removeLast_source(QQmlListProperty<QmlLibraryAbstractSource>* p) {
-    return reinterpret_cast<QList<QmlLibraryAbstractSource*>*>(p->data)->removeLast();
+    reinterpret_cast<QList<QmlLibraryAbstractSource*>*>(p->data)->removeLast();
     QmlLibrarySourceTree* librarySourceTree = qobject_cast<QmlLibrarySourceTree*>(p->object);
-    if (librarySourceTree && librarySourceTree->isComponentComplete()) {
-        librarySourceTree->m_model->update(librarySourceTree->m_sources);
+    if (librarySourceTree->isComponentComplete()) {
+        librarySourceTree->m_model->update();
     }
 }
 
-QQmlListProperty<QmlLibraryAbstractSource> QmlLibrarySourceTree::sources() {
+QQmlListProperty<QmlLibraryAbstractSource> QmlLibrarySourceTree::qmlSources() {
     return QQmlListProperty<QmlLibraryAbstractSource>(this,
             &m_sources,
             &QmlLibrarySourceTree::append_source,
@@ -73,7 +75,8 @@ QQmlListProperty<QmlLibraryAbstractSource> QmlLibrarySourceTree::sources() {
 }
 
 void QmlLibrarySourceTree::componentComplete() {
-    m_model->update(m_sources);
+    QQuickItem::componentComplete();
+    m_model->update();
 }
 
 } // namespace qml
