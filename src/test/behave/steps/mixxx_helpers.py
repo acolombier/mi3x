@@ -41,10 +41,7 @@ def _right_click(context, path):
     rpc = context.rpc
     assert rpc.existsAndVisible(path), (
         f"{path} cannot be clicked as it does not exists")
-    # Use a short hold rather than a plain click so the synthetic press is
-    # fully delivered before the release, which makes Qt's TapHandler
-    # recognise the right-button tap even under load.
-    rpc.mouseClickAndHold(path, QT_RIGHT_BUTTON, 0, 250)
+    rpc.mouseClickWithButton(path, QT_RIGHT_BUTTON, 0)
 
 
 def _long_press(context, path, button=QT_LEFT_BUTTON, hold_ms=1000):
