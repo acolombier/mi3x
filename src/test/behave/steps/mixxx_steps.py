@@ -188,7 +188,7 @@ def _is_column_visible(rpc, col, stabilize_duration=1):
     return columnWidth > 0
 
 
-def _scroll_tableview_to_row(rpc, row, table=TRACK_TABLE_PATH):
+def _scroll_tableview_to_row(context, row, table=TRACK_TABLE_PATH):
     """Scroll the track TableView so that ``row`` lies inside the visible viewport.
 
     The TableView recycles its delegates (``reuseItems: true``) and each
@@ -198,6 +198,7 @@ def _scroll_tableview_to_row(rpc, row, table=TRACK_TABLE_PATH):
     ("Item not found") — the missed click this helper prevents. Driving the
     flickable ``contentY`` scrolls the list the way a user would.
     """
+    rpc = context.rpc
     deadline = time.time() + 15
     last_error = None
     while time.time() < deadline:
@@ -302,30 +303,6 @@ def _find_sidebar_named_entity_path(context, entity, name, expand_if_needed=Fals
     assert in_section, f"Could not find the section for {entity} in the sidebar"
 
 # --- Path resolution ---
-
-# TODO can we auto detect it from the QML file?
-TRACK_MENU = [
-    ("Load to", [
-        ("Deck", [
-            ("Deck 1", []),
-            ("Deck 2", []),
-            ("Deck 3", []),
-            ("Deck 4", []),
-        ]),
-        ("Sampler", []),
-    ]),
-    ("Add to playlists", [
-        ("", []),
-        ("Create New Playlist", [])
-    ]),
-    ("Crates", [
-        ("", []),
-        ("", []),
-        ("Create New Crate", [])
-    ]),
-    ("Analyze", []),
-]
-
 
 def _button_path(name):
     return BUTTON_PATHS.get(name, f"mainWindow/{name.lower()}")
@@ -964,13 +941,10 @@ def _wait_for_context_menu(context, timeout=5):
 
 
 def _perform_track_action(context, action, row, table=TRACK_TABLE_PATH):
-    s = context.rpc
-    _scroll_tableview_to_row(s, row, table)
+    _scroll_tableview_to_row(context, row, table)
     path = f"{table}/trackRow_{row}"
     _wait_for_clickable(context, path, timeout=10) # Some CI platform like Windows 10 are very slow to load the table
-    time.sleep(0.5)
-    TRACK_ACTIONS[action](s, path)
-    time.sleep(0.3)
+    TRACK_ACTIONS[action](context, path)
     # The synthetic tap that selects a row is occasionally dropped under load
     # (e.g. a CI runner that is also capturing video), so re-click once if the
     # row did not end up selected.
@@ -996,27 +970,40 @@ def step_click_track_below_fold(context):
 
 @when('I select {path} on the track menu')
 def step_select_track_menu(context, path):
-    s = context.rpc
-    assert _is_visible(context, TRACK_CONTEXT_MENU_PATH), "Track context menu is not visible"
 
     steps = list(map(lambda raw: raw.strip()[1:-1], path.split('>')))
-    current = TRACK_MENU
-    indices = []
-    while steps:
-        step = steps.pop(0)
-        action = [(i, s) for i, s in enumerate(current) if s[0] == step]
-        assert len(action) == 1, f"Cannot find {repr(step)} in the current menu or submenu: {current} {action}"
-        index, action = action[0]
-        indices.append(index)
-        current = action[1]
 
-    s.invokeMethod(TRACK_CONTEXT_MENU_PATH, "forceActiveFocus", [])
-    while indices:
-        index = indices.pop(0)
-        s.setStringProperty(TRACK_CONTEXT_MENU_PATH, "currentIndex", str(index))
-        time.sleep(0.2)
-        s.enterKey(TRACK_CONTEXT_MENU_PATH, QT_KEY_ENTER, 0)
-    time.sleep(1)
+    def activate(steps, depth=0):
+        assert _is_visible(context, TRACK_CONTEXT_MENU_PATH), f"Context {'menu' if depth else 'submenu'} is not visible"
+        step = steps.pop(0)
+        menu_path = TRACK_CONTEXT_MENU_PATH if not depth else f"{TRACK_CONTEXT_MENU_PATH}_Sub{depth}"
+        menu = json.loads(context.rpc.invokeMethod(menu_path, "serialisedDump", []))
+        target_index, item = [(i, item) for i, item in enumerate(menu["items"]) if item.get("text") == step][0]
+        path = menu_path + "/" + item["objectName"]
+
+        context.rpc.invokeMethod(menu_path, "forceActiveFocus", [])
+        current_index = menu["currentIndex"]
+        while current_index != target_index and current_index < menu["count"] - 1:
+            # Later, we could extend the DSL to request a click on the item. This may be useful to assert granularly the context menu behaviour
+            # _click(context, path)
+            # time.sleep(0.3)
+            # new_index = int(_get_property(context, menu_path, "currentIndex"))
+            context.rpc.enterKey(menu_path, QT_KEY_DOWN, 0)
+            time.sleep(0.5)
+            new_index = int(_get_property(context, menu_path, "currentIndex"))
+            # Some platform may struggle with dispatching the emulated keyboard input, so we use the direct setter as fallback
+            if new_index == current_index:
+                context.rpc.invokeMethod(menu_path, "setMenuIndex", [target_index])
+                new_index = int(_get_property(context, menu_path, "currentIndex"))
+            assert new_index != current_index, "Unable to change the context menu index"
+            current_index = new_index
+        assert target_index == current_index, "Unable to reach the target context menu item"
+        context.rpc.enterKey(menu_path, QT_KEY_ENTER, 0)
+        time.sleep(0.5)
+        if steps:
+            activate(steps, depth+1)
+
+    activate(steps)
 
 @when('I discard the track menu')
 def step_select_track_menu(context):
@@ -1633,18 +1620,18 @@ def step_select_suggestion(context, suggestion):
 
 @when('I select the source "{feature}" in the library sidebar')
 def step_select_source_sidebar(context, feature):
-    s = context.rpc
     path = _sidebar_feature_row_path(context, feature)
     assert path, f"Could not find the feature \"{feature}\" in the library sidebar"
     # If a popup is still active (e.g item creation, context-menu, ...), the first click will only close the menu, so we retry twice
     for attempt in range(2):
-        is_expanded = s.getStringProperty(path, "expanded") == "true"
-        is_current = s.getStringProperty(path, "current") == "true"
+        is_expanded = _get_property(context, path, "expanded") == "true"
+        is_current = _get_property(context, path, "current") == "true"
         if is_expanded and is_current:
             return
         _wait_for_visible(context, path)
         _click(context, path)
         time.sleep(1)
+    assert _get_property(context, path, "expanded") == "true", f"Could not expand the feature \"{feature}\" in the library sidebar"
 
 @when('I select the {entity} named "{name}" in the library sidebar')
 def step_select_named_entity_sidebar(context, entity, name):
