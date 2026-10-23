@@ -44,6 +44,8 @@ from spix_helpers import (
     QT_KEY_TAB,
     QT_KEY_UP,
     QT_LEFT_BUTTON,
+    wait_hidden as _wait_hidden_impl,
+    wait_visible as _wait_visible_impl,
 )
 
 _RPC_ERRORS = (
@@ -974,9 +976,9 @@ def step_select_track_menu(context, path):
     steps = list(map(lambda raw: raw.strip()[1:-1], path.split('>')))
 
     def activate(steps, depth=0):
-        assert _is_visible(context, TRACK_CONTEXT_MENU_PATH), f"Context {'menu' if depth else 'submenu'} is not visible"
-        step = steps.pop(0)
         menu_path = TRACK_CONTEXT_MENU_PATH if not depth else f"{TRACK_CONTEXT_MENU_PATH}_Sub{depth}"
+        assert _wait_visible_impl(context.rpc, menu_path, timeout=5), f"Context {'menu' if not depth else 'submenu'} is not visible"
+        step = steps.pop(0)
         menu = json.loads(context.rpc.invokeMethod(menu_path, "serialisedDump", []))
         target_index, item = [(i, item) for i, item in enumerate(menu["items"]) if item.get("text") == step][0]
         path = menu_path + "/" + item["objectName"]
@@ -1002,6 +1004,9 @@ def step_select_track_menu(context, path):
         time.sleep(0.5)
         if steps:
             activate(steps, depth+1)
+        else:
+            # Not all menu actions will hide the menu, so we don't assert here
+            _wait_hidden_impl(context.rpc, menu_path, timeout=3)
 
     activate(steps)
 

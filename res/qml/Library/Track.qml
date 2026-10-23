@@ -30,10 +30,10 @@ Item {
             view.selectionModel.selectRow(row);
             view.loadSelectedTrackIntoNextAvailableDeck(false);
         }
-        onLongPressed: (eventPoint, button) => {
+        onLongPressed: {
             view.selectionModel.selectRow(row);
             _lazyTrack = view.model?.getTrackByRow(row) ?? null;
-            contextMenu.popup(parent, eventPoint.position);
+            contextMenu.popup(parent);
         }
         onTapped: (eventPoint, button) => {
             view.selectionModel.selectRow(row);
