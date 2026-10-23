@@ -366,6 +366,14 @@ jobs:
         env:
           BUILDENV_BASEPATH: ${{ matrix.buildenv_basepath }}
 
+      - name: "[VCPKG] Restore buildenv archive cache"
+        id: buildenv_cache
+        if: env.BUILDENV_NAME != null
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ matrix.buildenv_basepath }}/${{ env.BUILDENV_NAME }}.zip
+          key: buildenv-${{ env.BUILDENV_NAME }}
+
       - name: "[Ubuntu/macOS] Restore ccache cache"
         # Caches are only saved by push builds (see "Save ccache cache").
         # Pull requests can read caches of their base branch, but caches they
@@ -447,6 +455,14 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}
+
+      - name: "[VCPKG] Save buildenv archive cache"
+        id: buildenv_save
+        if: steps.buildenv_cache.outputs.cache-hit != 'true' && env.BUILDENV_NAME != null
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ matrix.buildenv_basepath }}/${{ env.BUILDENV_NAME }}.zip
+          key: buildenv-${{ env.BUILDENV_NAME }}
 
       - name: "[Ubuntu/macOS] Set up gcc/clang problem matcher"
         if: runner.os != 'Windows'
@@ -877,6 +893,13 @@ jobs:
       - name: "[macOS/Windows] Get build environment name"
         if: runner.os != 'Linux'
         run: ${{ matrix.platform.buildenv_script }} name
+
+      - name: "[macOS/Windows] Restore buildenv archive cache"
+        if: runner.os != 'Linux'
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ matrix.platform.buildenv_basepath }}/${{ env.BUILDENV_NAME }}.zip
+          key: buildenv-${{ env.BUILDENV_NAME }}
 
       - name: "Download buildenv"
         # No need for all the option, we just need to download the buildenv here
