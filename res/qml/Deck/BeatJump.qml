@@ -28,7 +28,6 @@ Rectangle {
     }
     Skin.ControlButton {
         id: jumpBackButton
-        objectName: "beatjumpBackwardButton"
 
         group: root.group
         implicitHeight: 26
@@ -123,7 +122,6 @@ Rectangle {
     }
     Skin.ControlButton {
         id: jumpForwardButton
-        objectName: "beatjumpForwardButton"
 
         group: root.group
         implicitHeight: 26
@@ -274,6 +272,7 @@ Rectangle {
 
             anchors.fill: parent
             color: '#2B2B2B'
+
             border {
                 color: '#353535'
                 width: 1
@@ -281,10 +280,10 @@ Rectangle {
         }
         MultiEffect {
             anchors.fill: backgroundImage
-            source: backgroundImage
-            shadowEnabled: true
-            shadowColor: "#80000000"
             shadowBlur: 0.05
+            shadowColor: "#80000000"
+            shadowEnabled: true
+            source: backgroundImage
         }
         Mixxx.ControlProxy {
             id: beatjumpSize

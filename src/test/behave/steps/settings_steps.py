@@ -30,8 +30,8 @@ CATEGORY_LIST = f"{SETTINGS_POPUP_ITEM}/categoryList"
 TAB_BAR = f"{SETTINGS_POPUP_ITEM}/tabBar"
 SEARCH_SETTING = f"{SETTINGS_POPUP_ITEM}/searchSetting"
 SEARCH_INPUT = f"{SETTINGS_POPUP_ITEM}/searchInput"
-CATEGORIES_ITEM = f"{SETTINGS_POPUP_ITEM}/settingsCategories"
-SHOW_CATEGORIES_BUTTON = f"{SETTINGS_POPUP_ITEM}/showCategoriesButton"
+CATEGORIES_ITEM = f"{SETTINGS_POPUP_ITEM}/categories"
+SHOW_CATEGORIES_BUTTON = f"{SETTINGS_POPUP_ITEM}/showCategories"
 
 # Slug ("sound", "library", ...) per active category index in the settings
 # popup (see res/qml/Settings.qml;Analyzer is index 8). Categories without an

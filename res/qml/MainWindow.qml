@@ -11,43 +11,41 @@ import "Theme"
 Item {
     id: root
 
-    readonly property bool isMobile: Qt.platform.os === "android" || Qt.platform.os === "ios"
-    readonly property int designWidth: 1792
-    readonly property int designHeight: 1008
-
-    property alias editDeck: editDeckButton.checked
-    property var focusedDeck: null
-    property alias maximizeLibrary: maximizeLibraryButton.checked
-    readonly property int numDecks: 4
-    readonly property int numPreviewDecks: 1
-    readonly property int numSamplers: 16
-    readonly property int waveformOverviewTypeRgb: 2
-    readonly property bool show4decks: show4DecksButton.checked && show4DecksButton.visible
-    property alias showEffects: showEffectsButton.checked
-    property alias showSamplers: showSamplersButton.checked
-
     readonly property bool _showLibrary: maximizeLibrary || height - mixer.height >= 400
+    readonly property int designHeight: 1008
+    readonly property int designWidth: 1792
+    property alias editDeck: editDeckButton.checked
 
     // Used to show click interaction on the Window. Mainly relevant on automated testing
     property bool enableDiagnosticClick: false
+    property var focusedDeck: null
+    readonly property Item imeFocusItem: Window.activeFocusItem
     // Pull-to-top IME shift: while the soft keyboard is up, lift the
     // content column so the focused editor sits `imeKeyboardMargin` below
     // the window top (desktop: no IME, stays 0). Mapping relative to this
     // root keeps it independent of the shift and its animation.
     readonly property real imeKeyboardMargin: 0
-    readonly property Item imeFocusItem: Window.activeFocusItem
     // Future: let a focused item opt into another policy, e.g.
     // imeShiftPolicy: "none" | "top" | "aboveKeyboard".
     readonly property real imeShift: {
         if (!Qt.inputMethod.visible || !root.imeFocusItem) {
-            return 0
+            return 0;
         }
         // The discarded geometric arithmetic registers
         // geometry changes as binding dependencies;
         root.imeFocusItem?.imeLayoutSideEffect;
-        return Math.max(0, root.imeFocusItem.mapToItem(root, 0, 0).y
-                - root.imeKeyboardMargin)
+        return Math.max(0, root.imeFocusItem.mapToItem(root, 0, 0).y - root.imeKeyboardMargin);
     }
+    readonly property bool isMobile: Qt.platform.os === "android" || Qt.platform.os === "ios"
+    property alias maximizeLibrary: maximizeLibraryButton.checked
+    readonly property int numDecks: 4
+    readonly property int numPreviewDecks: 1
+    readonly property int numSamplers: 16
+    readonly property bool show4decks: show4DecksButton.checked && show4DecksButton.visible
+    property alias showEffects: showEffectsButton.checked
+    property alias showSamplers: showSamplersButton.checked
+    readonly property int waveformOverviewTypeRgb: 2
+
     y: -root.imeShift
 
     Behavior on y {
@@ -61,7 +59,6 @@ Item {
     // visible: true
     // width: isMobile ? Screen.width : designWidth
     // visibility: Mixxx.Config.configStartInFullscreenKey || isMobile ? Window.FullScreen : Window.Windowed
-
 
     Mixxx.ControlProxy {
         group: "[App]"
@@ -120,7 +117,6 @@ Item {
 
                 Skin.Button {
                     id: show4DecksButton
-                    objectName: "show4DecksButton"
 
                     activeColor: Theme.white
                     checkable: true
@@ -129,7 +125,6 @@ Item {
                 }
                 Skin.Button {
                     id: maximizeLibraryButton
-                    objectName: "library"
 
                     activeColor: Theme.white
                     checkable: true
@@ -176,7 +171,6 @@ Item {
                 }
                 Skin.Button {
                     id: editDeckButton
-                    objectName: "editDeckButton"
 
                     activeColor: Theme.white
                     checkable: true
@@ -206,7 +200,6 @@ Item {
                 }
                 Skin.Button {
                     id: showPreferencesButton
-                    objectName: "showPreferencesButton"
 
                     activeColor: Theme.white
                     checked: settingsPopup.opened
@@ -385,12 +378,13 @@ Item {
 
                 Deck {
                     id: deck1
-                    objectName: "deck1"
 
                     editMode: root.editDeck
                     group: "[Channel1]"
                     height: root.maximizeLibrary ? 80 : root.show4decks ? mixer.height / 2 : mixer.height
                     minimized: root.maximizeLibrary
+                    objectName: "deck1"
+                    width: (parent.width - mixer.width) / 2
 
                     Behavior on height {
                         SpringAnimation {
@@ -420,7 +414,6 @@ Item {
                         right: mixer.left
                         top: parent.top
                     }
-                    width: (parent.width - mixer.width) / 2
                 }
                 Mixer {
                     id: mixer
@@ -509,12 +502,12 @@ Item {
                 }
                 Deck {
                     id: deck2
-                    objectName: "deck2"
 
                     editMode: root.editDeck
                     group: "[Channel2]"
                     height: root.maximizeLibrary ? 80 : root.show4decks ? mixer.height / 2 : mixer.height
                     minimized: root.maximizeLibrary
+                    objectName: "deck2"
 
                     Behavior on height {
                         SpringAnimation {
@@ -548,12 +541,12 @@ Item {
                 }
                 Loader {
                     id: deck3
-                    objectName: "deck3Loader"
 
                     readonly property string group: "[Channel3]"
 
                     active: root.show4decks
                     height: active ? (root.maximizeLibrary ? 80 : mixer.height / 2) : 0
+                    objectName: "deck3Loader"
 
                     Behavior on height {
                         SpringAnimation {
@@ -566,12 +559,12 @@ Item {
                     }
                     sourceComponent: Component {
                         Deck {
-                            objectName: "deck3"
                             anchors.bottom: parent.bottom
                             anchors.left: parent.left
                             editMode: root.editDeck
                             group: deck3.group
                             minimized: root.maximizeLibrary
+                            objectName: "deck3"
                         }
                     }
                     states: [
@@ -593,12 +586,12 @@ Item {
                 }
                 Loader {
                     id: deck4
-                    objectName: "deck4Loader"
 
                     readonly property string group: "[Channel4]"
 
                     active: root.show4decks
                     height: active ? (root.maximizeLibrary ? 80 : mixer.height / 2) : 0
+                    objectName: "deck4Loader"
 
                     Behavior on height {
                         SpringAnimation {
@@ -611,12 +604,12 @@ Item {
                     }
                     sourceComponent: Component {
                         Deck {
-                            objectName: "deck4"
                             anchors.bottom: parent.bottom
                             anchors.left: parent.left
                             editMode: root.editDeck
                             group: deck4.group
                             minimized: root.maximizeLibrary
+                            objectName: "deck4"
                         }
                     }
                     states: [
@@ -663,8 +656,8 @@ Item {
 
                     sourceComponent: Component {
                         Skin.Library {
-                            objectName: "libraryContent"
                             anchors.fill: parent
+                            objectName: "libraryContent"
                         }
                     }
                     states: [
@@ -705,12 +698,12 @@ Item {
     Skin.Settings {
         id: settingsPopup
 
+        enableDiagnosticClick: parent.enableDiagnosticClick
         height: Math.min(840, parent.height)
         modal: true
         width: Math.min(1400, parent.width)
         x: Math.round((parent.width - width) / 2)
         y: Math.round((parent.height - height) / 2)
-        enableDiagnosticClick: parent.enableDiagnosticClick
 
         Overlay.modal: Rectangle {
             id: overlayModal
