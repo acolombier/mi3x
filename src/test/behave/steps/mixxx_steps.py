@@ -669,6 +669,7 @@ def step_new_empty_profile(context, profile_type):
 def step_open_and_ready(context):
     session = context._session
     if session.get("ready_key") == _session_key(context) and _mixxx_running(context):
+        context.default_size = session.get("default_size", (None, None))
         return
 
     tracks_dir = context.config.userdata["tracks_dir"]
@@ -719,6 +720,9 @@ def step_open_and_ready(context):
     _wait_for_visible(context, "mainWindow/maximizeLibraryButton")
     _wait_for_hidden(context, "mainWindow/splash", timeout=30) # FIXME: First launch on Windows 10 CI runner is quite slow
     context.rpc.setStringProperty("mainWindow", "enableDiagnosticClick", "true")
+    # The system might constrain the size below or default one (e.g windows policy), so we keep track of what the system default are in order to reset between scenarios
+    session["default_size"] = (_get_property(context, "mainWindow", "width"), _get_property(context, "mainWindow", "height"))
+    context.default_size = session["default_size"]
     session["ready_key"] = _session_key(context)
 
 @given(u'a {entity} named "{name}" already exists with {track_count:d} tracks')
@@ -759,8 +763,11 @@ def step_window_height_is(context, height):
 
 @given("the window size is default")
 def step_window_size_default(context):
-    _set_property(context, "mainWindow", "width", 1792)
-    _set_property(context, "mainWindow", "height", 1008)
+    default_width, default_height = context.default_size
+    if default_width and _get_property(context, "mainWindow", "width") != default_width:
+        _set_property(context, "mainWindow", "width", default_width)
+    if default_height and _get_property(context, "mainWindow", "height") != default_height:
+        _set_property(context, "mainWindow", "height", default_height)
     time.sleep(0.5)
 
 
@@ -1636,7 +1643,6 @@ def step_select_source_sidebar(context, action, feature):
     # If a popup is still active (e.g item creation, context-menu, ...), the first click will only close the menu, so we retry twice
     for attempt in range(2):
         prop = _get_property(context, path, target_property)
-        print(target_property, prop)
         assert target_property, f"Could not fetch the feature \"{feature}\" sidebar property ({target_property}={repr(prop)})"
         if prop == "true":
             return
