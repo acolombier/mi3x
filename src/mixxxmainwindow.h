@@ -81,6 +81,12 @@ class MixxxMainWindow : public QMainWindow {
     void slotNoAuxiliaryInputConfigured();
     void slotNoDeckPassthroughInputConfigured();
     void slotNoVinylControlInputConfigured();
+    /// alert the user when loading a track failed. Relocated from
+    /// BaseTrackPlayerImpl which only raises the signal (ticket #51).
+    void slotTrackLoadFailed(TrackPointer pTrack, const QString& reason);
+    /// alert the user when a broadcast action failed. Relocated from
+    /// BroadcastManager which only raises the signal (ticket #51).
+    void slotBroadcastError(const QString& title, const QString& text);
 #ifndef __APPLE__
     /// Update whether the menubar is toggled pressing the Alt key and show/hide
     /// it accordingly

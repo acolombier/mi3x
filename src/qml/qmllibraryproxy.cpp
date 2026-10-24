@@ -19,6 +19,7 @@
 #include "library/export/libraryexporter.h"
 #endif
 #include "moc_qmllibraryproxy.cpp"
+#include "notificationmanager.h"
 #include "preferences/colorpalettesettings.h"
 #include "qml/qmlconfigproxy.h"
 #include "qml/qmllibrarytracklistmodel.h"
@@ -118,7 +119,8 @@ QmlLibraryScannerProxy::QmlLibraryScannerProxy(LibraryScanner* libraryScanner,
         : QObject(parent),
           m_pLibraryScanner(libraryScanner),
           m_running(trackCollectionManager->isLibraryScanActive()),
-          m_cancelling(false) {
+          m_cancelling(false),
+          m_scanTasksProcessed(0) {
     connect(libraryScanner,
             &LibraryScanner::progressLoading,
             this,
@@ -144,6 +146,11 @@ QmlLibraryScannerProxy::QmlLibraryScannerProxy(LibraryScanner* libraryScanner,
                 m_cancelling = false;
                 m_running = true;
                 emit stateChanged();
+                // TODO(#51): scaffolding — the scan notification appears
+                // instantly (no delay), mutates on every progress signal,
+                // and finally becomes the scan summary (or auto-times
+                // out).
+                openScanNotification();
             });
     connect(libraryScanner,
             &LibraryScanner::scanFinished,
@@ -152,7 +159,80 @@ QmlLibraryScannerProxy::QmlLibraryScannerProxy(LibraryScanner* libraryScanner,
                 m_cancelling = false;
                 m_running = false;
                 emit stateChanged();
+                // The final mutation happens in presentScanSummary(),
+                // called from deliverPendingLibraryScanSummary(). If that
+                // was skipped (summary suppressed), close it here when it
+                // is still around.
+                // TODO(#51): pending summary may arrive after
+                // scanFinished + task queueing; the exact
+                // close/summary handshake may need hardening.
             });
+    // TODO(#51): mutate the scanning notification with the file being
+    // processed; flood-heavy for very large scans, follow-up.
+    connect(libraryScanner,
+            &LibraryScanner::progressLoading,
+            this,
+            &QmlLibraryScannerProxy::slotScanProgress);
+    connect(libraryScanner,
+            &LibraryScanner::progressHashing,
+            this,
+            &QmlLibraryScannerProxy::slotScanProgress);
+    // Reveal the pre-existing scan state on creation (auto scan running
+    // while the skin was loading).
+    if (m_running) {
+        openScanNotification();
+    }
+}
+
+void QmlLibraryScannerProxy::openScanNotification() {
+    if (m_pScanNotification) {
+        return;
+    }
+    m_scanTasksProcessed = 0;
+    auto pNotification = std::make_shared<mixxx::Notification>(
+            tr("Scanning your music library..."),
+            mixxx::NotificationFlag::Sticky);
+    pNotification->addButton(tr("Abort"), this, [this]() {
+        // Same path as the LibraryScannerDlg Cancel button.
+        cancel();
+    });
+    m_pScanNotification = pNotification;
+    if (auto* pManager = NotificationManager::instance()) {
+        pManager->notify(pNotification);
+    }
+}
+
+void QmlLibraryScannerProxy::slotScanProgress(const QString& path) {
+    if (!m_pScanNotification) {
+        return;
+    }
+    m_scanTasksProcessed++;
+    m_pScanNotification->setText(tr("Scanning: %1").arg(path));
+    m_pScanNotification->setDetails(
+            tr("%1 task(s) processed").arg(m_scanTasksProcessed));
+}
+
+void QmlLibraryScannerProxy::presentScanSummary(
+        const QString& title, const QString& details) {
+    if (!m_pScanNotification) {
+        return;
+    }
+    m_pScanNotification->setText(title);
+    m_pScanNotification->setDetails(details);
+    // Demote to auto-timeout so the summary eventually disappears on its
+    // own. TODO(#51): choose the timeout duration.
+    m_pScanNotification->setSticky(false);
+    m_pScanNotification.reset();
+}
+
+void QmlLibraryScannerProxy::closeScanNotification() {
+    if (!m_pScanNotification) {
+        return;
+    }
+    if (auto* pManager = NotificationManager::instance()) {
+        pManager->closeNotification(m_pScanNotification);
+    }
+    m_pScanNotification.reset();
 }
 
 QmlLibraryProxy::QmlLibraryProxy(QObject* parent)
@@ -250,12 +330,15 @@ void QmlLibraryProxy::deliverPendingLibraryScanSummary() {
     if (!pConfig ||
             !pConfig->getValue<bool>(
                     mixxx::library::prefs::kShowScanSummaryConfigKey, true)) {
+        // The scan summary is not shown in the notification space either.
+        m_pScanner->closeScanNotification();
         return;
     }
     if (result.autoscan &&
             result.numNewTracks == 0 &&
             result.numNewMissingTracks == 0 &&
             result.numRediscoveredTracks == 0) {
+        m_pScanner->closeScanNotification();
         return;
     }
 
@@ -264,6 +347,7 @@ void QmlLibraryProxy::deliverPendingLibraryScanSummary() {
         emit libraryScanSummaryAvailable(title,
                 tr("No music directories configured for scanning."),
                 tr("Add directories in the library preferences."));
+        m_pScanner->presentScanSummary(title, QString());
         return;
     }
 
@@ -295,6 +379,11 @@ void QmlLibraryProxy::deliverPendingLibraryScanSummary() {
         }
     }
     details.append(tr("%n track(s) in total", nullptr, result.tracksTotal));
+    // TODO(#51): the scan summary mutates the sticky scan notification
+    // instead of (eventually, together with) the legacy
+    // LibraryScanSummaryDialog in the QML skin; see the scaffold notes
+    // in QmlLibraryScannerProxy.
+    m_pScanner->presentScanSummary(title, details.join(QLatin1Char('\n')));
     emit libraryScanSummaryAvailable(title, text, details.join(QLatin1Char('\n')));
 }
 

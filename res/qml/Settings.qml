@@ -22,6 +22,9 @@ Popup {
     // FIXME change to `final` when supported
     readonly property real smallScreenWidth: 1200
 
+    function focusSection(section) {
+        print("section passed:", section);
+    }
     function updateActiveCategory() {
         root.activeCategory?.deactivated();
         root.activeCategory = managerItem.data[categoryList.currentIndex] ?? null;

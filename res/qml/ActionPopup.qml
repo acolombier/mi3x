@@ -11,13 +11,6 @@ import "Theme"
 Popup {
     id: root
 
-    onOpened: {
-        Mixxx.Core.addOpenedPopup(this)
-    }
-    onClosed: {
-        Mixxx.Core.removeOpenedPopup(this)
-    }
-
     enum Facing {
         Left,
         Top,
@@ -36,19 +29,25 @@ Popup {
 
     background: Item {
         Item {
-            id: content3
+            id: background
 
             anchors.fill: parent
 
             Shape {
+                anchors.bottom: root.facing == ActionPopup.Facing.Bottom ? parent.bottom : undefined
                 anchors.left: root.facing == ActionPopup.Facing.Left ? parent.left : undefined
                 anchors.right: root.facing == ActionPopup.Facing.Right ? parent.right : undefined
+                anchors.top: root.facing == ActionPopup.Facing.Top ? parent.top : undefined
                 anchors.verticalCenter: parent.verticalCenter
                 implicitHeight: 20
                 rotation: {
                     switch (root.facing) {
                     case ActionPopup.Facing.Right:
                         return 180;
+                    case ActionPopup.Facing.Bottom:
+                        return 270;
+                    case ActionPopup.Facing.Top:
+                        return 90;
                     default:
                         return 0;
                     }
@@ -78,9 +77,11 @@ Popup {
                 }
             }
             Rectangle {
+                anchors.bottomMargin: root.facing == ActionPopup.Facing.Bottom ? 20 : 0
                 anchors.fill: parent
                 anchors.leftMargin: root.facing == ActionPopup.Facing.Left ? 20 : 0
                 anchors.rightMargin: root.facing == ActionPopup.Facing.Right ? 20 : 0
+                anchors.topMargin: root.facing == ActionPopup.Facing.Top ? 20 : 0
                 border.width: 0
                 color: Theme.backgroundColor
                 radius: 8
@@ -88,20 +89,29 @@ Popup {
         }
         MultiEffect {
             anchors.fill: parent
-            source: content3
+            shadowBlur: 0.8
+            shadowColor: '#c0000000'
             shadowEnabled: true
-            shadowColor: "#80000000"
-            shadowBlur: 0.1
+            source: background
         }
     }
     contentItem: Item {
         ColumnLayout {
             id: content
 
+            anchors.bottomMargin: root.facing == ActionPopup.Facing.Bottom ? 20 : 0
             anchors.fill: parent
             anchors.leftMargin: root.facing == ActionPopup.Facing.Left ? 20 : 0
             anchors.rightMargin: root.facing == ActionPopup.Facing.Right ? 20 : 0
+            anchors.topMargin: root.facing == ActionPopup.Facing.Top ? 20 : 0
             spacing: 2
         }
+    }
+
+    onClosed: {
+        Mixxx.Core.removeOpenedPopup(this);
+    }
+    onOpened: {
+        Mixxx.Core.addOpenedPopup(this);
     }
 }
