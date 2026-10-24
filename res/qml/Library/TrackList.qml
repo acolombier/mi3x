@@ -192,8 +192,8 @@ Rectangle {
             TapHandler {
                 acceptedButtons: Qt.LeftButton
 
-                onLongPressed: (eventPoint, button) => {
-                    columnSelectionMenu.popup();
+                onLongPressed: {
+                    columnSelectionMenu.popup(parent);
                 }
                 onTapped: {
                     if (horizontalHeader.sortingColumn == index) {
@@ -208,8 +208,8 @@ Rectangle {
             TapHandler {
                 acceptedButtons: Qt.RightButton
 
-                onTapped: {
-                    columnSelectionMenu.popup();
+                onTapped: (eventPoint, button) => {
+                    columnSelectionMenu.popup(parent, eventPoint.position);
                 }
             }
             Text {
@@ -433,6 +433,7 @@ Rectangle {
                     // Drag.supportedActions: Qt.CopyAction
                     // anchors.fill: parent
                     color: selected ? Theme.accentColor : (row % 2 == 0 ? Theme.sunkenBackgroundColor : Theme.backgroundColor)
+                    objectName: "trackRow_" + row
                     track.capabilities: root.sidebar.tracklist ? root.sidebar.tracklist.getCapabilities() : Mixxx.LibraryTrackListModel.Capability.None
                     track.crates: root.model.crate
                     track.playlists: root.model.playlist

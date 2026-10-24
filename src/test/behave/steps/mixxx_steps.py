@@ -739,14 +739,15 @@ def step_library_feature_entity_exists(context, entity, name, track_count=0):
     result = json.loads(rpc.getStringProperty("mainWindow", "lastLibraryState"))
     assert result["result"] == "success", f"Could not create the {entity}: {result}"
 
-    # TODO cleanup hooks are creating challenges currently due to the ir dependence to the state and health of the RPC server and executable
-    # For now, we leave created resource in place
-    # def cleanup_func(entity_id, **kwargs):
-    #     _library_command(context, payload={"action": "deleteFeatureItem", "type": entity, "id": entity_id})
-    #     result = json.loads(rpc.getStringProperty("mainWindow", "lastLibraryState"))
-    #     assert result["result"] == "success", f"Could not delete the {entity} with id {entity_id}: {result}"
+@given(u'no {entity} named "{name}" exists')
+def step_library_feature_entity_exists(context, entity, name):
+    state = _get_library_state(context).get(entity + 's', [])
 
-    # context.add_cleanup(cleanup_func, result["id"], layer="testrun")
+    for p in state:
+        if p["name"] == name:
+            _library_command(context, payload={"action": "deleteFeatureItem", "type": entity, "id": p["id"]})
+            result = json.loads(rpc.getStringProperty("mainWindow", "lastLibraryState"))
+            assert result["result"] == "success", f"Could not delete the {entity} with id {entity_id}: {result}"
 
 
 # --- When: window/button steps ---
@@ -1153,9 +1154,15 @@ def step_library_source_create_option(context, expect):
     expected = expect == "be"
     assert _is_visible(context, f"{path}/newItem") == expected, f"Library sidebar feature's create item should {expect}"
 
-@then('a create popup for the library source should be visible')
-def step_library_source_create_visible(context):
-    _wait_for_visible(context, LIBRARY_TREEVIEW_CREATE_POPUP)
+@then('a create popup for the library source should be {state}')
+def step_library_source_create_visible(context, state="visible"):
+    if state == "visible":
+        _wait_for_visible(context, LIBRARY_TREEVIEW_CREATE_POPUP)
+        return
+    elif state == "hidden":
+        _wait_for_hidden(context, LIBRARY_TREEVIEW_CREATE_POPUP)
+        return
+    assert False, f"Unsupported state assertion {repr(state)}"
 
 @then('a {entity} named "{name}" should appear in the library sidebar')
 def step_library_playlist_visible(context, entity, name):
@@ -1677,9 +1684,9 @@ def step_select_source_sidebar_feature_create_type(context, label):
 
     s.inputText(SEARCH_FIELD_PATH, label)
 
-@when('I confirm the create action')
-def step_select_source_sidebar_feature_create_confirm(context):
-    path = f"{LIBRARY_TREEVIEW_CREATE_POPUP}/create"
+@when('I {outcome} the create action')
+def step_select_source_sidebar_feature_create_confirm(context, outcome):
+    path = f"{LIBRARY_TREEVIEW_CREATE_POPUP}/create" if outcome == "confirm" else f"{LIBRARY_TREEVIEW_CREATE_POPUP}/cancel"
     _wait_for_visible(context, path)
     _click(context, path)
 

@@ -455,6 +455,8 @@ Feature: Library
     When I confirm the create action
     Then the create popup for the library source should remain visible
     And the create popup for the library source should show an error state
+    When I cancel the create action
+    Then a create popup for the library source should be hidden
 
   Scenario: Playlist source rejects duplicate names
     Given a playlist named "DupTest" already exists
@@ -465,6 +467,8 @@ Feature: Library
     And I confirm the create action
     Then the create popup for the library source should remain visible
     And the create popup for the library source should show an error state
+    When I cancel the create action
+    Then a create popup for the library source should be hidden
 
   Scenario: Crate source rejects duplicate names
     Given a crate named "DupTest" already exists
@@ -475,6 +479,8 @@ Feature: Library
     And I confirm the create action
     Then the create popup for the library source should remain visible
     And the create popup for the library source should show an error state
+    When I cancel the create action
+    Then a create popup for the library source should be hidden
 
   Scenario: Switching between library sources activates them
     # Given the library sidebar shows the source "Crate"
