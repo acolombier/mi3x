@@ -29,7 +29,7 @@ Popup {
 
     background: Item {
         Item {
-            id: content3
+            id: background
 
             anchors.fill: parent
 
@@ -89,10 +89,10 @@ Popup {
         }
         MultiEffect {
             anchors.fill: parent
-            shadowBlur: 0.1
-            shadowColor: "#80000000"
+            shadowBlur: 0.8
+            shadowColor: '#c0000000'
             shadowEnabled: true
-            source: content3
+            source: background
         }
     }
     contentItem: Item {

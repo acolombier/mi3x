@@ -17,6 +17,7 @@
 #include "qml/qmlcoreservices.h"
 #include "qml/qmldlgpreferencesproxy.h"
 #include "qml/qmlrecordingproxy.h"
+#include "qmlsettingparameter.h"
 #include "soundio/soundmanager.h"
 #include "util/versionstore.h"
 #include "waveform/guitick.h"
@@ -243,9 +244,27 @@ QmlApplication::QmlApplication(
             m_pCoreServices->getTrackCollectionManager());
     m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
     QmlCoreServices::instance()->setReady();
-    m_pCoreServices->getNotificationManager()->notify(
-            std::make_shared<mixxx::Notification>(
-                    "Mixxx started!", mixxx::NotificationFlag::Sticky));
+    auto pNotification = std::make_shared<mixxx::Notification>(
+            "Mixxx started!", mixxx::NotificationFlag::Sticky);
+    pNotification->addButton("Coolio", this, []() {
+        auto windows = QGuiApplication::topLevelWindows();
+        for (auto* w : std::as_const(windows)) {
+            auto* pEngineSection = w->findChild<mixxx::qml::QmlSettingGroup*>("engineSection");
+            auto* pSettings = w->findChild<QObject*>("settingsPopup");
+            if (pEngineSection && pSettings) {
+                qDebug() << "found" << pEngineSection << pSettings;
+                QMetaObject::invokeMethod(pSettings, "open", Qt::QueuedConnection);
+                QMetaObject::invokeMethod(pSettings,
+                        "focusSection",
+                        Qt::QueuedConnection,
+                        Q_ARG(QVariant, QVariant::fromValue(pEngineSection)));
+
+                break;
+            }
+        }
+        qDebug() << "clicked!!!";
+    });
+    m_pCoreServices->getNotificationManager()->notify(pNotification);
 
     m_pCoreServices->getControllerManager()->setUpDevices();
 

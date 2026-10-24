@@ -234,8 +234,7 @@ Item {
                         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
                         facing: ActionPopup.Facing.Top
                         focus: true
-                        // height: Math.min(180, notificationList.count * 60)
-                        height: 200
+                        height: Math.min(180, notificationList.contentHeight) + bottomInset + topInset + 20
                         width: 500
                         x: {
                             opened; // Bind to opening
@@ -244,17 +243,15 @@ Item {
                         }
                         y: notificationButton.height
 
-                        Component.onCompleted: {
-                            print("notification", Mixxx.Core.notifications);
-                        }
-
                         ListView {
                             id: notificationList
 
-                            anchors.fill: parent
+                            height: contentHeight
                             model: Mixxx.Core.notifications
+                            width: 500
 
                             delegate: Item {
+                                required property int index
                                 required property var modelData
 
                                 height: notificationGrid.height + 5
@@ -267,6 +264,7 @@ Item {
                                     width: parent.width
 
                                     Item {
+                                        Layout.fillHeight: true
                                         Layout.minimumWidth: 60
                                         Layout.rowSpan: 3
 
@@ -290,10 +288,12 @@ Item {
                                     }
                                     Text {
                                         Layout.fillWidth: true
+                                        Layout.minimumHeight: 25
                                         color: '#FFFFFF'
                                         font.pixelSize: 13
                                         font.weight: Font.DemiBold
                                         text: modelData.text
+                                        verticalAlignment: Text.AlignBottom
                                         wrapMode: Text.WrapAnywhere
                                     }
                                     Text {
@@ -304,17 +304,27 @@ Item {
                                         wrapMode: Text.WrapAnywhere
                                     }
                                     RowLayout {
-                                        Layout.fillWidth: true
-
                                         Item {
                                             Layout.fillWidth: true
                                         }
-                                        Skin.Button {
-                                            activeColor: Theme.white
-                                            text: "Cool"
+                                        Repeater {
+                                            model: modelData.buttons
 
-                                            onClicked: {
-                                                print(modelData.buttons);
+                                            Item {
+                                                required property var modelData
+
+                                                Layout.preferredHeight: 15
+                                                Layout.preferredWidth: button.implicitWidth
+                                                Layout.rightMargin: 10
+
+                                                Skin.Button {
+                                                    id: button
+
+                                                    activeColor: Theme.white
+                                                    text: modelData.label
+
+                                                    onClicked: modelData.invoke()
+                                                }
                                             }
                                         }
                                     }
@@ -323,6 +333,7 @@ Item {
                                     anchors.bottom: parent.bottom
                                     color: 'black'
                                     height: 2
+                                    visible: index != notificationList.count - 1
                                     width: parent.width
                                 }
                             }
