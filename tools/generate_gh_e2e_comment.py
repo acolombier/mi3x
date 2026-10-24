@@ -13,12 +13,15 @@ Environment variables:
   PR_NUMBER              - pull request number (required)
   RESULTS_DIR            - path to downloaded result artifacts
                            (default: results)
-  VIDEO_DIR              - path to downloaded recording artifacts
-                           (default: RESULTS_DIR)
+  VIDEO_DIR              - directory where recordings referenced by selected
+                           scenarios are lazily downloaded to (default:
+                           RESULTS_DIR). Pre-existing recordings are reused.
   SNIPPET_DIR            - directory to write extracted .mp4 snippets to
                            (default: snippets)
   SNIPPET_MAX_ATTACHMENTS- max number of clips to attach (default: 40)
   FFMPEG_BIN             - ffmpeg executable (default: ffmpeg)
+  FFMPEG_JOBS            - number of concurrently running ffmpeg clip-cut
+                           jobs (default: number of logical CPUs)
   BASE_REF               - git ref (e.g. FETCH_HEAD, origin/feat/qml) of the
                            PR base branch. Scenarios absent there are flagged
                            as new. Empty/unresolvable disables the flag.
@@ -43,6 +46,13 @@ Note: `gh --attach` only accepts OAuth/PAT tokens (gho_/ghp_/github_pat_/
 ghu_); the default Actions token (${{ github.token }}, ghs_) is rejected. In
 that case the script transparently falls back to plain artifact links.
 
+Recordings are not pulled up front: only the (few) recordings actually
+referenced by the selected scenarios are downloaded lazily via the Actions
+artifact REST API, in parallel with up to FFMPEG_JOBS workers; a recording
+already present in VIDEO_DIR is reused (retry-safe). A recording download
+that fails only drops the video from the affected scenarios, never the
+comment itself.
+
 When NO_GITHUB=1 is set, the script runs in offline mode: it reads results
 from RESULTS_DIR, prints the generated comment body to stdout, and skips all
 GitHub API calls (using local files for video URLs).
@@ -60,6 +70,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import zipfile
 from typing import NamedTuple
 
 TITLE_MARKER = "<!-- mixxx-e2e-results -->"
@@ -358,12 +369,17 @@ def _attached_preview(attempts, allow_clips=True):
 _ERROR_OUTCOMES = ("failed", "error", "expected failure", "flaky")
 
 
-def _failure_blocks(attempts):
+def _failure_blocks(attempts, log_url=None):
     """Label each merged error group with the attempts that produced it.
 
     Only failing attempts are considered: a retried-then-passed scenario shows
     the attempt(s) that errored, not the attempts that passed. Attempts sharing
     the same error are compacted into a single `**Attempt ...**` block.
+
+    Unexpected failures (failed/error, not expected-failure/flaky) additionally
+    carry the PID(s) of the mixxx-test process(es) the attempts ran against,
+    in attempt order and matching the `mixxx-output.<pid>.log` artifact files,
+    plus a link to the archive holding those logs.
     """
     failing = [a for a in attempts if a.get("outcome", "") in _ERROR_OUTCOMES]
     blocks = []
@@ -377,11 +393,28 @@ def _failure_blocks(attempts):
                 + error.replace("|", "\\|")
                 + "</p></blockquote>"
             )
+        if grp["latest"].get("outcome", "") in FAILURE_OUTCOMES:
+            footer = ""
+            pids = [
+                pid
+                for a in grp["attempts"]
+                for pid in (a.get("mixxx_pids") or [])
+            ]
+            if pids:
+                footer += "Mixxx process PID was " + ", ".join(
+                    str(pid) for pid in pids
+                )
+            if log_url:
+                footer += (" \u00b7 " if footer else "") + (
+                    f"[Process logs archive]({log_url})"
+                )
+            if footer:
+                block += f"<br><br><em>{footer}</em>"
         blocks.append(block)
     return blocks
 
 
-def _error_cell(attempts, allow_clips=True):
+def _error_cell(attempts, allow_clips=True, log_url=None):
     """Error blocks (labelled per merged group) + one whole-scenario clip.
 
     A single clip spanning the first attempt's start to the last attempt's end
@@ -389,26 +422,26 @@ def _error_cell(attempts, allow_clips=True):
     clip is looked up on the full attempt list because its carrier is the first
     attempt, which may itself have passed.
     """
-    cell = "<hr> ".join(_failure_blocks(attempts))
+    cell = "<hr> ".join(_failure_blocks(attempts, log_url))
     video = _attached_preview(attempts, allow_clips)
     if video:
         cell += ("<br>" if cell else "") + video
     return cell
 
 
-def attempt_error_cell(attempts, allow_clips=True):
+def attempt_error_cell(attempts, allow_clips=True, log_url=None):
     """Failing scenario (T1): error blocks + whole-scenario video."""
-    return _error_cell(attempts, allow_clips)
+    return _error_cell(attempts, allow_clips, log_url)
 
 
-def eventual_success_cell(attempts, allow_clips=True):
+def eventual_success_cell(attempts, allow_clips=True, log_url=None):
     """Retried-then-passed scenario (T4): error history + whole-span video.
 
     Used when a scenario failed on earlier attempts but eventually passed
     (retries / flaky). Only the failing attempts are labelled; the clip spans
     the first attempt's start to the last (successful) attempt's end.
     """
-    return _error_cell(attempts, allow_clips)
+    return _error_cell(attempts, allow_clips, log_url)
 
 
 def scenario_clip_cell(attempts, allow_clips=True):
@@ -503,32 +536,40 @@ def summarize_counts(scenarios_by_name):
 
 
 def fetch_video_urls(repo, run_id, server_url):
+    """Map each recording stem to its artifact info (download URL and id).
+
+    Returns {stem: {"url": str, "id": int}}; the URL is a browser link for
+    the comment body, the id is used for lazy REST downloads.
+    """
     LOG.info("fetching video artifacts for %s run %s", repo, run_id)
     artifacts = gh_api_list(
         f"/repos/{repo}/actions/runs/{run_id}/artifacts", "artifacts"
     )
     LOG.info("run %s exposes %d artifact(s)", run_id, len(artifacts))
-    urls = {}
+    info = {}
     for a in artifacts:
         name = a.get("name", "")
         if name.endswith(".mkv"):
             basename = name[:-4]
-            urls[basename] = (
-                f"{server_url}/{repo}/actions/runs"
-                f"/{run_id}/artifacts/{a['id']}"
-            )
+            info[basename] = {
+                "url": (
+                    f"{server_url}/{repo}/actions/runs"
+                    f"/{run_id}/artifacts/{a['id']}"
+                ),
+                "id": a.get("id"),
+            }
             LOG.debug(
                 "video artifact id=%s name=%s -> %s",
                 a["id"],
                 name,
-                urls[basename],
+                info[basename]["url"],
             )
         else:
             LOG.debug(
                 "skipping non-video artifact id=%s name=%s", a.get("id"), name
             )
-    LOG.info("mapped %d recording(s) to artifact URLs", len(urls))
-    return urls
+    LOG.info("mapped %d recording(s) to artifact URLs", len(info))
+    return info
 
 
 def fetch_job_ids(repo, run_id):
@@ -625,8 +666,10 @@ def read_results(results_dir, video_urls, video_paths):
                 continue
 
             video_basename = jf.name.replace(".json", "")
-            video_url = video_urls.get(video_basename)
+            video_info = video_urls.get(video_basename)
+            video_url = video_info.get("url") if video_info else None
             video_path = video_paths.get(video_basename)
+            video_stem = video_basename if (video_info or video_path) else None
             LOG.debug(
                 "parsed %s: %d result(s) slug=%s video_url=%s video_path=%s",
                 jf,
@@ -640,6 +683,8 @@ def read_results(results_dir, video_urls, video_paths):
                 r["slug"] = slug
                 r["video_url"] = video_url
                 r["video_path"] = video_path
+                r["video_stem"] = video_stem
+                r["artifact_id"] = video_info.get("id") if video_info else None
                 all_results.append(r)
 
     LOG.info(
@@ -692,9 +737,14 @@ def group_scenarios(all_results):
 
 
 def has_clip_window(result):
-    """True when the attempt has a recording and a cuttable time window."""
+    """True when the attempt has a recording and a cuttable time window.
+
+    A recording exists when a local file is known (`video_path`, NO_GITHUB
+    mode or cache hit) or a remote artifact is known (`video_url`; the file
+    is pulled lazily later).
+    """
     return (
-        result.get("video_path") is not None
+        result.get("video_stem") is not None
         and result.get("start_ms") is not None
         and result.get("end_ms") is not None
     )
@@ -703,20 +753,22 @@ def has_clip_window(result):
 def clip_window(attempts):
     """Time window spanning every clippable attempt in `attempts`.
 
-    Returns (video_path, start_ms, end_ms) covering the whole attempt
+    Returns (video_stem, start_ms, end_ms) covering the whole attempt
     sequence (earliest start to latest end), or None when no attempt has a
-    recording window or the attempts do not share a single recording file
+    recording window or the attempts do not share a single recording
     (a scenario's attempts always do, as one feature run writes one video).
+    The recording is identified by its stem; its local file, if any, is
+    resolved later from `video_paths`.
     """
     recorded = [a for a in attempts if has_clip_window(a)]
     if not recorded:
         return None
-    video = recorded[0]["video_path"]
-    if any(str(a["video_path"]) != str(video) for a in recorded):
+    stem = recorded[0]["video_stem"]
+    if any(a["video_stem"] != stem for a in recorded):
         return None
     start = min(a["start_ms"] for a in recorded)
     end = max(a["end_ms"] for a in recorded)
-    return (video, start, end)
+    return (stem, start, end)
 
 
 # ---------------------------------------------------------------------------
@@ -870,18 +922,17 @@ def plan_snippets(all_results, snippet_dir, max_attachments):
     """
     ordered = group_scenarios(all_results)
 
-    def assign_snippet(carrier, video, start_ms, end_ms, attempts):
+    def assign_snippet(carrier, video_stem, start_ms, end_ms, attempts):
         if "snippet_relpath" in carrier:
             return
-        stem = pathlib.Path(video).stem
         scenario_no = carrier["_scenario_no"]
         first_no = attempts[0].get("_attempt_no", "?")
         last_no = attempts[-1].get("_attempt_no", "?")
         span = (
             f"a{first_no}" if first_no == last_no else f"a{first_no}-{last_no}"
         )
-        fname = f"{stem}-s{scenario_no:02d}-{span}.mp4"
-        carrier["_clip_video"] = video
+        fname = f"{video_stem}-s{scenario_no:02d}-{span}.mp4"
+        carrier["_clip_video"] = video_stem
         carrier["_clip_start_ms"] = start_ms
         carrier["_clip_end_ms"] = end_ms
         carrier["snippet_relpath"] = str(pathlib.Path(snippet_dir) / fname)
@@ -944,13 +995,161 @@ def plan_snippets(all_results, snippet_dir, max_attachments):
     return selected_list
 
 
-def generate_snippets(selected, ffmpeg_bin, snippet_dir):
+def _build_ffmpeg_cmd(src, dst, start_ms, end_ms, ffmpeg_bin):
+    """Build the ffmpeg argv to cut a [start_ms, end_ms] clip from src."""
+    start = start_ms / 1000.0
+    duration = (end_ms - start_ms) / 1000.0
+    return [
+        ffmpeg_bin,
+        "-nostdin",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-ss",
+        f"{start:.3f}",
+        "-i",
+        str(src),
+        "-t",
+        f"{duration:.3f}",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "26",
+        "-pix_fmt",
+        "yuv420p",
+        "-an",
+        "-movflags",
+        "+faststart",
+        dst,
+    ]
+
+
+def _ffmpeg_jobs_env():
+    """Number of concurrent jobs: FFMPEG_JOBS or the logical CPU count."""
+    raw = os.environ.get("FFMPEG_JOBS", "")
+    fallback = max(1, (os.cpu_count() / 2) or 1)
+    if not raw:
+        return fallback
+    try:
+        n = int(raw)
+    except ValueError:
+        LOG.warning("invalid FFMPEG_JOBS %r; falling back to CPU count", raw)
+        return fallback
+    if n < 1:
+        LOG.warning("FFMPEG_JOBS must be >= 1; falling back to CPU count")
+        return fallback
+    LOG.info("FFMPEG_JOBS=%d overridden by environment", n)
+    return n
+
+
+def _run_parallel_pool(jobs, workers):
+    """Run child processes with up to `workers` running concurrently.
+
+    Option A scheduler: launch (`subprocess.Popen`) up to `workers` child
+    processes, poll with `poll()`, and launch a new job each time a running
+    one exits. Completion is logged like `run_logged` does (exec line, exit
+    code, duration), plus stderr on failure. Never raises: a job failure
+    (nonzero exit, spawn error) is reported in the result, not thrown.
+
+    `jobs` is a list of {"key": id, "cmd": argv}; the optional
+    "stdout_path" routes the child's stdout into that file, otherwise it is
+    discarded. Returns [(key, returncode, stderr)] in completion order, with
+    returncode None on spawn failure. Callers do their own per-job result
+    handling (e.g. artifact unzipping) after the pool has drained.
+    """
+    pending = list(jobs)
+    running = []
+    completed = []
+
+    def fail(key, cmd, what):
+        LOG.error("job %s: %s: %s", key, what, fmt_cmd(cmd))
+        completed.append((key, None, what))
+
+    def launch(job):
+        cmd = job["cmd"]
+        stdout_path = job.get("stdout_path")
+        stdout = None
+        LOG.info("job %s: exec: %s", job["key"], fmt_cmd(cmd))
+        try:
+            if stdout_path:
+                stdout = open(stdout_path, "wb")
+                running.append(
+                    (
+                        job,
+                        subprocess.Popen(
+                            cmd, stdout=stdout, stderr=subprocess.PIPE
+                        ),
+                        time.monotonic(),
+                    )
+                )
+            else:
+                running.append(
+                    (
+                        job,
+                        subprocess.Popen(
+                            cmd,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.PIPE,
+                        ),
+                        time.monotonic(),
+                    )
+                )
+        except OSError as exc:
+            fail(job["key"], cmd, f"failed to spawn: {exc}")
+        finally:
+            if stdout is not None:
+                stdout.close()
+
+    while pending or running:
+        while pending and len(running) < workers:
+            launch(pending.pop(0))
+        if not running:
+            continue
+        still_running = []
+        for job, proc, started in running:
+            rc = proc.poll()
+            if rc is None:
+                still_running.append((job, proc, started))
+                continue
+            key = job["key"]
+            elapsed = time.monotonic() - started
+            stderr = proc.communicate()[1].decode(errors="replace").strip()
+            if rc == 0:
+                LOG.debug(
+                    "job %s: exit=0 after %.2fs (stderr=%dB)",
+                    key,
+                    elapsed,
+                    len(stderr),
+                )
+            else:
+                LOG.error(
+                    "job %s: exit=%d after %.2fs: %s\nstderr: %s",
+                    key,
+                    rc,
+                    elapsed,
+                    fmt_cmd(job["cmd"]),
+                    stderr,
+                )
+            completed.append((key, rc, stderr))
+        running = still_running
+        if running:
+            time.sleep(0.05)
+    return completed
+
+
+def generate_snippets(selected, ffmpeg_bin, snippet_dir, video_paths):
     """Cut one .mp4 clip per selected scenario; return the paths to attach.
 
     Each selected carrier may define a clip range spanning several attempts
     (`_clip_video` / `_clip_start_ms` / `_clip_end_ms`); otherwise the
-    carrier's own attempt window is used. Carriers whose clip cannot be
-    produced have `_attach` cleared, so the comment omits the video.
+    carrier's own attempt window is used. `_clip_video` holds the recording
+    stem, resolved against `video_paths` (the local cache, possibly filled
+    lazily by download_snippet_videos). Carriers whose clip cannot be
+    produced have `_attach` cleared, so the comment omits the video. Clips
+    are cut with up to FFMPEG_JOBS ffmpeg processes running in parallel.
     """
     os.makedirs(snippet_dir, exist_ok=True)
     if shutil.which(ffmpeg_bin) is None:
@@ -961,9 +1160,9 @@ def generate_snippets(selected, ffmpeg_bin, snippet_dir):
             a["_attach"] = False
         return []
 
-    attached = []
+    jobs = []
+    reused = set()
     for a in selected:
-        src = a.get("_clip_video") or a["video_path"]
         dst = a["snippet_relpath"]
         if os.path.exists(dst):
             LOG.info(
@@ -971,11 +1170,19 @@ def generate_snippets(selected, ffmpeg_bin, snippet_dir):
                 dst,
                 os.path.getsize(dst),
             )
-            attached.append(dst)
+            reused.add(dst)
             continue
+        src = video_paths.get(a.get("_clip_video")) or a.get("video_path")
         start_ms = a.get("_clip_start_ms", a.get("start_ms"))
         end_ms = a.get("_clip_end_ms", a.get("end_ms"))
-        start = start_ms / 1000.0
+        if not src:
+            LOG.warning(
+                "no local recording for %s (stem=%s); skipping",
+                dst,
+                a.get("_clip_video"),
+            )
+            a["_attach"] = False
+            continue
         duration = (end_ms - start_ms) / 1000.0
         if duration <= 0:
             LOG.warning(
@@ -987,32 +1194,7 @@ def generate_snippets(selected, ffmpeg_bin, snippet_dir):
             )
             a["_attach"] = False
             continue
-        cmd = [
-            ffmpeg_bin,
-            "-nostdin",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-y",
-            "-ss",
-            f"{start:.3f}",
-            "-i",
-            str(src),
-            "-t",
-            f"{duration:.3f}",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "26",
-            "-pix_fmt",
-            "yuv420p",
-            "-an",
-            "-movflags",
-            "+faststart",
-            dst,
-        ]
+        cmd = _build_ffmpeg_cmd(src, dst, start_ms, end_ms, ffmpeg_bin)
         # TODO: adapt the encoder settings/bitrate so each clip stays under
         # GitHub's ~10 MB attachment limit; currently full attempts are cut
         # with a fixed CRF and no size cap.
@@ -1024,17 +1206,43 @@ def generate_snippets(selected, ffmpeg_bin, snippet_dir):
             start_ms,
             end_ms,
         )
-        result = run_logged(cmd)
-        if result.returncode != 0:
-            LOG.error(
-                "ffmpeg failed for %s: %s",
-                dst,
-                (result.stderr or "").strip(),
-            )
-            a["_attach"] = False
-            continue
-        LOG.info("wrote %s (%d B)", dst, os.path.getsize(dst))
-        attached.append(dst)
+        jobs.append({"carrier": a, "cmd": cmd, "dst": dst})
+
+    attached = list(reused)
+    if jobs:
+        workers = min(_ffmpeg_jobs_env(), len(jobs))
+        LOG.info(
+            "cutting %d clip(s) with up to %d concurrent ffmpeg job(s)",
+            len(jobs),
+            workers,
+        )
+        pool_jobs = [{"key": j["dst"], "cmd": j["cmd"]} for j in jobs]
+        failures_by_dst = {
+            key: stderr
+            for key, rc, stderr in _run_parallel_pool(pool_jobs, workers)
+            if rc != 0
+        }
+        for job in jobs:
+            a = job["carrier"]
+            dst = job["dst"]
+            if dst in failures_by_dst:
+                LOG.error(
+                    "ffmpeg failed for %s: %s", dst, failures_by_dst[dst]
+                )
+                a["_attach"] = False
+                continue
+            if not os.path.exists(dst):
+                LOG.error("ffmpeg produced no output for %s; skipping", dst)
+                a["_attach"] = False
+                continue
+            LOG.info("wrote %s (%d B)", dst, os.path.getsize(dst))
+            attached.append(dst)
+
+    # Restore `selected` order for a stable attachment list.
+    order = [a["snippet_relpath"] for a in selected]
+    attached = sorted(
+        attached, key=lambda p: order.index(p) if p in order else len(order)
+    )
     LOG.info(
         "generated %d/%d clip(s) into %s",
         len(attached),
@@ -1042,6 +1250,187 @@ def generate_snippets(selected, ffmpeg_bin, snippet_dir):
         snippet_dir,
     )
     return attached
+
+
+# ---------------------------------------------------------------------------
+# Lazy recording downloads
+# ---------------------------------------------------------------------------
+
+
+def _store_artifact_payload(tmp_path, dst_path):
+    """Persist a downloaded artifact as `dst_path`, sniffing its payload.
+
+    The HTTP body is either the raw .mkv (skipArchive uploads) or a zip
+    archive holding it (archived uploads): `zipfile.is_zipfile` tells them
+    apart, so a change in encoding stays transparent. Raises *nothing*: it
+    logs a warning and returns False on any unexpected payload.
+
+    Zip members are restricted to a plain single file to defeat zip-slip
+    paths and partial-archive surprises.
+    """
+    try:
+        # The artifact *metadata* JSON (served by the wrong endpoint, or on
+        # auth/permission hiccups) is the most likely non-video payload.
+        with open(tmp_path, "rb") as f:
+            head = f.read(1)
+        if head == b"{":
+            LOG.warning(
+                "artifact payload is JSON (metadata, not recording); "
+                "dropping recording"
+            )
+            return False
+        if zipfile.is_zipfile(tmp_path):
+            with zipfile.ZipFile(tmp_path) as zf:
+                members = [i for i in zf.infolist() if not i.is_dir()]
+                if len(members) != 1:
+                    LOG.warning(
+                        "unexpected %d file(s) in artifact archive; "
+                        "dropping recording",
+                        len(members),
+                    )
+                    return False
+                name = members[0].filename.replace("\\", "/")
+                if pathlib.PurePosixPath(name).name != name:
+                    LOG.warning(
+                        "unsafe archive member %r; dropping recording", name
+                    )
+                    return False
+                with zf.open(members[0]) as src, open(dst_path, "wb") as out:
+                    shutil.copyfileobj(src, out, 1 << 20)
+        else:
+            if os.path.getsize(tmp_path) <= 0:
+                LOG.warning("empty artifact payload; dropping recording")
+                return False
+            shutil.move(os.fspath(tmp_path), os.fspath(dst_path))
+        return True
+    except (OSError, zipfile.BadZipFile) as exc:
+        LOG.warning("cannot persist recording: %s", exc)
+        return False
+
+
+def download_snippet_videos(
+    repo, selected, all_results, video_info, video_paths, video_dir
+):
+    """Lazily download the recordings referenced by the selected carriers.
+
+    `gh run download` cannot handle non-archived (skipArchive) artifacts
+    (cli/cli#13012), so recordings are fetched over the artifact REST API in
+    parallel with up to FFMPEG_JOBS workers. Recording stem values already
+    present in `video_paths` (or as a non-empty <stem>.mkv in video_dir,
+    e.g. from a retried run) are reused instead of re-downloaded. A
+    recording that cannot be had only drops the video from its scenarios
+    (`_attach = False`); the comment is still posted.
+
+    On success, `video_paths[stem]` points at the local recording and every
+    result carrying that recording (matched `video_url`) gets its
+    `video_path` filled in, so generate_snippets can cut clips from it.
+    """
+    os.makedirs(video_dir, exist_ok=True)
+
+    def carriers_for(stem):
+        return [a for a in selected if a.get("_clip_video") == stem]
+
+    def drop_attachment(stem):
+        # Recording unavailable: degrade gracefully to artifact links.
+        for a in carriers_for(stem):
+            a["_attach"] = False
+
+    # Cache hits (retried runs or pre-seeded VIDEO_DIR) need no download.
+    missing = []
+    for stem in sorted(
+        {a["_clip_video"] for a in selected if a["_clip_video"]}
+    ):
+        if stem in video_paths:
+            continue
+        cached = os.path.join(video_dir, f"{stem}.mkv")
+        if os.path.exists(cached) and os.path.getsize(cached) > 0:
+            LOG.info("recording %s already cached in %s", stem, video_dir)
+            video_paths[stem] = cached
+            continue
+        missing.append(stem)
+
+    downloads = []
+    for stem in missing:
+        info = video_info.get(stem)
+        if not info or not info.get("id"):
+            LOG.warning(
+                "no artifact for recording %s; dropping its clips", stem
+            )
+            drop_attachment(stem)
+            continue
+        downloads.append(stem)
+
+    if downloads:
+        workers = min(_ffmpeg_jobs_env(), len(downloads))
+        LOG.info(
+            "downloading %d recording(s) with up to %d concurrent job(s)",
+            len(downloads),
+            workers,
+        )
+        jobs = []
+        for stem in downloads:
+            fd, tmp_path = tempfile.mkstemp(
+                prefix=f".{stem}.", suffix=".part", dir=video_dir
+            )
+            os.close(fd)
+            artifact_id = video_info[stem]["id"]
+            jobs.append(
+                {
+                    "key": stem,
+                    "cmd": [
+                        "gh",
+                        "api",
+                        # The plain /artifacts/<id> endpoint returns
+                        # *metadata* JSON; only the /zip route serves the
+                        # payload (raw bytes for skipArchive artifacts).
+                        f"/repos/{repo}/actions/artifacts/{artifact_id}/zip",
+                    ],
+                    "stdout_path": tmp_path,
+                }
+            )
+        tmp_by_stem = {j["key"]: j["stdout_path"] for j in jobs}
+        for stem, rc, _stderr in _run_parallel_pool(jobs, workers):
+            tmp_path = tmp_by_stem[stem]
+            dst_path = os.path.join(video_dir, f"{stem}.mkv")
+            try:
+                ok = (
+                    rc == 0
+                    and os.path.exists(tmp_path)
+                    and _store_artifact_payload(tmp_path, dst_path)
+                )
+            finally:
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+            if not ok:
+                LOG.error(
+                    "recording %s could not be downloaded; dropping its clips",
+                    stem,
+                )
+                drop_attachment(stem)
+                continue
+            video_paths[stem] = dst_path
+            LOG.info("wrote %s (%d B)", dst_path, os.path.getsize(dst_path))
+
+    # Propagate local paths to every result carrying these recordings, so
+    # generate_snippets can resolve the clip source per attempt.
+    for stem, path in video_paths.items():
+        url = (video_info.get(stem) or {}).get("url")
+        if not url:
+            continue
+        for r in all_results:
+            if r.get("video_url") == url and r.get("video_path") is None:
+                r["video_path"] = path
+
+    downloaded = sum(1 for s in downloads if s in video_paths)
+    LOG.info(
+        "recording availability: %d download(s) this run, %d cached "
+        "or reused, %d failed for %d needed",
+        downloaded,
+        len(video_paths) - downloaded,
+        len(downloads) - downloaded,
+        len(video_paths) + len(downloads) - downloaded,
+    )
+    return missing
 
 
 # ---------------------------------------------------------------------------
@@ -1164,9 +1553,13 @@ def build_comment_body(
                 last_outcome = attempts[-1].get("outcome", "")
                 is_new = any(a.get("is_new") for a in attempts)
                 if last_outcome in FAILURE_OUTCOMES:
-                    error_cell = attempt_error_cell(attempts, allow_clips)
+                    error_cell = attempt_error_cell(
+                        attempts, allow_clips, summary_url
+                    )
                 elif len(attempts) >= 2:
-                    error_cell = eventual_success_cell(attempts, allow_clips)
+                    error_cell = eventual_success_cell(
+                        attempts, allow_clips, summary_url
+                    )
                 elif is_new:
                     error_cell = scenario_clip_cell(attempts, allow_clips)
                 else:
@@ -1425,23 +1818,32 @@ def main():
     LOG.info("cwd=%s", os.getcwd())
 
     # Build video maps (from API or local files)
-    video_paths = discover_local_videos(video_dir)
     if no_github:
         LOG.info("NO_GITHUB=1: using local file:// URLs for recordings")
+        video_paths = discover_local_videos(video_dir)
         video_urls = {
-            stem: p.resolve().as_uri() for stem, p in video_paths.items()
+            stem: {"url": p.resolve().as_uri(), "id": None}
+            for stem, p in video_paths.items()
         }
         job_ids = {}
     else:
+        video_paths = {}
         video_urls = fetch_video_urls(repo, run_id, server_url)
         job_ids = fetch_job_ids(repo, run_id)
 
     all_results = read_results(results_dir, video_urls, video_paths)
     mark_new_scenarios(all_results, base_ref)
 
-    # Pick and cut the clips to attach, then render the body.
+    # Pick the clips to attach, pull the recordings they need (lazily), then
+    # cut the clips and render the body.
     selected = plan_snippets(all_results, snippet_dir, max_attachments)
-    attached = generate_snippets(selected, ffmpeg_bin, snippet_dir)
+    if not no_github:
+        download_snippet_videos(
+            repo, selected, all_results, video_urls, video_paths, video_dir
+        )
+    attached = generate_snippets(
+        selected, ffmpeg_bin, snippet_dir, video_paths
+    )
     body = build_comment_body(
         all_results, job_ids, repo, run_id, server_url, allow_clips=True
     )

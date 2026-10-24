@@ -143,7 +143,6 @@ Rectangle {
 
                             Layout.preferredWidth: indicator.implicitWidth
                             color: Theme.textColor
-                            objectName: "indicator"
                             text: "▶"
                             visible: isTreeNode && hasChildren
 
@@ -162,14 +161,11 @@ Rectangle {
                             color: Theme.textColor
                             font.pixelSize: 14
                             font.weight: depth == 0 ? Font.Bold : Font.Medium
-                            objectName: "label"
                             text: label
                         }
                         Item {
-                            id: newItem
-
                             height: parent.height
-                            objectName: "newItem"
+                            objectName: visible ? "newItem" : null
                             visible: (rowMouseArea.containsMouse || popup.opened || treeItem.current) && isTreeNode && depth == 0 && canCreate
                             width: 30
 
@@ -306,7 +302,6 @@ Rectangle {
                                         Layout.preferredHeight: 36
                                         background.border.color: hasError ? 'red' : null
                                         focus: true
-                                        objectName: "name"
 
                                         input.onAccepted: popup.submit()
                                         input.onTextEdited: {

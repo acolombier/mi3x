@@ -146,7 +146,11 @@ void QmlWaveformDisplay::slotWindowChanged(QQuickWindow* window) {
 
     m_dirtyFlag.setFlag(DirtyFlag::Window, true);
     if (window) {
-        connect(window, &QQuickWindow::afterFrameEnd, this, &QmlWaveformDisplay::slotFrameSwapped);
+        connect(window,
+                &QQuickWindow::afterFrameEnd,
+                this,
+                &QmlWaveformDisplay::slotFrameSwapped,
+                Qt::UniqueConnection);
     }
     m_timer.restart();
 }
@@ -169,6 +173,9 @@ std::chrono::microseconds QmlWaveformDisplay::fromTimerToNextSync(const Performa
 
 void QmlWaveformDisplay::slotFrameSwapped() {
     m_timer.restart();
+    if (!getTrackInfo()) {
+        return;
+    }
 
     // continuous redraw
     update();
@@ -264,7 +271,6 @@ QSGNode* QmlWaveformDisplay::updatePaintNode(QSGNode* node, UpdatePaintNodeData*
         pRenderer->update();
     }
 
-    pBgNode->markDirty(QSGNode::DirtyForceUpdate);
     return pClipNode;
 }
 

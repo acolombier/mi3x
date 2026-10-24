@@ -97,7 +97,6 @@ Item {
             SplitView.fillHeight: true
             SplitView.minimumHeight: 200
             SplitView.preferredWidth: root.width * 0.75
-            objectName: "browsingView"
 
             SplitView {
                 id: trackListSplitView
@@ -121,23 +120,79 @@ Item {
                 }
 
                 ActiveTrackList {
-                    SplitView.preferredHeight: trackListSplitView.height * 0.5
-                    SplitView.preferredWidth: trackListSplitView.width * 0.5
+                    id: libraryMainView
+
+                    SplitView.fillHeight: true
+                    SplitView.fillWidth: true
                     model: libraryLeftSources
                 }
-                Loader {
-                    SplitView.preferredHeight: trackListSplitView.height * 0.5
-                    SplitView.preferredWidth: trackListSplitView.width * 0.5
-                    active: splitViewButton.checked
-                    asynchronous: true
-                    objectName: "rightTrackListLoader"
-                    opacity: status == Loader.Ready ? 1 : 0
-                    visible: splitViewButton.checked
+                Item {
+                    SplitView.fillHeight: true
+                    clip: true
+                    implicitWidth: splitViewButton.checked ? trackListSplitView.width * 0.5 : 0
+                    visible: implicitWidth > 0
 
-                    sourceComponent: Component {
-                        ActiveTrackList {
-                            model: libraryRightSources
-                            objectName: "rightTrackList"
+                    Behavior on implicitWidth {
+                        NumberAnimation {
+                            id: librarySplitViewAnimation
+
+                            duration: 1000
+                            easing.type: Easing.OutElastic
+
+                            onRunningChanged: {
+                                if (running) {
+                                    libraryMainView.inhibitColumnWidth = libraryMainView.view.width;
+                                } else {
+                                    libraryMainView.inhibitColumnWidth = 0;
+                                }
+                                if (running || !splitViewButton.checked) {
+                                    librarySplitViewLoader.active = false;
+                                    return;
+                                }
+                                if (splitViewButton.checked) {
+                                    let rightSidebar = libraryRightSources.sidebar;
+                                    rightSidebar.activate(rightSidebar.index(sidebarTree.currentSelectedIndex?.top ?? 0, 0));
+                                    librarySplitViewLoader.active = true;
+                                }
+                            }
+                        }
+                    }
+
+                    BusyIndicator {
+                        anchors.centerIn: parent
+                        visible: librarySplitViewLoader.item == null || librarySplitViewLoader.status != Loader.Ready
+                    }
+                    Loader {
+                        id: librarySplitViewLoader
+
+                        active: false
+                        anchors.fill: parent
+                        asynchronous: true
+                        objectName: "rightTrackListLoader"
+                        visible: active && item !== null && status == Loader.Ready
+
+                        Binding on asynchronous {
+                            delayed: true
+                            value: !splitViewButton.checked || timeout.running
+                        }
+                        sourceComponent: Component {
+                            ActiveTrackList {
+                                inhibitColumnWidth: trackListSplitView.width * 0.5 - 17
+                                model: libraryRightSources
+                                objectName: "rightTrackList"
+
+                                Component.onCompleted: root.activeSidebar = libraryRightSources.sidebar
+                            }
+                        }
+
+                        // Accelerate the load of the split view after a specific delay
+                        Timer {
+                            id: timeout
+
+                            // This delay could be tailored to the platform. For example, we could image Mixxx.Core exposing a performance score to help computing this: an old RPI/Android phone could use 2 second async, to ensure no impact of the audio engine, while a modern desktop likely doesn't need more than 250ms.
+                            interval: 1500
+                            repeat: false
+                            running: splitViewButton.checked
                         }
                     }
                 }
@@ -148,7 +203,6 @@ Item {
                 anchors.bottom: parent.bottom
                 anchors.right: parent.right
                 anchors.top: parent.top
-                objectName: "tracklistMenu"
                 padding: 4
                 spacing: 11
                 width: 36
@@ -162,16 +216,9 @@ Item {
                     icon.source: "images/splitview.svg"
                     icon.width: 16
                     implicitWidth: implicitHeight
-                    objectName: "splitViewButton"
 
                     onCheckedChanged: {
-                        if (checked) {
-                            let rightSidebar = libraryRightSources.sidebar;
-                            rightSidebar.activate(rightSidebar.index(sidebarTree.currentSelectedIndex?.top ?? 0, 0));
-                            root.activeSidebar = rightSidebar;
-                        } else {
-                            root.activeSidebar = libraryLeftSources.sidebar;
-                        }
+                        root.activeSidebar = checked ? libraryRightSources.sidebar : libraryLeftSources.sidebar;
                     }
                 }
                 Item {
@@ -225,7 +272,6 @@ Item {
 
                 activeSidebar: root.activeSidebar
                 focusOutTarget: browsingView
-                objectName: "searchPane"
             }
         }
     }

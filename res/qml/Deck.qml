@@ -247,14 +247,13 @@ Item {
             roleValue: "beatjump"
 
             LayoutItem {
-                objectName: "beatjump"
-
                 Layout.preferredWidth: 120
                 editLabel.color: Theme.white
                 editLabel.font.capitalization: Font.AllUppercase
                 editLabel.text: "Beatjump"
                 editOverlay.color: Theme.midGray
                 height: 92
+                objectName: "beatjump"
 
                 DeckComponent.BeatJump {
                     anchors.fill: parent
@@ -266,8 +265,6 @@ Item {
             roleValue: "waveformOverview"
 
             LayoutItem {
-                objectName: "overview"
-
                 Layout.fillHeight: true
                 Layout.fillWidth: true
                 blurRadius: 4
@@ -275,6 +272,7 @@ Item {
                 editLabel.font.pixelSize: 14
                 editLabel.text: "Waveform overview"
                 editOverlay.color: Qt.alpha('black', 0.5)
+                objectName: "overview"
 
                 DeckComponent.WaveformOverview {
                     anchors.fill: parent
@@ -308,14 +306,13 @@ Item {
             roleValue: "tempo"
 
             LayoutItem {
-                objectName: "rateSlider"
-
                 Layout.fillHeight: true
                 Layout.preferredWidth: 75
                 blurRadius: 4
                 editLabel.color: Theme.white
                 editLabel.text: "Tempo"
                 editOverlay.color: Qt.alpha('black', 0.5)
+                objectName: "rateSlider"
 
                 DeckComponent.TempoColumn {
                     anchors.fill: parent
@@ -328,8 +325,6 @@ Item {
             roleValue: "play"
 
             LayoutItem {
-                objectName: "playButtonItem"
-
                 Layout.preferredHeight: root.minimized ? 32 : 60
                 Layout.preferredWidth: 60
                 editLabel.color: Theme.white
@@ -338,13 +333,13 @@ Item {
                 editOverlay.border.color: '#000000'
                 editOverlay.border.width: 2
                 editOverlay.color: Theme.darkGray2
+                objectName: "playButtonItem"
 
                 DeckComponent.PlayButton {
-                    objectName: "playButton"
-
                     anchors.fill: parent
                     group: root.group
                     minimized: root.minimized
+                    objectName: "playButton"
                 }
             }
         }
@@ -352,8 +347,6 @@ Item {
             roleValue: "cue"
 
             LayoutItem {
-                objectName: "cueButton"
-
                 Layout.preferredHeight: root.minimized ? 32 : 60
                 Layout.preferredWidth: 60
                 editLabel.color: Theme.white
@@ -362,6 +355,7 @@ Item {
                 editOverlay.border.color: '#000000'
                 editOverlay.border.width: 2
                 editOverlay.color: Theme.darkGray2
+                objectName: "cueButton"
 
                 DeckComponent.CueButton {
                     anchors.fill: parent
@@ -374,8 +368,6 @@ Item {
             roleValue: "spinny"
 
             LayoutItem {
-                objectName: "spinny"
-
                 Layout.alignment: Qt.AlignTop
                 editLabel.color: Theme.midGray
                 editLabel.font.pixelSize: 14
@@ -383,6 +375,7 @@ Item {
                 editOverlay.color: "#BDBDBD"
                 editOverlay.radius: height
                 height: 140
+                objectName: "spinny"
                 width: 140
 
                 DeckComponent.Spinny {
@@ -429,8 +422,6 @@ Item {
             roleValue: "hotcueAndStem"
 
             LayoutItem {
-                objectName: "hotcueAndStem"
-
                 Layout.fillWidth: true
                 Layout.minimumWidth: 250
                 blurRadius: 4
@@ -439,6 +430,7 @@ Item {
                 editLabel.text: "Hotcue & Stem"
                 editOverlay.color: Qt.alpha('black', 0.5)
                 height: 92
+                objectName: "hotcueAndStem"
 
                 DeckComponent.HotcueAndStem {
                     anchors.fill: parent
@@ -674,10 +666,9 @@ Item {
         property var beginDrag: null
         property var disposition: GridLayout.TopToBottom
         property alias editOverlay: overlay
+        readonly property var itemsModel: items
         property var move: null
         property bool selected: false
-
-        readonly property var itemsModel: items
 
         function complete() {
             if (item.move) {
@@ -761,9 +752,8 @@ Item {
         Rectangle {
             id: overlay
 
-            objectName: visible ? "selectedGroupOverlay" : "groupOverlay"
-
             color: Qt.alpha(Theme.accentColor, 0.2)
+            objectName: visible ? "selectedGroupOverlay" : "groupOverlay"
             parent: root
             visible: root.editMode && selected
 
@@ -843,14 +833,12 @@ Item {
         }
         MultiEffect {
             anchors.fill: layoutItem
-            source: content
             blur: root.editMode ? Math.min(1, layoutItem.blurRadius / 16) : 0
+            source: content
             visible: root.editMode
         }
         Rectangle {
             id: overlayItem
-
-            objectName: "overlayItem"
 
             anchors.fill: layoutItem
             color: Qt.alpha("black", 0.4)
@@ -885,7 +873,7 @@ Item {
             let currentlySelected = 0;
             let nestedGroups = [];
             while (currentParent != root) {
-                if (typeof currentParent.selected === "boolean"){
+                if (typeof currentParent.selected === "boolean") {
                     nestedGroups.push(currentParent);
                     if (currentParent.selected) {
                         currentlySelected = nestedGroups.length;
@@ -901,7 +889,7 @@ Item {
                 }
             };
             updatedRecursive(root.children);
-            for (let i = 0; i < nestedGroups.length; i++){
+            for (let i = 0; i < nestedGroups.length; i++) {
                 nestedGroups[i].selected = currentlySelected === i;
             }
         }

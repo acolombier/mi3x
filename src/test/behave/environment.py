@@ -62,6 +62,33 @@ def _step_error_line(step):
     )
 
 
+def _mixxx_pids(context):
+    """PIDs of the mixxx-test instance(s) this scenario attempt ran against.
+
+    Session and context can hold distinct instances (a failed start() leaves
+    context holding a never-ready process the session never adopted), so both
+    are probed; each instance contributes one PID (process attribute while
+    running or crashed-but-unreaped, ``last_pid`` once stopped). Attempt
+    boundaries restart the process, so PIDs repeat across attempts only when
+    the autoretry reset misbehaves.
+
+    """
+    pids = []
+    seen = set()
+    session = context._session
+    for mixxx in (session.get("mixxx"), getattr(context, "mixxx", None)):
+        if mixxx is None or id(mixxx) in seen:
+            continue
+        seen.add(id(mixxx))
+        pid = getattr(mixxx, "last_pid", None)
+        if pid is None:
+            proc = getattr(mixxx, "process", None)
+            pid = getattr(proc, "pid", None) if proc is not None else None
+        if pid is not None:
+            pids.append(pid)
+    return pids
+
+
 def _parse_gh_issue(tags):
     for tag in tags:
         m = re.match(r"xfail\(gh_issue=(\d+)\)", tag)
@@ -96,7 +123,7 @@ def _reset_session(context):
     session["active_profile_type"] = None
     session["profile_dir"] = None
     context.mixxx = None
-    context.mixxx_rpc = None
+    context.rpc = None
 
 
 def patch_scenario_with_autoretry(context, scenario, max_attempts=3):
@@ -178,7 +205,7 @@ def before_scenario(context, scenario):
     session = context._session
     if session.get("mixxx") is not None:
         context.mixxx = session["mixxx"]
-        context.mixxx_rpc = session["rpc"]
+        context.rpc = session["rpc"]
         context.profile_dir = session["profile_dir"]
         context.active_profile_type = session["active_profile_type"]
 
@@ -206,8 +233,6 @@ def after_scenario(context, scenario):
         # Expected failures and flaky scenarios are not genuine failures:
         # mark them as passed so behave's summary does not list them as failed.
         scenario.set_status(Status.passed)
-
-    time.sleep(1) # Allow the final state to be visible on screen
 
     # Reset transient state that a scenario may have left behind (e.g. a
     # maximized library) so the next scenario reusing this Mixxx instance
@@ -245,6 +270,7 @@ def after_scenario(context, scenario):
         "start_time": scenario.start_at,
         "end_time": time.time(),
         "error": " / ".join(errors),
+        "mixxx_pids": _mixxx_pids(context),
         # Pinning info: replaying with this run seed and scenario name
         # reproduces the picks recorded in "tracks".
         "run_seed": context.config.userdata.get("run_seed"),
