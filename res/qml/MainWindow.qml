@@ -207,7 +207,7 @@ Item {
                     activeColor: Theme.white
                     checked: notificationPopup.opened
                     icon.height: 16
-                    icon.source: "images/gear.svg"
+                    icon.source: "images/notification_bell.svg"
                     icon.width: 16
                     implicitWidth: implicitHeight
                     objectName: "showPreferencesButton"
@@ -243,98 +243,105 @@ Item {
                         }
                         y: notificationButton.height
 
-                        ListView {
-                            id: notificationList
-
-                            height: contentHeight
-                            model: Mixxx.Core.notifications
+                        Item {
+                            clip: true
+                            height: notificationList.contentHeight
                             width: 500
 
-                            delegate: Item {
-                                required property int index
-                                required property var modelData
+                            ListView {
+                                id: notificationList
 
-                                height: notificationGrid.height + 5
-                                width: ListView.view.width
+                                height: contentHeight
+                                model: Mixxx.Core.notifications
+                                width: parent.width
 
-                                GridLayout {
-                                    id: notificationGrid
+                                delegate: Item {
+                                    required property int index
+                                    required property var modelData
 
-                                    columns: 2
-                                    width: parent.width
+                                    height: notificationGrid.height + 5
+                                    width: ListView.view.width
 
-                                    Item {
-                                        Layout.fillHeight: true
-                                        Layout.minimumWidth: 60
-                                        Layout.rowSpan: 3
+                                    GridLayout {
+                                        id: notificationGrid
 
-                                        Rectangle {
-                                            anchors.centerIn: parent
-                                            color: Qt.alpha('#FF9A9A', 0.3)
-                                            height: width
-                                            radius: width / 2
-                                            width: 30
+                                        columns: 2
+                                        width: parent.width
 
-                                            Text {
-                                                anchors.fill: parent
-                                                color: '#ffffff'
-                                                font.pixelSize: 24
-                                                font.weight: Font.DemiBold
-                                                horizontalAlignment: Text.AlignHCenter
-                                                text: '!'
-                                                verticalAlignment: Text.AlignVCenter
+                                        Item {
+                                            Layout.fillHeight: true
+                                            Layout.minimumWidth: 60
+                                            Layout.rowSpan: 3
+
+                                            Rectangle {
+                                                anchors.centerIn: parent
+                                                color: Qt.alpha('#FF9A9A', 0.3)
+                                                height: width
+                                                radius: width / 2
+                                                width: 30
+
+                                                Text {
+                                                    anchors.fill: parent
+                                                    color: '#ffffff'
+                                                    font.pixelSize: 24
+                                                    font.weight: Font.DemiBold
+                                                    horizontalAlignment: Text.AlignHCenter
+                                                    text: '!'
+                                                    verticalAlignment: Text.AlignVCenter
+                                                }
                                             }
                                         }
-                                    }
-                                    Text {
-                                        Layout.fillWidth: true
-                                        Layout.minimumHeight: 25
-                                        color: '#FFFFFF'
-                                        font.pixelSize: 13
-                                        font.weight: Font.DemiBold
-                                        text: modelData.text
-                                        verticalAlignment: Text.AlignBottom
-                                        wrapMode: Text.WrapAnywhere
-                                    }
-                                    Text {
-                                        Layout.fillWidth: true
-                                        color: '#656565'
-                                        font.pixelSize: 13
-                                        text: "A description"
-                                        wrapMode: Text.WrapAnywhere
-                                    }
-                                    RowLayout {
-                                        Item {
+                                        Text {
                                             Layout.fillWidth: true
+                                            Layout.minimumHeight: 25
+                                            color: '#FFFFFF'
+                                            font.pixelSize: 13
+                                            font.weight: Font.DemiBold
+                                            text: modelData.text
+                                            verticalAlignment: Text.AlignBottom
+                                            wrapMode: Text.WrapAnywhere
                                         }
-                                        Repeater {
-                                            model: modelData.buttons
-
+                                        Text {
+                                            Layout.fillWidth: true
+                                            color: '#656565'
+                                            font.pixelSize: 13
+                                            text: modelData.details
+                                            visible: modelData.details.length > 0
+                                            wrapMode: Text.WrapAnywhere
+                                        }
+                                        RowLayout {
                                             Item {
-                                                required property var modelData
+                                                Layout.fillWidth: true
+                                            }
+                                            Repeater {
+                                                model: modelData.buttons
 
-                                                Layout.preferredHeight: 15
-                                                Layout.preferredWidth: button.implicitWidth
-                                                Layout.rightMargin: 10
+                                                Item {
+                                                    required property var modelData
 
-                                                Skin.Button {
-                                                    id: button
+                                                    Layout.preferredHeight: 15
+                                                    Layout.preferredWidth: button.implicitWidth
+                                                    Layout.rightMargin: 10
 
-                                                    activeColor: Theme.white
-                                                    text: modelData.label
+                                                    Skin.Button {
+                                                        id: button
 
-                                                    onClicked: modelData.invoke()
+                                                        activeColor: Theme.white
+                                                        text: modelData.label
+
+                                                        onClicked: modelData.invoke()
+                                                    }
                                                 }
                                             }
                                         }
                                     }
-                                }
-                                Rectangle {
-                                    anchors.bottom: parent.bottom
-                                    color: 'black'
-                                    height: 2
-                                    visible: index != notificationList.count - 1
-                                    width: parent.width
+                                    Rectangle {
+                                        anchors.bottom: parent.bottom
+                                        color: 'black'
+                                        height: 2
+                                        visible: index != notificationList.count - 1
+                                        width: parent.width
+                                    }
                                 }
                             }
                         }

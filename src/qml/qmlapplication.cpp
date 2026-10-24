@@ -265,6 +265,10 @@ QmlApplication::QmlApplication(
         qDebug() << "clicked!!!";
     });
     m_pCoreServices->getNotificationManager()->notify(pNotification);
+    // TODO(#51): surface the signals raised by low-level services as
+    // notifications; the widget-level subscribers only exist in
+    // MixxxMainWindow, which is not instantiated in the QML application.
+    QmlCoreServices::instance()->connectUserNotifications();
 
     m_pCoreServices->getControllerManager()->setUpDevices();
 

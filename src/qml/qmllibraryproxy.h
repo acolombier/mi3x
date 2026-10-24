@@ -11,7 +11,9 @@
 
 #include "library/dao/directorydao.h"
 #include "library/scanner/libraryscanner.h"
+#include "library/scanner/scannerglobal.h"
 #include "library/trackcollectionmanager.h"
+#include "notification.h"
 #include "qml/qmllibrarysource.h"
 #include "qml/qmllibrarytracklistmodel.h"
 #include "qml/qmlrecentsearchmodel.h"
@@ -79,6 +81,23 @@ class QmlLibraryScannerProxy : public QObject {
         emit requestCancel();
     }
 
+    // Create the sticky "scanning" notification. Called on scanStarted()
+    // (also from the constructor's initial-state check below).
+    // TODO(#51): scaffolding; see the private members for planned work.
+    void openScanNotification();
+
+    // Mutate the sticky scan notification into the final scan summary
+    // (translated strings are built by the caller) and demote it to
+    // auto-timeout. Also closes the notification if the summary is
+    // suppressed by the caller pass nullptr.
+    void presentScanSummary(const QString& title, const QString& details);
+    void closeScanNotification();
+
+  private slots:
+    // Mutates the sticky scan notification with the file currently being
+    // processed. TODO(#51): scaffolding.
+    void slotScanProgress(const QString& path);
+
   signals:
     void progress(const QString& path);
     void started();
@@ -93,6 +112,16 @@ class QmlLibraryScannerProxy : public QObject {
     LibraryScanner* m_pLibraryScanner;
     bool m_running;
     bool m_cancelling;
+
+    // TODO(#51): scaffolding — the QML UI surfaces the library scan as a
+    // single sticky notification that mutates in place (current file,
+    // task progress, and finally the scan summary) instead of the legacy
+    // LibraryScannerDlg progress dialog. Scaffold for the human
+    // contributor to complete: task counters (x/y), cancellation
+    // feedback, reduced signal flooding for very large scans, config
+    // gates.
+    mixxx::NotificationPointer m_pScanNotification;
+    int m_scanTasksProcessed;
 };
 
 class QmlLibraryProxy : public QObject {

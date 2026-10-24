@@ -2,11 +2,16 @@
 
 #include <QJSEngine>
 #include <QObject>
+#include <QPointer>
 #include <QQmlEngine>
 #include <QString>
 
+#include "library/autodj/autodjprocessor.h"
 #include "notification.h"
+#include "track/track_decl.h"
 #include "util/singleton.h"
+
+class PlayerManager;
 
 namespace mixxx {
 class CoreServices;
@@ -27,6 +32,15 @@ class QmlCoreServices : public QObject, public Singleton<QmlCoreServices> {
     ~QmlCoreServices() override = default;
 
     static QmlCoreServices* create(QQmlEngine* pQmlEngine, QJSEngine* pJsEngine);
+
+    // TODO(#51): subscribe user-notification-relevant signals raised by
+    // low-level services (track load failures, broadcast errors, AutoDJ
+    // errors, library scan lifecycle). Must be called after
+    // CoreServices::initialize() so that the owned services exist. The
+    // widget UI handles these signals in MixxxMainWindow instead. This is
+    // setup scaffolding; the human contributor will complete/harden the
+    // notification flows (CTA buttons, dedup, i18n centering).
+    void connectUserNotifications();
 
     QQmlListProperty<mixxx::Notification> notifications();
 
@@ -54,6 +68,14 @@ class QmlCoreServices : public QObject, public Singleton<QmlCoreServices> {
     // void notificationClosed();
 
     void notificationsChanged();
+
+  private slots:
+    // Handlers of the user-notification-relevant signals (see
+    // connectUserNotifications()). TODO(#51): scaffolding for the QML
+    // notification space.
+    void slotTrackLoadFailed(TrackPointer pTrack, const QString& reason);
+    void slotBroadcastError(const QString& title, const QString& text);
+    void slotAutoDJError(AutoDJProcessor::AutoDJError error);
 
   private:
     bool m_ready{false};

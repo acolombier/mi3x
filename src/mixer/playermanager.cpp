@@ -356,6 +356,10 @@ void PlayerManager::addDeckInner() {
             &BaseTrackPlayer::trackUnloaded,
             this,
             &PlayerManager::slotSaveEjectedTrack);
+    connect(pDeck,
+            &BaseTrackPlayer::trackLoadFailed,
+            this,
+            &PlayerManager::trackLoadFailed);
 
     if (m_pTrackAnalysisScheduler) {
         connect(pDeck,
@@ -437,6 +441,10 @@ void PlayerManager::addSamplerInner() {
             &BaseTrackPlayer::trackUnloaded,
             this,
             &PlayerManager::slotSaveEjectedTrack);
+    connect(pSampler,
+            &BaseTrackPlayer::trackLoadFailed,
+            this,
+            &PlayerManager::trackLoadFailed);
 
     m_players[handleGroup.handle()] = pSampler;
     m_samplers.append(pSampler);
