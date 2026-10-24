@@ -20,16 +20,19 @@ Rectangle {
         if (!root.sidebar) {
             return "[]";
         }
-        const columns = root.sidebar.tracklist.columns;
+        const columns = root.sidebar.tracklist?.columns;
         let labels = [];
-        for (let i = 0; i < columns.length; i++) {
+        for (let i = 0; i < columns?.length; i++) {
             labels.push(columns[i].label);
         }
         return JSON.stringify(labels);
     }
+    // Disable the dynamic column width provider and force computation based on an arbitrary width. This can be useful to temporary limit layout recomputation, for example during a transitional state such as animation
+    property int inhibitColumnWidth: 0
     required property var model
     property var movedColumn: new Object()
     property var sidebar: model.sidebar
+    readonly property alias view: view
 
     // Restore the library columns to their default order, visibility and sort
     // state. Used by the E2E test harness to reset state between scenarios
@@ -70,6 +73,12 @@ Rectangle {
     color: Theme.darkGray
     objectName: "trackList"
 
+    onInhibitColumnWidthChanged: {
+        if (!inhibitColumnWidth)
+            view.forceLayout();
+        view.cachedColumnWidth = Object();
+    }
+
     LibraryComponent.Control {
         id: libraryControl
 
@@ -98,7 +107,7 @@ Rectangle {
         Instantiator {
             property int readyCount: 0
 
-            model: root.sidebar.tracklist.columns
+            model: root.sidebar.tracklist?.columns
 
             delegate: Action {
                 property var data: view.getColumn(index)
@@ -126,7 +135,7 @@ Rectangle {
             }
 
             onObjectAdded: (index, object) => {
-                if (readyCount >= root.sidebar.tracklist.columns.length)
+                if (readyCount >= root.sidebar.tracklist?.columns.length)
                     return;
                 readyCount += 1;
             }
@@ -136,7 +145,7 @@ Rectangle {
                 readyCount -= 1;
             }
             onReadyCountChanged: {
-                if (readyCount !== root.sidebar.tracklist.columns.length)
+                if (readyCount !== root.sidebar.tracklist?.columns.length)
                     return;
                 for (let action = columnSelectionMenu.actionAt(0); action; action = columnSelectionMenu.actionAt(0)) {
                     columnSelectionMenu.removeAction(action);
@@ -279,8 +288,10 @@ Rectangle {
     TableView {
         id: view
 
-        function columnShouldAutoHide(column) {
-            return column?.display == Mixxx.TrackListColumn.Display.Auto && column?.autoHideWidth > 0 && column?.autoHideWidth > root.width;
+        property var cachedColumnWidth: Object()
+
+        function columnShouldAutoHide(column, viewWidth) {
+            return column?.display == Mixxx.TrackListColumn.Display.Auto && column?.autoHideWidth > 0 && column?.autoHideWidth > (viewWidth ?? root.width);
         }
 
         // E2E test function
@@ -289,6 +300,43 @@ Rectangle {
         }
         function getColumn(index) {
             return model.columns[root.movedColumn[index] !== undefined ? root.movedColumn[index] : index];
+        }
+        function innerColumnWidthProvider(column, viewWidth) {
+            const columnDef = getColumn(column);
+            let explicitWidth = explicitColumnWidth(column);
+            if (explicitWidth == -1) {
+                explicitWidth = columnDef.preferredWidth;
+            }
+            if (columnDef.display == Mixxx.TrackListColumn.Display.Hide || view.columnShouldAutoHide(columnDef, viewWidth)) {
+                return 0;
+            }
+            if (explicitWidth != -1) {
+                return explicitWidth;
+            }
+            if (model == null) {
+                return 0;
+            }
+
+            let usedWidth = 0;
+            let dynamicColumnCount = 0;
+            for (let c = 0; c < model.columns.length; c++) {
+                const columnDef = getColumn(c);
+                if (columnDef.display == Mixxx.TrackListColumn.Display.Hide || view.columnShouldAutoHide(columnDef, viewWidth)) {
+                    continue;
+                }
+                let explicitWidth = explicitColumnWidth(c);
+                if (explicitWidth == -1) {
+                    explicitWidth = columnDef.preferredWidth;
+                }
+
+                if (explicitWidth >= 0) {
+                    usedWidth += explicitWidth;
+                } else if (explicitWidth != 0) {
+                    dynamicColumnCount += columnDef.fillSpan || 1;
+                }
+            }
+            const span = columnDef.fillSpan || 1;
+            return span * (viewWidth - usedWidth) / dynamicColumnCount;
         }
         function loadSelectedTrack(group, play) {
             const urls = this.selectionModel.selectedTrackUrls();
@@ -314,41 +362,13 @@ Rectangle {
         anchors.top: horizontalHeader.bottom
         clip: true
         columnWidthProvider: function (column) {
-            const columnDef = getColumn(column);
-            let explicitWidth = explicitColumnWidth(column);
-            if (explicitWidth == -1) {
-                explicitWidth = columnDef.preferredWidth;
-            }
-            if (columnDef.display == Mixxx.TrackListColumn.Display.Hide || view.columnShouldAutoHide(columnDef)) {
-                return 0;
-            }
-            if (explicitWidth != -1) {
-                return explicitWidth;
-            }
-            if (model == null) {
-                return 0;
-            }
-
-            let usedWidth = 0;
-            let dynamicColumnCount = 0;
-            for (let c = 0; c < model.columns.length; c++) {
-                const columnDef = getColumn(c);
-                if (columnDef.display == Mixxx.TrackListColumn.Display.Hide || view.columnShouldAutoHide(columnDef)) {
-                    continue;
+            if (root.inhibitColumnWidth > 0) {
+                if (view.cachedColumnWidth[column] === undefined) {
+                    view.cachedColumnWidth[column] = innerColumnWidthProvider(column, root.inhibitColumnWidth);
                 }
-                let explicitWidth = explicitColumnWidth(c);
-                if (explicitWidth == -1) {
-                    explicitWidth = columnDef.preferredWidth;
-                }
-
-                if (explicitWidth >= 0) {
-                    usedWidth += explicitWidth;
-                } else if (explicitWidth != 0) {
-                    dynamicColumnCount += columnDef.fillSpan || 1;
-                }
+                return view.cachedColumnWidth[column];
             }
-            const span = columnDef.fillSpan || 1;
-            return span * (view.width - usedWidth) / dynamicColumnCount;
+            return innerColumnWidthProvider(column, view.width);
         }
         keyNavigationEnabled: false
         model: root.sidebar.tracklist
