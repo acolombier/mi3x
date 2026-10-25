@@ -367,7 +367,7 @@ def step_set_setting(context, setting, value, method=None):
                 try:
                     current_idx = options.index(current)
                 except ValueError:
-                    raise RuntimeError(
+                    raise AssertionError(
                         f"Setting '{setting}' (in path {repr(path)}) current '{current}' not in options (out of {', '.join(options)})"
                     )
                 delta = index - current_idx
@@ -571,7 +571,7 @@ def _assert_setting_value_matches(context, setting, spec, value):
     change a setting, so a change that silently did not happen fails right
     where it was made instead of at a later (or missing) assertion.
     """
-    assert wait_visible(context.rpc, spec['path']), "Unable to find setting"
+    assert wait_visible(context.rpc, spec['path']), f"Unable to find setting ({spec['path']})"
     actual = _read_setting_value(context, spec)
     kind = spec["kind"]
     if kind == "combo":
