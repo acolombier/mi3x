@@ -197,6 +197,9 @@ void AutoDJFeature::activate() {
 }
 
 void AutoDJFeature::clear() {
+    // TODO(#51): a confirmation cannot be surfaced as a non-blocking
+    // notification without an async callback flow; the widget dialog is
+    // kept until the QML UI provides the equivalent modal.
     QMessageBox::StandardButton btn = QMessageBox::question(nullptr,
             tr("Confirmation Clear"),
             tr("Do you really want to remove all tracks from the Auto DJ queue?") +

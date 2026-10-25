@@ -92,6 +92,15 @@ class AutoDJFeature : public LibraryFeature {
 
     QPointer<WLibrarySidebar> m_pSidebarWidget;
 
+  public:
+    // The AutoDJ processor owned by this feature. Exists from construction
+    // on, view binding is not required.
+    // TODO(#51): consumed by Library::getAutoDJProcessor to surface
+    // AutoDJProcessor::autoDJError notifications in the QML UI.
+    AutoDJProcessor* getProcessor() const {
+        return m_pAutoDJProcessor;
+    }
+
   private slots:
     void slotEnableAutoDJ();
     void slotDisableAutoDJ();

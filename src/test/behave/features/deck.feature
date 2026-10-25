@@ -388,7 +388,7 @@ Feature: Deck
   # (focus routing limitation), so this check is marked as flaky.
   @xpass
   @sub/hotcues
-  Scenario: The popup closes with Escape
+  Scenario: The hotcue popup closes with Escape
     Given the hotcue popup is open for hotcue 1 on deck 1
     When I press Escape in the hotcue popup
     Then the hotcue popup should be closed
@@ -586,7 +586,7 @@ Feature: Deck
   # (focus routing limitation), so this check is marked as flaky.
   @xpass
   @sub/sync
-  Scenario: The popup closes with Escape
+  Scenario: The beatgrid popup closes with Escape
     Given the beatgrid popup is open on deck 1
     When I press Escape in the beatgrid popup
     Then the beatgrid popup should be closed

@@ -464,15 +464,11 @@ def _wait_for_search_active(context, timeout=2):
     return False
 
 
-@when('I connect the "{source_edge}" edge on "{source_entity}" to the "{sink_edge}" edge on "{sink_entity}"')
-def step_connect_edge_to_edge(context, source_edge, source_entity, sink_edge, sink_entity):
-    source_path = _edge_path(source_entity, source_edge)
-    assert wait_visible(context.rpc, source_path), f"Source edge {source_edge} on {source_entity} not visible"
+@when('I click the "{edge}" edge on "{entity}"')
+def step_connect_edge_to_edge(context, edge, entity):
+    source_path = _edge_path(entity, edge)
+    assert wait_visible(context.rpc, source_path), f"Source edge {edge} on {entity} not visible"
     _click(context, source_path)
-    time.sleep(0.5)
-    sink_path = _edge_path(sink_entity, sink_edge)
-    assert wait_visible(context.rpc, sink_path), f"Sink edge {sink_edge} on {sink_entity} not visible"
-    _click(context, sink_path)
     time.sleep(0.5)
 
 
