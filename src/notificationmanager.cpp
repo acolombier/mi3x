@@ -1,9 +1,13 @@
 #include "notificationmanager.h"
 
 #include <QDebug>
+#include <QMessageBox>
 #include <QMutexLocker>
+#include <QPointer>
 
+#include "moc_notificationmanager.cpp"
 #include "util/assert.h"
+#include "util/cmdlineargs.h"
 
 namespace {
 
@@ -12,15 +16,14 @@ constexpr int kAutoTimeoutSecs = 10;
 
 namespace mixxx {
 
-NotificationManager::NotificationManager()
-        : m_inhibitNotifications(false),
-          m_notificationsAddedWhileInhibited(false),
-          m_notificationsClosedWhileInhibited(false) {
+NotificationManager::NotificationManager() {
     m_timer.setInterval(1000);
     connect(&m_timer, &QTimer::timeout, this, &NotificationManager::slotUpdateNotifications);
 };
 
-void NotificationManager::notify(NotificationPointer pNotification) {
+NotificationManager::~NotificationManager() = default;
+
+void NotificationManager::notify(const NotificationPointer& pNotification) {
     VERIFY_OR_DEBUG_ASSERT(pNotification) {
         return;
     }
@@ -44,24 +47,15 @@ void NotificationManager::notify(NotificationPointer pNotification) {
     m_notifications.prepend(pNotification);
     lock.unlock();
 
-    if (m_inhibitNotifications) {
-        m_notificationsAddedWhileInhibited = true;
-    } else {
-        emit notificationAdded();
-    }
+    emit notificationAdded(pNotification);
 }
 
-void NotificationManager::closeNotification(NotificationPointer pNotification) {
+void NotificationManager::closeNotification(const NotificationPointer& pNotification) {
     m_notifications.removeAll(pNotification);
-    if (m_inhibitNotifications) {
-        m_notificationsClosedWhileInhibited = true;
-    } else {
-        emit notificationClosed();
-    }
+    emit notificationClosed(pNotification);
 }
 
 void NotificationManager::slotUpdateNotifications() {
-    bool changed = false;
     bool timedNotificationLeft = false;
 
     QMutexLocker lock(&m_mutex);
@@ -78,8 +72,8 @@ void NotificationManager::slotUpdateNotifications() {
                     pNotification->timeoutSecs()) <=
                 QDateTime::currentDateTimeUtc()) {
             qDebug() << "Notification timed out:" << pNotification->text();
-            changed = true;
             it = m_notifications.erase(it);
+            emit notificationClosed(*it);
         } else {
             timedNotificationLeft = true;
             it++;
@@ -91,13 +85,6 @@ void NotificationManager::slotUpdateNotifications() {
         m_timer.stop();
     }
 
-    if (changed) {
-        if (m_inhibitNotifications) {
-            m_notificationsClosedWhileInhibited = true;
-        } else {
-            emit notificationClosed();
-        }
-    }
 }
 
 } // namespace mixxx

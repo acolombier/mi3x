@@ -10,12 +10,14 @@
 #include "controllers/controllermanager.h"
 #include "mixer/playermanager.h"
 #include "moc_qmlapplication.cpp"
+#include "notificationmanager.h"
 #include "preferences/configobject.h"
 #include "qml/asyncimageprovider.h"
 #include "qml/qmlapplicationproxy.h"
 #include "qml/qmlcoreservices.h"
 #include "qml/qmldlgpreferencesproxy.h"
 #include "qml/qmlrecordingproxy.h"
+#include "qmlsettingparameter.h"
 #include "soundio/soundmanager.h"
 #include "util/versionstore.h"
 #include "waveform/guitick.h"
@@ -129,7 +131,9 @@ QmlApplication::QmlApplication(
     }
 #endif
 
-    QJSEngine::setObjectOwnership(QmlCoreServices::createInstance(this), QJSEngine::CppOwnership);
+    QJSEngine::setObjectOwnership(
+            QmlCoreServices::createInstance(m_pCoreServices),
+            QJSEngine::CppOwnership);
 
     m_loadSucceeded = loadQml(m_mainFilePath);
     if (!m_loadSucceeded && !CmdlineArgs::Instance().getDeveloper()) {
@@ -243,6 +247,32 @@ QmlApplication::QmlApplication(
             m_pCoreServices->getTrackCollectionManager());
     m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
     QmlCoreServices::instance()->setReady();
+    auto pNotification = std::make_shared<mixxx::Notification>(
+            "Mixxx started!", mixxx::NotificationFlag::Sticky);
+    pNotification->addButton("Coolio", this, [this, pNotification]() {
+        auto windows = QGuiApplication::topLevelWindows();
+        for (auto* w : std::as_const(windows)) {
+            auto* pEngineSection = w->findChild<mixxx::qml::QmlSettingGroup*>("engineSection");
+            auto* pSettings = w->findChild<QObject*>("settingsPopup");
+            if (pEngineSection && pSettings) {
+                qDebug() << "found" << pEngineSection << pSettings;
+                QMetaObject::invokeMethod(pSettings, "open", Qt::QueuedConnection);
+                QMetaObject::invokeMethod(pSettings,
+                        "focusSection",
+                        Qt::QueuedConnection,
+                        Q_ARG(QVariant, QVariant::fromValue(pEngineSection)));
+
+                break;
+            }
+        }
+        qDebug() << "clicked!!!";
+        m_pCoreServices->getNotificationManager()->closeNotification(pNotification);
+    });
+    m_pCoreServices->getNotificationManager()->notify(pNotification);
+    // TODO(#51): surface the signals raised by low-level services as
+    // notifications; the widget-level subscribers only exist in
+    // MixxxMainWindow, which is not instantiated in the QML application.
+    QmlCoreServices::instance()->connectUserNotifications();
 
     m_pCoreServices->getControllerManager()->setUpDevices();
 

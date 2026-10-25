@@ -1,5 +1,7 @@
 #include "notification.h"
 
+#include "moc_notification.cpp"
+
 namespace mixxx {
 
 Notification::Notification(const QString& text, NotificationFlags flags)

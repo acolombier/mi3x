@@ -11,13 +11,6 @@ import "Theme"
 Popup {
     id: root
 
-    onOpened: {
-        Mixxx.Core.addOpenedPopup(this)
-    }
-    onClosed: {
-        Mixxx.Core.removeOpenedPopup(this)
-    }
-
     enum Facing {
         Left,
         Top,
@@ -25,8 +18,9 @@ Popup {
         Bottom
     }
 
-    default property alias children: content.children
-    property variant facing: ActionPopup.Facing.Left
+    property alias arrow: arrow
+    property alias children: content.children
+    property var facing: ActionPopup.Facing.Left
 
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
     leftInset: 0
@@ -36,27 +30,47 @@ Popup {
 
     background: Item {
         Item {
-            id: content3
+            id: background
 
             anchors.fill: parent
+            layer.enabled: true
+
+            layer.effect: MultiEffect {
+                shadowBlur: 0.8
+                shadowColor: '#c0000000'
+                shadowEnabled: true
+            }
 
             Shape {
-                anchors.left: root.facing == ActionPopup.Facing.Left ? parent.left : undefined
-                anchors.right: root.facing == ActionPopup.Facing.Right ? parent.right : undefined
-                anchors.verticalCenter: parent.verticalCenter
+                id: arrow
+
+                readonly property bool isPinned: pinTo.x != 0 || pinTo.y != 0
+                property point pinTo: Qt.point(0, 0)
+
+                // anchors.bottom: !isPinned && root.facing == ActionPopup.Facing.Bottom ? parent.bottom : undefined
+                // anchors.left: !isPinned && root.facing == ActionPopup.Facing.Left ? parent.left : undefined
+                // anchors.right: !isPinned && root.facing == ActionPopup.Facing.Right ? parent.right : undefined
+                // anchors.top: !isPinned && root.facing == ActionPopup.Facing.Top ? parent.top : undefined
+                // anchors.verticalCenter: isPinned ? undefined : parent.verticalCenter
                 implicitHeight: 20
                 rotation: {
                     switch (root.facing) {
                     case ActionPopup.Facing.Right:
                         return 180;
+                    case ActionPopup.Facing.Bottom:
+                        return 270;
+                    case ActionPopup.Facing.Top:
+                        return 90;
                     default:
                         return 0;
                     }
                 }
                 transformOrigin: Item.Center
+                x: isPinned ? pinTo.x : 0
+                y: isPinned ? pinTo.y : 0
 
                 ShapePath {
-                    fillColor: Theme.backgroundColor
+                    fillColor: 'green'
                     fillRule: ShapePath.OddEvenFill
                     startX: 0
                     startY: 10
@@ -78,30 +92,34 @@ Popup {
                 }
             }
             Rectangle {
+                anchors.bottomMargin: root.facing == ActionPopup.Facing.Bottom ? 20 : 0
                 anchors.fill: parent
                 anchors.leftMargin: root.facing == ActionPopup.Facing.Left ? 20 : 0
                 anchors.rightMargin: root.facing == ActionPopup.Facing.Right ? 20 : 0
+                anchors.topMargin: root.facing == ActionPopup.Facing.Top ? 20 : 0
                 border.width: 0
-                color: Theme.backgroundColor
+                color: 'green'
                 radius: 8
             }
-        }
-        MultiEffect {
-            anchors.fill: parent
-            source: content3
-            shadowEnabled: true
-            shadowColor: "#80000000"
-            shadowBlur: 0.1
         }
     }
     contentItem: Item {
         ColumnLayout {
             id: content
 
+            anchors.bottomMargin: root.facing == ActionPopup.Facing.Bottom ? 20 : 0
             anchors.fill: parent
             anchors.leftMargin: root.facing == ActionPopup.Facing.Left ? 20 : 0
             anchors.rightMargin: root.facing == ActionPopup.Facing.Right ? 20 : 0
+            anchors.topMargin: root.facing == ActionPopup.Facing.Top ? 20 : 0
             spacing: 2
         }
+    }
+
+    onClosed: {
+        Mixxx.Core.removeOpenedPopup(this);
+    }
+    onOpened: {
+        Mixxx.Core.addOpenedPopup(this);
     }
 }

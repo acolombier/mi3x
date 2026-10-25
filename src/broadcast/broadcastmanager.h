@@ -37,6 +37,13 @@ class BroadcastManager : public QObject {
   signals:
     void broadcastEnabled(bool);
 
+    // Raised when an action on the broadcast feature failed. The widget UI
+    // shows a message box (MixxxMainWindow::slotBroadcastError), the QML UI
+    // surfaces a notification (QmlCoreServices).
+    // TODO(#51): differentiate transient/permanent failures and offer
+    // "Retry"/"Edit connection" CTAs in the notification space.
+    void broadcastError(const QString& title, const QString& text);
+
   private slots:
     void slotControlEnabled(double v);
     void slotProfileAdded(BroadcastProfilePtr profile);

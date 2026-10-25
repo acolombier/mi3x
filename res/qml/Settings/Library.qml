@@ -61,6 +61,8 @@ Category {
         metadataRelativePathEnabled.selected = Mixxx.Config.libraryUseRelativePathOnExport ? "on" : "off";
         searchCompletionEnabled.selected = Mixxx.Config.librarySearchCompletionsEnable ? "on" : "off";
         searchHistoryKeyboardEnabled.selected = Mixxx.Config.librarySearchHistoryShortcutsEnable ? "on" : "off";
+        rescanAtStartup.selected = Mixxx.Config.libraryRescanOnStartup ? "on" : "off";
+        notifyOnScan.selected = Mixxx.Config.libraryShowScanSummary ? "on" : "off";
         historyDuplicateDistanceInput.value = Mixxx.Config.libraryHistoryTrackDuplicateDistance;
         historyDeleteLessThanInput.value = Mixxx.Config.libraryHistoryMinTracksToKeep;
         searchAsYouTypeTimeoutInput.setValue(Mixxx.Config.librarySearchDebouncingTimeout / 1000);
@@ -147,6 +149,8 @@ Category {
         Mixxx.Config.libraryHistoryMinTracksToKeep = historyDeleteLessThanInput.value;
         Mixxx.Config.librarySearchDebouncingTimeout = searchAsYouTypeTimeoutInput.value * 1000;
         Mixxx.Config.librarySearchBpmFuzzyRange = pitchSliderFuzzBPMInput.value;
+        Mixxx.Config.libraryRescanOnStartup = rescanAtStartup.enabled;
+        Mixxx.Config.libraryShowScanSummary = notifyOnScan.enabled;
         load();
     }
 
@@ -221,7 +225,7 @@ Category {
             }
             Mixxx.SettingGroup {
                 Layout.bottomMargin: 6
-                implicitHeight: librarySourcesGrid.implicitHeight
+                implicitHeight: librarySourcesGrid.implicitHeight + settings.implicitHeight
                 implicitWidth: scrollView.width
                 label: qsTr("Sources")
 
@@ -596,6 +600,71 @@ Category {
                                 }
                             }
                         }
+                    }
+                }
+                GridLayout {
+                    id: settings
+
+                    anchors.left: sources.left
+                    anchors.leftMargin: 17
+                    anchors.right: sources.right
+                    anchors.rightMargin: 17
+                    anchors.top: sources.bottom
+                    anchors.topMargin: 10
+                    columnSpacing: 20
+                    columns: width > 800 ? 4 : 2
+                    objectName: "librarySourcesGrid"
+                    width: parent.width
+
+                    Mixxx.SettingParameter {
+                        Layout.fillWidth: true
+                        label: qsTr("Rescan directories on start-up")
+
+                        Text {
+                            anchors.fill: parent
+                            color: Theme.white
+                            font.pixelSize: 14
+                            font.weight: Font.Medium
+                            horizontalAlignment: Text.AlignLeft
+                            text: parent.label
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                    RatioChoice {
+                        id: rescanAtStartup
+
+                        readonly property bool enabled: selected == "on"
+
+                        inactiveColor: Theme.darkGray4
+                        maxWidth: parent.width * 0.5
+                        options: ["on", "off"]
+
+                        onSelectedChanged: root.dirty = true
+                    }
+                    Mixxx.SettingParameter {
+                        Layout.fillWidth: true
+                        label: qsTr("Show scan summary dialog") // FIXME this is actually a notification now
+
+                        Text {
+                            anchors.fill: parent
+                            color: Theme.white
+                            font.pixelSize: 14
+                            font.weight: Font.Medium
+                            horizontalAlignment: Text.AlignLeft
+                            text: parent.label
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                    RatioChoice {
+                        id: notifyOnScan
+
+                        readonly property bool enabled: selected == "on"
+
+                        inactiveColor: Theme.darkGray4
+                        maxWidth: parent.width * 0.5
+                        options: ["on", "off"]
+
+                        onSelectedChanged: root.dirty = true
                     }
                 }
             }

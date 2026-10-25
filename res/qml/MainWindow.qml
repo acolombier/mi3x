@@ -199,6 +199,81 @@ Item {
                     }
                 }
                 Skin.Button {
+                    id: notificationButton
+
+                    activeColor: Theme.white
+                    checked: notificationPopup.opened && !notificationPopup.focusedNotification
+                    enabled: !!Mixxx.Core.notifications.length
+                    icon.height: 16
+                    icon.source: "images/notification_bell.svg"
+                    icon.width: 16
+                    implicitWidth: implicitHeight
+                    objectName: "showPreferencesButton"
+
+                    onClicked: {
+                        if (!notificationPopup.opened) {
+                            notificationPopup.open();
+                        } else if (notificationPopup.focusedNotification == null) {
+                            notificationPopup.close();
+                        }
+                        notificationPopup.focusedNotification = null;
+                    }
+
+                    Rectangle {
+                        id: notificationCounter
+
+                        color: '#2D4EA1'
+                        height: width
+                        radius: height / 2
+                        visible: parent.enabled
+                        width: 10
+                        x: 3 * parent.width / 4
+                        y: parent.height - height
+                    }
+                    Connections {
+                        function onNotificationAdded(notification) {
+                            if (!notificationPopup.opened) {
+                                notificationPopup.focusedNotification = notification;
+                                notificationPopup.open();
+                            }
+                            print("onNotificationAdded", notification);
+                        }
+                        function onNotificationClosed(notification) {
+                            if (notificationPopup.focusedNotification == notification) {
+                                notificationPopup.focusedNotification = null;
+                                notificationPopup.close();
+                            }
+                            print("onNotificationAdded", notification);
+                        }
+
+                        target: Mixxx.Core
+                    }
+                    Skin.NotificationDrawer {
+                        id: notificationPopup
+
+                        focus: true
+                        x: {
+                            opened; // Bind to opening
+                            let pos = notificationButton.mapToItem(root, 0, 0);
+                            return root.width - pos.x - width - 18;
+                        }
+                        y: notificationButton.height
+
+                        background {
+                            visible: notificationButton.checked
+                        }
+                        arrow {
+                            // visible: notificationButton.checked
+                            Component.onCompleted: {
+                                arrow.pinTo.x = Qt.binding(() => {
+                                    opened; // Bind to opening
+                                    return notificationButton.mapToItem(notificationPopup.contentItem, (notificationButton.width - arrow.width) / 2, notificationButton.height).x;
+                                });
+                            }
+                        }
+                    }
+                }
+                Skin.Button {
                     id: showPreferencesButton
 
                     activeColor: Theme.white

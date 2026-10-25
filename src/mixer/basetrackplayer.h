@@ -70,6 +70,13 @@ class BaseTrackPlayer : public BasePlayer {
     void newTrackLoaded(TrackPointer pLoadedTrack);
     void trackUnloaded(TrackPointer pUnloadedTrack);
     void loadingTrack(TrackPointer pNewTrack, TrackPointer pOldTrack);
+    // Emitted when loading a track failed, after the per-player duplicate
+    // suppression so that equal subsequent failures for the same track
+    // don't spam subscribers.
+    // TODO(#51): the legacy UI shows a modal message box (see
+    // MixxxMainWindow::slotTrackLoadFailed), the QML UI surfaces a
+    // notification (see QmlCoreServices::connectUserNotifications).
+    void trackLoadFailed(TrackPointer pFailedTrack, const QString& reason);
 #ifdef __STEM__
     void selectedStems(mixxx::StemChannelSelection stemMask);
 #endif

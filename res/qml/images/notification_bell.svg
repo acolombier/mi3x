@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Placeholder notification bell icon.
+     NOTE: extracted as a vector stand-in because the provided source asset
+     (base64-embedded PNG inside an SVG) was truncated; replace when the
+     original binary asset is available again. -->
+<svg
+   width="32mm"
+   height="32mm"
+   viewBox="0 0 32 32"
+   version="1.1"
+   id="svg1"
+   xmlns="http://www.w3.org/2000/svg">
+  <defs id="defs1" />
+  <g id="layer1">
+    <path
+       d="M 16,2 C 10.2,2 5.6,6.6 5.6,12.4 V 19 L 3,24.6 H 13.2 C 13.2,26.5 14.3,28 16,28 17.7,28 18.8,26.5 18.8,24.6 H 29 L 26.4,19 V 12.4 C 26.4,6.6 21.8,2 16,2 Z"
+       id="bell-body" />
+    <path
+       d="m 16,0 a 1.8,1.8 0 0 1 1.8,1.8 V 2.4 A 10.4,10.4 0 0 0 16,2.4 10.4,10.4 0 0 0 14.2,2.4 V 1.8 A 1.8,1.8 0 0 1 16,0 Z"
+       id="bell-top" />
+    <path
+       d="M 14.6,26.2 h 2.8 v 3.6 a 1.4,1.4 0 0 1 -2.8,0 z"
+       id="bell-clapper" />
+  </g>
+</svg>
