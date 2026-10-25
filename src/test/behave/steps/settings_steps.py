@@ -787,7 +787,7 @@ def step_grid_columns(context, grid, columns):
 
 
 SPATIAL_ITEM_PATHS = {
-    "integrations grid": "mainWindow/libraryIntegrationsGrid",
+    "integrations grid": LIBRARY_GRIDS["Library integrations"],
     "library source pane": "mainWindow/librarySourcePane",
 }
 

@@ -480,9 +480,10 @@ Category {
                             }
                         }
                         Rectangle {
+                            id: libraryScanOverlay
+
                             anchors.fill: parent
                             color: Qt.alpha('black', 0.4)
-                            objectName: "libraryScanOverlay"
                             visible: Mixxx.Library.scanner.running
 
                             MouseArea {

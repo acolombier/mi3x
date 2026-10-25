@@ -361,3 +361,191 @@ Feature: Deck
     When I set the "ramping sensitivity" setting to "600" with the spinbox
     Then the "ramping sensitivity" setting should be "600"
     When I resize the window's height to 1008px
+
+  Rule: Hotcue popup
+    Background:
+      Given a new library-ready profile
+      And Mixxx is open and ready to operate
+      And a track is loaded on deck 1
+      And hotcue 1 is set on deck 1
+      And hotcue 1 on deck 1 is of type "CUE"
+
+  @sub/hotcues
+  Scenario: The popup opens on hotcue right-click
+    When I right-click hotcue 1 on deck 1
+    Then the hotcue popup should be open
+    And the hotcue popup label field should be visible
+    And the hotcue popup delete button should be visible
+    And the hotcue popup color swatches should be visible
+  @sub/hotcues
+  Scenario: The popup closes on press outside and on Escape
+    Given the hotcue popup is open for hotcue 1 on deck 1
+    When I click the "spinny" button on deck 1
+    Then the hotcue popup should be closed
+
+  # spix cannot deliver keyboard events to the overlay popup reliably
+  # (focus routing limitation), so this check is marked as flaky.
+  @xpass
+  @sub/hotcues
+  Scenario: The popup closes with Escape
+    Given the hotcue popup is open for hotcue 1 on deck 1
+    When I press Escape in the hotcue popup
+    Then the hotcue popup should be closed
+  @sub/hotcues
+  Scenario: Editing the label commits on Enter
+    Given the hotcue popup is open for hotcue 1 on deck 1
+    When I enter "Drop here" in the hotcue popup label field
+    And I press Enter in the hotcue popup label field
+    Then the hotcue popup label should show "Drop here"
+  @sub/hotcues
+  Scenario: The committed label is restored when the popup reopens
+    Given the label of hotcue 1 on deck 1 is "Drop here"
+    When I press Escape in the hotcue popup
+    And I right-click hotcue 1 on deck 1
+    Then the hotcue popup label should show "Drop here"
+  @sub/hotcues
+  Scenario: Choosing a color swatch changes the hotcue color
+    Given the hotcue popup is open for hotcue 1 on deck 1
+    And the hotcue color of hotcue 1 on deck 1 is remembered
+    When I click hotcue color swatch 4 in the popup
+    Then the hotcue color of hotcue 1 on deck 1 should have changed
+  @sub/hotcues
+  Scenario: Cycling the cue type with the arrows
+    Given the hotcue popup is open for hotcue 1 on deck 1
+    And hotcue 1 on deck 1 is of type "CUE"
+    When I click the "next type" arrow in the popup
+    Then the hotcue type name of hotcue 1 on deck 1 should be "LOOP"
+    When I click the "previous type" arrow in the popup
+    Then the hotcue type name of hotcue 1 on deck 1 should be "CUE"
+  @sub/hotcues
+  Scenario: The type cycler wraps around
+    Given the playhead of deck 1 is at 0.5
+    And the hotcue popup is open for hotcue 1 on deck 1
+    When I click the "previous type" arrow in the popup
+    Then the hotcue type name of hotcue 1 on deck 1 should be "JUMP"
+    When I click the "next type" arrow in the popup
+    Then the hotcue type name of hotcue 1 on deck 1 should be "CUE"
+  @sub/hotcues
+  Scenario: Deleting the hotcue from the popup
+    Given the hotcue popup is open for hotcue 1 on deck 1
+    When I click the "delete" button in the popup
+    Then hotcue 1 should not be set on deck 1
+  @sub/hotcues
+  Scenario: The waveform preview marks the cue position
+    Given the hotcue popup is open for hotcue 1 on deck 1
+    Then the hotcue popup waveform should be visible
+    And the hotcue popup start notch should be visible
+    And the hotcue popup end notch should not be visible
+    And the span filler should not be visible
+    And the hotcue popup start notch should be centered within the waveform
+
+  # spix has no mouse wheel event support, so the zoom interaction is driven
+  # by writing the waveform's zoom property directly.
+  @test/missing-ui-interaction
+  @sub/hotcues
+  Scenario: The span filler shows the cue span at its positions
+    Given the hotcue popup is open for hotcue 1 on deck 1
+    When I click the "next type" arrow in the popup
+    Then the hotcue type name of hotcue 1 on deck 1 should be "LOOP"
+    When I zoom the hotcue popup waveform out to fit the span
+    Then the span filler should be visible
+    And the hotcue popup start notch should be visible
+    And the hotcue popup end notch should be visible
+    And the span filler should cover about two thirds of the waveform
+    And the hotcue popup start notch should be centered on the span filler start edge
+    And the hotcue popup end notch should be centered on the span filler end edge
+
+  # spix has no mouse wheel event support, so the zoom interaction is driven
+  # by writing the waveform's zoom property directly.
+  @test/missing-ui-interaction
+  @sub/hotcues
+  Scenario: The split view follows the zoom dynamically
+    Given hotcue 1 on deck 1 is of type "CUE"
+    And the hotcue popup is open for hotcue 1 on deck 1
+    And the beatloop size is set to 4
+    When I click the "next type" arrow in the popup
+    Then the hotcue type name of hotcue 1 on deck 1 should be "LOOP"
+    When I zoom the hotcue popup waveform out to fit the span
+    Then the hotcue popup should not be in split view
+    When I zoom the hotcue popup waveform in by 9 steps
+    Then the hotcue popup should be in split view
+    And the split view start half should be visible
+    And the split view target half should be visible
+    And the loop warp seam should be visible
+    When I zoom the hotcue popup waveform out by 9 steps
+    Then the hotcue popup should not be in split view
+    And the split view target half should not be visible
+
+  # spix has no mouse wheel event support, so the zoom interaction is driven
+  # by writing the waveform's zoom property directly.
+  @test/missing-ui-interaction
+  @sub/hotcues
+  Scenario: The jump split view shades the skipped content and can swap ends
+    Given the playhead of deck 1 is at 0.5
+    And the hotcue popup is open for hotcue 1 on deck 1
+    When I click the "previous type" arrow in the popup
+    Then the hotcue type name of hotcue 1 on deck 1 should be "JUMP"
+    When I zoom the hotcue popup waveform in by 9 steps
+    Then the hotcue popup should be in split view
+    And the skip shade above the split should be visible
+    And the skip shade below the split should be visible
+    And the jump warp divider should be visible
+    And the span filler should not be visible
+    And the swap button should be visible
+    And the split view start half should display the span start position
+    And the split view target half should display the span end position
+    And the hotcue span of hotcue 1 on deck 1 is remembered
+    When I click the "swap" button in the popup
+    Then the hotcue span of hotcue 1 on deck 1 should be swapped
+    And the split view start half should display the span start position
+    And the split view target half should display the span end position
+
+  # A hotcue set by clicking the button has no end position, so both
+  # conversion defaults below apply to it (fresh cue or cleared end position).
+  @sub/hotcues
+  Scenario: A new cue becomes a loop of the deck's beatloop size
+    Given the playhead of deck 1 is at 0.5
+    And the beatloop size of deck 1 is set to 2
+    And the hotcue popup is open for hotcue 1 on deck 1
+    When I click the "next type" arrow in the popup
+    Then the hotcue type name of hotcue 1 on deck 1 should be "LOOP"
+    And the hotcue span length of hotcue 1 on deck 1 should be 2 beats
+  @sub/hotcues
+  Scenario: A new cue's jump target defaults to the playhead
+    Given hotcue 1 on deck 1 is of type "CUE"
+    And the playhead of deck 1 is at 0.5
+    And quantize is disabled on deck 1
+    And the hotcue popup is open for hotcue 1 on deck 1
+    When I click the "previous type" arrow in the popup
+    Then the hotcue type name of hotcue 1 on deck 1 should be "JUMP"
+    And the hotcue jump target of hotcue 1 on deck 1 should be at the playhead
+
+  # While the popup stays open, cycling back to CUE keeps the loop span;
+  # closing the popup must discard it (parity with WCueMenuPopup::closeEvent),
+  # so a later JUMP conversion falls back to the playhead instead of reusing
+  # the stale span as its target.
+  @sub/hotcues
+  Scenario: A leftover loop span is discarded when the popup closes
+    Given the playhead of deck 1 is at 0.5
+    And quantize is disabled on deck 1
+    And the beatloop size of deck 1 is set to 2
+    And the hotcue popup is open for hotcue 1 on deck 1
+    When I click the "next type" arrow in the popup
+    Then the hotcue type name of hotcue 1 on deck 1 should be "LOOP"
+    And the hotcue span length of hotcue 1 on deck 1 should be 2 beats
+    When I click the "previous type" arrow in the popup
+    Then the hotcue type name of hotcue 1 on deck 1 should be "CUE"
+    And the hotcue span length of hotcue 1 on deck 1 should be 2 beats
+    When I click the "spinny" button on deck 1
+    Then the hotcue popup should be closed
+    When I right-click hotcue 1 on deck 1
+    And I click the "previous type" arrow in the popup
+    Then the hotcue type name of hotcue 1 on deck 1 should be "JUMP"
+    And the hotcue jump target of hotcue 1 on deck 1 should be at the playhead
+  @sub/hotcues
+  Scenario: The label can be cleared from the popup
+    Given the label of hotcue 1 on deck 1 is "Drop here"
+    And the hotcue popup is open for hotcue 1 on deck 1
+    When I clear the hotcue popup label field
+    And I press Enter in the hotcue popup label field
+    Then the hotcue popup label should be empty
