@@ -12,19 +12,38 @@ from typing import Optional
 from behave import given, when, then
 import mixxx_profile as profile
 import random
+from mixxx_helpers import (
+    _click,
+    _deck_group,
+    _deck_hotcue_path,
+    _deck_path,
+    _double_click,
+    _get_bb,
+    _get_control_value,
+    _get_library_state,
+    _get_property,
+    _is_visible,
+    _library_command,
+    _long_press,
+    _remember,
+    _remembered_value,
+    _right_click,
+    _set_control_value,
+    _set_property,
+    _wait_for_clickable,
+    _wait_for_hidden,
+    _wait_for_visible,
+)
 from spix_helpers import (
     QT_CONTROL_MODIFIER,
+    QT_KEY_DELETE,
     QT_KEY_DOWN,
     QT_KEY_ENTER,
+    QT_KEY_ESCAPE,
     QT_KEY_SPACE,
     QT_KEY_TAB,
     QT_KEY_UP,
     QT_LEFT_BUTTON,
-    QT_RIGHT_BUTTON,
-    click as _click_impl,
-    get_control_value as _get_control_value_impl,
-    is_visible as _is_visible_impl,
-    wait_clickable as _wait_clickable_impl,
     wait_hidden as _wait_hidden_impl,
     wait_visible as _wait_visible_impl,
 )
@@ -139,22 +158,10 @@ class RobustRpcProxy:
         return f"<RobustRpcProxy for {self.URL}>"
 
 
-# Thin adapters over spix_helpers: this module treats "condition not met"
-# as an assertion failure, so its helpers raise instead of returning False.
-def _wait_for_visible(rpc, path, timeout=15):
-    if not _wait_visible_impl(rpc, path, timeout):
-        raise AssertionError(f"Timed out waiting for '{path}' to be visible/opened")
-
-
-def _wait_for_hidden(rpc, path, timeout=15):
-    if not _wait_hidden_impl(rpc, path, timeout):
-        raise AssertionError(f"Timed out waiting for '{path}' to be hidden")
-
-
 # --- Static path resolution ---
 
 BUTTON_PATHS = {
-    "LIBRARY": "mainWindow/library",
+    "LIBRARY": "mainWindow/maximizeLibraryButton",
     "4DECKS": "mainWindow/show4DecksButton",
     "EDIT": "mainWindow/editDeckButton",
     "PREFERENCES": "mainWindow/showPreferencesButton",
@@ -171,38 +178,7 @@ TRACK_ROW_PATH = f"{TRACK_TABLE_PATH}"
 TRACK_CONTEXT_MENU_PATH = "mainWindow/trackContextMenu"
 
 
-# --- Mouse helpers ---
-
-def _click(rpc, path):
-    _click_impl(rpc, path)
-
-
-def _double_click(rpc, path):
-    _click(rpc, path)
-    time.sleep(0.2)
-    _click(rpc, path)
-
-
-def _right_click(rpc, path):
-    assert rpc.existsAndVisible(path), f"{path} cannot be clicked as it does not exists"
-    # Use a short hold rather than a plain click so the synthetic press is
-    # fully delivered before the release, which makes Qt's TapHandler
-    # recognise the right-button tap even under load.
-    rpc.mouseClickAndHold(path, QT_RIGHT_BUTTON, 0, 250)
-
-
-def _long_press(rpc, path, button=QT_LEFT_BUTTON, hold_ms=1000):
-    rpc.mouseClickAndHold(path, button, 0, hold_ms)
-
-
-def _is_visible(rpc, path):
-    return _is_visible_impl(rpc, path)
-
-
-def _wait_for_clickable(rpc, path, timeout=5):
-    if not _wait_clickable_impl(rpc, path, timeout):
-        raise AssertionError(f"Timed out waiting for '{path}' to be clickable")
-
+# --- View helpers ---
 
 def _is_column_visible(rpc, col, stabilize_duration=1):
     # Letting time for UI to stabilize
@@ -214,14 +190,7 @@ def _is_column_visible(rpc, col, stabilize_duration=1):
     return columnWidth > 0
 
 
-def _get_bb(rpc, path):
-    bb = rpc.getBoundingBox(path)
-    if isinstance(bb, (list, tuple)):
-        return {"x": bb[0], "y": bb[1], "width": bb[2], "height": bb[3]}
-    return bb
-
-
-def _scroll_tableview_to_row(rpc, row, table=TRACK_TABLE_PATH):
+def _scroll_tableview_to_row(context, row, table=TRACK_TABLE_PATH):
     """Scroll the track TableView so that ``row`` lies inside the visible viewport.
 
     The TableView recycles its delegates (``reuseItems: true``) and each
@@ -231,6 +200,7 @@ def _scroll_tableview_to_row(rpc, row, table=TRACK_TABLE_PATH):
     ("Item not found") — the missed click this helper prevents. Driving the
     flickable ``contentY`` scrolls the list the way a user would.
     """
+    rpc = context.rpc
     deadline = time.time() + 15
     last_error = None
     while time.time() < deadline:
@@ -300,91 +270,32 @@ def _last_track_row(rpc, timeout=5):
     raise AssertionError("The track table has no rows")
 
 
-def _set_property(rpc, path, prop, value):
-    rpc.setStringProperty(path, prop, str(value))
-
-
-def _get_property(rpc, path, prop):
-    return rpc.getStringProperty(path, prop)
-
-
-def _get_control_value(rpc, group, key):
-    return _get_control_value_impl(rpc, group, key)
-
-
-def _set_control_value(rpc, group, key, value):
-    rpc.command("setControlValue", f"{group},{key},{value}")
-
-
 def _load_track(rpc, deck, filepath):
     rpc.command("loadTrack", f"{deck},{filepath}")
 
 
-def _get_library_state(rpc):
-    rpc.command("getLibraryState", "")
-    return json.loads(rpc.getStringProperty("mainWindow", "lastLibraryState"))
-
-
-def _wait_for_library_scan(rpc, scan_generation, timeout=20):
-    """Wait for a library scan triggered after ``scan_generation`` to finish.
-
-    The ``library`` command starts the scan asynchronously and returns
-    immediately (running a nested event loop while the library models are
-    mutated crashes the QML delegate model). The ``getLibraryState`` command
-    exposes a monotonically increasing ``scanGeneration`` counter and a
-    ``scanInProgress`` flag so tests can wait without blocking the app's main
-    thread.
-    """
-    deadline = time.time() + timeout
-    last_state = None
-    while time.time() < deadline:
-        try:
-            last_state = _get_library_state(rpc)
-            if (last_state.get("scanGeneration", 0) > scan_generation and
-                    not last_state.get("scanInProgress", False)):
-                return
-        except Exception as e:
-            last_state = e
-        time.sleep(0.2)
-    raise AssertionError(
-        f"Timed out waiting for the library scan to finish "
-        f"(last state: {last_state})"
-    )
-
-
-def _library_command(rpc, action=None, path=None, scan=False, payload=None):
-    if payload is None:
-        payload = {"action": action, "path": path, "scan": scan}
-    payload = json.dumps(payload)
-    scan_generation = None
-    if scan:
-        scan_generation = _get_library_state(rpc).get("scanGeneration", 0)
-    rpc.command("library", payload)
-    if scan:
-        _wait_for_library_scan(rpc, scan_generation)
-
-def _find_sidebar_named_entity_path(rpc, entity, name, expand_if_needed=False):
-    assert _is_visible(rpc, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
-    rows = int(rpc.getStringProperty(LIBRARY_TREEVIEW_PATH, "rows"))
+def _find_sidebar_named_entity_path(context, entity, name, expand_if_needed=False):
+    assert _is_visible(context, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
+    rows = int(context.rpc.getStringProperty(LIBRARY_TREEVIEW_PATH, "rows"))
     in_section = False
     row = 0
     while row < rows:
         path = f"{LIBRARY_TREEVIEW_PATH}/index{row}"
-        depth = int(rpc.invokeMethod(LIBRARY_TREEVIEW_PATH, "depth", [row]))
-        label = rpc.getStringProperty(f"{path}/label", "text")
+        depth = int(context.rpc.invokeMethod(LIBRARY_TREEVIEW_PATH, "depth", [row]))
+        label = context.rpc.getStringProperty(f"{path}/labelItem", "text")
         row += 1
 
         if not in_section:
             in_section = label.startswith(entity.title())
             if not in_section:
                 continue
-            is_expanded = rpc.getStringProperty(path, "expanded") == "true"
+            is_expanded = context.rpc.getStringProperty(path, "expanded") == "true"
             if is_expanded or not expand_if_needed:
                 continue
-            _wait_for_visible(rpc, path)
-            _click(rpc, path)
+            _wait_for_visible(context, path)
+            _click(context, path)
             time.sleep(0.3)
-            rows = int(rpc.getStringProperty(LIBRARY_TREEVIEW_PATH, "rows"))
+            rows = int(context.rpc.getStringProperty(LIBRARY_TREEVIEW_PATH, "rows"))
             continue
         if not depth:
             # Reached the end of the entity section
@@ -394,30 +305,6 @@ def _find_sidebar_named_entity_path(rpc, entity, name, expand_if_needed=False):
     assert in_section, f"Could not find the section for {entity} in the sidebar"
 
 # --- Path resolution ---
-
-# TODO can we auto detect it from the QML file?
-TRACK_MENU = [
-    ("Load to", [
-        ("Deck", [
-            ("Deck 1", []),
-            ("Deck 2", []),
-            ("Deck 3", []),
-            ("Deck 4", []),
-        ]),
-        ("Sampler", []),
-    ]),
-    ("Add to playlists", [
-        ("", []),
-        ("Create New Playlist", [])
-    ]),
-    ("Crates", [
-        ("", []),
-        ("", []),
-        ("Create New Crate", [])
-    ]),
-    ("Analyze", []),
-]
-
 
 def _button_path(name):
     return BUTTON_PATHS.get(name, f"mainWindow/{name.lower()}")
@@ -445,37 +332,18 @@ def _column_index(rpc, column):
 def _track_row_path(row):
     return f"{TRACK_ROW_PATH}/trackRow_{row}"
 
-def _sidebar_feature_row_path(rpc, feature):
-    assert _is_visible(rpc, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
-    rows = int(rpc.getStringProperty(LIBRARY_TREEVIEW_PATH, "rows"))
+def _sidebar_feature_row_path(context, feature):
+    assert _is_visible(context, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
+    rows = int(context.rpc.getStringProperty(LIBRARY_TREEVIEW_PATH, "rows"))
     for row in range(rows):
         path = f"{LIBRARY_TREEVIEW_PATH}/index{row}"
-        label = rpc.getStringProperty(f"{path}/label", "text")
+        label = context.rpc.getStringProperty(f"{path}/labelItem", "text")
         if label == feature:
             return path
     return None
 
 
-DECK_PATHS = {
-    1: "mainWindow/deck1",
-    2: "mainWindow/deck2",
-    3: "mainWindow/deck3",
-    4: "mainWindow/deck4",
-}
-
-DECK_PATH_MAP = {
-    "[Channel1]": "mainWindow/deck1",
-    "[Channel2]": "mainWindow/deck2",
-    "[Channel3]": "mainWindow/deck3",
-    "[Channel4]": "mainWindow/deck4",
-}
-
-DECK_GROUPS = {
-    1: "[Channel1]",
-    2: "[Channel2]",
-    3: "[Channel3]",
-    4: "[Channel4]",
-}
+DECK_PATH_MAP = {f"[Channel{deck}]": f"mainWindow/deck{deck}" for deck in range(1, 5)}
 
 DECK_PROPERTY_MAP = {
     "BPM": "bpm",
@@ -486,18 +354,18 @@ DECK_BUTTON_PATHS = {
     "play": "playButton",
     "cue": "cueButton",
     "beatjump": "beatjump",
-    "beatjump_forward": "beatjumpForwardButton",
-    "beatjump_backward": "beatjumpBackwardButton",
+    "beatjump_forward": "jumpForwardButton",
+    "beatjump_backward": "jumpBackButton",
     "hotcue": "hotcueAndStem",
     "loop_in": "loopIn",
     "loop_out": "loopOut",
     "rate": "rateSlider",
-    "reloop_toggle": "reloopToggle",
+    "reloop_toggle": "loopRecallButton",
     "spinny": "spinny",
     "sync": "syncButton",
     "range": "rangeButton",
-    "loop_halve": "loopHalve",
-    "loop_double": "loopDouble",
+    "loop_halve": "loopSizeHalfButton",
+    "loop_double": "loopSizeDoubleButton",
     "tempo": "rateSlider",
 }
 
@@ -520,18 +388,6 @@ TRACK_ACTIONS = {
 }
 
 
-def _deck_hotcue_path(deck, hotcue_number):
-    return f"{_deck_path(deck)}/hotcue_{hotcue_number}"
-
-
-def _deck_path(deck):
-    return DECK_PATHS.get(deck, f"mainWindow/deck{deck}")
-
-
-def _deck_group(deck):
-    return DECK_GROUPS.get(deck, f"[Channel{deck}]")
-
-
 def _deck_button_path(deck, button):
     suffix = DECK_BUTTON_PATHS.get(button, button)
     return f"{_deck_path(deck)}/{suffix}"
@@ -544,23 +400,20 @@ KNOWN_COLUMNS = [
     "Color", "Cover", "Rating", "Date Added", "Times Played",
 ]
 
-QT_KEY_ESCAPE = 0x01000000
-QT_KEY_DELETE = 0x01000007
-
 
 # --- Library search / split view paths ---
 
 SEARCH_PANE_PATH = f"{LIBRARY_CONTENT}/browsingView/searchPane"
 SEARCH_FIELD_PATH = f"{SEARCH_PANE_PATH}/searchField"
-SEARCH_CLEAR_BUTTON_PATH = f"{SEARCH_PANE_PATH}/searchClearButton"
-SEARCH_SUGGESTION_LIST_PATH = f"{SEARCH_PANE_PATH}/searchSuggestionList"
-SEARCH_SUGGESTION_FIELD_LIST_PATH = f"{SEARCH_PANE_PATH}/searchSuggestionFieldList"
-SEARCH_RECENT_LIST_PATH = f"{SEARCH_PANE_PATH}/searchRecentList"
+SEARCH_CLEAR_BUTTON_PATH = f"{SEARCH_PANE_PATH}/clearButton"
+SEARCH_SUGGESTION_LIST_PATH = f"{SEARCH_PANE_PATH}/suggestionList"
+SEARCH_SUGGESTION_FIELD_LIST_PATH = f"{SEARCH_PANE_PATH}/suggestionFieldList"
+SEARCH_RECENT_LIST_PATH = f"{SEARCH_PANE_PATH}/recentList"
 SPLIT_VIEW_BUTTON_PATH = f"{LIBRARY_CONTENT}/tracklistMenu/splitViewButton"
 RIGHT_TRACKLIST_PATH = f"{LIBRARY_CONTENT}/rightTrackList"
 RIGHT_TRACKLIST_TABLE_PATH = f"{RIGHT_TRACKLIST_PATH}/trackTableView"
 
-def _find_list_row_path(rpc, list_path, row_prefix, needle, row_properties,
+def _find_list_row_path(context, list_path, row_prefix, needle, row_properties,
         timeout=5):
     """Resolve the index-keyed path of the row in list_path whose first
     non-empty row property equals needle.
@@ -572,7 +425,7 @@ def _find_list_row_path(rpc, list_path, row_prefix, needle, row_properties,
     deadline = time.time() + timeout
     count = 0
     while time.time() < deadline:
-        count = int(_get_property(rpc, list_path, "count") or 0)
+        count = int(_get_property(context, list_path, "count") or 0)
         if count > 0:
             break
         time.sleep(0.2)
@@ -583,7 +436,7 @@ def _find_list_row_path(rpc, list_path, row_prefix, needle, row_properties,
         path = f"{list_path}/{row_prefix}{index}"
         row_text = ""
         for row_property in row_properties:
-            row_text = _get_property(rpc, path, row_property)
+            row_text = _get_property(context, path, row_property)
             if row_text:
                 break
         if row_text == needle:
@@ -594,21 +447,21 @@ def _find_list_row_path(rpc, list_path, row_prefix, needle, row_properties,
             f"({count} rows: {row_texts})")
 
 
-def _suggestion_row_path(rpc, needle, timeout=5):
+def _suggestion_row_path(context, needle, timeout=5):
     """Path of the suggestion row displaying needle: field suggestions
-    ("Artist:") live in searchSuggestionFieldList and match the rows'
-    display; value suggestions live in searchSuggestionList and match the
+    ("Artist:") live in suggestionFieldList and match the rows'
+    display; value suggestions live in suggestionList and match the
     rows' value."""
     if needle.endswith(":"):
         return _find_list_row_path(
-                rpc,
+                context,
                 SEARCH_SUGGESTION_FIELD_LIST_PATH,
                 "suggestion_",
                 needle,
                 ("display",),
                 timeout)
     return _find_list_row_path(
-            rpc,
+            context,
             SEARCH_SUGGESTION_LIST_PATH,
             "suggestion_",
             needle,
@@ -621,15 +474,15 @@ def _suggestion_row_path(rpc, needle, timeout=5):
 SEARCH_APPLY_DELAY = 1.5
 
 
-def _search_activated(rpc):
-    return _get_property(rpc, SEARCH_PANE_PATH, "activated") == "true"
+def _search_activated(context):
+    return _get_property(context, SEARCH_PANE_PATH, "activated") == "true"
 
 
-def _recent_row_path(rpc, needle, timeout=5):
+def _recent_row_path(context, needle, timeout=5):
     """Path of the recent-search row displaying needle (free text, or the
     serialized query for token rows)."""
     return _find_list_row_path(
-            rpc,
+            context,
             SEARCH_RECENT_LIST_PATH,
             "recent_",
             needle,
@@ -641,28 +494,27 @@ def _activate_library_search(context, timeout=15):
     # AGENTS.md click-retry exception: the collapsed bar opens via TapHandler
     # and spix synthetic taps on TapHandlers can be dropped silently; every
     # retry is verified against the pane's activated state.
-    s = context.mixxx_rpc
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if _search_activated(s):
+        if _search_activated(context):
             return
-        _click(s, SEARCH_PANE_PATH)
+        _click(context, SEARCH_PANE_PATH)
         time.sleep(0.3)
-    assert _search_activated(s), "Library search bar did not open"
+    assert _search_activated(context), "Library search bar did not open"
 
 
 def _deactivate_library_search(context, timeout=5):
     # Escape triggers persistSearch() + deactivateSearch() in the search bar's
     # key handler, which is the deterministic way to give up focus. Re-Escape
     # is needed after a dropped synthetic tap re-opened the bar.
-    s = context.mixxx_rpc
+    s = context.rpc
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if not _search_activated(s):
+        if not _search_activated(context):
             return
         s.enterKey("mainWindow", QT_KEY_ESCAPE, 0)
         time.sleep(0.3)
-    assert not _search_activated(s), "Library search bar is still activated"
+    assert not _search_activated(context), "Library search bar is still activated"
 
 
 def _track_rows(rpc, tracklist_path):
@@ -693,9 +545,9 @@ def _mixxx_running(context):
     if mixxx is None or mixxx.process is None or mixxx.process.poll():
         return False
     try:
-        if hasattr(context, "mixxx_rpc") and context.mixxx_rpc:
+        if hasattr(context, "rpc") and context.rpc:
             # Only checking this isn't an empty string or a False boolean
-            return bool(context.mixxx_rpc.getStringProperty("mainWindow", "visible"))
+            return bool(context.rpc.getStringProperty("mainWindow", "visible"))
     except Exception as e:
         print(f"Unable to probe RPC: {e}")
     return False
@@ -734,7 +586,7 @@ def _stop_mixxx(context):
         if not quit_attempted and mixxx.process is not None and mixxx.process.poll() is None:
             quit_attempted = True
             try:
-                rpc = getattr(context, "mixxx_rpc", None)
+                rpc = getattr(context, "rpc", None)
                 if rpc is not None:
                     rpc.quit()
                     time.sleep(1)
@@ -746,7 +598,7 @@ def _stop_mixxx(context):
     session["ready_key"] = None
     session["registered_devices"] = None
     context.mixxx = None
-    context.mixxx_rpc = None
+    context.rpc = None
 
 
 def _device_signature(context):
@@ -817,6 +669,7 @@ def step_new_empty_profile(context, profile_type):
 def step_open_and_ready(context):
     session = context._session
     if session.get("ready_key") == _session_key(context) and _mixxx_running(context):
+        context.default_size = session.get("default_size", (None, None))
         return
 
     tracks_dir = context.config.userdata["tracks_dir"]
@@ -835,15 +688,15 @@ def step_open_and_ready(context):
             output_dir=context.config.userdata.get("mixxx_output_dir"),
         )
         context.mixxx.start()
-        context.mixxx_rpc = RobustRpcProxy()
+        context.rpc = RobustRpcProxy()
         session["mixxx"] = context.mixxx
-        session["rpc"] = context.mixxx_rpc
+        session["rpc"] = context.rpc
         # A fresh instance has no mock devices registered; the sync below
         # must know that to avoid a pointless reload on device-less spawns.
         session["registered_devices"] = _mock_devices_key(None)
-        _wait_for_hidden(context.mixxx_rpc, "mainWindow/splashScreen", timeout=30) # FIXME: First launch on Windows 10 CI runner is quite slow
+        _wait_for_visible(context, "mainWindow")
         if context.active_profile_type == "library-ready":
-            _library_command(context.mixxx_rpc, "addDirectory", tracks_dir, scan=True)
+            _library_command(context, "addDirectory", tracks_dir, scan=True)
 
     # Sync the mock devices with the scenario's device table. Registering or
     # clearing devices forces a reloadQml (full QML rebuild) because the
@@ -854,46 +707,47 @@ def step_open_and_ready(context):
     # scenarios reuse the instance untouched.
     desired_devices = _mock_devices_key(getattr(context, "_soundMockDevices", None))
     if session.get("registered_devices") != desired_devices:
-        context.mixxx_rpc.command("clearMockDevices", "")
+        context.rpc.command("clearMockDevices", "")
         if getattr(context, "_soundMockDevices", None):
-            context.mixxx_rpc.command(
+            context.rpc.command(
                 "registerMockDevices",
                 json.dumps({"devices": context._soundMockDevices}),
             )
-        context.mixxx_rpc.command("reloadQml", "")
+        context.rpc.command("reloadQml", "")
         session["registered_devices"] = desired_devices
     time.sleep(0.5)
 
-    if "_remembered" not in context:
-        context._remembered = {}
-
-    _wait_for_visible(context.mixxx_rpc, "mainWindow/library")
-    _wait_for_hidden(context.mixxx_rpc, "mainWindow/splashScreen", timeout=30) # FIXME: First launch on Windows 10 CI runner is quite slow
-    context.mixxx_rpc.setStringProperty("mainWindow", "enableDiagnosticClick", "true")
+    _wait_for_visible(context, "mainWindow/maximizeLibraryButton")
+    _wait_for_hidden(context, "mainWindow/splash", timeout=30) # FIXME: First launch on Windows 10 CI runner is quite slow
+    context.rpc.setStringProperty("mainWindow", "enableDiagnosticClick", "true")
+    # The system might constrain the size below or default one (e.g windows policy), so we keep track of what the system default are in order to reset between scenarios
+    session["default_size"] = (_get_property(context, "mainWindow", "width"), _get_property(context, "mainWindow", "height"))
+    context.default_size = session["default_size"]
     session["ready_key"] = _session_key(context)
 
 @given(u'a {entity} named "{name}" already exists with {track_count:d} tracks')
 @given(u'a {entity} named "{name}" already exists')
 def step_library_feature_entity_exists(context, entity, name, track_count=0):
-    rpc = context.mixxx_rpc
-    state = _get_library_state(rpc).get(entity + 's', [])
+    rpc = context.rpc
+    state = _get_library_state(context).get(entity + 's', [])
 
     for p in state:
         if p["name"] == name:
             return
 
-    _library_command(rpc, payload={"action": "createFeatureItem", "type": entity, "name": name, "random_track_count": track_count})
+    _library_command(context, payload={"action": "createFeatureItem", "type": entity, "name": name, "random_track_count": track_count})
     result = json.loads(rpc.getStringProperty("mainWindow", "lastLibraryState"))
     assert result["result"] == "success", f"Could not create the {entity}: {result}"
 
-    # TODO cleanup hooks are creating challenges currently due to the ir dependence to the state and health of the RPC server and executable
-    # For now, we leave created resource in place
-    # def cleanup_func(entity_id, **kwargs):
-    #     _library_command(rpc, payload={"action": "deleteFeatureItem", "type": entity, "id": entity_id})
-    #     result = json.loads(rpc.getStringProperty("mainWindow", "lastLibraryState"))
-    #     assert result["result"] == "success", f"Could not delete the {entity} with id {entity_id}: {result}"
+@given(u'no {entity} named "{name}" exists')
+def step_library_feature_entity_exists(context, entity, name):
+    state = _get_library_state(context).get(entity + 's', [])
 
-    # context.add_cleanup(cleanup_func, result["id"], layer="testrun")
+    for p in state:
+        if p["name"] == name:
+            _library_command(context, payload={"action": "deleteFeatureItem", "type": entity, "id": p["id"]})
+            result = json.loads(rpc.getStringProperty("mainWindow", "lastLibraryState"))
+            assert result["result"] == "success", f"Could not delete the {entity} with id {entity_id}: {result}"
 
 
 # --- When: window/button steps ---
@@ -910,43 +764,41 @@ def step_window_height_is(context, height):
 
 @given("the window size is default")
 def step_window_size_default(context):
-    s = context.mixxx_rpc
-    _set_property(s, "mainWindow", "width", 1792)
-    _set_property(s, "mainWindow", "height", 1008)
+    default_width, default_height = context.default_size
+    if default_width and _get_property(context, "mainWindow", "width") != default_width:
+        _set_property(context, "mainWindow", "width", default_width)
+    if default_height and _get_property(context, "mainWindow", "height") != default_height:
+        _set_property(context, "mainWindow", "height", default_height)
     time.sleep(0.5)
 
 
 @given("the library columns are in their default state")
 def step_library_columns_default(context):
-    context.mixxx_rpc.invokeMethod(TRACKLIST_PATH, "resetColumns", [])
+    context.rpc.invokeMethod(TRACKLIST_PATH, "resetColumns", [])
     time.sleep(0.5)
 
 
 @when("I resize the window's width to {width:d}px")
 def step_resize_window_width(context, width):
-    s = context.mixxx_rpc
-    _set_property(s, "mainWindow", "width", width)
+    _set_property(context, "mainWindow", "width", width)
     time.sleep(0.5)
 
 
 @when("I resize the window's height to {height:d}px")
 def step_resize_window_height(context, height):
-    s = context.mixxx_rpc
-    _set_property(s, "mainWindow", "height", height)
+    _set_property(context, "mainWindow", "height", height)
     time.sleep(0.5)
 
 
 @when('I check on the button "{button}" in the main toolbar')
 def step_check_button(context, button):
-    s = context.mixxx_rpc
     path = _button_path(button)
-    assert _is_visible(s, path), f"Button {button} (path: {path}) not found or not visible"
+    assert _is_visible(context, path), f"Button {button} (path: {path}) not found or not visible"
 
 
 @when('I click the "{button}" button')
 def step_click_button(context, button):
-    s = context.mixxx_rpc
-    _click(s, _button_path(button))
+    _click(context, _button_path(button))
     time.sleep(1)
 
 
@@ -954,7 +806,7 @@ def step_click_button(context, button):
 
 @when('I click the "{button}" button on deck {deck:d}')
 def step_click_deck_button(context, button, deck):
-    _click(context.mixxx_rpc, _deck_button_path(deck, button))
+    _click(context, _deck_button_path(deck, button))
     time.sleep(1)
 
 
@@ -962,9 +814,9 @@ def step_click_deck_button(context, button, deck):
 def step_long_press_deck_button(context, button, deck):
     path = _deck_button_path(deck, button)
     if button == "sync":
-        context.mixxx_rpc.invokeMethod(path, "toggleLeader", [])
+        context.rpc.invokeMethod(path, "toggleLeader", [])
     else:
-        _long_press(context.mixxx_rpc, path)
+        _long_press(context, path)
     time.sleep(0.5)
 
 
@@ -973,22 +825,21 @@ def step_direction_component_size(context, direction, component, deck):
     button = LOOP_BUTTONS.get((direction, component))
     if not button:
         raise ValueError(f"Unknown {direction} for {component}")
-    _click(context.mixxx_rpc, _deck_button_path(deck, button))
+    _click(context, _deck_button_path(deck, button))
     time.sleep(0.3)
 
 
 @when("I seek to {position:f} in deck {deck:d}")
 def step_seek_in_deck(context, position, deck):
-    group = _deck_group(deck)
-    context.mixxx_rpc.mouseClickWithProportion(_deck_button_path(deck, "overview"), position, 0.5)
+    context.rpc.mouseClickWithProportion(_deck_button_path(deck, "overview"), position, 0.5)
     time.sleep(0.5)
 
 
 @when("I set the rate of deck {deck:d} to {value:d}%")
 def step_set_rate(context, deck, value):
     path = f'{_deck_button_path(deck, "rate")}/handle'
-    bb = context.mixxx_rpc.getBoundingBox(_deck_button_path(deck, "rate"))
-    context.mixxx_rpc.mouseDrag(path, 0, 0, 0, bb[3] / 4 * -(value / 100), 1000)
+    bb = context.rpc.getBoundingBox(_deck_button_path(deck, "rate"))
+    context.rpc.mouseDrag(path, 0, 0, 0, bb[3] / 4 * -(value / 100), 1000)
 
 
 # --- When: hotcue steps ---
@@ -996,7 +847,7 @@ def step_set_rate(context, deck, value):
 @when("I set hotcue {hotcue:d} on deck {deck:d}")
 @when("I clear hotcue {hotcue:d} on deck {deck:d}")
 def step_toggle_hotcue(context, hotcue, deck):
-    _click(context.mixxx_rpc, _deck_hotcue_path(deck, hotcue))
+    _click(context, _deck_hotcue_path(deck, hotcue))
     time.sleep(0.3)
 
 
@@ -1004,27 +855,24 @@ def step_toggle_hotcue(context, hotcue, deck):
 
 @when('I remember the "{prop}" of deck {deck:d}')
 def step_remember(context, prop, deck):
-    group = _deck_group(deck)
-    key = REMEMBERED_CO_KEYS[prop]
-    context._remembered[prop] = float(
-        _get_control_value(context.mixxx_rpc, group, key)
-    )
+    _remember(
+        context, prop,
+        _get_control_value(context, _deck_group(deck), REMEMBERED_CO_KEYS[prop]))
 
 
 # --- When: column steps ---
 
 @when('I click the column header "{column}"')
 def step_click_column_header(context, column):
-    s = context.mixxx_rpc
     path = _column_header_path(column)
-    _click(s, path)
+    _click(context, path)
     time.sleep(0.5)
 
 
 @when('I drag the column "{column}" before the column "{target}"')
 def step_drag_column(context, column, target):
     # FIXME not working with column, using bare "moveColumn" instead
-    s = context.mixxx_rpc
+    s = context.rpc
     column_idx = _column_index(s, column)
     assert column_idx >= 0, f"Column '{column}' cannot be found ({column_idx})"
     target_idx = _column_index(s, target)
@@ -1035,31 +883,30 @@ def step_drag_column(context, column, target):
 
 @when("I open the column picker menu")
 def step_open_column_picker(context):
-    s = context.mixxx_rpc
-    _right_click(s, _column_header_path("Title"))
-    _wait_for_visible(s, COLUMN_PICKER_MENU_PATH)
+    _right_click(context, _column_header_path("Title"))
+    _wait_for_visible(context, COLUMN_PICKER_MENU_PATH)
 
 
 @when('I toggle the column "{column}" in the column picker')
 def step_toggle_column(context, column):
-    s = context.mixxx_rpc
+    s = context.rpc
     index = _column_index(s, column)
     if index < 0:
         raise KeyError(f'column {column} unknown')
     _get_current_action = lambda: int(s.getStringProperty(COLUMN_PICKER_MENU_PATH, "currentIndex"))
     # Needed if QPA == xcb
     # if _get_current_action() == -1:
-    #     _click(s, COLUMN_PICKER_MENU_PATH)
+    #     _click(context, COLUMN_PICKER_MENU_PATH)
     #     time.sleep(0.3)
-    # assert _is_visible(s, COLUMN_PICKER_MENU_PATH), "Context menu disappear"
+    # assert _is_visible(context, COLUMN_PICKER_MENU_PATH), "Context menu disappear"
     if _get_current_action() == -1:
         s.enterKey("mainWindow", QT_KEY_DOWN, 0)
         time.sleep(0.3)
-    assert _is_visible(s, COLUMN_PICKER_MENU_PATH), "Context menu disappear"
+    assert _is_visible(context, COLUMN_PICKER_MENU_PATH), "Context menu disappear"
     if _get_current_action() == -1:
         s.enterKey("mainWindow", QT_KEY_TAB, 0)
         time.sleep(0.3)
-    assert _is_visible(s, COLUMN_PICKER_MENU_PATH), "Context menu disappear"
+    assert _is_visible(context, COLUMN_PICKER_MENU_PATH), "Context menu disappear"
     assert _get_current_action() != -1, "Unable to focus the context menu"
 
     current = _get_current_action()
@@ -1075,27 +922,27 @@ def step_toggle_column(context, column):
 
 # --- When: track steps ---
 
-def _track_is_selected(rpc, path):
+def _track_is_selected(context, path):
     try:
-        return _get_property(rpc, path, "selected") == "true"
+        return _get_property(context, path, "selected") == "true"
     except Exception:
         return False
 
 
-def _wait_for_track_selected(rpc, path, timeout=5):
+def _wait_for_track_selected(context, path, timeout=5):
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if _track_is_selected(rpc, path):
+        if _track_is_selected(context, path):
             return True
         time.sleep(0.2)
     return False
 
 
-def _wait_for_context_menu(rpc, timeout=5):
+def _wait_for_context_menu(context, timeout=5):
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            if _is_visible(rpc, TRACK_CONTEXT_MENU_PATH):
+            if _is_visible(context, TRACK_CONTEXT_MENU_PATH):
                 return True
         except Exception:
             pass
@@ -1104,21 +951,18 @@ def _wait_for_context_menu(rpc, timeout=5):
 
 
 def _perform_track_action(context, action, row, table=TRACK_TABLE_PATH):
-    s = context.mixxx_rpc
-    _scroll_tableview_to_row(s, row, table)
+    _scroll_tableview_to_row(context, row, table)
     path = f"{table}/trackRow_{row}"
-    _wait_for_clickable(s, path, timeout=10) # Some CI platform like Windows 10 are very slow to load the table
-    time.sleep(0.5)
-    TRACK_ACTIONS[action](s, path)
-    time.sleep(0.3)
+    _wait_for_clickable(context, path, timeout=10) # Some CI platform like Windows 10 are very slow to load the table
+    TRACK_ACTIONS[action](context, path)
     # The synthetic tap that selects a row is occasionally dropped under load
     # (e.g. a CI runner that is also capturing video), so re-click once if the
     # row did not end up selected.
-    if action == "click" and not _wait_for_track_selected(s, path):
-        _click(s, path)
+    if action == "click" and not _wait_for_track_selected(context, path):
+        _click(context, path)
         time.sleep(0.3)
-    elif action == "right-click" and not _wait_for_context_menu(s):
-        _right_click(s, path)
+    elif action == "right-click" and not _wait_for_context_menu(context):
+        _right_click(context, path)
         time.sleep(0.3)
 
 
@@ -1130,47 +974,62 @@ def step_track_action(context, action, row, panel="left"):
 
 @when("I click a track below the fold")
 def step_click_track_below_fold(context):
-    row = _last_track_row(context.mixxx_rpc)
+    row = _last_track_row(context.rpc)
     context._fold_track_row = row
     _perform_track_action(context, "click", row)
 
 @when('I select {path} on the track menu')
 def step_select_track_menu(context, path):
-    s = context.mixxx_rpc
-    assert _is_visible(s, TRACK_CONTEXT_MENU_PATH), "Track context menu is not visible"
 
     steps = list(map(lambda raw: raw.strip()[1:-1], path.split('>')))
-    current = TRACK_MENU
-    indices = []
-    while steps:
-        step = steps.pop(0)
-        action = [(i, s) for i, s in enumerate(current) if s[0] == step]
-        assert len(action) == 1, f"Cannot find {repr(step)} in the current menu or submenu: {current} {action}"
-        index, action = action[0]
-        indices.append(index)
-        current = action[1]
 
-    s.invokeMethod(TRACK_CONTEXT_MENU_PATH, "forceActiveFocus", [])
-    while indices:
-        index = indices.pop(0)
-        s.setStringProperty(TRACK_CONTEXT_MENU_PATH, "currentIndex", str(index))
-        time.sleep(0.2)
-        s.enterKey(TRACK_CONTEXT_MENU_PATH, QT_KEY_ENTER, 0)
-    time.sleep(1)
+    def activate(steps, depth=0):
+        menu_path = TRACK_CONTEXT_MENU_PATH if not depth else f"{TRACK_CONTEXT_MENU_PATH}_Sub{depth}"
+        assert _wait_visible_impl(context.rpc, menu_path, timeout=5), f"Context {'menu' if not depth else 'submenu'} is not visible"
+        step = steps.pop(0)
+        menu = json.loads(context.rpc.invokeMethod(menu_path, "serialisedDump", []))
+        target_index, item = [(i, item) for i, item in enumerate(menu["items"]) if item.get("text") == step][0]
+        path = menu_path + "/" + item["objectName"]
+
+        context.rpc.invokeMethod(menu_path, "forceActiveFocus", [])
+        current_index = menu["currentIndex"]
+        while current_index != target_index and current_index < menu["count"] - 1:
+            # Later, we could extend the DSL to request a click on the item. This may be useful to assert granularly the context menu behaviour
+            # _click(context, path)
+            # time.sleep(0.3)
+            # new_index = int(_get_property(context, menu_path, "currentIndex"))
+            context.rpc.enterKey(menu_path, QT_KEY_DOWN, 0)
+            time.sleep(0.5)
+            new_index = int(_get_property(context, menu_path, "currentIndex"))
+            # Some platform may struggle with dispatching the emulated keyboard input, so we use the direct setter as fallback
+            if new_index == current_index:
+                context.rpc.invokeMethod(menu_path, "setMenuIndex", [target_index])
+                new_index = int(_get_property(context, menu_path, "currentIndex"))
+            assert new_index != current_index, "Unable to change the context menu index"
+            current_index = new_index
+        assert target_index == current_index, "Unable to reach the target context menu item"
+        context.rpc.enterKey(menu_path, QT_KEY_ENTER, 0)
+        time.sleep(0.5)
+        if steps:
+            activate(steps, depth+1)
+        else:
+            # Not all menu actions will hide the menu, so we don't assert here
+            _wait_hidden_impl(context.rpc, menu_path, timeout=3)
+
+    activate(steps)
 
 @when('I discard the track menu')
 def step_select_track_menu(context):
-    s = context.mixxx_rpc
     deadline = time.time() + 5
-    while time.time() < deadline and _is_visible(s, TRACK_CONTEXT_MENU_PATH):
-        _click(s, "mainWindow")
+    while time.time() < deadline and _is_visible(context, TRACK_CONTEXT_MENU_PATH):
+        _click(context, "mainWindow")
         time.sleep(0.2)
-    assert not _is_visible(s, TRACK_CONTEXT_MENU_PATH), "Context menu is still visible"
+    assert not _is_visible(context, TRACK_CONTEXT_MENU_PATH), "Context menu is still visible"
 
 
 @given("a track is loaded on deck {deck:d}")
 def step_load_track_to_deck(context, deck):
-    s = context.mixxx_rpc
+    s = context.rpc
     tracks_dir = context.config.userdata["tracks_dir"]
     track_files = sorted(os.listdir(tracks_dir))
     if not track_files:
@@ -1193,26 +1052,26 @@ def step_load_track_to_deck(context, deck):
 @given("no track is loaded on deck {deck:d}")
 def step_no_track_loaded_to_deck(context, deck):
     group = _deck_group(deck)
-    if _get_control_value(context.mixxx_rpc, group, "track_loaded"):
-        _set_control_value(context.mixxx_rpc, group, "eject", 1.0)
+    if _get_control_value(context, group, "track_loaded"):
+        _set_control_value(context, group, "eject", 1.0)
         time.sleep(0.01)
-        _set_control_value(context.mixxx_rpc, group, "eject", 0.0)
+        _set_control_value(context, group, "eject", 0.0)
     time.sleep(0.3)
-    assert not _get_control_value(context.mixxx_rpc, group, "track_loaded"), f"Track is still loaded on {group}"
+    assert not _get_control_value(context, group, "track_loaded"), f"Track is still loaded on {group}"
 
 
 @given("the {prop} on deck {deck:d} is set to {value:f}")
 def step_deck_set_rate(context, prop, deck, value):
     group = _deck_group(deck)
     key = DECK_PROPERTY_MAP.get(prop, prop)
-    _set_control_value(context.mixxx_rpc, group, key, value)
+    _set_control_value(context, group, key, value)
     time.sleep(0.3)
 
 
 @given("the sync_on deck {deck:d} is {state}")
 def step_deck_set_sync(context, deck, state):
     group = _deck_group(deck)
-    _set_control_value(context.mixxx_rpc, group, "sync_enabled", float(state != "disabled"))
+    _set_control_value(context, group, "sync_enabled", float(state != "disabled"))
     time.sleep(0.3)
 
 
@@ -1223,11 +1082,11 @@ def step_move_component_after(context, component, deck, cardinality, target):
     component_path = _deck_button_path(deck, component)
     target_path = _deck_button_path(deck, target)
 
-    component_bb = context.mixxx_rpc.getBoundingBox(component_path)
-    target_bb = context.mixxx_rpc.getBoundingBox(target_path)
+    component_bb = context.rpc.getBoundingBox(component_path)
+    target_bb = context.rpc.getBoundingBox(target_path)
     delta = target_bb[0] - component_bb[0], target_bb[1] - component_bb[1]
 
-    context.mixxx_rpc.mouseDrag(component_path, 0.5, 0.5, *delta, 1000)
+    context.rpc.mouseDrag(component_path, 0.5, 0.5, *delta, 1000)
     time.sleep(2)
 
 
@@ -1236,11 +1095,11 @@ def step_move_group_after(context, deck, target):
     component_path = _deck_button_path(deck, "selectedGroupOverlay")
     target_path = _deck_button_path(deck, target)
 
-    component_bb = context.mixxx_rpc.getBoundingBox(component_path)
-    target_bb = context.mixxx_rpc.getBoundingBox(target_path)
+    component_bb = context.rpc.getBoundingBox(component_path)
+    target_bb = context.rpc.getBoundingBox(target_path)
     delta = target_bb[0] - component_bb[0] + target_bb[2]/2, target_bb[1] - component_bb[1]
 
-    context.mixxx_rpc.mouseDrag(component_path, 0, 0, *delta, 1000)
+    context.rpc.mouseDrag(component_path, 0, 0, *delta, 1000)
     time.sleep(2)
 
 
@@ -1248,9 +1107,9 @@ def step_move_group_after(context, deck, target):
 def step_select_component_group(context, component, deck, action):
     path = _deck_button_path(deck, component)
     if action == "long press":
-        context.mixxx_rpc.mouseClickAndHold(path, QT_LEFT_BUTTON, 0, 1000)
+        context.rpc.mouseClickAndHold(path, QT_LEFT_BUTTON, 0, 1000)
     elif action == "ctrl+click":
-        context.mixxx_rpc.mouseClickWithButton(path, QT_LEFT_BUTTON, QT_CONTROL_MODIFIER)
+        context.rpc.mouseClickWithButton(path, QT_LEFT_BUTTON, QT_CONTROL_MODIFIER)
     else:
         raise NotImplementedError(f"Unsupported action '{action}'")
     time.sleep(0.3)
@@ -1269,9 +1128,8 @@ def step_wait(context, second):
 
 @then("the library is shown for {operator} than {percent:d}% of the Window's height")
 def step_library_width(context, operator, percent):
-    s = context.mixxx_rpc
-    mw = _get_bb(s, "mainWindow")
-    lb = _get_bb(s, LIBRARY_CONTENT)
+    mw = _get_bb(context, "mainWindow")
+    lb = _get_bb(context, LIBRARY_CONTENT)
     ratio = float(lb["height"]) / float(mw["height"])
     if operator == "less":
         assert ratio < percent / 100.0, f"Library covers {ratio*100:.1f}%, expected less than {percent}%"
@@ -1283,41 +1141,44 @@ def step_library_width(context, operator, percent):
 
 @then('the library sidebar should show the source "{name}"')
 def step_library_show_source(context, name):
-    s = context.mixxx_rpc
-    path = _sidebar_feature_row_path(s, name)
-    assert path and _is_visible(s, path), f"Could not find the feature \"{name}\" in the library sidebar"
+    path = _sidebar_feature_row_path(context, name)
+    assert path and _is_visible(context, path), f"Could not find the feature \"{name}\" in the library sidebar"
 
 @then('the option to create a new item should {expect} available for the selected library source')
 def step_library_source_create_option(context, expect):
-    s = context.mixxx_rpc
-    assert _is_visible(s, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
+    s = context.rpc
+    assert _is_visible(context, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
     selected = s.invokeMethod(LIBRARY_TREEVIEW_PATH, "getSelectedPath", [])
     path = f"{LIBRARY_TREEVIEW_PATH}/index{selected}"
-    assert path and _is_visible(s, path), "No library sidebar feature currently selected"
+    assert path and _is_visible(context, path), "No library sidebar feature currently selected"
     expected = expect == "be"
-    assert _is_visible(s, f"{path}/newItem") == expected, f"Library sidebar feature's create item should {expect}"
+    assert _is_visible(context, f"{path}/newItem") == expected, f"Library sidebar feature's create item should {expect}"
 
-@then('a create popup for the library source should be visible')
-def step_library_source_create_visible(context):
-    s = context.mixxx_rpc
-    _wait_for_visible(s, LIBRARY_TREEVIEW_CREATE_POPUP)
+@then('a create popup for the library source should be {state}')
+def step_library_source_create_visible(context, state="visible"):
+    if state == "visible":
+        _wait_for_visible(context, LIBRARY_TREEVIEW_CREATE_POPUP)
+        return
+    elif state == "hidden":
+        _wait_for_hidden(context, LIBRARY_TREEVIEW_CREATE_POPUP)
+        return
+    assert False, f"Unsupported state assertion {repr(state)}"
 
 @then('a {entity} named "{name}" should appear in the library sidebar')
 def step_library_playlist_visible(context, entity, name):
-    rpc = context.mixxx_rpc
-    path = _find_sidebar_named_entity_path(rpc, entity, name)
+    path = _find_sidebar_named_entity_path(context, entity, name)
     assert path, f"Could not find the library {repr(name)} in the sidebar"
 
 @then('the {entity} named "{name}" should be shown in tracklist')
 @then('all tracks should be shown in tracklist')
 def step_library_playlist_visible(context, entity=None, name=None):
-    rpc = context.mixxx_rpc
+    rpc = context.rpc
     selected = rpc.invokeMethod(TRACK_TABLE_PATH, "currentlyActiveModel", [])
     if not entity or not name:
         assert selected == "all_tracks", "Current active track list is not all track"
         return
 
-    state = _get_library_state(rpc).get(entity + 's', [])
+    state = _get_library_state(context).get(entity + 's', [])
     entity_id = [e["id"] for e in state if e["name"] == name]
     assert entity_id, f"Cannot find the {entity} named {repr(name)}"
 
@@ -1325,8 +1186,7 @@ def step_library_playlist_visible(context, entity=None, name=None):
 
 @then(u'a {entity} named "{name}" should exist in the library')
 def step_library(context, entity, name):
-    rpc = context.mixxx_rpc
-    state = _get_library_state(rpc).get(entity + 's', [])
+    state = _get_library_state(context).get(entity + 's', [])
     entity_id = [e["id"] for e in state if e["name"] == name]
     assert entity_id, f"Cannot find the {entity} named {repr(name)}"
 
@@ -1337,20 +1197,19 @@ def step_library(context, entity):
 
 @then(u'the create popup for the library source should remain visible')
 def step_library(context):
-    s = context.mixxx_rpc
     # No wait here as it is expected to already be visible
-    assert _is_visible(s, LIBRARY_TREEVIEW_CREATE_POPUP), "The create entity popup is not visible"
+    assert _is_visible(context, LIBRARY_TREEVIEW_CREATE_POPUP), "The create entity popup is not visible"
 
 @then(u'the create popup for the library source should show an error state')
 def step_library(context):
-    rpc = context.mixxx_rpc
-    errors = rpc.getStringProperty(f"{LIBRARY_TREEVIEW_CREATE_POPUP}/name", "hasError")
+    rpc = context.rpc
+    errors = rpc.getStringProperty(f"{LIBRARY_TREEVIEW_CREATE_POPUP}/newItemName", "hasError")
     assert errors == "true", f"The create entity popup should show an error but is showing none (is: {repr(errors)})"
 
 @then(u'the library should not create a duplicate {entity} named "{name}"')
 def step_library(context, entity, name):
-    rpc = context.mixxx_rpc
-    assert _is_visible(rpc, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
+    rpc = context.rpc
+    assert _is_visible(context, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
     rows = int(rpc.getStringProperty(LIBRARY_TREEVIEW_PATH, "rows"))
     in_section = False
     row = 0
@@ -1358,7 +1217,7 @@ def step_library(context, entity, name):
     while row < rows:
         path = f"{LIBRARY_TREEVIEW_PATH}/index{row}"
         depth = int(rpc.invokeMethod(LIBRARY_TREEVIEW_PATH, "depth", [row]))
-        label = rpc.getStringProperty(f"{path}/label", "text")
+        label = rpc.getStringProperty(f"{path}/labelItem", "text")
         row += 1
 
         if not in_section:
@@ -1368,8 +1227,8 @@ def step_library(context, entity, name):
             is_expanded = rpc.getStringProperty(path, "expanded") == "true"
             if is_expanded or not expand_if_needed:
                 continue
-            _wait_for_visible(rpc, path)
-            _click(rpc, path)
+            _wait_for_visible(context, path)
+            _click(context, path)
             time.sleep(0.3)
             rows = int(rpc.getStringProperty(LIBRARY_TREEVIEW_PATH, "rows"))
             continue
@@ -1381,33 +1240,32 @@ def step_library(context, entity, name):
 
     assert count == 1, f"Found an unexpected number of occurrence ({count}) of {entity} named {repr(name)} in the sidebar"
 
-    state = _get_library_state(rpc).get(entity + 's', [])
+    state = _get_library_state(context).get(entity + 's', [])
     entity_id = [e["id"] for e in state if e["name"] == name]
     assert len(entity_id) == 1, f"Found an unexpected number of occurrence ({count}) of {entity} named {repr(name)} in the backend"
 
 @then(u'the selected library source item should be "{name}"')
 def step_library(context, name):
-    rpc = context.mixxx_rpc
-    assert _is_visible(rpc, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
+    rpc = context.rpc
+    assert _is_visible(context, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
     row = int(rpc.getStringProperty(LIBRARY_TREEVIEW_PATH, "currentRow"))
     path = f"{LIBRARY_TREEVIEW_PATH}/index{row}"
-    label = rpc.getStringProperty(f"{path}/label", "text")
+    label = rpc.getStringProperty(f"{path}/labelItem", "text")
     assert label == name, f"The expected selected source is {repr(label)} but should be {repr(name)}"
 
 
 @then(u'the sidebar should list "{name}" under {entity}')
 def step_library(context, entity, name):
-    rpc = context.mixxx_rpc
-    path = _find_sidebar_named_entity_path(rpc, entity, name, expand_if_needed=True)
+    path = _find_sidebar_named_entity_path(context, entity, name, expand_if_needed=True)
     assert path, f"Could not find the {entity} named \"{name}\" in the library sidebar"
 
 
 @when(u'I enter "{name}" as the new {entity} context-menu input and submit')
 def step_library(context, entity, name):
-    path = f"mainWindow/contextMenuCreateEntityItem/input"
-    _wait_for_visible(context.mixxx_rpc, path)
-    context.mixxx_rpc.inputText(path, name)
-    context.mixxx_rpc.enterKey(path, QT_KEY_ENTER, 0)
+    path = "mainWindow/contextMenuCreateEntityItem/input"
+    _wait_for_visible(context, path)
+    context.rpc.inputText(path, name)
+    context.rpc.enterKey(path, QT_KEY_ENTER, 0)
     time.sleep(1)
 
 
@@ -1415,7 +1273,7 @@ def step_library(context, entity, name):
 
 @then('only the column "{columns}" are shown')
 def step_only_columns_shown(context, columns):
-    s = context.mixxx_rpc
+    s = context.rpc
     expected = [c.strip() for c in re.split(r"[,\.]", columns)]
     for col in expected:
         if not col:
@@ -1432,7 +1290,7 @@ def step_only_columns_shown(context, columns):
 
 @then('the column "{column}" should {state} visible')
 def step_column_visible(context, column, state):
-    s = context.mixxx_rpc
+    s = context.rpc
     requested = "not" not in state
     currentState = "not" if requested else "still"
     assert _is_column_visible(s, column) is requested, f"Column {column} is {currentState} visible"
@@ -1440,9 +1298,8 @@ def step_column_visible(context, column, state):
 
 @then('the column "{column}" should appear before the column "{other}"')
 def step_column_order(context, column, other):
-    s = context.mixxx_rpc
-    col_bb = _get_bb(s, _column_header_path(column))
-    other_bb = _get_bb(s, _column_header_path(other))
+    col_bb = _get_bb(context, _column_header_path(column))
+    other_bb = _get_bb(context, _column_header_path(other))
     assert col_bb["x"] < other_bb["x"], (
         f"Column {column} (x={col_bb['x']}) is not before {other} (x={other_bb['x']})"
     )
@@ -1452,17 +1309,17 @@ def step_column_order(context, column, other):
 
 @then('the results should be sorted by "{column}" in "{order}" order')
 def step_sorted_by(context, column, order):
-    s = context.mixxx_rpc
+    s = context.rpc
     column_idx = _column_index(s, column)
     assert column_idx >= 0, f"Unknown column: {column}"
-    sort_col = _get_property(s, COLUMN_HEADER_PATH, "sortingColumn")
+    sort_col = _get_property(context, COLUMN_HEADER_PATH, "sortingColumn")
     assert sort_col == str(column_idx), (
         f"Expected results sorted by '{column}' (column index {column_idx}) "
         f"but sortingColumn is {sort_col}"
     )
     assert order in ("ascending", "descending"), f"Unknown order: {order}"
     expected_order = "0" if order == "ascending" else "1"
-    sort_order = _get_property(s, COLUMN_HEADER_PATH, "sortingOrder")
+    sort_order = _get_property(context, COLUMN_HEADER_PATH, "sortingOrder")
     assert sort_order == expected_order, (
         f"Expected {order} sort (Qt value {expected_order}), got {sort_order}"
     )
@@ -1472,15 +1329,14 @@ def step_sorted_by(context, column, order):
 
 @then("the track at row {row:d} should be selected")
 def step_track_selected(context, row):
-    s = context.mixxx_rpc
     path = _track_row_path(row)
-    selected = _get_property(s, path, "selected")
+    selected = _get_property(context, path, "selected")
     assert selected == "true", f"Track at row {row} is not selected (selected={selected})"
 
 
 @then("the track at row {row:d} should be visible on screen")
 def step_track_on_screen(context, row):
-    s = context.mixxx_rpc
+    s = context.rpc
     assert _track_row_is_on_screen(s, row), (
         f"Track at row {row} was not scrolled into the visible viewport"
     )
@@ -1490,7 +1346,7 @@ def step_track_on_screen(context, row):
 def step_fold_track_on_screen(context):
     row = getattr(context, "_fold_track_row", None)
     assert row is not None, "No track below the fold was clicked"
-    s = context.mixxx_rpc
+    s = context.rpc
     assert _track_row_is_on_screen(s, row), (
         f"Track at row {row} was not scrolled into the visible viewport"
     )
@@ -1498,8 +1354,7 @@ def step_fold_track_on_screen(context):
 
 @then("the track context menu should be visible")
 def step_track_context_menu_visible(context):
-    s = context.mixxx_rpc
-    assert _is_visible(s, TRACK_CONTEXT_MENU_PATH), "Track context menu is not visible"
+    assert _is_visible(context, TRACK_CONTEXT_MENU_PATH), "Track context menu is not visible"
 
 
 # --- Then: deck visibility ---
@@ -1507,47 +1362,47 @@ def step_track_context_menu_visible(context):
 @then('the deck for "{group}" should {assertion} visible')
 def step_deck_visible(context, group, assertion):
     if assertion == "be":
-        _wait_for_visible(context.mixxx_rpc, DECK_PATH_MAP[group])
+        _wait_for_visible(context, DECK_PATH_MAP[group])
     else:
-        _wait_for_hidden(context.mixxx_rpc, DECK_PATH_MAP[group])
+        _wait_for_hidden(context, DECK_PATH_MAP[group])
 
 
 @then('the library should {assertion} visible')
 def step_library_visible(context, assertion):
     if assertion == "be":
-        _wait_for_visible(context.mixxx_rpc, LIBRARY_CONTENT)
+        _wait_for_visible(context, LIBRARY_CONTENT)
     else:
-        _wait_for_hidden(context.mixxx_rpc, LIBRARY_CONTENT)
+        _wait_for_hidden(context, LIBRARY_CONTENT)
 
 
 @given("the library is not maximized")
 def step_library_not_maximized(context):
-    _set_control_value(context.mixxx_rpc, "[Skin]", "show_maximized_library", 0)
+    _set_control_value(context, "[Skin]", "show_maximized_library", 0)
     time.sleep(0.5)
 
 
 @given("the library is maximized")
 def step_library_maximized(context):
-    _set_control_value(context.mixxx_rpc, "[Skin]", "show_maximized_library", 1)
-    _wait_for_visible(context.mixxx_rpc, LIBRARY_CONTENT)
+    _set_control_value(context, "[Skin]", "show_maximized_library", 1)
+    _wait_for_visible(context, LIBRARY_CONTENT)
 
 
 @then('the "{button}" button in the main toolbar should {assertion} visible')
 def step_toolbar_button_visible(context, button, assertion):
     path = _button_path(button)
     if assertion == "be":
-        _wait_for_visible(context.mixxx_rpc, path)
+        _wait_for_visible(context, path)
     else:
-        _wait_for_hidden(context.mixxx_rpc, path)
+        _wait_for_hidden(context, path)
 
 
 @then('the "{component}" component should {assertion} visible in deck {deck:d}')
 def step_deck_component_visible(context, component, assertion, deck):
     path = _deck_button_path(deck, component)
     if assertion == "be":
-        _wait_for_visible(context.mixxx_rpc, path)
+        _wait_for_visible(context, path)
     else:
-        _wait_for_hidden(context.mixxx_rpc, path)
+        _wait_for_hidden(context, path)
 
 
 # --- Then: deck state ---
@@ -1556,7 +1411,7 @@ def step_deck_component_visible(context, component, assertion, deck):
 def step_deck_playing(context, deck, assertion):
     group = _deck_group(deck)
     expected = assertion == "playing"
-    value = bool(_get_control_value(context.mixxx_rpc, group, "play"))
+    value = bool(_get_control_value(context, group, "play"))
     label = lambda x: 'playing' if x else 'stopped'
     assert value is expected, (
         f"Play button on deck {deck} ({group}) is {label(value)} but expected {label(expected)}"
@@ -1567,8 +1422,8 @@ def step_deck_property_equal(context, deck_a, prop, deck_b):
     group_a = _deck_group(deck_a)
     group_b = _deck_group(deck_b)
     key = DECK_PROPERTY_MAP.get(prop, prop)
-    current = _get_control_value(context.mixxx_rpc, group_a, key)
-    expected = _get_control_value(context.mixxx_rpc, group_b, key)
+    current = _get_control_value(context, group_a, key)
+    expected = _get_control_value(context, group_b, key)
     assert current == expected, (
         f"{prop} on deck {deck_a} ({group_a}) differs from {deck_b} ({group_b}): {current} != {expected}"
     )
@@ -1577,7 +1432,7 @@ def step_deck_property_equal(context, deck_a, prop, deck_b):
 def step_play_pressed(context, deck, assertion):
     group = _deck_group(deck)
     expected = assertion == "pressed"
-    value = context.mixxx_rpc.getStringProperty(_deck_button_path(deck, "play"), "highlight") == "true"
+    value = context.rpc.getStringProperty(_deck_button_path(deck, "play"), "highlight") == "true"
     label = lambda x: 'pressed' if x else 'released'
     assert value is expected, (
         f"Play button on deck {deck} ({group}) is {label(value)} but expected {label(expected)}"
@@ -1587,7 +1442,7 @@ def step_play_pressed(context, deck, assertion):
 @then("the cue point should be set on deck {deck:d}")
 def step_cue_set(context, deck):
     group = _deck_group(deck)
-    value = _get_control_value(context.mixxx_rpc, group, "cue_point")
+    value = _get_control_value(context, group, "cue_point")
     assert float(value) > 0, f"cue_point not set (value={value})"
 
 
@@ -1597,7 +1452,7 @@ def step_cue_set(context, deck):
 def step_hotcue_assertion(context, hotcue, assertion, deck):
     group = _deck_group(deck)
     expected = assertion == "be"
-    value = float(_get_control_value(context.mixxx_rpc, group, f"hotcue_{hotcue}_status"))
+    value = float(_get_control_value(context, group, f"hotcue_{hotcue}_status"))
     assert (value > 0) == expected, (
         f"hotcue_{hotcue} {'not set' if expected else 'still set'} (value={value})"
     )
@@ -1609,7 +1464,7 @@ def step_hotcue_assertion(context, hotcue, assertion, deck):
 def step_loop_assertion(context, assertion, deck):
     group = _deck_group(deck)
     expected = assertion == "be"
-    value = float(_get_control_value(context.mixxx_rpc, group, "loop_enabled"))
+    value = float(_get_control_value(context, group, "loop_enabled"))
     assert (value > 0) == expected, (
         f"Loop on deck {deck} ({group}) is {'not enabled' if expected else 'still enabled'} (loop_enabled={value})"
     )
@@ -1617,16 +1472,14 @@ def step_loop_assertion(context, assertion, deck):
 
 @then('the "{prop}" of deck {deck:d} should have changed')
 def step_value_changed(context, prop, deck):
-    group = _deck_group(deck)
-    key = REMEMBERED_CO_KEYS[prop]
-    current = float(_get_control_value(context.mixxx_rpc, group, key))
-    saved = context._remembered.get(prop)
-    assert saved is not None, f"No saved {prop} (forgot 'I remember' step?)"
+    current = _get_control_value(
+        context, _deck_group(deck), REMEMBERED_CO_KEYS[prop])
+    saved = _remembered_value(context, prop)
     assert current != saved, (
-        f"{prop} did not change on deck {deck} ({group}): "
+        f"{prop} did not change on deck {deck} ({_deck_group(deck)}): "
         f"was {saved}, is {current}"
     )
-    context._remembered[prop] = current
+    _remember(context, prop, current)
 
 
 # --- Then: sync ---
@@ -1634,7 +1487,7 @@ def step_value_changed(context, prop, deck):
 @then("sync should be {assertion} on deck {deck:d}")
 def step_sync_assertion(context, assertion, deck):
     group = _deck_group(deck)
-    value = float(_get_control_value(context.mixxx_rpc, group, "sync_enabled"))
+    value = float(_get_control_value(context, group, "sync_enabled"))
     expected = assertion == "enabled"
     assert (value > 0) == expected, (
         f"Sync on deck {deck} ({group}) is {'not ' if expected else ''}enabled (value={value})"
@@ -1644,7 +1497,7 @@ def step_sync_assertion(context, assertion, deck):
 @then("deck {deck:d} should be the sync leader")
 def step_sync_leader(context, deck):
     group = _deck_group(deck)
-    leader = _get_control_value(context.mixxx_rpc, group, "sync_leader")
+    leader = _get_control_value(context, group, "sync_leader")
     assert float(leader) > 0, (
         f"Deck {deck} ({group}) is not the sync leader (sync_leader={leader})"
     )
@@ -1655,7 +1508,7 @@ def step_sync_leader(context, deck):
 @then("the rate of deck {deck:d} should be near {target}")
 def step_rate_near(context, deck, target):
     group = _deck_group(deck)
-    actual = float(_get_control_value(context.mixxx_rpc, group, "rate"))
+    actual = float(_get_control_value(context, group, "rate"))
     tol = 0.01
     assert abs(actual - float(target)) < tol, (
         f"Rate on deck {deck} ({group}) is {actual}, expected ~{target}"
@@ -1665,7 +1518,7 @@ def step_rate_near(context, deck, target):
 @then("the rate ratio of deck {deck:d} should be near {target}")
 def step_rate_ratio_near(context, deck, target):
     group = _deck_group(deck)
-    actual = float(_get_control_value(context.mixxx_rpc, group, "rate_ratio"))
+    actual = float(_get_control_value(context, group, "rate_ratio"))
     tol = 0.01
     assert abs(actual - float(target)) < tol, (
         f"Rate ratio on deck {deck} ({group}) is {actual}, expected ~{target}"
@@ -1676,7 +1529,7 @@ def step_rate_ratio_near(context, deck, target):
 
 @then("edit mode should {assertion} enabled")
 def step_edit_mode_assertion(context, assertion):
-    checked = _get_property(context.mixxx_rpc, "mainWindow/editDeckButton", "checked")
+    checked = _get_property(context, "mainWindow/editDeckButton", "checked")
     expected = assertion == "be"
     assert (checked == "true") == expected, (
         f"Edit mode {'not enabled' if expected else 'still enabled'} (checked={checked})"
@@ -1687,9 +1540,9 @@ def step_edit_mode_assertion(context, assertion):
 def step_edit_overlay_visible(context, action, component, deck):
     path = f"{_deck_button_path(deck, component)}Item/overlayItem"
     if action == "be":
-        assert _is_visible(context.mixxx_rpc, path), f"Component '{component}' is not visible"
+        assert _is_visible(context, path), f"Component '{component}' is not visible"
     else:
-        assert not _is_visible(context.mixxx_rpc, path), f"Component '{component}' is visible"
+        assert not _is_visible(context, path), f"Component '{component}' is visible"
 
 
 @then('the "{component}" component should appear {cardinality} the "{target}" component in deck {deck:d}')
@@ -1701,8 +1554,8 @@ def step_component_order_after(context, component, cardinality, target, deck):
         cmp = lambda a, b: a[1] > b[1]
     elif cardinality == "above":
         cmp = lambda a, b: a[1] < b[1]
-    component_bb = context.mixxx_rpc.getBoundingBox(_deck_button_path(deck, component))
-    target_bb = context.mixxx_rpc.getBoundingBox(_deck_button_path(deck, target))
+    component_bb = context.rpc.getBoundingBox(_deck_button_path(deck, component))
+    target_bb = context.rpc.getBoundingBox(_deck_button_path(deck, target))
     assert cmp(component_bb, target_bb), (
         f"Component {component} (x={component_bb[0]}) is not {cardinality} {target} (x={target_bb[0]})"
     )
@@ -1714,7 +1567,7 @@ def step_track_is_loaded_on_deck(context, assertion, deck):
     group = _deck_group(deck)
     expected = assertion == "is"
     reverse = "is not" if expected else "is"
-    assert bool(_get_control_value(context.mixxx_rpc, group, "track_loaded")) is expected, f"Track {reverse} loaded on {group}"
+    assert bool(_get_control_value(context, group, "track_loaded")) is expected, f"Track {reverse} loaded on {group}"
 
 
 
@@ -1723,12 +1576,12 @@ def step_track_is_loaded_on_deck(context, assertion, deck):
 
 def _type_into_library_search(context, text):
     _activate_library_search(context)
-    s = context.mixxx_rpc
+    s = context.rpc
     # inputText() appends to the text that is already in the field, so clear
     # it first; typing goes through real key events so the search bar's
     # onTextEdited handlers run (setting the `text` property directly would
     # bypass them).
-    _set_property(s, SEARCH_FIELD_PATH, "text", "")
+    _set_property(context, SEARCH_FIELD_PATH, "text", "")
     time.sleep(0.3)
     s.inputText(SEARCH_FIELD_PATH, text)
     time.sleep(SEARCH_APPLY_DELAY)
@@ -1754,13 +1607,13 @@ def step_paste_library_search(context, query):
     """Entry of a whole query in one edit; text is set via RPC and
     tryConvertToFieldToken() is called explicitly, mirroring the sidebar
     restore in Library.qml (setting text does not fire onTextEdited)."""
-    s = context.mixxx_rpc
+    s = context.rpc
     query = re.sub(
             r"<(\w+) of this track>",
             lambda match: str(_this_track_field(context, match.group(1))),
             query)
     _activate_library_search(context)
-    _set_property(s, SEARCH_FIELD_PATH, "text", query)
+    _set_property(context, SEARCH_FIELD_PATH, "text", query)
     time.sleep(0.3)
     s.invokeMethod(SEARCH_PANE_PATH, "tryConvertToFieldToken", [])
     time.sleep(SEARCH_APPLY_DELAY)
@@ -1768,9 +1621,8 @@ def step_paste_library_search(context, query):
 
 @when("I clear the library search")
 def step_clear_library_search(context):
-    s = context.mixxx_rpc
-    _click(s, SEARCH_CLEAR_BUTTON_PATH)
-    _wait_for_hidden(s, SEARCH_CLEAR_BUTTON_PATH, 5)
+    _click(context, SEARCH_CLEAR_BUTTON_PATH)
+    _wait_for_hidden(context, SEARCH_CLEAR_BUTTON_PATH, 5)
     # Adding sleep to let the track table settle, as it sometime leads to Spix event loss
     time.sleep(3)
 
@@ -1778,74 +1630,72 @@ def step_clear_library_search(context):
 @when('I select the library search suggestion "{suggestion}"')
 @then('I select the library search suggestion "{suggestion}"')
 def step_select_suggestion(context, suggestion):
-    s = context.mixxx_rpc
-    suggestion_path = _suggestion_row_path(s, suggestion)
-    _click(s, suggestion_path)
+    suggestion_path = _suggestion_row_path(context, suggestion)
+    _click(context, suggestion_path)
     time.sleep(0.5)
 
 
 # --- When: library sidebar ---
 
-@when('I select the source "{feature}" in the library sidebar')
-def step_select_source_sidebar(context, feature):
-    s = context.mixxx_rpc
-    path = _sidebar_feature_row_path(s, feature)
+@when('I {action} the source "{feature}" in the library sidebar')
+def step_select_source_sidebar(context, action, feature):
+    target_property = ({
+        "expand": "expanded",
+        "select": "current",
+    }).get(action)
+    assert target_property, f"Action {repr(action)} is not supported"
+
+    path = _sidebar_feature_row_path(context, feature)
     assert path, f"Could not find the feature \"{feature}\" in the library sidebar"
     # If a popup is still active (e.g item creation, context-menu, ...), the first click will only close the menu, so we retry twice
     for attempt in range(2):
-        is_expanded = s.getStringProperty(path, "expanded") == "true"
-        is_current = s.getStringProperty(path, "current") == "true"
-        if is_expanded and is_current:
+        prop = _get_property(context, path, target_property)
+        assert target_property, f"Could not fetch the feature \"{feature}\" sidebar property ({target_property}={repr(prop)})"
+        if prop == "true":
             return
-        _wait_for_visible(s, path)
-        _click(s, path)
+        _wait_for_visible(context, path)
+        _click(context, path)
         time.sleep(1)
+    assert _get_property(context, path, "expanded") == "true", f"Could not expand the feature \"{feature}\" in the library sidebar"
 
 @when('I select the {entity} named "{name}" in the library sidebar')
 def step_select_named_entity_sidebar(context, entity, name):
-    rpc = context.mixxx_rpc
-    path = _find_sidebar_named_entity_path(rpc, entity, name, expand_if_needed=True)
+    path = _find_sidebar_named_entity_path(context, entity, name, expand_if_needed=True)
     assert path, f"Could not find the {entity} named \"{name}\" in the library sidebar"
-    _wait_for_visible(rpc, path)
-    _click(rpc, path)
+    _wait_for_visible(context, path)
+    _click(context, path)
     time.sleep(1)
 
 @when('I initiate creating a new item in the selected library source')
 def step_select_source_sidebar_feature_create(context):
-    s = context.mixxx_rpc
-    assert _is_visible(s, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
-    selected = s.invokeMethod(LIBRARY_TREEVIEW_PATH, "getSelectedPath", [])
-    path = f"{LIBRARY_TREEVIEW_PATH}/index{selected}"
-    assert path and _is_visible(s, path), "No library sidebar feature currently selected"
-
-    path = f"{path}/newItem"
-    _wait_for_visible(s, path)
-    _click(s, path)
+    assert _is_visible(context, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
+    path = f"{LIBRARY_TREEVIEW_PATH}/newItem"
+    _wait_for_visible(context, path)
+    _click(context, path)
 
 @when('I enter "{label}" as the new item name')
 def step_select_source_sidebar_feature_create_type(context, label):
-    s = context.mixxx_rpc
-    assert _is_visible(s, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
-    _wait_for_visible(s, LIBRARY_TREEVIEW_CREATE_POPUP)
-    path = f"{LIBRARY_TREEVIEW_CREATE_POPUP}/name"
-    _wait_for_visible(s, path)
-    _click(s, path)
+    s = context.rpc
+    assert _is_visible(context, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
+    _wait_for_visible(context, LIBRARY_TREEVIEW_CREATE_POPUP)
+    path = f"{LIBRARY_TREEVIEW_CREATE_POPUP}/newItemName"
+    _wait_for_visible(context, path)
+    _click(context, path)
 
     s.inputText(SEARCH_FIELD_PATH, label)
 
-@when('I confirm the create action')
-def step_select_source_sidebar_feature_create_confirm(context):
-    s = context.mixxx_rpc
-    path = f"{LIBRARY_TREEVIEW_CREATE_POPUP}/create"
-    _wait_for_visible(s, path)
-    _click(s, path)
+@when('I {outcome} the create action')
+def step_select_source_sidebar_feature_create_confirm(context, outcome):
+    path = f"{LIBRARY_TREEVIEW_CREATE_POPUP}/create" if outcome == "confirm" else f"{LIBRARY_TREEVIEW_CREATE_POPUP}/cancel"
+    _wait_for_visible(context, path)
+    _click(context, path)
 
 
 # --- When: split view ---
 
 @when("I click the split view button")
 def step_click_split_view(context):
-    _click(context.mixxx_rpc, SPLIT_VIEW_BUTTON_PATH)
+    _click(context, SPLIT_VIEW_BUTTON_PATH)
     time.sleep(1)
 
 
@@ -1854,22 +1704,22 @@ def step_click_split_view(context):
 
 @then("the library search bar should be visible")
 def step_library_search_bar_visible(context):
-    assert _search_activated(context.mixxx_rpc), "Library search bar is not open"
+    assert _search_activated(context), "Library search bar is not open"
 
 
 @then("this track should be visible in the {side} track list")
 def step_this_track_visible_in_side_list(context, side):
     track = _remembered_track(context)
     tracklist = RIGHT_TRACKLIST_PATH if side == "right" else TRACKLIST_PATH
-    _wait_for_visible(context.mixxx_rpc, tracklist)
-    found = _track_row_by_title(context.mixxx_rpc, tracklist, track.title)
+    _wait_for_visible(context, tracklist)
+    found = _track_row_by_title(context.rpc, tracklist, track.title)
     assert found >= 0, f"Track '{track}' is not in the {side} track list"
 
 
 @then("all tracks in the library should be shown again")
 def step_all_tracks_shown_again(context, ):
-    s = context.mixxx_rpc
-    total = _get_library_state(s).get("visibleTrackCount", 0)
+    s = context.rpc
+    total = _get_library_state(context).get("visibleTrackCount", 0)
     deadline = time.time() + 5
     rows = -1
     while time.time() < deadline:
@@ -1888,16 +1738,14 @@ def step_all_tracks_shown_without_filter(context):
 
 @then('the library search suggestion "{suggestion}" should be visible')
 def step_suggestion_visible(context, suggestion):
-    s = context.mixxx_rpc
     # While a query is being typed, the suggestion list replaces the recent
     # searches, so the recents must have been dismissed first.
-    _wait_for_hidden(s, SEARCH_RECENT_LIST_PATH)
-    _wait_for_visible(s, _suggestion_row_path(s, suggestion))
+    _wait_for_hidden(context, SEARCH_RECENT_LIST_PATH)
+    _wait_for_visible(context, _suggestion_row_path(context, suggestion))
 
 
 @then('the library search suggestion "{suggestion}" should not be visible')
 def step_suggestion_not_visible(context, suggestion):
-    s = context.mixxx_rpc
     time.sleep(SEARCH_APPLY_DELAY)
     # A stale row would fake a pass if the assertion only checked an
     # obsolete path, so scan the rows of the relevant list instead.
@@ -1906,22 +1754,21 @@ def step_suggestion_not_visible(context, suggestion):
     if not suggestion.endswith(":"):
         list_path = SEARCH_SUGGESTION_LIST_PATH
         row_property = "value"
-    count = int(_get_property(s, list_path, "count") or 0)
+    count = int(_get_property(context, list_path, "count") or 0)
     for index in range(count):
-        row_text = _get_property(s, f"{list_path}/suggestion_{index}", row_property)
+        row_text = _get_property(context, f"{list_path}/suggestion_{index}", row_property)
         assert row_text != suggestion, (
             f'The suggestion "{suggestion}" is still listed')
 
 
 @then('the library recent search "{needle}" should be visible')
 def step_recent_search_visible(context, needle):
-    s = context.mixxx_rpc
     expected = _remembered_track(context).title if "title of this track" in needle else needle
-    _wait_for_visible(s, SEARCH_RECENT_LIST_PATH)
-    recent_path = _recent_row_path(s, expected)
-    _wait_for_visible(s, recent_path)
+    _wait_for_visible(context, SEARCH_RECENT_LIST_PATH)
+    recent_path = _recent_row_path(context, expected)
+    _wait_for_visible(context, recent_path)
     # Verify that token labels are correctly shown (not empty strings)
-    token_field_names = _get_property(s, recent_path, "tokenFieldNames")
+    token_field_names = _get_property(context, recent_path, "tokenFieldNames")
     if not token_field_names:
         return
     fields = json.loads(token_field_names)
@@ -1934,10 +1781,9 @@ def step_recent_search_visible(context, needle):
 
 @then('a search token "{field}" should be shown in the search bar')
 def step_search_token_shown(context, field):
-    s = context.mixxx_rpc
-    count = int(_get_property(s, SEARCH_PANE_PATH, "criteriaCount") or 0)
+    count = int(_get_property(context, SEARCH_PANE_PATH, "criteriaCount") or 0)
     assert count > 0, f"Search bar has no criteria tokens ({count})"
-    fields = _search_criteria_fields(s)
+    fields = _search_criteria_fields(context)
     assert field in fields, (
         f"Search bar has no token for '{field}' (criteria: {fields})"
     )
@@ -1947,18 +1793,16 @@ def step_search_token_shown(context, field):
 
 @then('the track list on the right should {assertion} visible')
 def step_right_tracklist_visible(context, assertion):
-    s = context.mixxx_rpc
     if assertion == "be":
-        _wait_for_visible(s, RIGHT_TRACKLIST_PATH)
+        _wait_for_visible(context, RIGHT_TRACKLIST_PATH)
     else:
-        _wait_for_hidden(s, RIGHT_TRACKLIST_PATH)
+        _wait_for_hidden(context, RIGHT_TRACKLIST_PATH)
 
 
 @then('the track at row {row:d} on the right track list should be selected')
 def step_track_selected_right_list(context, row):
-    s = context.mixxx_rpc
     path = f"{RIGHT_TRACKLIST_PATH}/trackTableView/trackRow_{row}"
-    selected = _get_property(s, path, "selected")
+    selected = _get_property(context, path, "selected")
     assert selected == "true", f"Track at row {row} is not selected (selected={selected})"
 
 
@@ -1987,9 +1831,9 @@ _SEARCH_KEYS = {
 }
 
 
-def _search_criteria_fields(rpc):
+def _search_criteria_fields(context):
     """Field names of the criteria tokens in insertion order (JSON list)."""
-    raw = _get_property(rpc, SEARCH_PANE_PATH, "criteriaFields") or "[]"
+    raw = _get_property(context, SEARCH_PANE_PATH, "criteriaFields") or "[]"
     try:
         return json.loads(raw)
     except (TypeError, ValueError):
@@ -2119,21 +1963,21 @@ def step_no_search_active(context):
     """Reset the search bar to its fresh state: no criteria tokens, no query
     and deactivated. Clears without persisting, so no recent-search entry is
     created for a leftover query."""
-    s = context.mixxx_rpc
+    s = context.rpc
     pane = SEARCH_PANE_PATH
-    has_criteria = int(_get_property(s, pane, "criteriaCount") or 0) > 0
-    has_query = bool(_get_property(s, pane, "activeQuery"))
+    has_criteria = int(_get_property(context, pane, "criteriaCount") or 0) > 0
+    has_query = bool(_get_property(context, pane, "activeQuery"))
     if has_criteria or has_query:
         s.invokeMethod(pane, "clearAllCriteria", [])
-    if _search_activated(s):
+    if _search_activated(context):
         s.invokeMethod(pane, "deactivatePane", [])
     deadline = time.time() + 5
     criteria_count = -1
     query = ""
     while time.time() < deadline:
-        criteria_count = int(_get_property(s, pane, "criteriaCount") or 0)
-        query = _get_property(s, pane, "activeQuery") or ""
-        if criteria_count == 0 and query == "" and not _search_activated(s):
+        criteria_count = int(_get_property(context, pane, "criteriaCount") or 0)
+        query = _get_property(context, pane, "activeQuery") or ""
+        if criteria_count == 0 and query == "" and not _search_activated(context):
             return
         time.sleep(0.3)
     raise AssertionError(
@@ -2172,7 +2016,7 @@ def step_type_this_title(context, attr_with_transform, rule=None):
 @when('I press the "{key}" key in the library search')
 @then('I press the "{key}" key in the library search')
 def step_press_key_in_search(context, key):
-    s = context.mixxx_rpc
+    s = context.rpc
     binding = _SEARCH_KEYS.get(key)
     assert binding is not None, f"Unsupported key '{key}'"
     if isinstance(binding, tuple):
@@ -2185,11 +2029,10 @@ def step_press_key_in_search(context, key):
 
 @when('I click the recent library search "{search}"')
 def step_click_recent_search(context, search):
-    s = context.mixxx_rpc
     expected = _remembered_track(context).title if "title of this track" in search else search
-    path = _recent_row_path(s, expected)
-    _wait_for_clickable(s, path)
-    _click(s, path)
+    path = _recent_row_path(context, expected)
+    _wait_for_clickable(context, path)
+    _click(context, path)
     time.sleep(0.5)
 
 
@@ -2202,15 +2045,14 @@ def step_wait_search_settle(context):
 
 @then("the library search bar should be present")
 def step_search_bar_present(context):
-    assert _is_visible(context.mixxx_rpc, SEARCH_PANE_PATH), (
+    assert _is_visible(context, SEARCH_PANE_PATH), (
         "The search bar is not present in the library pane")
 
 
 @then("the library search bar should be anchored to the bottom-right of the library pane")
 def step_search_bar_anchored(context):
-    s = context.mixxx_rpc
-    pane = _get_bb(s, SEARCH_PANE_PATH)
-    host = _get_bb(s, f"{LIBRARY_CONTENT}/browsingView")
+    pane = _get_bb(context, SEARCH_PANE_PATH)
+    host = _get_bb(context, f"{LIBRARY_CONTENT}/browsingView")
     tolerance = 10
     right = abs((pane["x"] + pane["width"]) - (host["x"] + host["width"])) <= tolerance
     bottom = abs((pane["y"] + pane["height"]) - (host["y"] + host["height"])) <= tolerance
@@ -2221,11 +2063,10 @@ def step_search_bar_anchored(context):
 
 @then("the library search bar should be expanded")
 def step_search_bar_expanded(context):
-    s = context.mixxx_rpc
     deadline = time.time() + 5
     state = ""
     while time.time() < deadline:
-        state = _get_property(s, SEARCH_PANE_PATH, "state") or ""
+        state = _get_property(context, SEARCH_PANE_PATH, "state") or ""
         if state == "expanded":
             return
         time.sleep(0.3)
@@ -2234,15 +2075,14 @@ def step_search_bar_expanded(context):
 
 @then('the search placeholder "{text}" should be visible')
 def step_search_placeholder_visible(context, text):
-    s = context.mixxx_rpc
     deadline = time.time() + 5
     seen = ""
     while time.time() < deadline:
         for path in (
                 f"{SEARCH_PANE_PATH}/searchPlaceholder",
-                f"{SEARCH_PANE_PATH}/searchCollapsedPlaceholder"):
-            if _is_visible(s, path):
-                seen = _get_property(s, path, "text") or ""
+                f"{SEARCH_PANE_PATH}/collapsedPlaceholder"):
+            if _is_visible(context, path):
+                seen = _get_property(context, path, "text") or ""
                 if seen == text:
                     return
         time.sleep(0.3)
@@ -2252,13 +2092,12 @@ def step_search_placeholder_visible(context, text):
 
 @then('the search hint "{text}" should be visible')
 def step_search_hint_visible(context, text):
-    s = context.mixxx_rpc
-    path = f"{SEARCH_PANE_PATH}/searchTabHint"
+    path = f"{SEARCH_PANE_PATH}/typingTip"
     deadline = time.time() + 5
     seen = ""
     while time.time() < deadline:
-        if _is_visible(s, path):
-            seen = _get_property(s, path, "text") or ""
+        if _is_visible(context, path):
+            seen = _get_property(context, path, "text") or ""
             if seen == text:
                 return
         time.sleep(0.3)
@@ -2268,13 +2107,12 @@ def step_search_hint_visible(context, text):
 
 @then('the search token "{field}" should be active')
 def step_search_token_active(context, field):
-    s = context.mixxx_rpc
     deadline = time.time() + 5
     fields = []
     index = -1
     while time.time() < deadline:
-        fields = _search_criteria_fields(s)
-        index = int(_get_property(s, SEARCH_PANE_PATH, "activeTokenIndex") or -1)
+        fields = _search_criteria_fields(context)
+        index = int(_get_property(context, SEARCH_PANE_PATH, "activeTokenIndex") or -1)
         if 0 <= index < len(fields) and fields[index] == field:
             return
         time.sleep(0.3)
@@ -2285,7 +2123,6 @@ def step_search_token_active(context, field):
 
 @then('the library search query should be "{query}"')
 def step_search_query_is(context, query):
-    s = context.mixxx_rpc
     expected = query
     if "title of this track" in expected:
         expected = expected.replace(
@@ -2293,7 +2130,7 @@ def step_search_query_is(context, query):
     deadline = time.time() + 5
     seen = ""
     while time.time() < deadline:
-        seen = _get_property(s, SEARCH_PANE_PATH, "activeQuery") or ""
+        seen = _get_property(context, SEARCH_PANE_PATH, "activeQuery") or ""
         if seen == expected:
             return
         time.sleep(0.3)
@@ -2304,12 +2141,11 @@ def step_search_query_is(context, query):
 @then('the library search criteria should be "{fields}"')
 def step_search_criteria_equal(context, fields):
     """Criteria token field names in insertion order."""
-    s = context.mixxx_rpc
     expected = [field for field in fields.split(",") if field]
     deadline = time.time() + 5
     seen = []
     while time.time() < deadline:
-        seen = _search_criteria_fields(s)
+        seen = _search_criteria_fields(context)
         if seen == expected:
             return
         time.sleep(0.3)
@@ -2320,7 +2156,6 @@ def step_search_criteria_equal(context, fields):
 @then('the library search free text should be "{text}"')
 @then("the library search free text should be empty")
 def step_search_free_text(context, text=None):
-    s = context.mixxx_rpc
     expected = text or ""
     if "title of this track" in expected:
         expected = expected.replace(
@@ -2328,7 +2163,7 @@ def step_search_free_text(context, text=None):
     deadline = time.time() + 5
     seen = ""
     while time.time() < deadline:
-        seen = _get_property(s, SEARCH_FIELD_PATH, "text") or ""
+        seen = _get_property(context, SEARCH_FIELD_PATH, "text") or ""
         if seen == expected:
             return
         time.sleep(0.3)
@@ -2338,12 +2173,11 @@ def step_search_free_text(context, text=None):
 
 @then("the library search bar should be empty")
 def step_search_bar_empty(context):
-    s = context.mixxx_rpc
     deadline = time.time() + 5
     seen = None
     while time.time() < deadline:
-        count = int(_get_property(s, SEARCH_PANE_PATH, "criteriaCount") or 0)
-        text = _get_property(s, SEARCH_FIELD_PATH, "text") or ""
+        count = int(_get_property(context, SEARCH_PANE_PATH, "criteriaCount") or 0)
+        text = _get_property(context, SEARCH_FIELD_PATH, "text") or ""
         seen = (count, text)
         if count == 0 and text == "":
             return
@@ -2359,9 +2193,9 @@ def step_artist_suggestion_visible(context):
     _wait_for_search_suggestion(context, track.artist)
 
 
-def _search_suggestion_texts(rpc):
+def _search_suggestion_texts(context):
     """Display texts of the currently suggested values (JSON list)."""
-    raw = _get_property(rpc, SEARCH_PANE_PATH, "suggestionTexts") or "[]"
+    raw = _get_property(context, SEARCH_PANE_PATH, "suggestionTexts") or "[]"
     try:
         return json.loads(raw)
     except (TypeError, ValueError):
@@ -2369,11 +2203,10 @@ def _search_suggestion_texts(rpc):
 
 
 def _wait_for_search_suggestion(context, value, timeout=15):
-    s = context.mixxx_rpc
     deadline = time.time() + timeout
     texts = []
     while time.time() < deadline:
-        texts = _search_suggestion_texts(s)
+        texts = _search_suggestion_texts(context)
         if value in texts:
             return
         time.sleep(0.3)
@@ -2390,12 +2223,11 @@ def search_field_quote(value):
 
 @then("the library search query should contain the artist of this track")
 def step_query_contains_artist(context):
-    s = context.mixxx_rpc
     expected = "artist:" + search_field_quote(_this_track_field(context, "artist"))
     deadline = time.time() + 5
     query = ""
     while time.time() < deadline:
-        query = _get_property(s, SEARCH_PANE_PATH, "activeQuery") or ""
+        query = _get_property(context, SEARCH_PANE_PATH, "activeQuery") or ""
         if expected in query:
             return
         time.sleep(0.3)
@@ -2404,7 +2236,7 @@ def step_query_contains_artist(context):
 
 
 def _this_track_results_visible(context):
-    s = context.mixxx_rpc
+    s = context.rpc
     title = _this_track_field(context, "title")
     return _track_row_by_title(s, TRACKLIST_PATH, title) >= 0
 
@@ -2418,8 +2250,8 @@ def step_this_track_visible(context):
 
 @then("not all tracks should be visible in the results")
 def step_not_all_tracks_visible(context):
-    s = context.mixxx_rpc
-    total = _get_library_state(s).get("visibleTrackCount", 0)
+    s = context.rpc
+    total = _get_library_state(context).get("visibleTrackCount", 0)
     rows = _track_rows(s, TRACKLIST_PATH)
     assert rows < total, (
         f"{rows} track rows are shown, expected fewer than all {total}")

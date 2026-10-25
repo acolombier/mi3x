@@ -91,7 +91,6 @@ Rectangle {
             implicitHeight: 26
             key: loopEnabled.value ? "loop_enabled" : "reloop_toggle"
             normalColor: root.buttonColor
-            objectName: "reloopToggle"
             text: loopEnabled.value ? "exit" : "Recall"
             toggleable: loopEnabled.value
         }
@@ -113,7 +112,6 @@ Rectangle {
             activeColor: root.buttonColor
             implicitHeight: 28
             implicitWidth: 22
-            objectName: "loopHalve"
 
             contentItem: Item {
                 anchors.fill: parent
@@ -361,7 +359,6 @@ Rectangle {
             activeColor: root.buttonColor
             implicitHeight: 28
             implicitWidth: 22
-            objectName: "loopDouble"
 
             contentItem: Item {
                 anchors.fill: parent

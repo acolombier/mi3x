@@ -78,7 +78,7 @@ Rectangle {
     function addExistingConnection(node, connections) {
         if (!connections)
             return;
-        let connectionIdx = 0
+        let connectionIdx = 0;
         for (let connection of connections) {
             let typeDef = audioTypeMap[connection.type];
             let source = root.system[typeDef.entity].gateways[typeDef.channel][connection.index].edgeItem;
@@ -386,7 +386,6 @@ Rectangle {
             }
             ListView {
                 id: inputList
-                objectName: "inputList"
 
                 Layout.fillHeight: true
                 Layout.fillWidth: true
@@ -405,8 +404,6 @@ Rectangle {
 
                     required property int index
                     required property var modelData
-
-                    objectName: `entity_${index}`
 
                     advanced: root.mode == AudioRouter.Mode.Advanced
                     gateways: {
@@ -433,6 +430,7 @@ Rectangle {
                     }
                     group: "external"
                     name: modelData
+                    objectName: `entity_${index}`
                     width: ListView.view.width
 
                     onConnect: point => root.entityOnConnect(point)
@@ -481,8 +479,8 @@ Rectangle {
                 }
                 RatioChoice {
                     id: modeChoice
-                    objectName: "routerMode"
 
+                    objectName: "routerMode"
                     options: ["simple", !root.hiddenConnections ? "advanced" : "advanced (!)", "legacy"]
                     tooltips: !root.hiddenConnections ? [] : [null, `${root.hiddenConnections} connection${root.hiddenConnections > 1 ? 's' : ''} hidden\nUse the advanced mode to view them`, null]
 
@@ -501,10 +499,10 @@ Rectangle {
 
                 RatioChoice {
                     id: multiSoundcardChoice
-                    objectName: "multiSoundcard"
 
                     maxWidth: mainCanvas.width < 560 ? 200 : 400
                     normalizedWidth: false
+                    objectName: "multiSoundcard"
                     options: ["experimental", "default", "disabled"]
                     tooltips: ["No delay", "Long delay", "Short delay"]
 
@@ -548,7 +546,6 @@ Rectangle {
             }
             ListView {
                 id: outputList
-                objectName: "outputList"
 
                 Layout.fillHeight: true
                 Layout.fillWidth: true
@@ -568,8 +565,6 @@ Rectangle {
 
                     required property int index
                     required property var modelData
-
-                    objectName: `output${index}`
 
                     gateways: {
                         let channels = [];
@@ -594,6 +589,7 @@ Rectangle {
                     }
                     group: "external"
                     name: modelData
+                    objectName: `output${index}`
                     width: ListView.view.width
 
                     onConnect: point => root.entityOnConnect(point)

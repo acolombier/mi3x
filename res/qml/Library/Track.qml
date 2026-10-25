@@ -25,35 +25,36 @@ Item {
         acceptedButtons: Qt.LeftButton | Qt.RightButton
 
         onDoubleTapped: (eventPoint, button) => {
+            if (button != Qt.LeftButton)
+                return;
             view.selectionModel.selectRow(row);
             view.loadSelectedTrackIntoNextAvailableDeck(false);
         }
-        onLongPressed: (eventPoint, button) => {
+        onLongPressed: {
             view.selectionModel.selectRow(row);
             _lazyTrack = view.model?.getTrackByRow(row) ?? null;
-            contextMenu.popup();
+            contextMenu.popup(parent);
         }
         onTapped: (eventPoint, button) => {
             view.selectionModel.selectRow(row);
             if (button === Qt.RightButton) {
                 _lazyTrack = view.model?.getTrackByRow(row) ?? null;
-                contextMenu.popup();
+                contextMenu.popup(parent, eventPoint.position);
             }
         }
     }
-    Menu {
+    TestableMenu {
         id: contextMenu
 
-        contentItem.objectName: "trackContextMenu"
         title: qsTr("File")
 
-        Menu {
+        TestableMenu {
             enabled: {
                 hasCapabilities(Mixxx.LibraryTrackListModel.Capability.LoadToDeck) || hasCapabilities(Mixxx.LibraryTrackListModel.Capability.LoadToSampler) || hasCapabilities(Mixxx.LibraryTrackListModel.Capability.LoadToPreviewDeck);
             }
             title: qsTr("Load to")
 
-            Menu {
+            TestableMenu {
                 id: loadToDeckMenu
 
                 enabled: hasCapabilities(Mixxx.LibraryTrackListModel.Capability.LoadToDeck)
@@ -71,11 +72,11 @@ Item {
                         }
                     }
 
-                    onObjectAdded: (index, object) => loadToDeckMenu.insertItem(index, object)
+                    onObjectAdded: (index, object) => loadToDeckMenu.insertItem(Math.min(count, object.modelData), object)
                     onObjectRemoved: (index, object) => loadToDeckMenu.removeItem(object)
                 }
             }
-            Menu {
+            TestableMenu {
                 enabled: hasCapabilities(Mixxx.LibraryTrackListModel.Capability.LoadToSampler)
                 title: qsTr("Sampler")
             }
@@ -92,7 +93,7 @@ Item {
             //     onObjectRemoved: (index, object) => recentFilesMenu.removeItem(object)
             // }
         }
-        Menu {
+        TestableMenu {
             id: addToPlaylistMenu
 
             property var model: playlists.list()
@@ -128,7 +129,7 @@ Item {
                 }
             }
         }
-        Menu {
+        TestableMenu {
             id: addToCrateMenu
 
             property var model: root._lazyTrack ? crates.list([root._lazyTrack]) : 0
@@ -172,7 +173,7 @@ Item {
                 }
             }
         }
-        Menu {
+        TestableMenu {
             id: analyzeMenu
 
             enabled: {
@@ -213,14 +214,14 @@ Item {
 
         function cancelEditing() {
             createEntityItem.creating = false;
-            crateNewName.text = "";
+            input.text = "";
         }
         function startEditing() {
             createEntityItem.creating = true;
-            crateNewName.forceActiveFocus();
+            input.forceActiveFocus();
         }
         function startKeyHandler(event) {
-            if (Window.activeFocusItem != crateNewName) {
+            if (Window.activeFocusItem != input) {
                 startEditing();
             }
             event.accepted = true;
@@ -230,7 +231,7 @@ Item {
             objectName: "contextMenuCreateEntityItem"
 
             TextInput {
-                id: crateNewName
+                id: input
 
                 anchors.fill: parent
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -239,7 +240,6 @@ Item {
                 clip: true
                 color: acceptableInput ? "#000000" : 'red'
                 horizontalAlignment: TextInput.AlignLeft
-                objectName: "input"
                 visible: createEntityItem.creating
 
                 onAccepted: {
@@ -274,5 +274,55 @@ Item {
         }
         Keys.onReturnPressed: event => startKeyHandler(event)
         Keys.onSpacePressed: event => startKeyHandler(event)
+    }
+    component TestableMenu: Menu {
+        id: control
+
+        readonly property int depth: {
+            return parent instanceof MenuItem ? parent.menu.depth + 1 : 0;
+        }
+
+        function dumpTree(recursive) {
+            let d = {
+                count: this.contentItem.count,
+                currentIndex: this.contentItem.currentIndex,
+                items: Array(this.contentItem.count).fill().map((_, i) => {
+                    let item = this.contentItem.itemAtIndex(i);
+                    let m = recursive ? menuAt(i) : null;
+                    return Object.assign({
+                        objectName: item?.objectName,
+                        text: item?.text
+                    }, m ? {
+                        menu: m.dumpTree()
+                    } : {});
+                })
+            };
+            return d;
+        }
+
+        contentItem: ListView {
+            function serialisedDump() {
+                return JSON.stringify(control.dumpTree(false));
+            }
+            function setMenuIndex(i) {
+                control.currentIndex = i;
+            }
+
+            clip: true
+            currentIndex: control.currentIndex
+            implicitHeight: contentHeight
+            interactive: Window.window ? contentHeight + control.topPadding + control.bottomPadding > control.height : false
+            model: control.contentModel
+            objectName: opened ? !depth ? "trackContextMenu" : `trackContextMenu_Sub${depth}` : null
+
+            ScrollIndicator.vertical: ScrollIndicator {
+            }
+        }
+
+        onOpenedChanged: {
+            for (let i = 0; i < contentItem.count; i++) {
+                contentItem.itemAtIndex(i).objectName = "menuItem" + i;
+            }
+        }
     }
 }

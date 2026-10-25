@@ -352,6 +352,10 @@ jobs:
         with:
           cmake-version: "4.2.x"
 
+      - name: "[Linux] Bypass Azure APT cache"
+        if: vars.BYPASS_AZURE_APT_MIRROR != null && runner.os == 'Linux'
+        run: sudo sed -i '/azure\.archive\.ubuntu\.com/d' /etc/apt/apt-mirrors.txt
+
       - name: "[macOS/Linux] Set up build environment"
         if: matrix.buildenv_script != null && runner.os != 'Windows'
         run: ${{ matrix.buildenv_script }} setup
@@ -365,6 +369,14 @@ jobs:
         run: ${{ matrix.buildenv_script }} setup
         env:
           BUILDENV_BASEPATH: ${{ matrix.buildenv_basepath }}
+
+      - name: "[VCPKG] Restore buildenv archive cache"
+        id: buildenv_cache
+        if: env.BUILDENV_NAME != null
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ matrix.buildenv_basepath }}/${{ env.BUILDENV_NAME }}.zip
+          key: buildenv-${{ env.BUILDENV_NAME }}
 
       - name: "[Ubuntu/macOS] Restore ccache cache"
         # Caches are only saved by push builds (see "Save ccache cache").
@@ -447,6 +459,14 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}
+
+      - name: "[VCPKG] Save buildenv archive cache"
+        id: buildenv_save
+        if: steps.buildenv_cache.outputs.cache-hit != 'true' && env.BUILDENV_NAME != null
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ matrix.buildenv_basepath }}/${{ env.BUILDENV_NAME }}.zip
+          key: buildenv-${{ env.BUILDENV_NAME }}
 
       - name: "[Ubuntu/macOS] Set up gcc/clang problem matcher"
         if: runner.os != 'Windows'
@@ -860,6 +880,10 @@ jobs:
           $env:Path += ";$cmakePath"
           cmake --version
 
+      - name: "[Linux] Bypass Azure APT cache"
+        if: vars.BYPASS_AZURE_APT_MIRROR != null && runner.os == 'Linux'
+        run: sudo sed -i '/azure\.archive\.ubuntu\.com/d' /etc/apt/apt-mirrors.txt
+
       - name: "[macOS/Linux] Set up build environment"
         if: matrix.platform.buildenv_script != null && runner.os != 'Windows'
         run: ${{ matrix.platform.buildenv_script }} setup
@@ -877,6 +901,13 @@ jobs:
       - name: "[macOS/Windows] Get build environment name"
         if: runner.os != 'Linux'
         run: ${{ matrix.platform.buildenv_script }} name
+
+      - name: "[macOS/Windows] Restore buildenv archive cache"
+        if: env.BUILDENV_NAME != null
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ matrix.platform.buildenv_basepath }}/${{ env.BUILDENV_NAME }}.zip
+          key: buildenv-${{ env.BUILDENV_NAME }}
 
       - name: "Download buildenv"
         # No need for all the option, we just need to download the buildenv here
@@ -1192,7 +1223,7 @@ jobs:
     name: "Update E2E comment"
     if: always() && github.event_name == 'pull_request'
     needs: test
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
@@ -1213,18 +1244,14 @@ jobs:
           pattern: mixxx-ui-test-*-e2e
           path: results
 
-      - name: "Download recordings"
-        uses: actions/download-artifact@v8
-        with:
-          pattern: mixxx-ui-test-*.mkv
-          path: videos
-          merge-multiple: true
-
       - name: "Build and update E2E comment"
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GH_TOKEN: ${{ secrets.MIXXX_E2E_TOKEN }}
           RESULTS_DIR: results
+          # Recordings are not downloaded up front; the script lazily pulls
+          # only the recordings referenced by the selected clips (VIDEO_DIR
+          # is the download target/reuse cache).
           VIDEO_DIR: videos
           SNIPPET_DIR: snippets
           BASE_REF: FETCH_HEAD
