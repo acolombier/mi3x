@@ -14,44 +14,20 @@ import "../Theme"
 Category {
     id: root
 
-    property bool dirty: false
-
-    // In test mode the "Add" button drives the testDialog mock instead of the
+    // In test mode the "Add" button drives the addFolderDialogTest mock instead of the
     // native folder picker, so that tests can inject a folder and verify that
     // the dialog was opened.
-    property var addDialog: testDialog.testMode ? testDialog : nativeFolderDialog
-    // Invisible stand-in for the native folder picker. spix can only address
-    // QQuickItems, so this is an Item (never rendered) rather than a QtObject.
-    // It emulates the FolderDialog interface (open(), selectedFolder).
-    Item {
-        id: testDialog
+    property var addDialog: addFolderDialogTest.testMode ? addFolderDialogTest : nativeFolderDialog
+    property bool dirty: false
 
-        objectName: "addFolderDialogTest"
-        visible: false
-        width: 0
-        height: 0
-        property int openCount: 0
-        property url selectedFolder: ""
-        property bool testMode: false
-
-        function accept() {
-            if (selectedFolder.toString().length > 0) {
-                accepted();
-            }
-        }
-        function open() {
-            openCount++;
-            if (testMode) {
-                accept();
-            } else {
-                nativeFolderDialog.open();
-            }
-        }
-
-        signal accepted()
-        onAccepted: root.addSourceFromFolder(selectedFolder)
+    function addSourceFromFolder(folderUrl) {
+        let model = librarySourceList.model;
+        model.push({
+            url: folderUrl
+        });
+        root.dirty = true;
+        librarySourceList.model = model;
     }
-
     function load() {
         loadSources();
         integrationRepeater.model = [
@@ -92,14 +68,6 @@ Category {
         root.dirty = false;
         errorMessage.text = "";
     }
-    function addSourceFromFolder(folderUrl) {
-        let model = sourceListView.model;
-        model.push({
-            url: folderUrl
-        });
-        root.dirty = true;
-        sourceListView.model = model;
-    }
     function loadSources() {
         let rootDirs = [];
         const sourceCount = Mixxx.Library.sources.length;
@@ -111,13 +79,13 @@ Category {
                 totalMinute: Math.round(source.totalSecond / 60)
             });
         }
-        sourceListView.model = rootDirs;
+        librarySourceList.model = rootDirs;
         root.dirty = false;
     }
     function reset() {
     }
     function save() {
-        let requestedDirs = [...sourceListView.model];
+        let requestedDirs = [...librarySourceList.model];
         let changed = false;
 
         for (let source of requestedDirs) {
@@ -188,8 +156,47 @@ Category {
         root.load();
     }
 
+    // Invisible stand-in for the native folder picker. spix can only address
+    // QQuickItems, so this is an Item (never rendered) rather than a QtObject.
+    // It emulates the FolderDialog interface (open(), selectedFolder).
+    Item {
+        id: addFolderDialogTest
+
+        property int openCount: 0
+        property url selectedFolder: ""
+        property bool testMode: false
+
+        signal accepted
+
+        function accept() {
+            if (selectedFolder.toString().length > 0) {
+                accepted();
+            }
+        }
+        function open() {
+            openCount++;
+            if (testMode) {
+                accept();
+            } else {
+                nativeFolderDialog.open();
+            }
+        }
+
+        height: 0
+        visible: false
+        width: 0
+
+        onAccepted: root.addSourceFromFolder(selectedFolder)
+    }
     ScrollView {
         id: scrollView
+
+        anchors.bottom: buttonActions.top
+        anchors.bottomMargin: 18
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        spacing: 0
 
         ScrollBar.vertical: ScrollBar {
             anchors.bottom: parent.bottom
@@ -198,12 +205,6 @@ Category {
             objectName: "librarySettingsScrollBar"
             policy: ScrollBar.AsNeeded
         }
-        anchors.bottom: buttonActions.top
-        anchors.bottomMargin: 18
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        spacing: 0
 
         ColumnLayout {
             width: root.width - 10
@@ -220,24 +221,23 @@ Category {
             }
             Mixxx.SettingGroup {
                 Layout.bottomMargin: 6
+                implicitHeight: librarySourcesGrid.implicitHeight
                 implicitWidth: scrollView.width
-                implicitHeight: sources.implicitHeight
                 label: qsTr("Sources")
 
                 GridLayout {
-                    id: sources
+                    id: librarySourcesGrid
 
                     columnSpacing: 20
                     columns: width > 800 ? 2 : 1
-                    objectName: "librarySourcesGrid"
                     width: parent.width
 
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.minimumWidth: sourcePane.implicitWidth
-                        objectName: "librarySourcePane"
                         color: '#0E0E0E'
                         implicitHeight: sourcePane.implicitHeight + 20
+                        objectName: "librarySourcePane"
 
                         ColumnLayout {
                             id: sourcePane
@@ -278,28 +278,28 @@ Category {
                                 }
                             }
                             ListView {
-                                id: sourceListView
+                                id: librarySourceList
 
                                 function markDirty() {
                                     root.dirty = true;
                                 }
-                                function removeSourceAt(index) {
-                                    let model = sourceListView.model;
-                                    model[index].deleting = Mixxx.Library.PurgeTracks;
-                                    root.dirty = true;
-                                    sourceListView.model = model;
-                                }
-                                function removeSourceWithMode(index, mode) {
-                                    let model = sourceListView.model;
-                                    model[index].deleting = mode;
-                                    root.dirty = true;
-                                    sourceListView.model = model;
-                                }
                                 function relinkSourceAt(index, folderUrl) {
-                                    let model = sourceListView.model;
+                                    let model = librarySourceList.model;
                                     model[index].relink = folderUrl;
                                     root.dirty = true;
-                                    sourceListView.model = model;
+                                    librarySourceList.model = model;
+                                }
+                                function removeSourceAt(index) {
+                                    let model = librarySourceList.model;
+                                    model[index].deleting = Mixxx.Library.PurgeTracks;
+                                    root.dirty = true;
+                                    librarySourceList.model = model;
+                                }
+                                function removeSourceWithMode(index, mode) {
+                                    let model = librarySourceList.model;
+                                    model[index].deleting = mode;
+                                    root.dirty = true;
+                                    librarySourceList.model = model;
                                 }
 
                                 Layout.fillWidth: true
@@ -307,7 +307,6 @@ Category {
                                 clip: true
                                 focus: true
                                 model: []
-                                objectName: "librarySourceList"
 
                                 delegate: MouseArea {
                                     id: mouse
@@ -368,7 +367,7 @@ Category {
                                                 title: qsTr("Relink music directory to new location")
 
                                                 onAccepted: {
-                                                    sourceListView.relinkSourceAt(mouse.index, selectedFolder);
+                                                    librarySourceList.relinkSourceAt(mouse.index, selectedFolder);
                                                 }
                                             }
                                             Skin.FormButton {
@@ -413,7 +412,7 @@ Category {
 
                                                     onPressed: {
                                                         if (modelData.trackCount == 0) {
-                                                            sourceListView.removeSourceAt(mouse.index);
+                                                            librarySourceList.removeSourceAt(mouse.index);
                                                         } else {
                                                             removeButton.confirming = !removeButton.confirming;
                                                         }
@@ -448,7 +447,7 @@ Category {
                                                             console.warn(`unknown value deletion mode ${selected}. Ignoring.`);
                                                             return;
                                                         }
-                                                        sourceListView.removeSourceWithMode(mouse.index, mode);
+                                                        librarySourceList.removeSourceWithMode(mouse.index, mode);
                                                     }
                                                 }
                                             }
@@ -529,28 +528,27 @@ Category {
                     }
                     ColumnLayout {
                         Rectangle {
-                            Layout.preferredWidth: root.width * (sources.columns == 2 ? 0.35 : 1)
+                            Layout.preferredWidth: root.width * (librarySourcesGrid.columns == 2 ? 0.35 : 1)
                             color: Theme.darkGray2
-                            implicitHeight: integrationPane.implicitHeight + 20
+                            implicitHeight: libraryIntegrationsGrid.implicitHeight + 20
 
                             GridLayout {
-                                id: integrationPane
+                                id: libraryIntegrationsGrid
 
-                                objectName: "libraryIntegrationsGrid"
                                 anchors.bottomMargin: 10
                                 anchors.fill: parent
                                 anchors.leftMargin: 17
                                 anchors.rightMargin: 17
                                 anchors.topMargin: 10
-                                columns: sources.columns == 2 ? 1 : 2
+                                columns: librarySourcesGrid.columns == 2 ? 1 : 2
 
                                 Repeater {
                                     id: integrationRepeater
 
                                     RowLayout {
-                                        property bool initialized: false
                                         property alias enabled: integrationEnabled.enabled
                                         required property int index
+                                        property bool initialized: false
                                         required property var modelData
 
                                         Layout.preferredWidth: sourcePane.width * 0.5
@@ -603,8 +601,8 @@ Category {
             Mixxx.SettingGroup {
                 Layout.bottomMargin: 6
                 Layout.topMargin: 40
-                implicitWidth: scrollView.width
                 implicitHeight: metadataColumn.height
+                implicitWidth: scrollView.width
                 label: qsTr("Metadata")
 
                 Column {
@@ -628,10 +626,10 @@ Category {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         color: Theme.darkGray2
-                        implicitHeight: metadataPane.implicitHeight + 20
+                        implicitHeight: libraryMetadataGrid.implicitHeight + 20
 
                         GridLayout {
-                            id: metadataPane
+                            id: libraryMetadataGrid
 
                             anchors.bottomMargin: 10
                             anchors.fill: parent
@@ -640,11 +638,10 @@ Category {
                             anchors.topMargin: 10
                             columnSpacing: 20
                             columns: metadataColumn.width < 850 ? 1 : 2
-                            objectName: "libraryMetadataGrid"
                             rowSpacing: 15
 
                             RowLayout {
-                                Layout.preferredWidth: metadataPane.width / metadataPane.columns
+                                Layout.preferredWidth: libraryMetadataGrid.width / libraryMetadataGrid.columns
 
                                 Mixxx.SettingParameter {
                                     Layout.fillWidth: true
@@ -674,7 +671,7 @@ Category {
                                 }
                             }
                             RowLayout {
-                                Layout.preferredWidth: metadataPane.width / metadataPane.columns
+                                Layout.preferredWidth: libraryMetadataGrid.width / libraryMetadataGrid.columns
 
                                 Mixxx.SettingParameter {
                                     Layout.fillWidth: true
@@ -704,7 +701,7 @@ Category {
                                 }
                             }
                             RowLayout {
-                                Layout.preferredWidth: metadataPane.width / metadataPane.columns
+                                Layout.preferredWidth: libraryMetadataGrid.width / libraryMetadataGrid.columns
 
                                 Mixxx.SettingParameter {
                                     Layout.fillWidth: true
@@ -740,8 +737,8 @@ Category {
             Mixxx.SettingGroup {
                 Layout.bottomMargin: 6
                 Layout.topMargin: 40
-                implicitWidth: scrollView.width
                 implicitHeight: historyColumn.height
+                implicitWidth: scrollView.width
                 label: qsTr("History")
 
                 Column {
@@ -765,10 +762,10 @@ Category {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         color: Theme.darkGray2
-                        implicitHeight: historyPane.implicitHeight + 20
+                        implicitHeight: libraryHistoryGrid.implicitHeight + 20
 
                         GridLayout {
-                            id: historyPane
+                            id: libraryHistoryGrid
 
                             anchors.bottomMargin: 10
                             anchors.fill: parent
@@ -777,11 +774,10 @@ Category {
                             anchors.topMargin: 10
                             columnSpacing: 20
                             columns: historyColumn.width < 800 ? 1 : 2
-                            objectName: "libraryHistoryGrid"
                             rowSpacing: 15
 
                             RowLayout {
-                                Layout.preferredWidth: historyPane.width / historyPane.columns
+                                Layout.preferredWidth: libraryHistoryGrid.width / libraryHistoryGrid.columns
 
                                 Mixxx.SettingParameter {
                                     Layout.fillWidth: true
@@ -814,7 +810,7 @@ Category {
                                 }
                             }
                             RowLayout {
-                                Layout.preferredWidth: historyPane.width / historyPane.columns
+                                Layout.preferredWidth: libraryHistoryGrid.width / libraryHistoryGrid.columns
 
                                 Mixxx.SettingParameter {
                                     Layout.fillWidth: true
@@ -853,8 +849,8 @@ Category {
             Mixxx.SettingGroup {
                 Layout.bottomMargin: 6
                 Layout.topMargin: 40
-                implicitWidth: scrollView.width
                 implicitHeight: searchColumn.height
+                implicitWidth: scrollView.width
                 label: qsTr("Search")
 
                 Column {
@@ -1080,7 +1076,7 @@ Category {
                 }
             }
         }
-     }
+    }
     Connections {
         function onRunningChanged(running) {
             if (!Mixxx.Library.scanner.running) {

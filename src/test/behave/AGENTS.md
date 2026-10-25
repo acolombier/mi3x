@@ -786,6 +786,9 @@ The path `mainWindow/libraryContent/trackList/columnHeader/Title` means:
 
 **Naming convention**: do not set `objectName` to the same string as the
 item's QML `id` — the id already resolves and the duplicate only adds churn.
+When the `objectName` is more explicit than the id, prefer **renaming the id**
+(ids are file-scoped, so only in-file references need updating) and dropping
+the `objectName`; the spix-visible name then keeps its existing string.
 Set an explicit `objectName` only when the name must differ per instance, or for
 `Menu` popups whose `contentItem` has no id. Note that for a component
 instantiated elsewhere (e.g. `Deck { id: deck1; objectName: "deck1" }` in
