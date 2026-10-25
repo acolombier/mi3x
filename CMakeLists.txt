@@ -1779,6 +1779,7 @@ add_library(
   src/widget/wcoverartlabel.cpp
   src/widget/wcoverartmenu.cpp
   src/widget/wcuemenupopup.cpp
+  src/widget/wcuebutton.cpp
   src/widget/wdisplay.cpp
   src/widget/weffectbuttonparametername.cpp
   src/widget/weffectchain.cpp
@@ -4423,6 +4424,8 @@ if(QML)
       src/control/controlsortfiltermodel.cpp
       # needed for qml/qmlautoreload.cpp
       src/util/autofilereloader.cpp
+      src/notification.cpp
+      src/notificationmanager.cpp
   )
 
   if(STEM)

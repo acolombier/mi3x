@@ -7,6 +7,7 @@
 #include <QSharedPointer>
 #include <QString>
 #include <memory>
+#include <utility>
 
 #include "audio/types.h"
 #include "control/pollingcontrolproxy.h"
@@ -161,6 +162,10 @@ class SoundManager : public QObject {
     void registerMockDevices(const QJsonArray& devices);
     void clearMockDevices();
 #endif
+
+    static std::pair<QString, QString> soundDeviceBusyMessageBuilder(QString device);
+    static std::pair<QString, QString> soundDeviceErrorMessageBuilder(QString error);
+    static std::pair<QString, QString> soundDeviceNoOutputMessageBuilder();
   signals:
     void deviceAdded(SoundDevicePointer pDevice);
     void deviceRemoved(SoundDevicePointer pDevice);

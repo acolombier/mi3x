@@ -1,6 +1,5 @@
 #include "mixer/basetrackplayer.h"
 
-#include <QMessageBox>
 #include <QMetaMethod>
 #include <memory>
 
@@ -604,23 +603,26 @@ void BaseTrackPlayerImpl::slotLoadFailed(TrackPointer pTrack, const QString& rea
     }
     m_pChannelToCloneFrom = nullptr;
 
-    // Alert user.
-    // The QMessageBox blocks the event loop (and the GUI since it's modal dialog),
-    // though if a controller's Load button was pressed repeatedly we may get
-    // multiple identical messages for the same track.
-    // Avoid this and show only one message per track track at a time.
+    // Alert subscribers about the load failure. The widget UI shows a
+    // message box (MixxxMainWindow::slotTrackLoadFailed), the QML UI shows
+    // a notification (QmlCoreServices). Repeated failures for the same
+    // track are suppressed until a different track is loaded
+    // (m_pPrevFailedTrackId, reset in slotTrackLoaded).
+    // TODO(#51): add a suggested CTA (e.g. reveal/relocate the missing
+    // file) once available in the notification space.
     if (pTrack && m_pPrevFailedTrackId == pTrack->getId()) {
         return;
     } else if (pTrack) {
         m_pPrevFailedTrackId = pTrack->getId();
     }
-    QMessageBox::warning(nullptr, tr("Couldn't load track."), reason);
-    m_pPrevFailedTrackId = TrackId();
+    emit trackLoadFailed(pTrack, reason);
 }
 
 void BaseTrackPlayerImpl::slotTrackLoaded(TrackPointer pNewTrack,
                                           TrackPointer pOldTrack) {
-    //qDebug() << "BaseTrackPlayerImpl::slotTrackLoaded" << pNewTrack.get() << pOldTrack.get();
+    // qDebug() << "BaseTrackPlayerImpl::slotTrackLoaded" << pNewTrack.get() << pOldTrack.get();
+    //  Allow a new failure warning for a track that failed before.
+    m_pPrevFailedTrackId = TrackId();
     if (!pNewTrack &&
             pOldTrack &&
             pOldTrack == m_pLoadedTrack) {

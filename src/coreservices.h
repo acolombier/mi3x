@@ -69,7 +69,7 @@ class CoreServices : public QObject {
     }
 #endif
 
-    std::shared_ptr<NotificationManager> getNotificationManager() const {
+    NotificationManager* getNotificationManager() const {
         return m_pNotificationManager;
     }
 
@@ -128,7 +128,8 @@ class CoreServices : public QObject {
     /// Tear down CoreServices that were previously initialized by `initialize()`.
     void finalize();
 
-    std::shared_ptr<mixxx::NotificationManager> m_pNotificationManager;
+    // Singleton
+    mixxx::NotificationManager* m_pNotificationManager;
     std::shared_ptr<SettingsManager> m_pSettingsManager;
     std::shared_ptr<mixxx::ControlIndicatorTimer> m_pControlIndicatorTimer;
     std::shared_ptr<EffectsManager> m_pEffectsManager;

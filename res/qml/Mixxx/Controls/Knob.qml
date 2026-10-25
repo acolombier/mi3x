@@ -96,6 +96,7 @@ Item {
 
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         dragThreshold: 0
+        // FIXME: this is asserting when used on a different QML engine such as a controller one
         enabled: !Mixxx.Core.hasPopup
         maximumPointCount: 1
         minimumPointCount: 1

@@ -7,6 +7,7 @@
 #include <QStandardPaths>
 #include <QtGlobal>
 #include <gsl/pointers>
+#include <memory>
 
 #include "util/cmdlineargs.h"
 
@@ -485,7 +486,7 @@ void CoreServices::initialize() {
 
     FontUtils::initializeFonts(resourcePath); // takes a long time
 
-    m_pNotificationManager = std::make_shared<NotificationManager>();
+    m_pNotificationManager = NotificationManager::createInstance();
 
     emit initializationProgressUpdate(10, tr("database"));
     m_pDbConnectionPool = MixxxDb(pConfig).connectionPool();
@@ -702,9 +703,9 @@ void CoreServices::initialize() {
             musicDirAdded = true;
         } else {
             // prompt the use to add their directory
-            mixxx::Notification* pNotification =
-                    new mixxx::Notification("No music directory configured!",
-                            mixxx::NotificationFlag::Sticky);
+            auto pNotification =
+                    std::make_shared<mixxx::Notification>("No music directory configured!",
+                            mixxx::Notification::Flag::Sticky);
             pNotification->addButton(tr("Choose Directory"), this, [this]() {
                 QString fd = QFileDialog::getExistingDirectory(nullptr,
                         tr("Choose music library directory"),
@@ -1002,7 +1003,7 @@ void CoreServices::finalize() {
     CLEAR_AND_CHECK_DELETED(m_pTrackCollectionManager);
 
     qDebug() << t.elapsed(false).debugMillisWithUnit() << "deleting NotificationManager";
-    CLEAR_AND_CHECK_DELETED(m_pNotificationManager);
+    NotificationManager::destroy();
 
     qDebug() << t.elapsed(false).debugMillisWithUnit() << "closing database connection(s)";
     m_pDbConnectionPool->destroyThreadLocalConnection();

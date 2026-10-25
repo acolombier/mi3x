@@ -8,6 +8,7 @@
 #include "controllers/keyboard/keyboardeventfilter.h"
 #include "library/analysis/analysisfeature.h"
 #include "library/autodj/autodjfeature.h"
+#include "library/autodj/autodjprocessor.h"
 #include "library/banshee/bansheefeature.h"
 #include "library/browse/browsefeature.h"
 #include "library/dateformatbroadcaster.h"
@@ -787,6 +788,10 @@ void Library::showAutoDJ() {
     emit switchToView(kAutoDJViewName);
     // Select it but don't scroll there
     m_pSidebarModel->slotFeatureSelect(m_pAutoDJFeature, QModelIndex(), false);
+}
+
+AutoDJProcessor* Library::getAutoDJProcessor() const {
+    return m_pAutoDJFeature->getProcessor();
 }
 
 #ifdef __ENGINEPRIME__

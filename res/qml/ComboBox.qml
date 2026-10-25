@@ -157,6 +157,8 @@ ComboBox {
             width: 12
 
             onPaint: {
+                if (!context)
+                    return;
                 context.reset();
                 roundTriangle(context, width, height, radius);
                 context.fillStyle = Qt.alpha(Theme.midGray3, root.enabled ? 1 : 0.3);

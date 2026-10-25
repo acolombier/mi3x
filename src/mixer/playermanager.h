@@ -258,6 +258,11 @@ class PlayerManager : public PlayerManagerInterface {
     // input configured.
     void noVinylControlInputConfigured();
 
+    // Relay of BaseTrackPlayer::trackLoadFailed of any player.
+    // TODO(#51): subscribers display this as a message box (widget UI) or a
+    // notification (QML UI).
+    void trackLoadFailed(TrackPointer pTrack, const QString& reason);
+
     void trackAnalyzerProgress(TrackId trackId, AnalyzerProgress analyzerProgress);
     void trackAnalyzerIdle();
 
