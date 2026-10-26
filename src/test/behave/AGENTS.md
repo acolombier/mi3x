@@ -12,10 +12,17 @@ mixxx_test_runner.py   ← CTest entry point (CMake add_test target "mixxx-behav
   ├─ mixxx_profile.py   ← Profile creation, track download, MixxxProcess lifecycle
   ├─ environment.py    ← behave before_all/after_all/scenario hooks + autoretry
   ├─ steps/
-  │   └─ mixxx_steps.py  ← Gherkin step definitions (Given/When/Then)
+  │   ├─ helpers.py       ← shared helpers: RPC primitives + context-based family
+  │   ├─ mixxx_steps.py   ← common step definitions + path constants
+  │   ├─ settings_steps.py ← common settings-machinery step definitions
+  │   ├─ deck_steps.py    ← feature-specific steps (one file per feature)
+  │   ├─ browse_steps.py  ← feature-specific steps
+  │   ├─ sound_steps.py   ← feature-specific steps
+  │   └─ waveform_steps.py ← feature-specific steps
   ├─ features/
   │   ├─ deck.feature
-  │   └─ library.feature
+  │   ├─ browse.feature
+  │   └─ … (8 topical feature files in total)
   └─ test_tracks.json   ← Static track metadata (url, title, artist, bpm, etc.)
 ```
 
@@ -27,7 +34,7 @@ mixxx_test_runner.py   ← CTest entry point (CMake add_test target "mixxx-behav
 src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
   --binary build/mixxx-test \
-  src/test/behave/features/library.feature
+  src/test/behave/features/browse.feature
 ```
 
 ### Single feature, offscreen (no display needed)
@@ -38,7 +45,7 @@ src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
   --binary build/mixxx-test \
   --headless \
-  src/test/behave/features/library.feature
+  src/test/behave/features/browse.feature
 
 # Force a specific backend: --display-backend {auto,xvfb,xwayland}
 #   xvfb     -> Xvfb + ffmpeg x11grab recorder
@@ -48,13 +55,13 @@ src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
   --binary build/mixxx-test \
   --headless --display-backend=xwayland \
-  src/test/behave/features/library.feature
+  src/test/behave/features/browse.feature
 
 # Or via QPA env var (equivalent, but no video recording)
 QT_QPA_PLATFORM=offscreen src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
   --binary build/mixxx-test \
-  src/test/behave/features/library.feature
+  src/test/behave/features/browse.feature
 ```
 
 ### Single feature, named scenario only (fastest iteration)
@@ -67,7 +74,7 @@ src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
   --binary build/mixxx-test \
   --headless \
-  src/test/behave/features/library.feature \
+  src/test/behave/features/browse.feature \
   -n "Maximize library with toggle"
 ```
 
@@ -82,7 +89,7 @@ src/test/behave/.venv/bin/python \
   --binary build/mixxx-test \
   --headless \
   --retry 5 \
-  src/test/behave/features/library.feature
+  src/test/behave/features/browse.feature
 ```
 
 ### Reproducible random track picks (`--seed`)
@@ -114,7 +121,7 @@ src/test/behave/.venv/bin/python \
   --binary build/mixxx-test \
   --headless \
   --seed <run_seed> \
-  src/test/behave/features/library.feature \
+  src/test/behave/features/browse.feature \
   -n "<failing scenario name>"
 ```
 
@@ -275,7 +282,7 @@ launcher:
 # A different feature file. The path is passed straight to behave and is
 # resolved against the working directory, which the wrapper sets to the repo
 # root — so it must include the src\test\behave prefix.
-.\tools\Run-BehaveScenariosOnWindows.ps1 -Feature src\test\behave\features\settings\library.feature -Name 'History cleanup threshold can be changed'
+.\tools\Run-BehaveScenariosOnWindows.ps1 -Feature src\test\behave\features\browse.feature -Name 'History cleanup threshold can be changed'
 
 # Capture video into src\test\behave\artifacts
 # NOTE: needs -FfmpegBin (see above), and on Windows the run currently ends
@@ -293,9 +300,9 @@ launcher:
 behave `-n`. `-Label` only affects artifact filenames.
 
 > **Feature paths are not repo-relative.** A path like
-> `-Feature features/settings/library.feature` looks reasonable and fails:
+> `-Feature features/browse.feature` looks reasonable and fails:
 > `behave.exception.ConfigError: No steps directory in
-> 'D:\dev\mixxx\features\settings\library.feature'`. Use
+> 'D:\dev\mixxx\features\browse.feature'`. Use
 > `src\test\behave\features\...`, which is also what the wrapper's own default
 > uses.
 
@@ -306,7 +313,7 @@ Equivalent, and useful when you want flags the wrapper does not expose:
 ```powershell
 powershell.exe -ExecutionPolicy Bypass -File .\tools\Start-InteractiveProcessOnWindows.ps1 `
     -Program "D:\dev\mixxx\src\test\behave\.venv\Scripts\python.exe" `
-    -Arguments "src\test\behave\mixxx_test_runner.py --no-capture --retry 3 --binary build\mixxx-test.exe src\test\behave\features\settings\library.feature -n 'An empty music directory can be removed'" `
+    -Arguments "src\test\behave\mixxx_test_runner.py --no-capture --retry 3 --binary build\mixxx-test.exe src\test\behave\features\browse.feature -n 'An empty music directory can be removed'" `
     -WorkingDirectory "D:\dev\mixxx" `
     -WaitMode Exit -TimeoutSeconds 1800
 ```
@@ -481,7 +488,7 @@ Adding features and steps is platform-independent — write the Gherkin, add the
 step definitions, add item names in QML (see the naming convention under Path
 Resolution), rebuild `mixxx-test`. Specifically:
 
-- **Steps are shared.** `steps/mixxx_steps.py` is the same file on both
+- **Steps are shared.** The modules under `steps/` are the same files on both
   platforms; do not add Windows-only branches to a step. Platform differences
   belong in the feature's tags.
 - **Tag platform-specific scenarios** (`@xpass` for environment flakiness,
@@ -508,7 +515,9 @@ Resolution), rebuild `mixxx-test`. Specifically:
    the Xwayland backend) for CI, then invokes `behave` with the feature
    file.
 3. behave invokes `environment.py` hooks, then matches step definitions in
-   `steps/mixxx_steps.py`.
+   `steps/` (common machinery in `mixxx_steps.py`/`settings_steps.py`,
+   feature-specific DSL in `<feature>_steps.py`, shared helpers in
+   `helpers.py`).
 4. **Autoretry**: `before_feature` patches every scenario's `run()` method with
    a custom wrapper. If a scenario fails, it is retried up to `--retry N` times
    (default 1 — no retry), except for `@xfail` scenarios which are never retried. Each
@@ -606,12 +615,12 @@ reads it back. Since spix processes commands sequentially, this is race-free.
 ### Python helpers
 
 ```python
-def _get_control_value(rpc, group, key):
-    rpc.command("getControlValue", f"{group},{key}")
-    return float(rpc.getStringProperty("mainWindow", "lastControlValue"))
+def _get_control_value(context, group, key):
+    context.rpc.command("getControlValue", f"{group},{key}")
+    return float(context.rpc.getStringProperty("mainWindow", "lastControlValue"))
 
-def _set_control_value(rpc, group, key, value):
-    rpc.command("setControlValue", f"{group},{key},{value}")
+def _set_control_value(context, group, key, value):
+    context.rpc.command("setControlValue", f"{group},{key},{value}")
 ```
 
 ### Adding new custom commands
@@ -628,8 +637,8 @@ if (command == "myCommand") {
 Then read from Python:
 
 ```python
-rpc.command("myCommand", payload)
-result = rpc.getStringProperty("mainWindow", "myResult")
+context.rpc.command("myCommand", payload)
+result = context.rpc.getStringProperty("mainWindow", "myResult")
 ```
 
 ## Profile Setup (`mixxx_profile.py`)
@@ -758,7 +767,7 @@ the same string anywhere in the item's ancestor and descendant files.
 | `Library/Track.qml` | `"trackContextMenu"` | Right-click context `Menu` (contentItem) |
 | `Library/Cell.qml` | `"trackRow_" + row` | Row `Rectangle`, dynamic per-row |
 
-### Path Constants (from `mixxx_steps.py`)
+### Path Constants (from `mixxx_steps.py` and the feature step modules)
 
 ```python
 BUTTON_PATHS = {
@@ -816,17 +825,54 @@ LOOP_BUTTONS = {
 - `LOOP_BUTTONS` maps `(direction, component)` tuples to button paths for the
   generic `I {direction} the "{component}" size on deck {deck:d}` step.
 
-## Step DSL (`steps/mixxx_steps.py`)
+## Step DSL (`steps/`)
+
+The step definitions are split per feature (`deck_steps.py`, `browse_steps.py`,
+`sound_steps.py`, `waveform_steps.py`); shared DSL stays in the common modules
+`mixxx_steps.py` (session/window/toolbar/track machinery) and
+`settings_steps.py` (settings popup, categories/tabs, the generic
+`{setting}`/`{button}` assertion family, responsiveness grids). `helpers.py`
+holds the shared helpers in two conventions: bare **RPC primitives**
+(`click`, `wait_visible`, … — value-returning, never raise) and the
+**context-based family** (`_click`, `_wait_for_visible`, … — take `context`,
+raise on "condition not met"). Wait defaults are 5 s; call sites that need a
+longer horizon pass an explicit `timeout=`. Wait-site choice: the raising `_wait_for_*` family for
+the common case; a custom failure message uses the non-raising primitive
+and asserts (`assert wait_visible(context.rpc, path, timeout=10),
+"custom message"`). Step defs never extract `s = context.rpc` just to feed
+helpers — raw `context.rpc` is reserved for helpers.py internals, poll/retry
+loops that need the non-raising primitives, and genuinely raw one-off ops
+(`getBoundingBox` geometry, `invokeMethod`, session plumbing).
+
+Placement rule: a step def goes to the feature file whose domain its text
+names; anything used by several features (or parameterized generically) stays
+in the common modules. Feature step modules import `mixxx_steps` /
+`settings_steps` **lazily inside the defs** that need them — behave discovers
+`steps/*.py` alphabetically, and module-level imports would register the
+common modules' generic patterns before the feature files' more specific
+ones (tripping behave's `AmbiguousStep` check and shadowing them at runtime).
+
+## Step DSL details (common machinery in `steps/mixxx_steps.py`)
 
 ### Wait timeouts are performance thresholds, not buffers
 
-`_wait_for_visible` / `_wait_for_hidden` (15 s) and `_wait_for_library_scan`
-(20 s) are deliberately tight: if a button does not appear within 15 s or a
-library of 50 tracks takes longer than 20 s to scan, that is an application
-regression the suite must report, not harness slowness to paper over. Do not
-re-widen them; when they start failing, suspect the app, not the test. The
-only escape hatch is `MIXXX_TEST_RPC_TIMEOUT`, which covers process startup
-(skin load, schema migration, cold audio stacks) and not UI responsiveness.
+`_wait_for_visible` / `_wait_for_hidden` / `_wait_for_clickable` /
+`_wait_for_context_menu` default to 5 s — the value the step reorg unified
+across the previously split wait families (the old `mixxx_helpers` family
+defaulted to 15 s, the old `settings_steps` family to 5 s). The default is
+deliberately tight: if a button does not appear within 5 s of the action
+that reveals it, or a library of 50 tracks takes longer than the pinned
+20 s to scan, that is an application regression the suite must report, not
+harness slowness to paper over. Sites with a genuinely longer horizon pass
+an explicit `timeout=` pin instead of relying on the default: the
+window-startup and splash-screen waits (15 s / 30 s), the committing-overlay
+hide (10 s), the library-tracklist waits (10 s), and helpers with their own
+higher defaults (`_wait_for_library_scan` 20 s, `_wait_for_search_suggestion`
+15 s). Do not re-widen the default; when a wait starts failing, suspect the
+app, not the test — pins marked `TODO(timeout)` flag exactly that review. The
+only escape hatch outside the pins is `MIXXX_TEST_RPC_TIMEOUT`, which covers
+process startup (skin load, schema migration, cold audio stacks) and not UI
+responsiveness.
 
 ### Constants
 
@@ -838,22 +884,22 @@ only escape hatch is `MIXXX_TEST_RPC_TIMEOUT`, which covers process startup
 
 | Helper | Purpose |
 | --- | --- |
-| `_wait_for_visible(rpc, path, timeout=5)` | Poll `existsAndVisible` until true |
-| `_wait_for_hidden(rpc, path, timeout=60)` | Poll `existsAndVisible` until false |
-| `_click(rpc, path)` | `rpc.mouseClick(path)` |
-| `_right_click(rpc, path)` | `rpc.mouseClickWithButton(path, QT_RIGHT_BUTTON, 0)` |
-| `_long_press(rpc, path, button=QT_LEFT_BUTTON, hold_ms=1000)` | `rpc.mouseClickAndHold(path, button, 0, hold_ms)` |
-| `_is_visible(rpc, path)` | `existsAndVisible` + bounding box area > 0 |
-| `_is_column_visible(rpc, col)` | Resolves the model column index via `trackList.columnLabels` (see `_column_index`) + `columnWidth` via `invokeMethod` |
-| `_column_index(rpc, col)` | Parses `trackList.columnLabels` (JSON array of labels in model order) and returns the index, or `-1`. Works for hidden columns whose header delegates do not exist |
-| `_get_bb(rpc, path)` | `getBoundingBox` normalized to dict |
-| `_get_control_value(rpc, group, key)` | Custom command: reads ControlObject via `command("getControlValue", ...)` + `getStringProperty("mainWindow", "lastControlValue")` |
-| `_set_control_value(rpc, group, key, value)` | Custom command: writes ControlObject via `command("setControlValue", ...)` |
-| `_load_track(rpc, deck, filepath)` | Custom command: loads track file via `command("loadTrack", ...)` |
-| `_library_command(rpc, action, path, scan=False)` | Custom command: adds/removes library directories via `command("library", ...)` with JSON payload |
-| `_get_property(rpc, path, prop)` | `rpc.getStringProperty(path, prop)` |
-| `_set_property(rpc, path, prop, value)` | `rpc.setStringProperty(path, prop, str(value))` |
-| `_ensure_profile(context, type)` | Manages profile lifecycle across scenarios (session reuse) |
+| `_wait_for_visible(context, path, timeout=5)` | Poll `existsAndVisible` until true |
+| `_wait_for_hidden(context, path, timeout=5)` | Poll `existsAndVisible` until false |
+| `_click(context, path)` | `context.rpc.mouseClick(path)` |
+| `_right_click(context, path)` | `context.rpc.mouseClickWithButton(path, QT_RIGHT_BUTTON, 0)` |
+| `_long_press(context, path, button=QT_LEFT_BUTTON, hold_ms=1000)` | `context.rpc.mouseClickAndHold(path, button, 0, hold_ms)` |
+| `_is_visible(context, path)` | `existsAndVisible` + bounding box area > 0 |
+| `_is_column_visible(context, col, stabilize_duration=1)` | Resolves the model column index via `trackList.columnLabels` (see `_column_index`) + `columnWidth` via `invokeMethod` |
+| `_column_index(context, col)` | Parses `trackList.columnLabels` (JSON array of labels in model order) and returns the index, or `-1`. Works for hidden columns whose header delegates do not exist |
+| `_get_bb(context, path)` | `getBoundingBox` normalized to dict |
+| `_get_control_value(context, group, key)` | Custom command: reads ControlObject via `command("getControlValue", ...)` + `getStringProperty("mainWindow", "lastControlValue")` |
+| `_set_control_value(context, group, key, value)` | Custom command: writes ControlObject via `command("setControlValue", ...)` |
+| `_load_track(context, deck, filepath)` | Custom command: loads track file via `command("loadTrack", ...)` (defined in `mixxx_steps.py`) |
+| `_library_command(context, action=None, path=None, scan=False, payload=None)` | Custom command: adds/removes library directories via `command("library", ...)` with JSON payload |
+| `_get_property(context, path, prop)` | `context.rpc.getStringProperty(path, prop)` |
+| `_set_property(context, path, prop, value)` | `context.rpc.setStringProperty(path, prop, str(value))` |
+| `_ensure_profile(context, profile_type, force=False)` | Manages profile lifecycle across scenarios (session reuse; defined in `mixxx_steps.py`) |
 
 ### Given Steps
 
@@ -974,8 +1020,9 @@ After the last attempt the wrapper:
    when no clean alternative exists. See [README.md](README.md#writing-steps)
    for the full guide with examples.
 2. Define Gherkin pattern in a `.feature` file
-3. Add step implementation function in `steps/mixxx_steps.py` (or a new file
-   in `steps/`)
+3. Add step implementation function in the matching `steps/<feature>_steps.py`
+   (feature-specific DSL) or `steps/mixxx_steps.py` / `steps/settings_steps.py`
+   (shared machinery)
 4. Use `@given`, `@when`, or `@then` decorator from `behave`
 5. Use helpers: `_rpc()` for spix proxy, `_wait_for_visible` for sync,
    `_get_control_value` for ControlObject reads
@@ -1063,14 +1110,14 @@ After the last attempt the wrapper:
 
 ## How to Read a ControlObject from a Test
 
-Use `_get_control_value(rpc, group, key)`:
+Use `_get_control_value(context, group, key)`:
 
 ```python
-from steps.mixxx_steps import _get_control_value
+from helpers import _get_control_value
 
 @then('the play button should be pressed')
 def step_play_pressed(context):
-    value = _get_control_value(context.rpc, "[Channel1]", "play")
+    value = _get_control_value(context, "[Channel1]", "play")
     assert float(value) > 0, f"Play is not pressed (value={value})"
 ```
 

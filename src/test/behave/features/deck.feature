@@ -30,6 +30,7 @@ Feature: Deck
     Then the cue point should be set on deck 1
 
   @xfail
+  @sub/hotcues
   Scenario: Deck hotcue can be set and cleared
     Given a track is loaded on deck 1
     When I set hotcue 1 on deck 1
@@ -77,6 +78,7 @@ Feature: Deck
     When I click the "reloop_toggle" button on deck 1
     Then the loop should be enabled on deck 1
 
+  @sub/sync
   Scenario: Sync can be toggled on a deck
     Given a track is loaded on deck 1
     When I click the "sync" button on deck 1
@@ -85,18 +87,21 @@ Feature: Deck
     Then sync should be disabled on deck 1
 
   @xfail
+  @sub/sync
   Scenario: Other deck's BPM can be copied with long press
     Given a track is loaded on deck 1
     And a track is loaded on deck 2
     When I long-press the "sync" button on deck 1
     Then deck 1 BPM should be equal to deck 2
 
+  @sub/sync
   Scenario: Range can be cycled on a deck
     Given a track is loaded on deck 1
     When I remember the "rate range" of deck 1
     When I click the "range" button on deck 1
     Then the "rate range" of deck 1 should have changed
 
+  @sub/sync
   Scenario: Tempo fader changes playback rate
     Given a track is loaded on deck 1
     And the sync_on deck 1 is disabled
@@ -169,3 +174,236 @@ Feature: Deck
     Then the "4DECKS" button in the main toolbar should not be visible
     When I resize the window's height to 600px
     Then the "4DECKS" button in the main toolbar should be visible
+
+  # --- Settings: palettes (former features/settings/interface.feature) ---------
+  #
+  # These scenarios exercise settings UI, so the popup preconditions that used
+  # to be that file's Background are inlined per scenario ("the settings popup
+  # is open" + Interface category). The palettes live on the theme & color
+  # tab, which is the category's default tab.
+
+  Scenario: Key color palette is disabled when key color is off
+    # Component state: keyPaletteComboBox.enabled is bound to key color == "on"
+    Given the settings popup is open
+    And the "Interface" category is selected
+    When I toggle the "key color" setting to "off"
+    And I click the save button
+    Then the "key color palette" setting should be disabled
+    When I toggle the "key color" setting to "on"
+    And I click the save button
+    Then the "key color palette" setting should be enabled
+
+  @sub/hotcues
+  Scenario Outline: Hotcue palette can be changed
+    Given the settings popup is open
+    And the "Interface" category is selected
+    When I set the "hotcue palette" setting to "<palette>"
+    Then the "hotcue palette" setting should be "<palette>"
+
+    Examples:
+      | palette                |
+      | Mixxx Hotcue Colors    |
+      | Rekordbox COLD2 Hotcue Colors |
+
+  @sub/hotcues
+  Scenario: Hotcue default color can be changed
+    Given the settings popup is open
+    And the "Interface" category is selected
+    When I set the "hotcue default color" setting to "3"
+    Then the "hotcue default color" setting should be "3"
+
+  Scenario Outline: Track palette can be changed
+    # The second palette is beyond the popup's visible rows (popupMaxItem = 6)
+    # and exercises the keyboard-selection fallback for off-screen options.
+    # Persistence is asserted in the next scenario with a non-default palette:
+    # Mixxx removes a config key that equals its default, so the default
+    # palette ("Mixxx Track Colors") would read back as empty.
+    Given the settings popup is open
+    And the "Interface" category is selected
+    When I set the "track palette" setting to "<palette>"
+    And I click the save button
+    Then the "track palette" setting should be "<palette>"
+
+    Examples:
+      | palette                |
+      | Mixxx Track Colors     |
+      | Rekordbox Track Colors |
+
+  Scenario: Track palette selection is persisted
+    Given the settings popup is open
+    And the "Interface" category is selected
+    When I set the "track palette" setting to "Rekordbox Track Colors"
+    And I click the save button
+    Then the "track palette" should be saved
+
+  Scenario: Loop default color can be changed
+    Given the settings popup is open
+    And the "Interface" category is selected
+    When I set the "loop default color" setting to "4"
+    Then the "loop default color" setting should be "4"
+
+  # --- Settings: decks tab (former features/settings/interface.feature) --------
+
+  Scenario: Cue mode can be changed
+    Given the settings popup is open
+    And the "Interface" category is selected
+    Given the "decks" tab is selected
+    When I set the "cue mode" setting to "Pioneer"
+    And I click the save button
+    Then the "cue mode" setting should be "Pioneer"
+
+  Scenario: Intro start can be set to the main cue when analyzing
+    Given the settings popup is open
+    And the "Interface" category is selected
+    Given the "decks" tab is selected
+    When I toggle the "set intro start to main cue" setting to "off"
+    And I click the save button
+    Then the "set intro start to main cue" setting should be "off"
+
+  Scenario: Track time display can be changed
+    Given the settings popup is open
+    And the "Interface" category is selected
+    Given the "decks" tab is selected
+    When I toggle the "track time display" setting to "remaining"
+    And I click the save button
+    Then the "track time display" setting should be "remaining"
+
+  Scenario: Time format can be changed
+    Given the settings popup is open
+    And the "Interface" category is selected
+    Given the "decks" tab is selected
+    When I set the "time format" setting to "Seconds"
+    Then the "time format" setting should be "Seconds"
+
+  Scenario: Double-press load to clone can be disabled
+    Given the settings popup is open
+    And the "Interface" category is selected
+    Given the "decks" tab is selected
+    When I toggle the "double-press load to clone" setting to "off"
+    And I click the save button
+    Then the "double-press load to clone" setting should be "off"
+
+  Scenario: Track load point can be changed
+    Given the settings popup is open
+    And the "Interface" category is selected
+    Given the "decks" tab is selected
+    When I set the "track load point" setting to "First hotcue"
+    Then the "track load point" setting should be "First hotcue"
+
+  Scenario: Loading a track when playing can be allowed
+    Given the settings popup is open
+    And the "Interface" category is selected
+    Given the "decks" tab is selected
+    When I toggle the "loading a track when playing" setting to "allow"
+    And I click the save button
+    Then the "loading a track when playing" setting should be "allow"
+
+  Scenario: Speed reset on track load can be changed
+    Given the settings popup is open
+    And the "Interface" category is selected
+    Given the "decks" tab is selected
+    When I toggle the "reset on track load" setting to "tempo"
+    And I click the save button
+    Then the "reset on track load" setting should be "tempo"
+
+  @sub/sync
+  Scenario: Sync mode can be changed
+    Given the settings popup is open
+    And the "Interface" category is selected
+    Given the "decks" tab is selected
+    When I toggle the "sync mode" setting to "use steady"
+    And I click the save button
+    Then the "sync mode" setting should be "use steady"
+
+  Scenario: Keylock mode can be changed
+    Given the settings popup is open
+    And the "Interface" category is selected
+    Given the "decks" tab is selected
+    When I toggle the "keylock mode" setting to "current key"
+    And I click the save button
+    Then the "keylock mode" setting should be "current key"
+
+  Scenario: Keyunlock mode can be changed
+    Given the settings popup is open
+    And the "Interface" category is selected
+    Given the "decks" tab is selected
+    When I toggle the "keyunlock mode" setting to "keep key"
+    And I click the save button
+    Then the "keyunlock mode" setting should be "keep key"
+
+  Scenario: Pitch bend behaviour can be changed
+    Given the settings popup is open
+    And the "Interface" category is selected
+    Given the "decks" tab is selected
+    When I toggle the "pitch bend behaviour" setting to "smooth ramping"
+    And I click the save button
+    Then the "pitch bend behaviour" setting should be "smooth ramping"
+
+  Scenario: Adjustment button ranges can be changed
+    Given the settings popup is open
+    And the "Interface" category is selected
+    Given the "decks" tab is selected
+    When I set the "temporary coarse adjustment" setting to "4.02"
+    And I set the "permanent fine adjustment" setting to "0.06"
+    Then the "temporary coarse adjustment" setting should be "4.02"
+    And the "permanent fine adjustment" setting should be "0.06"
+
+  Scenario: Ramping sensitivity can be changed
+    Given the settings popup is open
+    And the "Interface" category is selected
+    Given the "decks" tab is selected
+    When I set the "ramping sensitivity" setting to "500" with the spinbox
+    Then the "ramping sensitivity" setting should be "500"
+
+  # --- Settings: decks tab, ControlObject side-effects --------------------------
+  # (former features/settings/interface.feature)
+
+  Scenario: Slider range is applied to the deck rate range control
+    Given the settings popup is open
+    And the "Interface" category is selected
+    Given the "decks" tab is selected
+    When I set the "slider range" setting to "24%"
+    And I click the save button
+    Then the "slider range" setting should be "24%"
+    And the "slider range" should be saved as "24%"
+    And the "slider range" on deck 1 should be "24%"
+    When I set the "slider range" setting to "16%"
+    And I click the save button
+    Then the "slider range" setting should be "16%"
+    And the "slider range" should be saved as "16%"
+    And the "slider range" on deck 1 should be "16%"
+
+  Scenario: Slider orientation is applied to the deck rate direction control
+    Given the settings popup is open
+    And the "Interface" category is selected
+    Given the "decks" tab is selected
+    When I toggle the "slider orientation" setting to "down"
+    And I click the save button
+    Then the "slider orientation" setting should be "down"
+    And the "slider orientation" should be saved as "down"
+    And the "slider orientation" on deck 1 should be "down"
+    When I toggle the "slider orientation" setting to "up"
+    And I click the save button
+    Then the "slider orientation" setting should be "up"
+    And the "slider orientation" should be saved as "up"
+    And the "slider orientation" on deck 1 should be "up"
+
+  # --- Settings: responsiveness ---------------------------------------------------
+  # (former features/settings/interface.feature)
+  #
+  # On a short window the decks tab content overflows its ScrollView. A setting
+  # below the fold must be reachable: scroll it into the on-screen area, then
+  # prove it is interactable by changing its value.
+
+  @category/responsiveness
+  Scenario: Below-the-fold settings can be scrolled into view on a short window
+    Given the settings popup is open
+    And the "Interface" category is selected
+    Given the "decks" tab is selected
+    When I resize the window's height to 500px
+    Then the "ramping sensitivity" setting should not be visible on screen
+    When I scroll down in the settings
+    Then the "ramping sensitivity" setting should be visible on screen
+    When I set the "ramping sensitivity" setting to "600" with the spinbox
+    Then the "ramping sensitivity" setting should be "600"
+    When I resize the window's height to 1008px
