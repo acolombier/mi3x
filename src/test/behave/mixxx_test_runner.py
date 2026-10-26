@@ -176,7 +176,14 @@ def _start_cage():
             f"cage failed to start (no socket at {socket_path})"
         )
 
-    _resize_cage_output(env, _DEFAULT_CAGE_WIDTH, _DEFAULT_CAGE_HEIGHT)
+    try:
+        _resize_cage_output(env, _DEFAULT_CAGE_WIDTH, _DEFAULT_CAGE_HEIGHT)
+    except Exception:
+        # Without the resize the output would sit at the default resolution;
+        # don't leak the compositor or its runtime dir on the way out.
+        _stop_display_proc(proc)
+        shutil.rmtree(runtime_dir, ignore_errors=True)
+        raise
     return proc, wayland_display, runtime_dir
 
 
@@ -185,33 +192,40 @@ def _resize_cage_output(env, width, height):
 
     wlroots' headless backend only advertises 1280x720 by default; wlr-randr
     talks the wlr-output-management-v1 protocol that cage implements and lets
-    us set a custom mode arbitrarily. Soft warning on missing binary or
-    failed switch.
+    us set a custom mode arbitrarily. The resize is a hard requirement: any
+    failure raises so the run cannot proceed at a silently wrong resolution.
+    The output-management global may only be advertised shortly after the
+    socket appears, so transient failures (nonzero exit, timeout) are
+    retried before the final failure.
     """
     if width == 1280 and height == 720:
         # Already the default; nothing to do.
         return
     wlr_randr = shutil.which("wlr-randr")
     if not wlr_randr:
-        print(
-            f"wlr-randr not found - cage output stays at the wlroots default "
+        raise RuntimeError(
+            "wlr-randr not found - cage output stays at the wlroots default "
             f"(1280x720) instead of {width}x{height}. Install wlr-randr to "
-            f"control the headless output size.",
-            file=sys.stderr,
+            "control the headless output size.",
         )
-        return
     # Discover cage's single output name (e.g. "HEADLESS-1") so the
     # --custom-mode call targets the right sink even if wlroots ever changes
     # the naming scheme.
-    try:
-        listing = subprocess.run(
-            [wlr_randr],
-            env=env,
-            capture_output=True, text=True, timeout=5,
-        )
-    except Exception as e:
-        print(f"wlr-randr listing failed: {e}", file=sys.stderr)
-        return
+    listing = None
+    for _ in range(3):
+        try:
+            listing = subprocess.run(
+                [wlr_randr],
+                env=env,
+                capture_output=True, text=True, timeout=5,
+                check=True,
+            )
+            break
+        except Exception as e:
+            print(f"wlr-randr listing failed: {e}", file=sys.stderr)
+            time.sleep(0.5)
+    if not listing:
+        raise RuntimeError("Unable to use wlr-randr to get listing")
     output_name = None
     for line in listing.stdout.splitlines():
         line = line.strip()
@@ -220,22 +234,29 @@ def _resize_cage_output(env, width, height):
             output_name = line.split()[0]
             break
     if not output_name:
-        print("wlr-randr: could not find cage output name", file=sys.stderr)
-        return
-    try:
-        subprocess.run(
-            [wlr_randr, "--output", output_name,
-             "--custom-mode", f"{width}x{height}"],
-            env=env,
-            capture_output=True, text=True, timeout=5,
-            check=True,
-        )
-    except Exception as e:
-        print(
-            f"wlr-randr --custom-mode {width}x{height} on {output_name} failed: "
-            f"{e}; cage output remains at default resolution",
-            file=sys.stderr,
-        )
+        raise RuntimeError("wlr-randr: could not find cage output name")
+    custom_mode = [
+        wlr_randr, "--output", output_name,
+        "--custom-mode", f"{width}x{height}",
+    ]
+    for _ in range(3):
+        try:
+            subprocess.run(
+                custom_mode,
+                env=env,
+                capture_output=True, text=True, timeout=5,
+                check=True,
+            )
+            return
+        except Exception as e:
+            print(
+                f"wlr-randr --custom-mode {width}x{height} failed: {e}",
+                file=sys.stderr,
+            )
+            time.sleep(0.5)
+    raise RuntimeError(
+        f"wlr-randr --custom-mode {width}x{height} on {output_name} failed; cage output remains at default resolution"
+    )
 
 
 def _stop_display_proc(proc):
