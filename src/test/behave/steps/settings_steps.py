@@ -1,31 +1,35 @@
-import glob
-import json
-import os
-import re
-import shutil
 import time
-from pathlib import Path
-
-from behave import given, when, then
-from mixxx_helpers import _get_library_state, _library_command
-from spix_helpers import (
+from helpers import (
+    COMMITTING_OVERLAY,
     QT_CONTROL_MODIFIER,
     QT_KEY_A,
     QT_KEY_DOWN,
     QT_KEY_ENTER,
-    QT_KEY_SPACE,
     QT_KEY_UP,
-    get_control_value as _get_control_value_impl,
-    is_visible as _is_visible_impl,
-    wait_clickable as _wait_clickable_impl,
-    wait_hidden as _wait_hidden_impl,
-    wait_visible as _wait_visible_impl,
+    SETTINGS_POPUP_ITEM,
+    SETTING_CATEGORY_SLUG,
+    TREE_NAMESPACED_PAGES,
+    _active_button,
+    _click,
+    _click_active_button,
+    _edge_path,
+    _get_control_value,
+    _get_property,
+    _is_visible,
+    _set_property,
+    _setting_spec,
+    _wait_for_hidden,
+    _wait_for_visible,
 )
+from helpers import (
+    wait_hidden,
+    wait_visible,
+)
+from behave import given, when, then
 
 # --- Path constants ---
 
 SETTINGS_POPUP = "mainWindow/settingsPopup"
-SETTINGS_POPUP_ITEM = "mainWindow/settingsPopupItem"
 CATEGORY_LIST = f"{SETTINGS_POPUP_ITEM}/categoryList"
 TAB_BAR = f"{SETTINGS_POPUP_ITEM}/tabBar"
 SEARCH_SETTING = f"{SETTINGS_POPUP_ITEM}/searchSetting"
@@ -33,23 +37,7 @@ SEARCH_INPUT = f"{SETTINGS_POPUP_ITEM}/searchInput"
 CATEGORIES_ITEM = f"{SETTINGS_POPUP_ITEM}/categories"
 SHOW_CATEGORIES_BUTTON = f"{SETTINGS_POPUP_ITEM}/showCategories"
 
-# Slug ("sound", "library", ...) per active category index in the settings
-# popup (see res/qml/Settings.qml;Analyzer is index 8). Categories without an
-# implemented save/cancel/reset footer are not listed.
-SETTING_CATEGORY_SLUG = {
-    0: "sound",
-    1: "library",
-    2: "controller",
-    3: "interface",
-    8: "analyzer",
-}
 CATEGORY_SCROLLBARS_TEMPLATE = "mainWindow/%sSettingsScrollBar"
-ACTION_BUTTON_TEMPLATE = "mainWindow/%s%sButton"
-# Categories whose page was moved onto object-namespaced paths
-# ("mainWindow/settingsPopupItem/<slug>Page/...") already resolve their controls
-# through the settings popup tree; all other categories keep their flat
-# "mainWindow/<name>" object names.
-TREE_NAMESPACED_PAGES = ["analyzer"]
 CATEGORY_SCROLLBARS = {
     index: (
         "mainWindow/settingsPopupItem/%sPage/scrollBar"
@@ -58,156 +46,8 @@ CATEGORY_SCROLLBARS = {
     ) % slug
     for index, slug in SETTING_CATEGORY_SLUG.items()
 }
-MUSIC_DIRECTORY_LIST = "mainWindow/librarySourceList"
-MUSIC_DIRECTORY_ROW = "mainWindow/sourceRow_%d"
-SOURCE_REMOVE_BUTTON = "mainWindow/sourceRemoveButton_%d"
-SOURCE_REMOVE_MODE_SELECTOR = "mainWindow/sourceRemoveModeSelector_%d"
-SOURCE_REMOVE_MODE_OPTIONS = ["keep", "hide", "purge"]
-SOURCE_RELINK_BUTTON = "mainWindow/sourceRelinkButton_%d"
-ADD_SOURCE_BUTTON = "mainWindow/addSourceButton"
-ADD_FOLDER_DIALOG_TEST = "mainWindow/addFolderDialogTest"
-MUSIC_DIRECTORY_DEFAULT_TRACK_COUNT = 1
-COMMITTING_OVERLAY = "mainWindow/committingOverlay"
-ENGINE_SECTION = "mainWindow/engineSection"
-DELAYS_SECTION = "mainWindow/delaysSection"
 STATS_SECTION = "mainWindow/statsSection"
-ROUTER_SECTION = "mainWindow/routerSection"
-ROUTER_MODE = "mainWindow/routerMode"
-INPUT_COLUMN = "mainWindow/inputColumn"
-OUTPUT_COLUMN = "mainWindow/outputColumn"
 
-# Model of Mixxx.Config.paletteNames(), i.e. PredefinedColorPalettes::kPalettes
-# order. Index in this list == currentIndex of the palette ComboBoxes.
-PALETTE_NAMES = [
-    "Mixxx Hotcue Colors",
-    "Serato DJ Pro Hotcue Colors",
-    "Rekordbox COLD1 Hotcue Colors",
-    "Rekordbox COLD2 Hotcue Colors",
-    "Rekordbox COLORFUL Hotcue Colors",
-    "Mixxx Track Colors",
-    "Rekordbox Track Colors",
-    "Serato DJ Pro Track Colors",
-    "Traktor Pro Track Colors",
-    "VirtualDJ Track Colors",
-    "Mixxx Key Colors",
-    "Traktor Key Colors",
-    "Mixed In Key - Key Colors",
-    "Protanopia / Protanomaly Key Colors",
-    "Deuteranopia / Deuteranomaly Key Colors",
-    "Tritanopia / Tritanomaly Key Colors",
-]
-
-# kinds:
-#   "ratio"   -> RatioChoice: option item `path/<value>`, read `selected`
-#   "combo"   -> ComboBox: open popup and click `path_option_<index>`, read `currentIndex`
-#   "spinbox" -> Settings/SpinBox: write/read `realValue`
-#   "slider"  -> Settings/Slider: write/read `value`
-#   "color"   -> DefaultColorSelector: click `path_color_<index>`, read `currentIndex`
-SETTING_MAP = {
-    # Sound category (RatioChoice)
-    "Main Mix": {"path": "mainWindow/setting_MainMix", "kind": "ratio", "options": ["on", "off"]},
-    "Main Output Mode": {"path": "mainWindow/setting_MainOutputMode", "kind": "ratio", "options": ["mono", "stereo"]},
-    "Sound Clock": {"path": "mainWindow/setting_SoundClock", "kind": "ratio", "options": ["soundcard", "network"]},
-    "Keylock engine": {"path": "mainWindow/setting_KeylockEngine", "kind": "ratio"},
-    "Sound API": {"path": "mainWindow/setting_SoundAPI", "kind": "ratio"},
-    "Sample Rate": {"path": "mainWindow/setting_SampleRate", "kind": "ratio"},
-    # Interface category — theme & color tab
-    "skin": {"path": "mainWindow/setting_skin", "kind": "combo", "model": ["Unnamed"]},
-    "color": {"path": "mainWindow/setting_color", "kind": "combo", "model": ["Dark", "Light"]},
-    "layout": {"path": "mainWindow/setting_layout", "kind": "combo", "model": ["Performance", "Broadcast"]},
-    "tool tips": {"path": "mainWindow/setting_toolTips", "kind": "ratio", "options": ["off", "library", "all"]},
-    "disable screen saver": {"path": "mainWindow/setting_disableScreenSaver", "kind": "ratio", "options": ["no", "while running", "while playing"]},
-    "start in full-screen mode": {"path": "mainWindow/setting_startFullscreen", "kind": "ratio", "options": ["on", "off"]},
-    "auto-hide the menu bar": {"path": "mainWindow/setting_autoHideMenuBar", "kind": "ratio", "options": ["on", "off"]},
-    "search completion": {"path": "mainWindow/setting_searchCompletion", "kind": "ratio", "options": ["on", "off"]},
-    "search history keyboard shortcuts": {"path": "mainWindow/setting_searchHistoryKeyboardShortcuts", "kind": "ratio", "options": ["on", "off"]},
-    "bpm display precision": {"path": "mainWindow/setting_bpmDisplayPrecision", "kind": "spinbox", "precision": 0},
-    "library row height": {"path": "mainWindow/setting_libraryRowHeight", "kind": "slider", "min": 14, "max": 100, "markers": [14, 20, 50, 80]},
-    "track palette": {"path": "mainWindow/setting_trackPalette", "kind": "combo", "model": PALETTE_NAMES},
-    "hotcue palette": {"path": "mainWindow/setting_hotcuePalette", "kind": "combo", "model": PALETTE_NAMES},
-    "key color palette": {"path": "mainWindow/setting_keyColorPalette", "kind": "combo", "model": PALETTE_NAMES},
-    "key color": {"path": "mainWindow/setting_keyColor", "kind": "ratio", "options": ["on", "off"]},
-    "hotcue default color": {"path": "mainWindow/setting_hotcueDefaultColor", "kind": "color"},
-    "loop default color": {"path": "mainWindow/setting_loopDefaultColor", "kind": "color"},
-    # Interface category — decks tab
-    "cue mode": {"path": "mainWindow/setting_cueMode", "kind": "combo", "model": ["Mixxx", "Mixxx (no blinking)", "Pioneer", "Denon", "Numark", "CUP"]},
-    "time format": {"path": "mainWindow/setting_timeFormat", "kind": "combo", "model": ["Traditional", "Traditional (Coarse)", "Seconds", "Seconds (Long)", "Kiloseconds", "Hectoseconds"]},
-    "set intro start to main cue": {"path": "mainWindow/setting_introStartToMainCue", "kind": "ratio", "options": ["on", "off"]},
-    "track time display": {"path": "mainWindow/setting_trackTimeDisplay", "kind": "ratio", "options": ["elapsed", "remaining", "both"]},
-    "double-press load to clone": {"path": "mainWindow/setting_doublePressLoadToClone", "kind": "ratio", "options": ["on", "off"]},
-    "track load point": {"path": "mainWindow/setting_trackLoadPoint", "kind": "combo", "model": ["Main cue", "Beginning of track", "First sound", "Intro start", "First hotcue"]},
-    "loading a track when playing": {"path": "mainWindow/setting_loadingTrackWhenPlaying", "kind": "ratio", "options": ["reject", "allow", "when stopped"]},
-    "reset on track load": {"path": "mainWindow/setting_resetOnTrackLoad", "kind": "ratio", "options": ["none", "key", "both", "tempo"]},
-    "slider range": {"path": "mainWindow/setting_sliderRange", "kind": "combo", "model": ["4%", "6% (semitone)", "8% (Technics SL-1210)", "10%", "16%", "24%", "50%", "90%"]},
-    "sync mode": {"path": "mainWindow/setting_syncMode", "kind": "ratio", "options": ["follow soft leader", "use steady"]},
-    "slider orientation": {"path": "mainWindow/setting_sliderOrientation", "kind": "ratio", "options": ["down", "up"]},
-    "keylock mode": {"path": "mainWindow/setting_keylockMode", "kind": "ratio", "options": ["original key", "current key"]},
-    "keyunlock mode": {"path": "mainWindow/setting_keyunlockMode", "kind": "ratio", "options": ["reset key", "keep key"]},
-    "pitch bend behaviour": {"path": "mainWindow/setting_pitchBendBehaviour", "kind": "ratio", "options": ["abrupt jump", "smooth ramping"]},
-    "temporary coarse adjustment": {"path": "mainWindow/setting_temporaryCoarseAdjustment", "kind": "spinbox", "precision": 2},
-    "temporary fine adjustment": {"path": "mainWindow/setting_temporaryFineAdjustment", "kind": "spinbox", "precision": 2},
-    "permanent coarse adjustment": {"path": "mainWindow/setting_permanentCoarseAdjustment", "kind": "spinbox", "precision": 2},
-    "permanent fine adjustment": {"path": "mainWindow/setting_permanentFineAdjustment", "kind": "spinbox", "precision": 2},
-    "ramping sensitivity": {"path": "mainWindow/setting_rampingSensitivity", "kind": "slider", "min": 100, "max": 2500, "markers": []},
-    # Interface category — waveform tab
-    "end of track warning": {"path": "mainWindow/setting_endOfTrackWarning", "kind": "slider", "min": 0, "max": 120, "markers": [0, 10, 30, 60, 120]},
-    "beat grid opacity": {"path": "mainWindow/setting_beatGridAlpha", "kind": "slider", "min": 0, "max": 100, "markers": [0, 50, 100]},
-    "default zoom level": {"path": "mainWindow/setting_defaultZoom", "kind": "slider", "min": 10, "max": 100, "markers": [10, 30, 50, 100]},
-    "synchronise zoom level across waveforms": {"path": "mainWindow/setting_zoomSynchronization", "kind": "ratio", "options": ["on", "off"]},
-    "normalise waveform overview": {"path": "mainWindow/setting_overviewNormalized", "kind": "ratio", "options": ["on", "off"]},
-    "waveform type": {"path": "mainWindow/setting_waveformType", "kind": "combo", "model": ["Filtered", "HSV", "RGB", "Simple", "Stacked"]},
-    "stereo split": {"path": "mainWindow/setting_stereoSplit", "kind": "ratio", "options": ["on", "off"]},
-    "high details": {"path": "mainWindow/setting_highDetails", "kind": "ratio", "options": ["on", "off"]},
-    "play marker position": {"path": "mainWindow/setting_playMarkerPosition", "kind": "slider", "min": 0, "max": 100, "markers": [0, 50, 100]},
-    "beats until next marker": {"path": "mainWindow/setting_untilMarkShowBeats", "kind": "ratio", "options": ["on", "off"]},
-    "time until next marker": {"path": "mainWindow/setting_untilMarkShowTime", "kind": "ratio", "options": ["on", "off"]},
-    "marker hint placement": {"path": "mainWindow/setting_untilMarkAlign", "kind": "ratio", "options": ["top", "center", "bottom"]},
-    "marker hint font size": {"path": "mainWindow/setting_untilMarkTextPointSize", "kind": "combo", "model": ["10 pt", "12 pt", "15 pt", "18 pt", "24 pt", "32 pt", "48 pt"]},
-    "global visual gain": {"path": "mainWindow/setting_visualGainAll", "kind": "slider", "min": 50, "max": 500, "markers": [50, 100, 150, 300, 500]},
-    "low visual gain": {"path": "mainWindow/setting_visualGainLow", "kind": "slider", "min": 50, "max": 500, "markers": [50, 100, 150, 300, 500]},
-    "medium visual gain": {"path": "mainWindow/setting_visualGainMedium", "kind": "slider", "min": 50, "max": 500, "markers": [50, 100, 150, 300, 500]},
-    "high visual gain": {"path": "mainWindow/setting_visualGainHigh", "kind": "slider", "min": 50, "max": 500, "markers": [50, 100, 150, 300, 500]},
-    # Library category — sources & integrations
-    "Rhythmbox integration": {"path": "mainWindow/setting_integration0", "kind": "ratio", "options": ["on", "off"]},
-    "Banshee integration": {"path": "mainWindow/setting_integration1", "kind": "ratio", "options": ["on", "off"]},
-    "iTunes integration": {"path": "mainWindow/setting_integration2", "kind": "ratio", "options": ["on", "off"]},
-    "Traktor integration": {"path": "mainWindow/setting_integration3", "kind": "ratio", "options": ["on", "off"]},
-    "Rekordbox integration": {"path": "mainWindow/setting_integration4", "kind": "ratio", "options": ["on", "off"]},
-    "Serato integration": {"path": "mainWindow/setting_integration5", "kind": "ratio", "options": ["on", "off"]},
-    # Library category — metadata
-    "synchronise metadata with file": {"path": "mainWindow/setting_metadataSync", "kind": "ratio", "options": ["on", "off"]},
-    "synchronise metadata with Serato library": {"path": "mainWindow/setting_seratoMetadataSync", "kind": "ratio", "options": ["on", "off"]},
-    "prefer relative path on playlist export": {"path": "mainWindow/setting_relativePathOnExport", "kind": "ratio", "options": ["on", "off"]},
-    # Library category — history
-    "track duplicate distance": {"path": "mainWindow/setting_historyDuplicateDistance", "kind": "spinbox", "precision": 0},
-    "delete history playlist with less than": {"path": "mainWindow/setting_historyMinTracksToKeep", "kind": "spinbox", "precision": 0},
-    # Library category — search
-    "library search completion": {"path": "mainWindow/setting_librarySearchCompletion", "kind": "ratio", "options": ["on", "off"]},
-    "library search history keyboard shortcuts": {"path": "mainWindow/setting_librarySearchHistoryShortcuts", "kind": "ratio", "options": ["on", "off"]},
-    "search-as-you-type timeout": {"path": "mainWindow/setting_searchTimeout", "kind": "slider", "min": 0.1, "max": 10, "markers": [0.1, 0.5, 1, 5, 10]},
-    "pitch slider for fuzz BPM search": {"path": "mainWindow/setting_searchFuzzBpm", "kind": "slider", "min": 0, "max": 100, "markers": [0, 25, 50, 75, 100]},
-    # Analyzer category — BPM and beat detection. The Analyzer page resolves
-    # through the settings popup tree
-    # ("mainWindow/settingsPopupItem/analyzerPage/<section>/<control>").
-    "BPM detection": {"path": "mainWindow/settingsPopupItem/analyzerPage/bpm/state", "kind": "ratio", "options": ["off", "on"]},
-    "BPM analyser": {"path": "mainWindow/settingsPopupItem/analyzerPage/bpm/plugin", "kind": "ratio", "options": ["queenmary", "soundtouch"]},
-    "assume constant tempo": {"path": "mainWindow/settingsPopupItem/analyzerPage/bpm/fixedTempo", "kind": "ratio", "options": ["off", "on"]},
-    "re-analysis when settings change": {"path": "mainWindow/settingsPopupItem/analyzerPage/bpm/reanalyze", "kind": "ratio", "options": ["off", "on"]},
-    "BPM fast analysis": {"path": "mainWindow/settingsPopupItem/analyzerPage/bpm/fastAnalysis", "kind": "ratio", "options": ["off", "on"]},
-    "re-analysis of beatgrids imported from other DJ software": {"path": "mainWindow/settingsPopupItem/analyzerPage/bpm/reanalyzeImported", "kind": "ratio", "options": ["off", "on"]},
-    # Analyzer category — key detection
-    "key detection": {"path": "mainWindow/settingsPopupItem/analyzerPage/key/state", "kind": "ratio", "options": ["off", "on"]},
-    "key analyser": {"path": "mainWindow/settingsPopupItem/analyzerPage/key/plugin", "kind": "ratio", "options": ["queenmary", "keyfinder"]},
-    "key fast analysis": {"path": "mainWindow/settingsPopupItem/analyzerPage/key/fastAnalysis", "kind": "ratio", "options": ["off", "on"]},
-    "key re-analysis when settings change": {"path": "mainWindow/settingsPopupItem/analyzerPage/key/reanalyze", "kind": "ratio", "options": ["off", "on"]},
-    "key notation": {"path": "mainWindow/settingsPopupItem/analyzerPage/key/notation", "kind": "ratio", "options": ["lancelot", "traditional", "openkey", "custom"]},
-    # Analyzer category — ReplayGain
-    "ReplayGain normalization": {"path": "mainWindow/settingsPopupItem/analyzerPage/replayGain/state", "kind": "ratio", "options": ["off", "on"]},
-    "ReplayGain analyser": {"path": "mainWindow/settingsPopupItem/analyzerPage/replayGain/plugin", "kind": "ratio", "options": ["replaygain20", "replaygain10"]},
-    "ReplayGain target loudness": {"path": "mainWindow/settingsPopupItem/analyzerPage/replayGain/targetLoudness", "kind": "slider", "min": -12, "max": 12, "markers": [-12, -6, 0, 6, 12]},
-    "ReplayGain re-analysis": {"path": "mainWindow/settingsPopupItem/analyzerPage/replayGain/reanalyze", "kind": "ratio", "options": ["off", "on"]},
-    "ReplayGain default boost": {"path": "mainWindow/settingsPopupItem/analyzerPage/replayGain/defaultBoost", "kind": "slider", "min": -12, "max": 12, "markers": [-12, -6, 0, 6, 12]},
-}
 
 # Config keys written by saveInterface()/saveDeck() (see QmlConfigProxy).
 CONFIG_SAVE_MAP = {
@@ -362,27 +202,8 @@ CONTROL_VALUE_MAP = {
     "slider orientation": {"key": "rate_dir", "expected": {"down": -1, "up": 1}},
 }
 
-# Waveform tab live-feedback paths. The "waveformSettingsTab" SettingGroup
-# exposes the derived values the settings' own preview renderers consume
-# ("waveformPreview" reacts to the controls immediately); the deck waveforms
-# in res/qml/WaveformDisplay.qml expose the same config-derived values.
-WAVEFORM_PREVIEW_PATH = "mainWindow/waveformPreview"
 WAVEFORM_SETTINGS_TAB_PATH = "mainWindow/waveformSettingsTab"
-COLOR_PICKER_TEST_PATH = "mainWindow/colorPickerTest"
 
-# Bands for the visual gain color parameters (QmlConfigProxy keys), shared by
-# the settings preview waveformsTab properties ("globalGain") and the deck
-# WaveformDisplay properties ("gainAll").
-GAIN_BAND_MAP = {
-    "global": {"preview": "gainAll", "settings": "globalGain", "deck": "gainAll"},
-    "low": {"preview": "gainLow", "settings": "lowGain", "deck": "gainLow"},
-    "middle": {"preview": "gainMid", "settings": "middleGain", "deck": "gainMid"},
-    "high": {"preview": "gainHigh", "settings": "highGain", "deck": "gainHigh"},
-}
-
-COLOR_BAND_MAP = {"all": 0, "low": 0, "mid": 1, "high": 2}
-
-WAVEFORM_OPTION_BITS = {"stereo split": 1, "high details": 2}
 
 WAVEFORM_TYPE_IDS = [  # as stored by QmlWaveformDisplay::Type
     "Filtered",
@@ -402,121 +223,16 @@ def _settings_path(*parts):
     return "/".join([SETTINGS_POPUP_ITEM] + list(parts))
 
 
-def _entity_path(name):
-    return f"mainWindow/entity_{name.replace('/', '')}"
-
-
-def _edge_path(entity, address, channel=0):
-    return f"mainWindow/entity_{entity}/edge_{address}{channel}"
-
-
-def _setting_spec(setting):
-    spec = SETTING_MAP.get(setting)
-    if not spec:
-        raise ValueError(f"Unknown setting: {setting}")
-    return spec
-
-
-def _setting_option_visible(s, path):
+def _setting_option_visible(context, path):
     try:
-        return _is_visible(s, path)
+        return _is_visible(context, path)
     except Exception:
         return False
 
 
-def _active_button(s, button):
-    # The save/cancel/reset buttons are per-category, so the target of a
-    # bare "I click the save button" is whatever category the popup has
-    # active at that moment. Scenarios must select their category first
-    # (the feature Backgrounds do) for this resolution to be unambiguous.
-    active_category_idx = s.getStringProperty(SETTINGS_POPUP_ITEM, "activeCategoryIndex")
-    assert active_category_idx != "", "Cannot resolve the currently active category"
-    active_category_slug = SETTING_CATEGORY_SLUG[int(active_category_idx)]
-    if active_category_slug in TREE_NAMESPACED_PAGES:
-        return "%s/%sPage/%s" % (SETTINGS_POPUP_ITEM, active_category_slug, button)
-    return ACTION_BUTTON_TEMPLATE % (active_category_slug, button.title())
-
-def _get_control_value(s, group, key):
-    return _get_control_value_impl(s, group, key)
-
-
-def _get_config_value(s, group, key):
-    s.command("getConfigValue", f"{group},{key}")
-    return s.getStringProperty("mainWindow", "lastConfigValue")
-
-
-def _wait_for_music_directory_count(rpc, expected, timeout=10):
-    """Wait for the settings list to hold `expected` entries.
-
-    Returns (ok, last_seen_count) so a failure message can report what the
-    model actually contained instead of just "does not".
-    """
-    deadline = time.time() + timeout
-    last = None
-    while time.time() < deadline:
-        try:
-            if _is_visible(rpc, MUSIC_DIRECTORY_LIST):
-                last = int(rpc.getStringProperty(MUSIC_DIRECTORY_LIST, "count"))
-                if last == expected:
-                    return True, last
-        except Exception:
-            pass
-        time.sleep(0.3)
-    return False, last
-
-
-def _parse_library_state_expectation(value):
-    value = value.strip()
-    match = re.match(r"([<>]=?|!=|=)\s*(-?\d+)", value)
-    if match:
-        return {"op": match.group(1), "num": int(match.group(2))}
-    return {"op": "=", "num": int(value)}
-
-
-def _expectation_matches(actual, expectation):
-    op, num = expectation["op"], expectation["num"]
-    if op == "=":
-        return actual == num
-    if op == "!=":
-        return actual != num
-    if op == ">":
-        return actual > num
-    if op == ">=":
-        return actual >= num
-    if op == "<":
-        return actual < num
-    if op == "<=":
-        return actual <= num
-    return False
-
-
-def _wait_for_library_state(context, expected, timeout=30):
-    """Wait until the library state matches ``expected``.
-
-    Returns ``(matched, last_state)`` so a failure can report the last state
-    actually observed (or the RPC error that prevented reading it) instead of
-    a bare "does not".
-    """
-    deadline = time.time() + timeout
-    last_state = None
-    while time.time() < deadline:
-        try:
-            state = _get_library_state(context)
-            last_state = state
-            matched = True
-            for key, expectation in expected.items():
-                actual = state.get(key)
-                if key == "sources" and isinstance(actual, list):
-                    actual = len(actual)
-                if not _expectation_matches(actual, expectation):
-                    matched = False
-                    break
-            if matched:
-                return True, state
-        except Exception as e:
-            last_state = f"RPC error: {e}"
-        time.sleep(0.3)
-    return False, last_state
+def _get_config_value(context, group, key):
+    context.rpc.command("getConfigValue", f"{group},{key}")
+    return _get_property(context, "mainWindow", "lastConfigValue")
 
 
 def _category_path(label):
@@ -527,25 +243,7 @@ def _tab_path(name):
     return f"{TAB_BAR}/tab_{name}"
 
 
-# Thin adapters over spix_helpers: this module treats "condition not met"
-# as a False return (callers assert on it), keeping its shorter timeouts.
-def _wait_for_visible(rpc, path, timeout=5):
-    return _wait_visible_impl(rpc, path, timeout)
-
-
-def _wait_for_hidden(rpc, path, timeout=10):
-    return _wait_hidden_impl(rpc, path, timeout)
-
-
-def _wait_for_clickable(rpc, path, timeout=5):
-    return _wait_clickable_impl(rpc, path, timeout)
-
-
-def _click(rpc, path):
-    rpc.mouseClick(path)
-
-
-def _tap(rpc, path):
+def _tap(context, path):
     """Slow left-tap (250 ms hold) for TapHandler-driven controls.
 
     A plain synthetic click posts the press and release almost back-to-back,
@@ -553,80 +251,50 @@ def _tap(rpc, path):
     runner that is also capturing video). A short hold lets the press be fully
     delivered before the release, so the tap is recognised reliably.
     """
-    rpc.mouseClickAndHold(path, 1, 0, 250)
-
-
-def _is_visible(rpc, path):
-    return _is_visible_impl(rpc, path)
+    context.rpc.mouseClickAndHold(path, 1, 0, 250)
 
 
 # --- Given steps ---
 
 @given("the settings popup is open")
 def step_settings_popup_open(context):
-    s = context.rpc
-    if not _is_visible(s, SETTINGS_POPUP_ITEM):
-        _click(s, "mainWindow/showPreferencesButton")
+    if not _is_visible(context, SETTINGS_POPUP_ITEM):
+        _click(context, "mainWindow/showPreferencesButton")
         # Sometimes pretty slow on Windows Server CI runner
-        assert _wait_for_visible(s, SETTINGS_POPUP_ITEM, timeout=10), "Settings popup did not open"
+        assert wait_visible(context.rpc, SETTINGS_POPUP_ITEM, timeout=10), "Settings popup did not open"
         time.sleep(0.5)
 
 
 @given('the "{category}" category is selected')
 def step_category_selected(context, category):
-    s = context.rpc
     path = _category_path(category)
-    _wait_for_visible(s, path)
-    index = s.getStringProperty(path, "index")
-    s.setStringProperty(CATEGORY_LIST, "currentIndex", index)
+    _wait_for_visible(context, path)
+    index = _get_property(context, path, "index")
+    _set_property(context, CATEGORY_LIST, "currentIndex", index)
     time.sleep(0.3)
 
 
 @given('the "{tab}" tab is selected')
 def step_tab_selected(context, tab):
-    s = context.rpc
     path = _tab_path(tab)
-    _wait_for_visible(s, path)
-    _click(s, path)
+    _wait_for_visible(context, path)
+    _click(context, path)
     time.sleep(0.3)
 
 
 @given('the "{setting}" setting is "{value}"')
 def step_setting_is(context, setting, value):
-    s = context.rpc
     spec = _setting_spec(setting)
     if spec["kind"] != "ratio":
         raise ValueError(f"Cannot preset non-ratio setting: {setting}")
-    s.setStringProperty(spec["path"], "selected", value)
+    _set_property(context, spec["path"], "selected", value)
     time.sleep(0.3)
     step_click_action(context, 'save')
-    _wait_for_hidden(s, COMMITTING_OVERLAY)
+    # Certain operation may take more than 5 second to apply, such as the ALSA API switch
+    _wait_for_hidden(context, COMMITTING_OVERLAY, timeout=10)
     # Verify the preset survived the save, so scenarios do not build on
     # silent no-op preconditions.
-    _assert_setting_value_matches(s, setting, spec, value)
-
-
-@given('the router mode is "{mode}"')
-def step_router_mode_is(context, mode):
-    s = context.rpc
-    current = _get_router_mode(s)
-    if current != mode:
-        _set_router_mode(s, mode)
-
-
-@given('a saved connection exists from "{edge}" on "{entity}" to an output device')
-def step_saved_connection_exists(context, edge, entity):
-    s = context.rpc
-    source_path = _edge_path(entity, edge)
-    assert _wait_for_visible(s, source_path), f"Source edge {edge} on {entity} not visible"
-    _click(s, source_path)
-    time.sleep(0.5)
-    sink_path = _find_first_free_output_edge(s)
-    assert sink_path and _wait_for_visible(s, sink_path), "No free output device edge found"
-    _click(s, sink_path)
-    time.sleep(0.3)
-    step_click_action(context, 'save')
-    _wait_for_hidden(s, COMMITTING_OVERLAY)
+    _assert_setting_value_matches(context, setting, spec, value)
 
 
 @given("I have the following sound devices")
@@ -641,94 +309,28 @@ def step_register_mock_devices(context):
         })
 
 
-def _create_music_directory(context, dir_id, tracks, permission, dirname):
-    """Create a folder under the profile's Music dir and register it."""
-    parent = os.path.join(context.profile_dir, "Music")
-    path = os.path.join(parent, dirname)
-    os.makedirs(path, exist_ok=True)
-    if permission == "no-read":
-        os.chmod(path, 0o000)
-    elif permission != "read":
-        raise ValueError(f"Unknown directory permission '{permission}'")
-    if tracks:
-        tracks_dir = context.config.userdata["tracks_dir"]
-        sources = glob.glob(os.path.join(tracks_dir, "*.mp3"))
-        if len(sources) < tracks:
-            raise RuntimeError(
-                f"Not enough tracks in tracks_dir: need {tracks}, have {len(sources)}"
-            )
-        for track in sources[:tracks]:
-            shutil.copy2(track, path)
-    context.music_dirs[dir_id] = path
-    context.current_music_dir = path
-
-
-@given("a music directory")
-@given("the following music directories")
-def step_create_music_directory(context):
-    context.music_dirs = {}
-    if context.table:
-        for row in context.table:
-            _create_music_directory(
-                context,
-                row["id"],
-                int(row.get("tracks", MUSIC_DIRECTORY_DEFAULT_TRACK_COUNT)),
-                row.get("permission", "read"),
-                row.get("dir", f"MusicDir{row['id']}"),
-            )
-    else:
-        _create_music_directory(
-            context, "0", MUSIC_DIRECTORY_DEFAULT_TRACK_COUNT, "read", "MusicDir0"
-        )
-
-
-@given("the library contains {count:d} music directories")
-def step_library_contains_music_directories(context, count):
-    assert count >= 0, "A library cannot contain a negative number of music directories"
-    if count == 0:
-        return
-    parent = os.path.join(context.profile_dir, "Music")
-    os.makedirs(parent, exist_ok=True)
-    for index in range(count):
-        path = os.path.join(parent, f"MusicDir{index + 1}")
-        os.makedirs(path, exist_ok=True)
-        # The last add runs a blocking scan, which also refreshes the sources
-        # list in the already-open settings popup via the scanner's
-        # onRunningChanged -> loadSources() connection.
-        _library_command(context, "addDirectory", path, scan=(index == count - 1))
-
-
-@given("the tracks directory is in the library")
-def step_tracks_directory_in_library(context):
-    tracks_dir = context.config.userdata["tracks_dir"]
-    _library_command(context, "addDirectory", tracks_dir, scan=True)
-
-
 # --- When steps ---
 
 @when("I click the settings close button")
 def step_click_close_button(context):
-    s = context.rpc
-    _click(s, f"{SETTINGS_POPUP_ITEM}/settingsCloseButton")
+    _click(context, f"{SETTINGS_POPUP_ITEM}/settingsCloseButton")
     time.sleep(0.3)
 
 
 @when('I select the "{category}" category')
 def step_select_category(context, category):
-    s = context.rpc
     path = _category_path(category)
-    assert _wait_for_visible(s, path), f"Category '{category}' not visible"
-    index = s.getStringProperty(path, "index")
-    s.setStringProperty(CATEGORY_LIST, "currentIndex", index)
+    assert wait_visible(context.rpc, path), f"Category '{category}' not visible"
+    index = _get_property(context, path, "index")
+    _set_property(context, CATEGORY_LIST, "currentIndex", index)
     time.sleep(0.3)
 
 
 @when('I click the "{tab}" tab')
 def step_click_tab(context, tab):
-    s = context.rpc
     path = _tab_path(tab)
-    assert _wait_for_visible(s, path), f"Tab '{tab}' not visible"
-    _click(s, path)
+    assert wait_visible(context.rpc, path), f"Tab '{tab}' not visible"
+    _click(context, path)
     time.sleep(0.3)
 
 
@@ -737,10 +339,9 @@ def step_click_tab(context, tab):
 @when('I toggle the "{setting}" setting to "{value}" with {method}')
 @when('I set the "{setting}" setting to "{value}" with {method}')
 def step_set_setting(context, setting, value, method=None):
-    s = context.rpc
     spec = _setting_spec(setting)
     path = spec["path"]
-    _scroll_setting_into_view(s, path)
+    _scroll_setting_into_view(context, path)
     kind = spec["kind"]
     if kind == "ratio":
         options = spec.get("options")
@@ -754,12 +355,12 @@ def step_set_setting(context, setting, value, method=None):
         except ValueError:
             raise ValueError(f"Setting '{setting}' has no option '{value}'")
         option_path = f"{path}/option{index}"
-        if _setting_option_visible(s, option_path):
-            _click(s, option_path)
+        if _setting_option_visible(context, option_path):
+            _click(context, option_path)
         else:
             # Maximum 40 attempts
             for _ in range(40):
-                current = s.getStringProperty(path, "selected")
+                current = _get_property(context, path, "selected")
                 # contentSpin (compacted) mode: the options are not individually
                 # clickable, so drive the SpinBox next/prev buttons (real user
                 # input) the needed number of times from the current selection.
@@ -772,162 +373,82 @@ def step_set_setting(context, setting, value, method=None):
                 delta = index - current_idx
                 if delta == 0: break
                 button = f"{path}/nextButton" if delta > 0 else f"{path}/prevButton"
-                assert _wait_for_visible(s, button), (
+                assert wait_visible(context.rpc, button), (
                     f"Setting '{setting}' next/prev button not visible"
                 )
-                _click_until_value_moves(s, path, button, "selected")
+                _click_until_value_moves(context, path, button, "selected")
     elif kind == "combo":
         try:
             index = spec["model"].index(value)
         except (ValueError, AttributeError):
             raise ValueError(f"Setting '{setting}' has no option '{value}'")
-        assert _wait_for_visible(s, path), f"Setting '{setting}' control not visible"
-        _click(s, path)
+        assert wait_visible(context.rpc, path), f"Setting '{setting}' control not visible"
+        _click(context, path)
         option_path = f"{path}_option_{index}"
-        in_view = bool(_wait_for_visible(s, option_path)) and _scroll_combo_option_into_view(
-            s, path, index
+        in_view = bool(wait_visible(context.rpc, option_path)) and _scroll_combo_option_into_view(
+            context, path, index
         )
         if in_view:
-            _click(s, option_path)
+            _click(context, option_path)
         else:
-            _combo_select_keyboard(s, path, index)
+            _combo_select_keyboard(context, path, index)
     elif kind == "spinbox":
         precision = spec.get("precision", 0)
         step = 1.0 / (10 ** precision)
         # Maximum 40 attempts
         for _ in range(40):
-            current = float(s.getStringProperty(path, "realValue"))
+            current = float(_get_property(context, path, "realValue"))
             target = float(value)
             clicks = int(round((target - current) / step))
             if clicks == 0: break
             button = f"{path}/upButton" if clicks > 0 else f"{path}/downButton"
-            assert _wait_for_visible(s, button), f"Setting '{setting}' button not visible"
-            _click_until_value_moves(s, path, button, "realValue")
+            assert wait_visible(context.rpc, button), f"Setting '{setting}' button not visible"
+            _click_until_value_moves(context, path, button, "realValue")
     elif kind == "slider":
         method = method or "a drag"
         if method == "a drag":
-            _drag_slider_handle(s, spec, value)
+            _drag_slider_handle(context, spec, value)
         elif method == "the spinbox":
-            assert _wait_for_visible(s, f"{path}/Value"), (
+            assert wait_visible(context.rpc, f"{path}/Value"), (
                 f"Setting '{setting}' value field not visible"
             )
-            _enter_text_value(s, f"{path}/Value", value)
+            _enter_text_value(context, f"{path}/Value", value)
         else:
             raise ValueError(f"Unsupported method '{method}' for slider")
     elif kind == "color":
         option_path = f"{path}_color_{value}"
-        assert _wait_for_visible(s, option_path), (
+        assert wait_visible(context.rpc, option_path), (
             f"Setting '{setting}' color '{value}' not visible"
         )
-        _click(s, option_path)
+        _click(context, option_path)
     else:
         raise ValueError(f"Unknown setting kind: {kind}")
     # Prove the change actually took effect; a stuck control fails here
     # instead of at a later (or missing) Then. The bounded poll returns as
     # soon as the value matches instead of always burning a fixed sleep.
-    _wait_for_setting_value(s, setting, spec, value)
+    _wait_for_setting_value(context, setting, spec, value)
 
 
 @when("I click the {button} button")
 def step_click_action(context, button):
-    s = context.rpc
-    path = _active_button(s, button)
-    assert _is_visible(s, path), f"{button.title()} ({path}) button not visible"
-    _click(s, path)
-    time.sleep(0.5)
-
-
-@when("I select the music directory at row {row:d}")
-def step_select_music_directory(context, row):
-    s = context.rpc
-    path = MUSIC_DIRECTORY_ROW % row
-    assert _wait_for_clickable(s, path), f"Music directory row {row} is not visible"
-    _click(s, path)
-    time.sleep(0.3)
-
-
-@when("I click the remove button for the music directory at row {row:d}")
-def step_click_remove_music_directory(context, row):
-    s = context.rpc
-    path = SOURCE_REMOVE_BUTTON % row
-    assert _wait_for_clickable(s, path), (
-        f"Remove button for music directory row {row} is not visible"
-    )
-    _click(s, path)
-    time.sleep(0.5)
-
-
-@when("I choose to {action} the tracks of the music directory at row {row:d}")
-def step_choose_track_handling(context, action, row):
-    s = context.rpc
-    try:
-        option_index = SOURCE_REMOVE_MODE_OPTIONS.index(action)
-    except ValueError:
-        raise ValueError(f"Unknown track handling action '{action}'")
-    path = f"{SOURCE_REMOVE_MODE_SELECTOR % row}/option{option_index}"
-    assert _wait_for_clickable(s, path), (
-        f"Track handling option '{action}' for music directory row {row} is not visible"
-    )
-    _click(s, path)
-    time.sleep(0.3)
-
-
-@when("I add the test music directory {directory_id}")
-def step_add_test_music_directory(context, directory_id):
-    s = context.rpc
-    path = context.music_dirs[directory_id]
-    before = int(s.getStringProperty(MUSIC_DIRECTORY_LIST, "count"))
-    # Route the "Add" button to the test dialog mock and inject the folder,
-    # emulating a real folder picker selection. selectedFolder is a QML `url`
-    # property and the QML model steps carry urls end-to-end, so we must bind
-    # a real file URL: constructing one by string concatenation ("file://" +
-    # path) is rejected by Qt on Windows (backslashes and only two slashes)
-    # and silently yields an empty url. Path.as_uri() produces the correct,
-    # percent-encoded file:// URL on every platform.
-    s.setStringProperty(ADD_FOLDER_DIALOG_TEST, "testMode", "true")
-    s.setStringProperty(
-        ADD_FOLDER_DIALOG_TEST, "selectedFolder", Path(path).as_uri()
-    )
-    _click(s, ADD_SOURCE_BUTTON)
-    deadline = time.time() + 10
-    while time.time() < deadline:
-        try:
-            if int(s.getStringProperty(ADD_FOLDER_DIALOG_TEST, "openCount")) >= 1:
-                break
-        except Exception:
-            pass
-        time.sleep(0.3)
-    else:
-        raise AssertionError("The Add button did not open the dialog")
-    ok, actual = _wait_for_music_directory_count(s, before + 1)
-    assert ok, (
-        f"Music directory '{directory_id}' did not appear in the list "
-        f"(count stayed at {actual}, expected {before + 1})"
-    )
-
-
-@when('I set the router mode to "{mode}"')
-def step_set_router_mode(context, mode):
-    s = context.rpc
-    _set_router_mode(s, mode)
+    _click_active_button(context, button)
 
 
 @when('I search for "{text}"')
 def step_search_settings(context, text):
-    s = context.rpc
-    _tap(s, SEARCH_SETTING)
-    if not _wait_for_search_active(s):
-        _tap(s, SEARCH_SETTING)
+    _tap(context, SEARCH_SETTING)
+    if not _wait_for_search_active(context):
+        _tap(context, SEARCH_SETTING)
     time.sleep(0.3)
-    s.inputText(SEARCH_INPUT, text)
+    context.rpc.inputText(SEARCH_INPUT, text)
     time.sleep(0.5)
 
 
-def _wait_for_search_active(s, timeout=2):
+def _wait_for_search_active(context, timeout=2):
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            if s.getStringProperty(SEARCH_SETTING, "active") == "true":
+            if _get_property(context, SEARCH_SETTING, "active") == "true":
                 return True
         except Exception:
             pass
@@ -935,53 +456,15 @@ def _wait_for_search_active(s, timeout=2):
     return False
 
 
-@when('I connect the "{edge}" edge on "{entity}" entity to a free output device with {mean}')
-@when('I connect the "{edge}" edge on "{entity}" entity to a free output device')
-def step_connect_edge_to_output_alt(context, edge, entity, mean="two clicks"):
-    s = context.rpc
-    source_path = _edge_path(entity, edge)
-    assert _wait_for_visible(s, source_path), f"Source edge {edge} on {entity} not visible"
-    if mean == "two clicks":
-        _click(s, source_path)
-        time.sleep(0.5)
-        sink_path = _find_first_free_output_edge(s)
-        assert sink_path and _wait_for_visible(s, sink_path), "No free output device edge found"
-        _click(s, sink_path)
-        time.sleep(0.5)
-    else:
-        # FIXME not correctly working
-        source_bb = context.rpc.getBoundingBox(source_path)
-        sink_path = _find_first_free_output_edge(s)
-        assert sink_path and _wait_for_visible(s, sink_path), "No free output device edge found"
-        sink_bb = context.rpc.getBoundingBox(sink_path)
-        delta = sink_bb[0] - source_bb[0], sink_bb[1] - source_bb[1]
-        s.mouseDrag(source_path, 0.5, 0.5, *delta, 1000)
-
-
-
-@when('I hover over the "{edge}" edge on "{entity}" entity')
-def step_hover_edge(context, edge, entity):
-    # TODO: spix has no mouseHover/mouseMoveTo API. mouseClick triggers onPressed,
-    # not onEntered. The AudioEntity edge MouseArea uses onEntered to set the
-    # AboutToDelete flag (AudioConnection.Flags). Need either:
-    #   1. A spix API for hover events (mouseHover / mouseMoveTo)
-    #   2. A custom C++ command to directly set the AboutToDelete flag
-    raise NotImplementedError(
-        "spix has no hover API; mouseClick triggers onPressed not onEntered. "
-        "Cannot simulate hover to set AudioConnection.Flags.AboutToDelete."
-    )
-
-
 @when('I connect the "{source_edge}" edge on "{source_entity}" to the "{sink_edge}" edge on "{sink_entity}"')
 def step_connect_edge_to_edge(context, source_edge, source_entity, sink_edge, sink_entity):
-    s = context.rpc
     source_path = _edge_path(source_entity, source_edge)
-    assert _wait_for_visible(s, source_path), f"Source edge {source_edge} on {source_entity} not visible"
-    _click(s, source_path)
+    assert wait_visible(context.rpc, source_path), f"Source edge {source_edge} on {source_entity} not visible"
+    _click(context, source_path)
     time.sleep(0.5)
     sink_path = _edge_path(sink_entity, sink_edge)
-    assert _wait_for_visible(s, sink_path), f"Sink edge {sink_edge} on {sink_entity} not visible"
-    _click(s, sink_path)
+    assert wait_visible(context.rpc, sink_path), f"Sink edge {sink_edge} on {sink_entity} not visible"
+    _click(context, sink_path)
     time.sleep(0.5)
 
 
@@ -989,23 +472,20 @@ def step_connect_edge_to_edge(context, source_edge, source_entity, sink_edge, si
 
 @then("the settings popup should be visible")
 def step_settings_visible(context):
-    s = context.rpc
-    assert _wait_for_visible(s, SETTINGS_POPUP_ITEM), "Settings popup is not visible"
+    assert wait_visible(context.rpc, SETTINGS_POPUP_ITEM), "Settings popup is not visible"
 
 
 @then("the settings popup should not be visible")
 def step_settings_not_visible(context):
-    s = context.rpc
-    assert _wait_for_hidden(s, SETTINGS_POPUP_ITEM), "Settings popup is still visible"
+    assert wait_hidden(context.rpc, SETTINGS_POPUP_ITEM), "Settings popup is still visible"
 
 
 @then('the "{category}" category should be selected')
 def step_category_should_be_selected(context, category):
-    s = context.rpc
     path = _category_path(category)
-    assert _is_visible(s, path), f"Category '{category}' is not visible"
-    expected = s.getStringProperty(path, "index")
-    actual = s.getStringProperty(CATEGORY_LIST, "currentIndex")
+    assert _is_visible(context, path), f"Category '{category}' is not visible"
+    expected = _get_property(context, path, "index")
+    actual = _get_property(context, CATEGORY_LIST, "currentIndex")
     assert actual == expected, (
         f"Category '{category}' should be selected (index {expected}) "
         f"but the selected index is {actual}"
@@ -1014,38 +494,25 @@ def step_category_should_be_selected(context, category):
 
 @then('the "{tab}" tab should be visible')
 def step_tab_visible(context, tab):
-    s = context.rpc
     path = _tab_path(tab)
-    assert _is_visible(s, path), f"Tab '{tab}' is not visible"
+    assert _is_visible(context, path), f"Tab '{tab}' is not visible"
 
 
 @then('the "{tab}" tab should be selected')
 def step_tab_selected_then(context, tab):
-    s = context.rpc
     path = _tab_path(tab)
-    assert _wait_for_visible(s, path), f"Tab '{tab}' not visible"
-    checked = s.getStringProperty(path, "checked")
+    assert wait_visible(context.rpc, path), f"Tab '{tab}' not visible"
+    checked = _get_property(context, path, "checked")
     assert checked == "true", f"Tab '{tab}' should be selected but checked={checked}"
 
 
-@then("the engine section should be visible")
-def step_engine_visible(context):
-    s = context.rpc
-    assert _is_visible(s, ENGINE_SECTION), "Engine section is not visible"
-
-
-@then("the delays section should be visible")
-def step_delays_visible(context):
-    s = context.rpc
-    assert _is_visible(s, DELAYS_SECTION), "Delays section is not visible"
-
-def _button_is_enabled(s, path):
+def _button_is_enabled(context, path):
     """Read the ``enabled`` property, failing loudly when it is missing.
 
     Treating an unreadable property as ``false`` used to make a ``should be
     disabled`` assertion pass vacuously (e.g. after the button disappeared).
     """
-    enabled = s.getStringProperty(path, "enabled")
+    enabled = _get_property(context, path, "enabled")
     assert enabled in ("true", "false"), (
         f"Cannot read 'enabled' of '{path}' (got '{enabled}')"
     )
@@ -1054,33 +521,29 @@ def _button_is_enabled(s, path):
 
 @then("the {button} button should be enabled")
 def step_button_enabled(context, button):
-    s = context.rpc
-    path = _active_button(s, button)
-    assert _button_is_enabled(s, path), f"{button.title()} button is not enabled"
+    path = _active_button(context, button)
+    assert _button_is_enabled(context, path), f"{button.title()} button is not enabled"
 
 
 @then("the {button} button should be disabled")
 def step_button_disabled(context, button):
-    s = context.rpc
-    path = _active_button(s, button)
-    assert not _button_is_enabled(s, path), f"{button.title()} button is not disabled"
+    path = _active_button(context, button)
+    assert not _button_is_enabled(context, path), f"{button.title()} button is not disabled"
 
 
 @then("the {button} button should be visible")
 def step_button_visible(context, button):
-    s = context.rpc
-    path = _active_button(s, button)
-    assert _is_visible(s, path), f"{button.title()} button is not visible"
+    path = _active_button(context, button)
+    assert _is_visible(context, path), f"{button.title()} button is not visible"
 
 
 @then("the {button} button should not be visible")
 def step_button_not_visible(context, button):
-    s = context.rpc
-    path = _active_button(s, button)
-    assert not _is_visible(s, path), f"{button.title()} button is visible"
+    path = _active_button(context, button)
+    assert not _is_visible(context, path), f"{button.title()} button is visible"
 
 
-def _wait_for_setting_value(s, setting, spec, value, timeout=3):
+def _wait_for_setting_value(context, setting, spec, value, timeout=3):
     """Poll the setting until it matches ``value`` (bounded settle wait).
 
     Equivalent to a fixed sleep followed by :func:`_assert_setting_value_matches`,
@@ -1090,7 +553,7 @@ def _wait_for_setting_value(s, setting, spec, value, timeout=3):
     deadline = time.time() + timeout
     while True:
         try:
-            _assert_setting_value_matches(s, setting, spec, value)
+            _assert_setting_value_matches(context, setting, spec, value)
             return
         except AssertionError as err:
             last_error = err
@@ -1099,15 +562,15 @@ def _wait_for_setting_value(s, setting, spec, value, timeout=3):
         time.sleep(0.1)
 
 
-def _assert_setting_value_matches(s, setting, spec, value):
+def _assert_setting_value_matches(context, setting, spec, value):
     """Assert the setting control's current value matches ``value``.
 
     Shared by the ``should be`` Then step and by the When/Given steps that
     change a setting, so a change that silently did not happen fails right
     where it was made instead of at a later (or missing) assertion.
     """
-    assert _wait_for_visible(s, spec['path']), "Unable to find setting"
-    actual = _read_setting_value(s, spec)
+    assert wait_visible(context.rpc, spec['path']), "Unable to find setting"
+    actual = _read_setting_value(context, spec)
     kind = spec["kind"]
     if kind == "combo":
         try:
@@ -1131,33 +594,29 @@ def _assert_setting_value_matches(s, setting, spec, value):
 
 @then('the "{setting}" setting should be "{value}"')
 def step_setting_should_be(context, setting, value):
-    s = context.rpc
-    _assert_setting_value_matches(s, setting, _setting_spec(setting), value)
+    _assert_setting_value_matches(context, setting, _setting_spec(setting), value)
 
 
 @then('the "{setting}" setting should be enabled')
 def step_setting_should_be_enabled(context, setting):
-    s = context.rpc
     spec = _setting_spec(setting)
-    actual = s.getStringProperty(spec["path"], "enabled")
+    actual = _get_property(context, spec["path"], "enabled")
     assert actual == "true", f"Setting '{setting}' should be enabled but enabled={actual}"
 
 
 @then('the "{setting}" setting should be disabled')
 def step_setting_should_be_disabled(context, setting):
-    s = context.rpc
     spec = _setting_spec(setting)
-    actual = s.getStringProperty(spec["path"], "enabled")
+    actual = _get_property(context, spec["path"], "enabled")
     assert actual == "false", f"Setting '{setting}' should be disabled but enabled={actual}"
 
 
 @then('the "{setting}" should be saved as "{value}"')
 def step_setting_saved_as(context, setting, value):
-    s = context.rpc
     spec = CONFIG_SAVE_MAP.get(setting)
     if not spec:
         raise ValueError(f"No config mapping for setting: {setting}")
-    actual = _get_config_value(s, spec["group"], spec["key"])
+    actual = _get_config_value(context, spec["group"], spec["key"])
     expected = spec["expected"]
     if callable(expected):
         expected = expected(value)
@@ -1170,11 +629,10 @@ def step_setting_saved_as(context, setting, value):
 
 @then('the "{setting}" config key should be unset')
 def step_setting_key_unset(context, setting):
-    s = context.rpc
     spec = CONFIG_SAVE_MAP.get(setting)
     if not spec:
         raise ValueError(f"No config mapping for setting: {setting}")
-    actual = _get_config_value(s, spec["group"], spec["key"])
+    actual = _get_config_value(context, spec["group"], spec["key"])
     assert actual == "", (
         f"Config key '{spec['group']},{spec['key']}' should be unset but is '{actual}'"
     )
@@ -1182,13 +640,12 @@ def step_setting_key_unset(context, setting):
 
 @then('the "{setting}" should be saved')
 def step_setting_saved(context, setting):
-    s = context.rpc
     spec = CONFIG_SAVE_MAP.get(setting)
     if not spec:
         raise ValueError(f"No config mapping for setting: {setting}")
-    actual = _get_config_value(s, spec["group"], spec["key"])
+    actual = _get_config_value(context, spec["group"], spec["key"])
     widget = _setting_spec(setting)
-    current = s.getStringProperty(widget["path"], "currentText")
+    current = _get_property(context, widget["path"], "currentText")
     assert actual == current, (
         f"Config for '{setting}' should be saved as '{current}' but is '{actual}'"
     )
@@ -1196,11 +653,10 @@ def step_setting_saved(context, setting):
 
 @then('the "{setting}" on deck {deck:d} should be "{value}"')
 def step_setting_control(context, setting, deck, value):
-    s = context.rpc
     spec = CONTROL_VALUE_MAP.get(setting)
     if not spec:
         raise ValueError(f"No control mapping for setting: {setting}")
-    actual = _get_control_value(s, f"[Channel{deck}]", spec["key"])
+    actual = _get_control_value(context, f"[Channel{deck}]", spec["key"])
     expected = spec["expected"]
     if callable(expected):
         expected = expected(value)
@@ -1211,114 +667,10 @@ def step_setting_control(context, setting, deck, value):
     )
 
 
-@then("the committing overlay should be visible")
-def step_committing_visible(context):
-    s = context.rpc
-    assert _is_visible(s, COMMITTING_OVERLAY), "Committing overlay is not visible"
-
-
-@then("the committing overlay should not be visible after commit")
-@when("the committing overlay is not visible")
-def step_committing_hidden(context):
-    s = context.rpc
-    assert _wait_for_hidden(s, COMMITTING_OVERLAY, timeout=15), "Committing overlay did not disappear"
-
-
-@then("the router section should be visible")
-def step_router_visible(context):
-    s = context.rpc
-    assert _is_visible(s, ROUTER_SECTION), "Router section is not visible"
-
-
-@then('the router mode should be "{mode}"')
-def step_router_mode_should_be(context, mode):
-    s = context.rpc
-    current = _get_router_mode(s)
-    assert current == mode, f"Router mode should be '{mode}' but is '{current}'"
-
-
-@then("the outputs column should be visible")
-def step_outputs_visible(context):
-    s = context.rpc
-    assert _is_visible(s, OUTPUT_COLUMN), "Outputs column is not visible"
-
-
-@then("the inputs column should be visible")
-def step_inputs_visible(context):
-    s = context.rpc
-    assert _is_visible(s, INPUT_COLUMN), "Inputs column is not visible"
-
-
-@then("the input column should not be visible")
-def step_input_not_visible(context):
-    s = context.rpc
-    assert not _is_visible(s, INPUT_COLUMN), "Input column should not be visible"
-
-
-@then('the "{entity}" entity should be visible in the router')
-def step_entity_visible(context, entity):
-    s = context.rpc
-    path = _entity_path(entity)
-    assert _is_visible(s, path), f"Entity '{entity}' is not visible in the router"
-
-
-@then('the "{entity}" entity should not be visible in the router')
-def step_entity_not_visible(context, entity):
-    s = context.rpc
-    path = _entity_path(entity)
-    assert not _is_visible(s, path), f"Entity '{entity}' should not be visible in the router"
-
-
-@then('the "{edge}" edge on "{entity}" entity should show {state} state')
-def step_edge_state(context, edge, entity, state):
-    s = context.rpc
-    path = _edge_path(entity, edge)
-    assert _wait_for_visible(s, path), f"Edge {edge} on {entity} not visible"
-    actual = s.getStringProperty(path, "state")
-    assert actual == state, f"Edge {edge} on {entity} should show '{state}' state but shows '{actual}'"
-
-
-@then('the connection from "{edge}" on "{entity}" should show {state} state')
-def step_connection_state(context, edge, entity, state):
-    s = context.rpc
-    path = _edge_path(entity, edge)
-    assert _wait_for_visible(s, path), f"Edge {edge} on {entity} not visible"
-    connectionObjectName = s.invokeMethod(path, "connectionObjectName", [])
-    actual = s.getStringProperty(f"mainWindow/{connectionObjectName}", "state")
-    assert actual == state, f"Connection state is not '{state}', but '{actual}'"
-
-
-@then("the router should match the saved configuration")
-def step_router_matches_saved(context):
-    s = context.rpc
-    assert _is_visible(s, ROUTER_SECTION), "Router section is not visible"
-    has_changes = s.getStringProperty(ROUTER_SECTION, "hasChanges")
-    # Require an exact "false": a missing/empty property ("" from spix when
-    # the item or property is gone) must fail, not pass vacuously.
-    assert has_changes == "false", (
-        f"Router has unsaved changes (hasChanges={has_changes})"
-    )
-
-
-@then('the "{option}" option should be visible')
-def step_option_visible(context, option):
-    s = context.rpc
-    candidates = []
-    idx = _ROUTER_MODE_OPTION_INDEX.get(option)
-    if idx is not None:
-        candidates.append(f"mainWindow/routerMode/option{idx}")
-    idx = _MULTI_SOUNDCARD_OPTION_INDEX.get(option)
-    if idx is not None:
-        candidates.append(f"mainWindow/multiSoundcard/option{idx}")
-    found = any(_is_visible(s, p) for p in candidates)
-    assert found, f"Option '{option}' is not visible"
-
-
 @then("the search results should be visible")
 def step_search_results_visible(context):
-    s = context.rpc
     result_list = f"{SETTINGS_POPUP_ITEM}/settingResultList"
-    assert _wait_for_visible(s, result_list, timeout=10), "Search results are not visible"
+    assert wait_visible(context.rpc, result_list, timeout=10), "Search results are not visible"
 
 
 valid = None
@@ -1331,304 +683,28 @@ valid = None
 # values.
 
 
-def _deck_waveform_path(deck):
-    return f"mainWindow/waveformDisplay_Channel{deck}"
-
-
-def _read_float_property(s, path, prop):
-    value = s.getStringProperty(path, prop)
-    try:
-        return float(value)
-    except (TypeError, ValueError) as e:
-        raise AssertionError(
-            f"Expected a numeric '{prop}' on '{path}' but read '{value}' ({e})"
-        )
-
-
-def _waveform_color_props(context, band, color):
-    s = context.rpc
-    assert band in COLOR_BAND_MAP, f"Unknown waveform color '{band}'"
-    actual = s.getStringProperty(WAVEFORM_PREVIEW_PATH, "colorCode" if band == "all" else f"{band}ColorCode")
-    assert actual.lower() == color.lower(), (
-        f"The '{band}' waveform color should be '{color}' but is '{actual}'"
-    )
-
-
-def _assert_deck_until_mark(context, prop, deck, expected, description):
-    s = context.rpc
-    actual = s.getStringProperty(_deck_waveform_path(deck), prop)
-    assert actual == str(expected).lower(), (
-        f"The until-marker hint on deck {deck} should "
-        f"{'show' if expected else 'not show'} {description} "
-        f"but '{prop}' is '{actual}'"
-    )
-
-
-@when('I pick the color "{color}" for the "{band}" waveform color')
-def step_pick_waveform_color(context, color, band):
-    s = context.rpc
-    assert band in COLOR_BAND_MAP, f"Unknown waveform color '{band}'"
-    index = COLOR_BAND_MAP[band]
-    swatch_path = f"mainWindow/waveformColorSwatch_{index}"
-    assert _wait_for_visible(s, swatch_path), (
-        f"Color swatch '{swatch_path}' is not visible; the current waveform "
-        f"type must support the '{band}' color"
-    )
-    before = int(s.getStringProperty(COLOR_PICKER_TEST_PATH, "openCount"))
-    s.setStringProperty(COLOR_PICKER_TEST_PATH, "testMode", "true")
-    s.setStringProperty(COLOR_PICKER_TEST_PATH, "selectedColor", color)
-    _click(s, swatch_path)
-    deadline = time.time() + 5
-    after = before
-    while time.time() < deadline:
-        after = int(s.getStringProperty(COLOR_PICKER_TEST_PATH, "openCount"))
-        if after > before:
-            break
-        time.sleep(0.1)
-    assert after == before + 1, (
-        f"The color picker for the '{band}' waveform color did not open "
-        f"(open count {before} -> {after})"
-    )
-
-
 @then('the "{setting}" setting should not be visible')
 def step_setting_not_visible(context, setting):
-    s = context.rpc
     spec = _setting_spec(setting)
-    assert _wait_for_hidden(s, spec["path"]), f"Setting '{setting}' is still visible"
-
-
-@then("the waveform preview should be at zoom {zoom:g}")
-def step_preview_waveform_zoom(context, zoom):
-    s = context.rpc
-    actual = _read_float_property(s, WAVEFORM_PREVIEW_PATH, "zoom")
-    assert abs(actual - zoom) < 0.01, (
-        f"The waveform preview should be at zoom {zoom} but is {actual}"
-    )
-
-
-@then("the waveform preview beat grid should be {pct:d}% opaque")
-def step_preview_waveform_beat_grid(context, pct):
-    s = context.rpc
-    actual = _read_float_property(s, WAVEFORM_PREVIEW_PATH, "beatGridOpacity")
-    expected = pct / 100
-    assert abs(actual - expected) < 0.01, (
-        f"The waveform preview beat grid should be {pct}% opaque ({expected}) "
-        f"but is {actual}"
-    )
-
-
-@then("the waveform preview play marker should sit at {pct:d}%")
-def step_preview_waveform_play_marker(context, pct):
-    s = context.rpc
-    actual = _read_float_property(s, WAVEFORM_PREVIEW_PATH, "playMarkerPosition")
-    expected = pct / 100
-    assert abs(actual - expected) < 0.01, (
-        f"The waveform preview play marker should sit at {pct}% ({expected}) "
-        f"but is at {actual}"
-    )
-
-
-@then('the waveform preview until-marker hint should show beats')
-def step_preview_waveform_until_mark_beats(context):
-    s = context.rpc
-    actual = s.getStringProperty(WAVEFORM_PREVIEW_PATH, "untilMarkShowBeats")
-    assert actual == "true", (
-        f"The waveform preview until-marker hint should show beats "
-        f"but showBeats is '{actual}'"
-    )
-
-
-@then('the waveform preview until-marker hint should not show beats')
-def step_preview_waveform_until_mark_beats_off(context):
-    s = context.rpc
-    actual = s.getStringProperty(WAVEFORM_PREVIEW_PATH, "untilMarkShowBeats")
-    assert actual == "false", (
-        f"The waveform preview until-marker hint should not show beats "
-        f"but showBeats is '{actual}'"
-    )
-
-
-@then('the waveform preview until-marker hint should show the remaining time')
-def step_preview_waveform_until_mark_time(context):
-    s = context.rpc
-    actual = s.getStringProperty(WAVEFORM_PREVIEW_PATH, "untilMarkShowTime")
-    assert actual == "true", (
-        f"The waveform preview until-marker hint should show the remaining "
-        f"time but showTime is '{actual}'"
-    )
-
-
-@then('the waveform preview until-marker hint should not show the remaining time')
-def step_preview_waveform_until_mark_time_off(context):
-    s = context.rpc
-    actual = s.getStringProperty(WAVEFORM_PREVIEW_PATH, "untilMarkShowTime")
-    assert actual == "false", (
-        f"The waveform preview until-marker hint should not show the remaining "
-        f"time but showTime is '{actual}'"
-    )
-
-
-@then('the waveform preview until-marker hint should be placed at the "{placement}"')
-def step_preview_waveform_until_mark_placement(context, placement):
-    s = context.rpc
-    actual = s.getStringProperty(WAVEFORM_PREVIEW_PATH, "untilMarkAlignName")
-    assert actual == placement, (
-        f"The waveform preview until-marker hint should be placed at the "
-        f"'{placement}' but is '{actual}'"
-    )
-
-
-@then('the waveform preview until-marker hint should use a {size:d}pt font')
-def step_preview_waveform_until_mark_font(context, size):
-    s = context.rpc
-    actual = _read_float_property(s, WAVEFORM_PREVIEW_PATH, "untilMarkTextSize")
-    assert abs(actual - size) < 0.01, (
-        f"The waveform preview until-marker hint should use a {size}pt font "
-        f"but is {actual}pt"
-    )
-
-
-@then('the waveform preview should have the "{band}" band gain set to "{value}"')
-def step_preview_waveform_band_gain(context, band, value):
-    s = context.rpc
-    prop = GAIN_BAND_MAP[band]["preview"]
-    actual = _read_float_property(s, WAVEFORM_PREVIEW_PATH, prop)
-    assert abs(actual - float(value)) < 1e-3, (
-        f"The waveform preview should have the '{band}' band gain set to "
-        f"'{value}' ({prop}) but is {actual}"
-    )
-
-
-@then('the waveform preview should render with the selected options')
-def step_preview_waveform_option(context):
-    s = context.rpc
-    bits = 0
-    for name, bit in WAVEFORM_OPTION_BITS.items():
-        selected = s.getStringProperty(_setting_spec(name)["path"], "selected")
-        if selected == "on":
-            bits |= bit
-    actual = int(s.getStringProperty(WAVEFORM_PREVIEW_PATH, "options"))
-    assert actual == bits, (
-        f"The waveform preview should render with option bits {bits} "
-        f"but renders with bits {actual}"
-    )
-
-
-@then('the "{band}" color swatch should be "{color}"')
-def step_waveform_color_swatch(context, band, color):
-    _waveform_color_props(context, band, color)
-
-
-@then('the waveform preview should render the "{band}" band with "{color}"')
-def step_preview_waveform_color(context, band, color):
-    _waveform_color_props(context, band, color)
-
-
-# --- Deck waveforms (validation of the saved values) ---
-
-@then("the beat grid on deck {deck:d} should fade to {pct:d}% opacity")
-def step_deck_waveform_beat_grid(context, deck, pct):
-    s = context.rpc
-    actual = _read_float_property(s, _deck_waveform_path(deck), "beatGridAlpha")
-    expected = pct / 100
-    assert abs(actual - expected) < 0.01, (
-        f"The beat grid on deck {deck} should fade to {pct}% opacity "
-        f"({expected}) but is {actual}"
-    )
-
-
-@then("the play marker on deck {deck:d} should sit at {pct:d}%")
-def step_deck_waveform_play_marker(context, deck, pct):
-    s = context.rpc
-    actual = _read_float_property(
-            s, _deck_waveform_path(deck), "playMarkerPosition")
-    expected = pct / 100
-    assert abs(actual - expected) < 0.01, (
-        f"The play marker on deck {deck} should sit at {pct}% ({expected}) "
-        f"but is at {actual}"
-    )
-
-
-@then("the until-marker hint on deck {deck:d} should show beats")
-def step_deck_waveform_until_mark_beats_on(context, deck):
-    _assert_deck_until_mark(context, "untilMarkShowBeats", deck, True, "beats")
-
-
-@then("the until-marker hint on deck {deck:d} should not show beats")
-def step_deck_waveform_until_mark_beats_off(context, deck):
-    _assert_deck_until_mark(context, "untilMarkShowBeats", deck, False, "beats")
-
-
-@then("the until-marker hint on deck {deck:d} should show the remaining time")
-def step_deck_waveform_until_mark_time_on(context, deck):
-    _assert_deck_until_mark(context, "untilMarkShowTime", deck, True, "remaining time")
-
-
-@then("the until-marker hint on deck {deck:d} should not show the remaining time")
-def step_deck_waveform_until_mark_time_off(context, deck):
-    _assert_deck_until_mark(context, "untilMarkShowTime", deck, False, "remaining time")
-
-
-@then('the until-marker hint on deck {deck:d} should be placed at the "{placement}"')
-def step_deck_waveform_until_mark_placement(context, deck, placement):
-    s = context.rpc
-    actual = s.getStringProperty(_deck_waveform_path(deck), "untilMarkAlignName")
-    assert actual == placement, (
-        f"The until-marker hint on deck {deck} should be placed at the "
-        f"'{placement}' but is '{actual}'"
-    )
-
-
-@then('the until-marker hint on deck {deck:d} should use a {size:d}pt font')
-def step_deck_waveform_until_mark_font(context, deck, size):
-    s = context.rpc
-    actual = _read_float_property(s, _deck_waveform_path(deck), "untilMarkTextSize")
-    assert abs(actual - size) < 0.01, (
-        f"The until-marker hint on deck {deck} should use a {size}pt font "
-        f"but is {actual}pt"
-    )
-
-
-@then('the waveform on deck {deck:d} should have the "{band}" band gain set to "{value}"')
-def step_deck_waveform_band_gain(context, deck, band, value):
-    s = context.rpc
-    prop = GAIN_BAND_MAP[band]["deck"]
-    actual = _read_float_property(s, _deck_waveform_path(deck), prop)
-    assert abs(actual - float(value)) < 1e-3, (
-        f"The waveform on deck {deck} should have the '{band}' band gain set "
-        f"to '{value}' ({prop}) but is {actual}"
-    )
-
-
-@then("the zoom of the waveform on deck {deck_a:d} should be equal to the zoom on deck {deck_b:d}")
-def step_deck_waveform_zoom_equal(context, deck_a, deck_b):
-    s = context.rpc
-    a = _read_float_property(s, _deck_waveform_path(deck_a), "waveformZoom")
-    b = _read_float_property(s, _deck_waveform_path(deck_b), "waveformZoom")
-    assert abs(a - b) < 1e-6, (
-        f"The zoom of the waveform on deck {deck_a} ({a}) differs from the "
-        f"zoom on deck {deck_b} ({b}); zoom synchronization did not couple them"
-    )
-
+    assert wait_hidden(context.rpc, spec["path"]), f"Setting '{setting}' is still visible"
 
 # --- Responsiveness steps ---
 
 
-def _active_scrollbar(s):
-    idx = int(s.getStringProperty(SETTINGS_POPUP_ITEM, "activeCategoryIndex"))
+def _active_scrollbar(context):
+    idx = int(_get_property(context, SETTINGS_POPUP_ITEM, "activeCategoryIndex"))
     bar = CATEGORY_SCROLLBARS.get(idx)
     assert bar, f"No known vertical scrollbar for active category index {idx}"
     return bar
 
 
-def _scroll_setting_into_view(s, path):
+def _scroll_setting_into_view(context, path):
     """Scroll the active settings category so that the item at ``path`` is
     fully inside the visible scroll viewport, mirroring a user scrolling to
     reach a below-the-fold setting."""
-    bar = _active_scrollbar(s)
+    bar = _active_scrollbar(context)
     try:
-        size = float(s.getStringProperty(bar, "size") or 0)
+        size = float(_get_property(context, bar, "size") or 0)
     except ValueError:
         size = 0
     if size >= 1.0:
@@ -1637,55 +713,50 @@ def _scroll_setting_into_view(s, path):
     deadline = time.time() + 8
     while time.time() < deadline:
         try:
-            x, y, w, h = s.getBoundingBox(path)
-            bx, by, bw, bh = s.getBoundingBox(bar)
+            x, y, w, h = context.rpc.getBoundingBox(path)
+            bx, by, bw, bh = context.rpc.getBoundingBox(bar)
         except Exception:
             return
         if y >= by and y + h <= by + bh:
             return
         target = max_value if y + h > by + bh else 0.0
-        s.setStringProperty(bar, "position", str(target))
+        _set_property(context, bar, "position", str(target))
         time.sleep(0.3)
 
 
 @then("the settings categories should {assertion} visible")
 def step_settings_categories_visible(context, assertion):
-    s = context.rpc
     expected = assertion == "be"
-    assert _is_visible(s, CATEGORIES_ITEM) is expected, (
+    assert _is_visible(context, CATEGORIES_ITEM) is expected, (
         f"Settings categories should {assertion} visible"
     )
 
 
 @then("the button to reveal the categories should {assertion} visible")
 def step_categories_button_visible(context, assertion):
-    s = context.rpc
     expected = assertion == "be"
-    assert _is_visible(s, SHOW_CATEGORIES_BUTTON) is expected, (
+    assert _is_visible(context, SHOW_CATEGORIES_BUTTON) is expected, (
         f"Categories button should {assertion} visible"
     )
 
 
 @when("I click the button to reveal the categories")
 def step_click_categories_button(context):
-    s = context.rpc
-    assert _wait_for_visible(s, SHOW_CATEGORIES_BUTTON), "Categories button is not visible"
-    _click(s, SHOW_CATEGORIES_BUTTON)
+    assert wait_visible(context.rpc, SHOW_CATEGORIES_BUTTON), "Categories button is not visible"
+    _click(context, SHOW_CATEGORIES_BUTTON)
     time.sleep(0.3)
 
 
 @then('the "{setting}" setting should be visible')
 def step_setting_visible(context, setting):
-    s = context.rpc
     spec = _setting_spec(setting)
-    assert _wait_for_visible(s, spec["path"]), f"Setting '{setting}' is not visible"
+    assert wait_visible(context.rpc, spec["path"]), f"Setting '{setting}' is not visible"
 
 
 @then('the "{setting}" setting should be expanded')
 def step_setting_expanded(context, setting):
-    s = context.rpc
     spec = _setting_spec(setting)
-    assert _wait_for_visible(s, f"{spec['path']}/option0"), (
+    assert wait_visible(context.rpc, f"{spec['path']}/option0"), (
         f"Setting '{setting}' should be expanded but its option pills are not visible"
     )
 
@@ -1705,10 +776,9 @@ LIBRARY_GRIDS = {
 @then('the {grid} grid should be displayed in {columns:d} columns')
 @then('the {grid} grid should be displayed in {columns:d} column')
 def step_grid_columns(context, grid, columns):
-    s = context.rpc
     path = LIBRARY_GRIDS.get(grid, f"mainWindow/{grid}")
-    assert _wait_for_visible(s, path), f"Grid '{grid}' is not visible"
-    actual = int(s.getStringProperty(path, "columns"))
+    assert wait_visible(context.rpc, path), f"Grid '{grid}' is not visible"
+    actual = int(_get_property(context, path, "columns"))
     assert actual == columns, (
         f"Grid '{grid}' should be displayed in {columns} columns but has {actual}"
     )
@@ -1722,16 +792,15 @@ SPATIAL_ITEM_PATHS = {
 
 @then('the {item} should be below the {target}')
 def step_below(context, item, target):
-    s = context.rpc
     item_path = SPATIAL_ITEM_PATHS[item]
     target_path = SPATIAL_ITEM_PATHS[target]
     # Hidden or zero-sized items make the geometric comparison below vacuous
     # (e.g. a 0x0 box trivially lies "below" anything), so require both to be
     # really on screen first.
-    assert _is_visible(s, item_path), f"'{item}' is not visible"
-    assert _is_visible(s, target_path), f"'{target}' is not visible"
-    item_bb = s.getBoundingBox(item_path)
-    target_bb = s.getBoundingBox(target_path)
+    assert _is_visible(context, item_path), f"'{item}' is not visible"
+    assert _is_visible(context, target_path), f"'{target}' is not visible"
+    item_bb = context.rpc.getBoundingBox(item_path)
+    target_bb = context.rpc.getBoundingBox(target_path)
     assert item_bb[1] >= target_bb[1] + target_bb[3], (
         f"'{item}' is not below '{target}' "
         f"(item_top={item_bb[1]}, target_bottom={target_bb[1] + target_bb[3]})"
@@ -1740,13 +809,12 @@ def step_below(context, item, target):
 
 @then('the {item} should not overlap the {target}')
 def step_not_overlap(context, item, target):
-    s = context.rpc
     item_path = SPATIAL_ITEM_PATHS[item]
     target_path = SPATIAL_ITEM_PATHS[target]
-    assert _is_visible(s, item_path), f"'{item}' is not visible"
-    assert _is_visible(s, target_path), f"'{target}' is not visible"
-    a = s.getBoundingBox(item_path)
-    b = s.getBoundingBox(target_path)
+    assert _is_visible(context, item_path), f"'{item}' is not visible"
+    assert _is_visible(context, target_path), f"'{target}' is not visible"
+    a = context.rpc.getBoundingBox(item_path)
+    b = context.rpc.getBoundingBox(target_path)
     overlap_x = a[0] < b[0] + b[2] and a[0] + a[2] > b[0]
     overlap_y = a[1] < b[1] + b[3] and a[1] + a[3] > b[1]
     assert not (overlap_x and overlap_y), (
@@ -1755,76 +823,33 @@ def step_not_overlap(context, item, target):
     )
 
 
-@then("the music directory list should be empty")
-def step_music_directory_list_empty(context):
-    s = context.rpc
-    ok, actual = _wait_for_music_directory_count(s, 0)
-    assert ok, (
-        f"The music directory list should be empty but contains {actual}"
-    )
-
-
-@then("the music directory list should contain {count:d} source")
-@then("the music directory list should contain {count:d} sources")
-def step_music_directory_list_count(context, count):
-    s = context.rpc
-    ok, actual = _wait_for_music_directory_count(s, count)
-    assert ok, (
-        f"The music directory list should contain {count} sources but "
-        f"contains {actual}"
-    )
-
-
-@then("the library state should match the following")
-def step_library_state_matches(context):
-    expected = {}
-    for row in context.table:
-        expected[row["key"]] = _parse_library_state_expectation(row["value"])
-    matched, last_state = _wait_for_library_state(context, expected)
-    assert matched, (
-        f"The library state should match {expected} but the last observed "
-        f"state is {last_state}"
-    )
-
-
-@then("the {button} button of the music directory at row {row:d} should be visible")
-def step_source_button_visible(context, button, row):
-    s = context.rpc
-    path = SOURCE_REMOVE_BUTTON % row if button == "remove" else SOURCE_RELINK_BUTTON % row
-    assert _wait_for_clickable(s, path), (
-        f"The {button} button for music directory row {row} is not visible"
-    )
-
-
 @then('the "{setting}" setting should be compacted')
 def step_setting_compacted(context, setting):
-    s = context.rpc
     spec = _setting_spec(setting)
-    assert _wait_for_visible(s, f"{spec['path']}/nextButton"), (
+    assert wait_visible(context.rpc, f"{spec['path']}/nextButton"), (
         f"Setting '{setting}' should be compacted but its spinbox buttons are not visible"
     )
 
 
 @when("I scroll down in the settings")
 def step_scroll_down_settings(context):
-    s = context.rpc
-    bar = _active_scrollbar(s)
-    assert _wait_for_visible(s, bar), "The vertical scrollbar is not visible (nothing to scroll)"
-    before = s.getStringProperty(bar, "position")
+    bar = _active_scrollbar(context)
+    assert wait_visible(context.rpc, bar), "The vertical scrollbar is not visible (nothing to scroll)"
+    before = _get_property(context, bar, "position")
 
     # 1) Real interaction: a click on the scrollbar groove.
-    s.mouseClickWithProportion(bar, 0.5, 0.9)
+    context.rpc.mouseClickWithProportion(bar, 0.5, 0.9)
     time.sleep(0.5)
-    if s.getStringProperty(bar, "position") != before:
+    if _get_property(context, bar, "position") != before:
         return
 
     # 2) Real interaction: a drag on the scrollbar. spix has no wheel API,
     #    so a drag is the closest real-interaction equivalent of a wheel
     #    spin. mouseDrag deltas are item-local pixels (see spix Drag.cpp).
-    bar_height = s.getBoundingBox(bar)[3]
-    s.mouseDrag(bar, 0.5, 0.2, 0, bar_height * 0.5, 300)
+    bar_height = context.rpc.getBoundingBox(bar)[3]
+    context.rpc.mouseDrag(bar, 0.5, 0.2, 0, bar_height * 0.5, 300)
     time.sleep(0.5)
-    if s.getStringProperty(bar, "position") != before:
+    if _get_property(context, bar, "position") != before:
         return
 
     # 3) Last resort: drive the scrollbar position directly. This bypasses
@@ -1835,19 +860,18 @@ def step_scroll_down_settings(context):
         "WARNING: 'I scroll down in the settings' fell back to writing the "
         "scrollbar position directly (synthetic click and drag had no effect)"
     )
-    s.setStringProperty(bar, "position", str(1.0 - float(s.getStringProperty(bar, "size"))))
+    _set_property(context, bar, "position", str(1.0 - float(_get_property(context, bar, "size"))))
     time.sleep(0.5)
 
 
 @then('the "{setting}" setting should {assertion} visible on screen')
 def step_setting_on_screen(context, setting, assertion):
-    s = context.rpc
     spec = _setting_spec(setting)
     expected = assertion == "be"
-    assert _wait_for_visible(s, spec["path"]), f"Setting '{setting}' is not present"
-    setting_bb = s.getBoundingBox(spec["path"])
-    bar = _active_scrollbar(s)
-    bar_bb = s.getBoundingBox(bar) if _is_visible(s, bar) else None
+    assert wait_visible(context.rpc, spec["path"]), f"Setting '{setting}' is not present"
+    setting_bb = context.rpc.getBoundingBox(spec["path"])
+    bar = _active_scrollbar(context)
+    bar_bb = context.rpc.getBoundingBox(bar) if _is_visible(context, bar) else None
     on_screen = True
     if bar_bb and bar_bb[2] > 0 and bar_bb[3] > 0:
         _, setting_y, _, setting_h = setting_bb
@@ -1859,54 +883,6 @@ def step_setting_on_screen(context, setting, assertion):
 
 
 # --- Internal helpers ---
-
-def _get_router_mode(s):
-    try:
-        return s.getStringProperty(ROUTER_MODE, "selected")
-    except Exception:
-        return None
-
-
-# routerMode RatioChoice options: ["simple", "advanced"|"advanced (!)", "legacy"]
-# (AudioRouter.qml); multiSoundcard: ["experimental", "default", "disabled"].
-# Index-based option objectNames replaced the former modelData objectNames.
-_ROUTER_MODE_OPTION_INDEX = {"simple": 0, "advanced": 1, "advanced (!)": 1, "legacy": 2}
-_MULTI_SOUNDCARD_OPTION_INDEX = {"experimental": 0, "default": 1, "disabled": 2}
-
-
-def _set_router_mode(s, mode):
-    index = _ROUTER_MODE_OPTION_INDEX.get(mode)
-    if index is None:
-        raise ValueError(f"Unknown router mode option '{mode}'")
-    path = f"{ROUTER_MODE}/option{index}"
-    assert _wait_for_visible(s, path), f"Router mode option '{mode}' not visible"
-    _click(s, path)
-    time.sleep(0.5)
-
-
-def _find_first_output_edge(s, only_not_connected=False):
-    # FIXME: This function is fragile. It depends on:
-    #   1. System audio hardware being present (no devices = empty outputList = returns None)
-    #   2. The ListView item_0, item_1... naming convention matching spix's ListView traversal
-    #   3. Edge addresses being "Default" or "Output" (actual addresses are device-specific)
-    # All scenarios using "to an output device" will fail without real audio hardware.
-    # Consider adding a custom C++ command to register a fake output device for testing.
-    output_count = int(s.getStringProperty(f"{OUTPUT_COLUMN}/outputList", "count"))
-    for i in range(output_count):
-        item_path = f"{OUTPUT_COLUMN}/outputList/output{i}"
-        name = s.getStringProperty(item_path, "name")
-        assert name, f"Cannot find {item_path}"
-        channels = int(s.getStringProperty(f"{item_path}/node", "count"))
-        for channel in range(channels):
-            edge_path = f"{item_path}/edge_Default{channel}"
-            assert _is_visible(s, edge_path), f"Cannot find {edge_path}"
-            if only_not_connected and s.getStringProperty(edge_path, "state") != "idle":
-                continue
-            return edge_path
-    return None
-
-def _find_first_free_output_edge(s):
-    return _find_first_output_edge(s, only_not_connected=True)
 
 
 def _value_to_ratio(value, minv, maxv, markers):
@@ -1927,7 +903,7 @@ def _value_to_ratio(value, minv, maxv, markers):
     return (step_idx + (value - m[step_idx]) / delta) / value_count
 
 
-def _drag_slider_handle(s, spec, value):
+def _drag_slider_handle(context, spec, value):
     """Drag the slider handle (real user input) to set an approximate value.
 
     Mirrors the deck "component move" drag: begin a drag on the {path}/Handler
@@ -1937,33 +913,33 @@ def _drag_slider_handle(s, spec, value):
     path = spec["path"]
     handler = f"{path}/Handler"
     track = f"{path}/Track"
-    assert _wait_for_visible(s, handler), f"Slider handle not visible at {handler}"
-    assert _wait_for_visible(s, track), f"Slider track not visible at {track}"
+    assert wait_visible(context.rpc, handler), f"Slider handle not visible at {handler}"
+    assert wait_visible(context.rpc, track), f"Slider track not visible at {track}"
     target_vp = _value_to_ratio(
         float(value), spec["min"], spec["max"], spec.get("markers", [])
     )
-    s.mouseBeginDrag(handler, 0.5, 0.5, track, target_vp, 0.5)
-    s.mouseEndDrag(handler)
+    context.rpc.mouseBeginDrag(handler, 0.5, 0.5, track, target_vp, 0.5)
+    context.rpc.mouseEndDrag(handler)
     time.sleep(0.5)
 
 
-def _enter_text_value(s, path, value):
+def _enter_text_value(context, path, value):
     """Type an exact value into an editable value field (real user input).
 
     Click to focus, select all, type the value, and commit with Enter. Used by
     the slider 'with the spinbox' method (the right-hand numeric field).
     """
-    _click(s, path)
+    _click(context, path)
     time.sleep(0.2)
-    s.enterKey("mainWindow", QT_KEY_A, QT_CONTROL_MODIFIER)
-    s.wait(100)
-    s.inputText(path, value)
-    s.wait(100)
-    s.enterKey("mainWindow", QT_KEY_ENTER, 0)
+    context.rpc.enterKey("mainWindow", QT_KEY_A, QT_CONTROL_MODIFIER)
+    context.rpc.wait(100)
+    context.rpc.inputText(path, value)
+    context.rpc.wait(100)
+    context.rpc.enterKey("mainWindow", QT_KEY_ENTER, 0)
     time.sleep(0.3)
 
 
-def _scroll_combo_option_into_view(s, path, index):
+def _scroll_combo_option_into_view(context, path, index):
     """Scroll the combo popup's list so that the option at ``index`` is fully
     inside the visible list viewport, mirroring a user wheel-spinning the
     popup to reach the option before clicking it.
@@ -1984,9 +960,9 @@ def _scroll_combo_option_into_view(s, path, index):
     deadline = time.time() + 8
     while time.time() < deadline:
         try:
-            content_y = float(s.getStringProperty(list_path, "contentY") or 0)
-            content_height = float(s.getStringProperty(list_path, "contentHeight") or 0)
-            lx, ly, lw, lh = s.getBoundingBox(list_path)
+            content_y = float(_get_property(context, list_path, "contentY") or 0)
+            content_height = float(_get_property(context, list_path, "contentHeight") or 0)
+            lx, ly, lw, lh = context.rpc.getBoundingBox(list_path)
         except Exception:
             # Popup list not reachable (popup closed, or the combo does not
             # use the shared Skin.ComboBox popup with a named list).
@@ -1994,7 +970,7 @@ def _scroll_combo_option_into_view(s, path, index):
         max_y = max(0.0, content_height - lh)
         option_bb = None
         try:
-            option_bb = s.getBoundingBox(option_path)
+            option_bb = context.rpc.getBoundingBox(option_path)
         except Exception:
             pass
         if option_bb is None or option_bb[2] <= 0 or option_bb[3] <= 0:
@@ -2003,7 +979,7 @@ def _scroll_combo_option_into_view(s, path, index):
             # give up when there is nothing left to scroll.
             if max_y <= 0.0 or content_y >= max_y:
                 return False
-            s.setStringProperty(list_path, "contentY", str(max_y))
+            _set_property(context, list_path, "contentY", str(max_y))
             time.sleep(0.3)
             continue
         _, oy, _, oh = option_bb
@@ -2026,12 +1002,12 @@ def _scroll_combo_option_into_view(s, path, index):
             if ly <= center <= ly + lh:
                 return True
             return False
-        s.setStringProperty(list_path, "contentY", str(target_y))
+        _set_property(context, list_path, "contentY", str(target_y))
         time.sleep(0.3)
     return False
 
 
-def _combo_select_keyboard(s, path, index):
+def _combo_select_keyboard(context, path, index):
     """Select a combo option via keyboard when its delegate is not rendered.
 
     The ComboBox popup only creates `popupMaxItem` (6) delegates, so options
@@ -2039,21 +1015,21 @@ def _combo_select_keyboard(s, path, index):
     posted to the window and follow normal Qt focus routing into the open
     popup (same pattern as the column picker step).
     """
-    highlighted = int(s.getStringProperty(path, "highlightedIndex"))
+    highlighted = int(_get_property(context, path, "highlightedIndex"))
     if highlighted == -1:
-        s.enterKey("mainWindow", QT_KEY_DOWN, 0)
-        s.wait(200)
-        highlighted = int(s.getStringProperty(path, "highlightedIndex"))
+        context.rpc.enterKey("mainWindow", QT_KEY_DOWN, 0)
+        context.rpc.wait(200)
+        highlighted = int(_get_property(context, path, "highlightedIndex"))
     key = QT_KEY_DOWN if index > highlighted else QT_KEY_UP
     for _ in range(abs(index - highlighted)):
-        s.enterKey("mainWindow", key, 0)
-        s.wait(200)
+        context.rpc.enterKey("mainWindow", key, 0)
+        context.rpc.wait(200)
     time.sleep(0.3)
-    s.enterKey("mainWindow", QT_KEY_ENTER, 0)
+    context.rpc.enterKey("mainWindow", QT_KEY_ENTER, 0)
     time.sleep(0.3)
 
 
-def _click_until_value_moves(s, path, button, value_prop):
+def _click_until_value_moves(context, path, button, value_prop):
     """Click ``button`` and poll ``value_prop`` on ``path`` until it moves.
 
     spix's synthetic clicks are occasionally dropped when the machine is under
@@ -2063,12 +1039,12 @@ def _click_until_value_moves(s, path, button, value_prop):
     scenario.
     """
     for _ in range(2):
-        before = s.getStringProperty(path, value_prop)
-        _click(s, button)
+        before = _get_property(context, path, value_prop)
+        _click(context, button)
         deadline = time.time() + 2
         while time.time() < deadline:
             try:
-                if s.getStringProperty(path, value_prop) != before:
+                if _get_property(context, path, value_prop) != before:
                     return
             except Exception:
                 pass
@@ -2076,16 +1052,16 @@ def _click_until_value_moves(s, path, button, value_prop):
         time.sleep(0.2)
 
 
-def _read_setting_value(s, spec):
+def _read_setting_value(context, spec):
     kind = spec["kind"]
     if kind == "ratio":
-        return s.getStringProperty(spec["path"], "selected")
+        return _get_property(context, spec["path"], "selected")
     if kind == "combo":
-        return s.getStringProperty(spec["path"], "currentIndex")
+        return _get_property(context, spec["path"], "currentIndex")
     if kind == "spinbox":
-        return s.getStringProperty(spec["path"], "realValue")
+        return _get_property(context, spec["path"], "realValue")
     if kind == "slider":
-        return s.getStringProperty(spec["path"], "value")
+        return _get_property(context, spec["path"], "value")
     if kind == "color":
-        return s.getStringProperty(spec["path"], "currentIndex")
+        return _get_property(context, spec["path"], "currentIndex")
     raise ValueError(f"Unknown setting kind: {kind}")

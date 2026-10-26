@@ -124,7 +124,7 @@ The test runtime has three layers:
 
 2. **Python test infrastructure** -- `mixxx_profile.py` manages temporary Mixxx
    profiles and the `MixxxProcess` lifecycle (start, wait for RPC, stop).
-   `steps/mixxx_steps.py` provides the step definitions that drive the UI via
+   the step modules under `steps/` provide the step definitions that drive the UI via
    spix. `environment.py` hooks manage session state across scenarios.
 
    Scenarios sharing the same profile and sound-device setup reuse one running
