@@ -58,7 +58,9 @@ from RESULTS_DIR, prints the generated comment body to stdout, and skips all
 GitHub API calls (using local files for video URLs).
 """
 
+import copy
 import enum
+import gzip
 import json
 import logging
 import os
@@ -86,7 +88,28 @@ SLUG_NAMES = {
     "macos-macosintel": "macOS 15 x64",
     "windows-win64": "Windows Server 2025 VS2026 x64",
     "windows-winarm": "Windows 11 VS2026 ARM64",
+    "linux-appimage": "AppImage Linux x86_64",
 }
+
+# GitHub's comment size limit ("maximum is 65536 characters") is enforced
+# against the compressed body, and our repetitive table content compresses
+# ~9x — but mass-failure runs with unique error text degrade that ratio.
+# 60k gzip bytes leaves headroom for the attachment-URL rewrite pass.
+# Measurements: docs/e2e-matrix-reorg-kickoff.md §9.
+GZIP_LIMIT = 60_000
+
+# Result artifacts are uploaded per platform AND per E2E batch:
+#   mixxx-ui-test-<platform-slug>-e2e-<batch>   (batch = "batch-1", ...)
+_SLUG_RE = re.compile(r"^(?P<base>.+?)-e2e(?:-(?P<batch>batch-\d+))?$")
+
+
+def parse_slug(slug):
+    """Split a result artifact slug into (platform slug, batch or None)."""
+    m = _SLUG_RE.match(slug)
+    if m:
+        return m.group("base"), m.group("batch")
+    return slug, None
+
 
 LOG = logging.getLogger("mixxx.e2e_comment")
 
@@ -573,20 +596,22 @@ def fetch_video_urls(repo, run_id, server_url):
 
 
 def fetch_job_ids(repo, run_id):
-    """Map each testable platform name to the e2e job that ran it.
+    """Map (platform name, e2e batch target) to the job that ran it.
 
-    The job name reported by the API is prefixed with the caller when the
-    workflow is called as a reusable workflow (e.g. "build / Test e2e (macOS
-    15 x64)"), so the prefix is optional in the pattern.
+    The E2E jobs run one batch each and are named
+    "Test e2e-batch-N (<platform name>)". The job name reported by the API is
+    prefixed with the caller when the workflow is called as a reusable
+    workflow (e.g. "build / Test e2e-batch-1 (macOS 15 x64)"), so the prefix
+    is optional in the pattern.
     """
     jobs = gh_api_list(f"/repos/{repo}/actions/runs/{run_id}/jobs", "jobs")
     LOG.info("run %s exposes %d job(s)", run_id, len(jobs))
-    pattern = re.compile(r"(?:.* / )?Test e2e \((.+)\)")
+    pattern = re.compile(r"(?:.* / )?Test (e2e-batch-\d+) \((.+)\)")
     ids = {}
     for job in jobs:
         m = pattern.fullmatch(job.get("name", "") or "")
         if m:
-            ids[m.group(1)] = JobRef(
+            ids[(m.group(2), m.group(1))] = JobRef(
                 id=job["id"], attempt=job.get("run_attempt") or 1
             )
             LOG.debug(
@@ -598,7 +623,7 @@ def fetch_job_ids(repo, run_id):
     LOG.info(
         "matched %d e2e job(s): %s",
         len(ids),
-        ", ".join(sorted(ids)) or "(none)",
+        ", ".join(sorted(f"{p}/{b}" for p, b in ids)) or "(none)",
     )
     return ids
 
@@ -1445,17 +1470,23 @@ def build_comment_body(
         LOG.warning("no test results found; emitting placeholder comment")
         return f"{TITLE_MARKER}\n# E2E Test\n\n**No test report found**\n"
 
-    # Group by slug -> feature -> scenario name
-    by_slug = {}
+    # Group by platform slug -> feature -> scenario name. Results arrive per
+    # platform AND per E2E batch (slugs like ubuntu-jammy-e2e-batch-2); the
+    # batches of one platform are merged into a single platform section and
+    # each feature remembers the batch whose job ran it (for the job links).
+    by_platform = {}
+    batch_of = {}
     for r in all_results:
-        slug = r.get("slug", "unknown")
-        by_slug.setdefault(slug, {}).setdefault(
+        base_slug, batch = parse_slug(r.get("slug", "unknown"))
+        by_platform.setdefault(base_slug, {}).setdefault(
             r.get("feature", "unknown"), {}
         ).setdefault(r.get("name", "unknown"), []).append(r)
+        if batch:
+            batch_of[(base_slug, r.get("feature", "unknown"))] = batch
 
     # Totals across all results (scenario names are only unique per feature)
     unique_scenarios = {(r.get("feature"), r.get("name")) for r in all_results}
-    unique_slugs = {r.get("slug") for r in all_results if r.get("slug")}
+    unique_slugs = set(by_platform.keys())
 
     body_lines = [
         TITLE_MARKER,
@@ -1469,14 +1500,9 @@ def build_comment_body(
         "",
     ]
 
-    for slug in sorted(by_slug.keys()):
-        by_feature = by_slug[slug]
-        base_slug = re.sub(r"-e2e$", "", slug)
-        slug_name = SLUG_NAMES.get(base_slug, slug)
-        job = job_ids.get(slug_name)
-        job_url = summary_url = None
-        if job is not None:
-            job_url, summary_url = job_links(job, repo, run_id, server_url)
+    for slug in sorted(by_platform.keys()):
+        by_feature = by_platform[slug]
+        slug_name = SLUG_NAMES.get(slug, slug)
 
         # Per-platform stats (sum of the feature stats, last attempt per
         # scenario) plus total wall time across the platform's scenarios
@@ -1510,6 +1536,13 @@ def build_comment_body(
         )
 
         for feature in sorted(by_feature.keys()):
+            # The feature's job is the batch job that ran it (one batch job
+            # covers several features).
+            batch = batch_of.get((slug, feature))
+            job = job_ids.get((slug_name, f"e2e-{batch}")) if batch else None
+            job_url = summary_url = None
+            if job is not None:
+                job_url, summary_url = job_links(job, repo, run_id, server_url)
             scenarios_by_name = by_feature[feature]
             feat_took = section_took(
                 [
@@ -1628,6 +1661,136 @@ def build_comment_body(
         body.count("![Preview]"),
     )
     return body
+
+
+def _gzip_len(body):
+    return len(gzip.compress(body.encode("utf-8"), 6))
+
+
+def _truncate_errors(all_results, limit=200):
+    """Level-1 degradation: keep only the first line of each error, capped."""
+    for r in all_results:
+        err = r.get("error") or ""
+        if err:
+            r["error"] = err.split("\n", 1)[0][:limit]
+
+
+def _failures_only(all_results):
+    """Level-2 degradation: drop scenarios whose last attempt passed.
+
+    Returns (kept attempts, dropped scenario count)."""
+    last = {}
+    for r in all_results:
+        key = (r.get("slug"), r.get("feature"), r.get("name"))
+        if key not in last or (r.get("start_time") or 0) >= (
+            last[key].get("start_time") or 0
+        ):
+            last[key] = r
+    dropped = {
+        key
+        for key, r in last.items()
+        if r.get("outcome") in ("passed", "skipped")
+    }
+    kept = [
+        r
+        for r in all_results
+        if (r.get("slug"), r.get("feature"), r.get("name")) not in dropped
+    ]
+    return kept, len(dropped)
+
+
+def _compact_body(all_results, job_ids, repo, run_id, server_url):
+    """Level-3 fallback: platform x feature outcome table without rows."""
+    by_platform, batch_of = {}, {}
+    for r in all_results:
+        base_slug, batch = parse_slug(r.get("slug", "unknown"))
+        by_platform.setdefault(base_slug, {}).setdefault(
+            r.get("feature", "unknown"), {}
+        ).setdefault(r.get("name", "unknown"), []).append(r)
+        if batch:
+            batch_of[(base_slug, r.get("feature", "unknown"))] = batch
+    lines = [
+        TITLE_MARKER,
+        "# E2E Test",
+        "",
+        "**Comment reduced to a summary: the full report exceeded the "
+        "comment size limit.**",
+        "",
+    ]
+    for slug in sorted(by_platform.keys()):
+        slug_name = SLUG_NAMES.get(slug, slug)
+        lines.append(f"## {slug_name}")
+        lines.append("")
+        lines.append("| feature | result |")
+        lines.append("|---|---|")
+        for feature in sorted(by_platform[slug].keys()):
+            counts, suffix = summarize_counts(by_platform[slug][feature])
+            took = section_took(
+                [
+                    a
+                    for att_list in by_platform[slug][feature].values()
+                    for a in att_list
+                ]
+            )
+            suffix = counts_suffix(counts, took)
+            batch = batch_of.get((slug, feature))
+            job = job_ids.get((slug_name, f"e2e-{batch}")) if batch else None
+            link = ""
+            if job is not None:
+                job_url, _ = job_links(job, repo, run_id, server_url)
+                link = f" · [logs]({job_url})"
+            lines.append(
+                f"| {feature} | {section_mark(counts)}{suffix}{link} |"
+            )
+        lines.append("")
+    return "\n".join(lines)
+
+
+def build_comment_guarded(
+    all_results, job_ids, repo, run_id, server_url, allow_clips=True
+):
+    """Build the comment body, degrading it when it outgrows GitHub's
+    comment size limit (enforced against the compressed body — see
+    docs/e2e-matrix-reorg-kickoff.md §9).
+
+    Degradation ladder: (0) full table, (1) per-cell error text truncated,
+    (2) passing scenarios dropped, (3) compact platform x feature summary.
+    """
+    body = build_comment_body(
+        all_results, job_ids, repo, run_id, server_url, allow_clips=allow_clips
+    )
+    if _gzip_len(body) <= GZIP_LIMIT:
+        return body
+
+    LOG.warning(
+        "comment body over the gzip size limit (%d > %d); truncating "
+        "error text",
+        _gzip_len(body),
+        GZIP_LIMIT,
+    )
+    truncated = copy.deepcopy(all_results)
+    _truncate_errors(truncated)
+    body = build_comment_body(
+        truncated, job_ids, repo, run_id, server_url, allow_clips=allow_clips
+    )
+    if _gzip_len(body) <= GZIP_LIMIT:
+        return body
+
+    LOG.warning("comment still too large; keeping failures only")
+    kept, dropped = _failures_only(truncated)
+    body = build_comment_body(
+        kept, job_ids, repo, run_id, server_url, allow_clips=allow_clips
+    )
+    body += (
+        f"\n\n> ⚠️ The full report exceeded the comment size limit; "
+        f"{dropped} passing scenario(s) are omitted here — see the job "
+        f"summaries for the complete results."
+    )
+    if _gzip_len(body) <= GZIP_LIMIT:
+        return body
+
+    LOG.warning("comment still too large; emitting the compact summary")
+    return _compact_body(kept, job_ids, repo, run_id, server_url)
 
 
 # `gh --attach` rewrites markdown references that name an attached file into
@@ -1844,7 +2007,7 @@ def main():
     attached = generate_snippets(
         selected, ffmpeg_bin, snippet_dir, video_paths
     )
-    body = build_comment_body(
+    body = build_comment_guarded(
         all_results, job_ids, repo, run_id, server_url, allow_clips=True
     )
 
@@ -1870,7 +2033,7 @@ def main():
     if not attached:
         raise SystemExit(result.returncode)
     LOG.info("retrying without attachments (artifact links only)")
-    body = build_comment_body(
+    body = build_comment_guarded(
         all_results, job_ids, repo, run_id, server_url, allow_clips=False
     )
     retry = gh_comment(repo, pr_number, body, [])
