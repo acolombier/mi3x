@@ -1,0 +1,86 @@
+name: opencode
+
+on:
+  # issues:
+  #   types: [opened, edited]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review_comment:
+    types: [created]
+
+concurrency:
+  group: opencode-review-${{ github.event.number || github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  BIN_VERSION: 1.19.4
+
+jobs:
+  opencode:
+    # Run on PR events; on review comments only for `/oc`/`/opencode` replies
+    # authored by a human (mixxxbot is the review bot's PAT identity).
+    if: >-
+      github.event_name == 'pull_request' ||
+      (
+        github.event_name == 'pull_request_review_comment' &&
+        github.event.comment.user.login != 'mixxxbot' &&
+        (contains(github.event.comment.body, '/oc') || contains(github.event.comment.body, '/opencode'))
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    steps:
+      - name: Check if commenter is maintainer
+        id: check-commenter
+        if: github.event_name == 'pull_request_review_comment'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const response = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.payload.comment.user.login
+            });
+
+            const isMaintainer = ['admin', 'write'].includes(response.data.permission);
+            return isMaintainer;
+
+      - name: Checkout repository
+        if: github.event_name == 'pull_request' || steps.check-commenter.outputs.result == 'true'
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Fetch PR base history
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags --quiet \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+
+      - name: Install opencode
+        if: github.event_name == 'pull_request' || steps.check-commenter.outputs.result == 'true'
+        run: |
+          if ! [ -x "$HOME/.opencode/bin/opencode" ] || ! "$HOME/.opencode/bin/opencode" --version 2>/dev/null | grep -q "$BIN_VERSION"; then
+            curl -fsSL https://opencode.ai/install | bash -s -- --version "$BIN_VERSION"
+          else
+            echo "opencode $BIN_VERSION already installed"
+          fi
+          echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+
+      - name: Run opencode review
+        if: github.event_name == 'pull_request' || steps.check-commenter.outputs.result == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.MIXXX_OC_REVIEW_PAT }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: opencode run --auto
+          -m "opencode/glm-5.3-flash-free"
+          --agent "build"
+          "You are performing an automated review of this pull request.
+          Read the file .ai/skills/pull_request.md in the repository root and
+          follow its instructions exactly to review the PR."
