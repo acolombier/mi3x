@@ -48,11 +48,11 @@
     .\tools\Run-BehaveScenariosOnWindows.ps1 -Name 'An empty music directory can be removed'
 
 .EXAMPLE
-    .\tools\Run-BehaveScenariosOnWindows.ps1 -Feature features/settings/library.feature -Name 'a','b'
+    .\tools\Run-BehaveScenariosOnWindows.ps1 -Feature features/browse.feature -Name 'a','b'
 #>
 [CmdletBinding()]
 param(
-    [string[]]$Feature = @("src\test\behave\features\settings\library.feature"),
+    [string[]]$Feature = @("src\test\behave\features\browse.feature"),
 
     [string[]]$Name = @(),
 

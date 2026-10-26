@@ -5,7 +5,8 @@ Feature: Analyzer Settings
 #
 # Sections: BPM and Beat detection, Key detection, ReplayGain Loudness
 # Normalization. No tabs: the category is a single scrollable column. The
-# shared save/cancel/reset button behavior is covered in main.feature
+# shared save/cancel/reset button behavior is covered in
+# preferences.feature (component tests)
 # (component tests); this file covers Analyzer-specific settings and
 # responsiveness.
 #

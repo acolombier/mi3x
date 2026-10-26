@@ -15,7 +15,8 @@ mixxx_test_runner.py   ← CTest entry point (CMake add_test target "mixxx-behav
   │   └─ mixxx_steps.py  ← Gherkin step definitions (Given/When/Then)
   ├─ features/
   │   ├─ deck.feature
-  │   └─ library.feature
+  │   ├─ browse.feature
+  │   └─ … (8 topical feature files in total)
   └─ test_tracks.json   ← Static track metadata (url, title, artist, bpm, etc.)
 ```
 
@@ -27,7 +28,7 @@ mixxx_test_runner.py   ← CTest entry point (CMake add_test target "mixxx-behav
 src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
   --binary build/mixxx-test \
-  src/test/behave/features/library.feature
+  src/test/behave/features/browse.feature
 ```
 
 ### Single feature, offscreen (no display needed)
@@ -38,7 +39,7 @@ src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
   --binary build/mixxx-test \
   --headless \
-  src/test/behave/features/library.feature
+  src/test/behave/features/browse.feature
 
 # Force a specific backend: --display-backend {auto,xvfb,xwayland}
 #   xvfb     -> Xvfb + ffmpeg x11grab recorder
@@ -48,13 +49,13 @@ src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
   --binary build/mixxx-test \
   --headless --display-backend=xwayland \
-  src/test/behave/features/library.feature
+  src/test/behave/features/browse.feature
 
 # Or via QPA env var (equivalent, but no video recording)
 QT_QPA_PLATFORM=offscreen src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
   --binary build/mixxx-test \
-  src/test/behave/features/library.feature
+  src/test/behave/features/browse.feature
 ```
 
 ### Single feature, named scenario only (fastest iteration)
@@ -67,7 +68,7 @@ src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
   --binary build/mixxx-test \
   --headless \
-  src/test/behave/features/library.feature \
+  src/test/behave/features/browse.feature \
   -n "Maximize library with toggle"
 ```
 
@@ -82,7 +83,7 @@ src/test/behave/.venv/bin/python \
   --binary build/mixxx-test \
   --headless \
   --retry 5 \
-  src/test/behave/features/library.feature
+  src/test/behave/features/browse.feature
 ```
 
 ### Reproducible random track picks (`--seed`)
@@ -114,7 +115,7 @@ src/test/behave/.venv/bin/python \
   --binary build/mixxx-test \
   --headless \
   --seed <run_seed> \
-  src/test/behave/features/library.feature \
+  src/test/behave/features/browse.feature \
   -n "<failing scenario name>"
 ```
 
@@ -275,7 +276,7 @@ launcher:
 # A different feature file. The path is passed straight to behave and is
 # resolved against the working directory, which the wrapper sets to the repo
 # root — so it must include the src\test\behave prefix.
-.\tools\Run-BehaveScenariosOnWindows.ps1 -Feature src\test\behave\features\settings\library.feature -Name 'History cleanup threshold can be changed'
+.\tools\Run-BehaveScenariosOnWindows.ps1 -Feature src\test\behave\features\browse.feature -Name 'History cleanup threshold can be changed'
 
 # Capture video into src\test\behave\artifacts
 # NOTE: needs -FfmpegBin (see above), and on Windows the run currently ends
@@ -293,9 +294,9 @@ launcher:
 behave `-n`. `-Label` only affects artifact filenames.
 
 > **Feature paths are not repo-relative.** A path like
-> `-Feature features/settings/library.feature` looks reasonable and fails:
+> `-Feature features/browse.feature` looks reasonable and fails:
 > `behave.exception.ConfigError: No steps directory in
-> 'D:\dev\mixxx\features\settings\library.feature'`. Use
+> 'D:\dev\mixxx\features\browse.feature'`. Use
 > `src\test\behave\features\...`, which is also what the wrapper's own default
 > uses.
 
@@ -306,7 +307,7 @@ Equivalent, and useful when you want flags the wrapper does not expose:
 ```powershell
 powershell.exe -ExecutionPolicy Bypass -File .\tools\Start-InteractiveProcessOnWindows.ps1 `
     -Program "D:\dev\mixxx\src\test\behave\.venv\Scripts\python.exe" `
-    -Arguments "src\test\behave\mixxx_test_runner.py --no-capture --retry 3 --binary build\mixxx-test.exe src\test\behave\features\settings\library.feature -n 'An empty music directory can be removed'" `
+    -Arguments "src\test\behave\mixxx_test_runner.py --no-capture --retry 3 --binary build\mixxx-test.exe src\test\behave\features\browse.feature -n 'An empty music directory can be removed'" `
     -WorkingDirectory "D:\dev\mixxx" `
     -WaitMode Exit -TimeoutSeconds 1800
 ```
