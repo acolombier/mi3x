@@ -9,7 +9,7 @@ on:
     types: [created]
 
 concurrency:
-  group: opencode-review-${{ github.event.number || github.event.pull_request.number }}
+  group: opencode-review-${{ github.event.number || github.event.pull_request.number }}-${{ github.event_name }}
   cancel-in-progress: true
 
 env:
