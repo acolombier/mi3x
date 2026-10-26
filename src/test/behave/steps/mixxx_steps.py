@@ -256,7 +256,11 @@ def _ensure_profile(context, profile_type, force=False):
         # running": it holds port 9000, and leaving it alive makes the next
         # spawn time out and cascade through the rest of the run.
         _stop_mixxx(context)
-    profile_dir = profile.make_temp_profile(profile_type)
+    profile_dir = profile.make_temp_profile(
+        profile_type,
+        container=profile.macos_sandbox_container(
+            context.config.userdata.get("binary")),
+    )
     context.profile_dir = profile_dir
     context.active_profile_type = profile_type
     session["profile_dir"] = profile_dir
@@ -292,12 +296,14 @@ def step_open_and_ready(context):
             # replacement or the replacement's start() will time out.
             _stop_mixxx(context)
         binary = context.config.userdata["binary"]
+        flatpak_package = context.config.userdata.get("flatpak_package")
         if "profile_dir" not in context:
             _ensure_profile(context, "empty")
         context.mixxx = profile.MixxxProcess(
             binary,
             context.profile_dir,
             output_dir=context.config.userdata.get("mixxx_output_dir"),
+            flatpak_package=flatpak_package,
         )
         context.mixxx.start()
         context.rpc = RobustRpcProxy()

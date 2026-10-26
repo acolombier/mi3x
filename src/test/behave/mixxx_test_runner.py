@@ -20,6 +20,7 @@ import sys
 import re
 import random
 import tempfile
+import threading
 import time
 
 from behave.configuration import Configuration
@@ -33,6 +34,17 @@ from behave.formatter.pretty import PrettyFormatter
 RECORDING_START = None
 
 LIBRARY_TRACK_COUNT = 50
+
+
+def _env_flag(name):
+    """Strictly interpret an environment boolean flag.
+
+    Unlike bool(os.environ.get(...)), this can never misread a value like
+    "0" or "false" as enabled: empty strings and unlisted values count as
+    off. Used as the argparse default of every action="store_true" flag so
+    env-based CI wiring and explicit CLI flags behave alike.
+    """
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
 
 
 def _format_timecode(seconds):
@@ -370,9 +382,7 @@ def _stop_recorder(recorder_proc, recorder_name="ffmpeg"):
     ret = recorder_proc.poll()
     if ret is not None and recorder_proc.stderr is not None:
         try:
-            stderr_output = recorder_proc.stderr.read().decode(
-                "utf-8", errors="replace"
-            )
+            stderr_output = _read_pipe_bounded(recorder_proc.stderr)
         except Exception as e:
             stderr_output = f"Python: {e}"
         if stderr_output:
@@ -382,6 +392,39 @@ def _stop_recorder(recorder_proc, recorder_name="ffmpeg"):
             )
             print(stderr_output, file=sys.stderr)
             print(f"=== end {recorder_name} output ===\n", file=sys.stderr)
+
+
+def _read_pipe_bounded(stream, timeout=2.0):
+    """Read a pipe tail without blocking past `timeout` seconds.
+
+    A shimmed process tree (e.g. Chocolatey's ShimGen ffmpeg wrapper) spawns
+    the real binary as its own child: killing the shim leaves that
+    grandchild holding the inherited pipe write-ends open, and a naive
+    read() then blocks forever because the pipe never reports EOF. The read
+    runs in a daemon thread and yields whatever arrived within the bound
+    (None on timeout); text streams are passed through, bytes are decoded
+    with the console-safe replace policy. Returns None when the reader
+    cannot finish in time.
+    """
+    chunks = []
+
+    def _reader():
+        try:
+            chunks.append(stream.read())
+        except Exception:
+            pass
+
+    thread = threading.Thread(target=_reader, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        return None
+    if not chunks:
+        return None
+    data = chunks[0]
+    if isinstance(data, bytes):
+        data = data.decode("utf-8", errors="replace")
+    return data
 
 
 def _generate_ffmetadata(results, dest):
@@ -394,6 +437,38 @@ def _generate_ffmetadata(results, dest):
             f.write(f"START={ch['start_ms']}\n")
             f.write(f"END={ch['end_ms']}\n")
             f.write(f"title={ch['title']}\n")
+
+
+def _video_start_wall(video_path, stop_wall):
+    """Wall-clock time of the recording's first frame, or None.
+
+    Every backend writes one continuous capture from its first frame to the
+    SIGINT stop, so the first frame's wall time is the stop time minus the
+    finished file's duration. Offsets taken at spawn time would bake in the
+    recorder's init delay (compositor or capture-device open, which can take
+    seconds, e.g. avfoundation on macOS) and shift every chapter and snippet
+    window earlier. Requires ffprobe (ships with ffmpeg); on any failure
+    returns None and the caller falls back to the spawn-time base.
+    """
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe or not video_path or not os.path.isfile(video_path):
+        return None
+    try:
+        p = subprocess.run(
+            [
+                # No -nostdin: ffprobe does not support that ffmpeg-only flag.
+                ffprobe, "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=nw=1:nk=1", video_path,
+            ],
+            capture_output=True, text=True, timeout=30,
+        )
+        duration = float(p.stdout.strip())
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    if duration <= 0:
+        return None
+    return stop_wall - duration
 
 
 def _mux_chapters(video_path, results, recording_start, ffmpeg_bin):
@@ -596,7 +671,7 @@ def main():
     parser.add_argument(
         "--headless",
         action="store_true",
-        default=bool(os.environ.get("MIXXX_TEST_HEADLESS")),
+        default=_env_flag("MIXXX_TEST_HEADLESS"),
         help="Linux only: run under a headless virtual display (see --display-backend)",
     )
     parser.add_argument(
@@ -611,13 +686,13 @@ def main():
     parser.add_argument(
         "--no-capture",
         action="store_true",
-        default=bool(os.environ.get("MIXXX_BEHAVE_NO_CAPTURE")),
+        default=_env_flag("MIXXX_BEHAVE_NO_CAPTURE"),
         help="Don't capture standard streams and let Mixxx logs being outputted in realtime",
     )
     parser.add_argument(
         "--fail-early",
         action="store_true",
-        default=bool(os.environ.get("MIXXX_BEHAVE_FAIL_EARLY")),
+        default=_env_flag("MIXXX_BEHAVE_FAIL_EARLY"),
         help="Stop running the tests as soon as failure occurs",
     )
     parser.add_argument(
@@ -637,7 +712,7 @@ def main():
     parser.add_argument(
         "--record",
         action="store_true",
-        default=bool(os.environ.get("MIXXX_TEST_RECORD")),
+        default=_env_flag("MIXXX_TEST_RECORD"),
         help="Record video via ffmpeg (any platform)",
     )
     parser.add_argument(
@@ -659,8 +734,18 @@ def main():
     )
     parser.add_argument(
         "--binary",
-        default=os.environ.get("MIXXX_TEST_BINARY", "mixxx-test"),
-        help="Path to the mixxx-test binary",
+        default=os.environ.get("MIXXX_TEST_BINARY", "mixxx"),
+        help="Path to the mixxx --serve binary",
+    )
+    parser.add_argument(
+        "--flatpak-package",
+        default=os.environ.get("MIXXX_TEST_FLATPAK_PACKAGE"),
+        help=(
+            "Flatpak app id (e.g. org.mixxx.Mixxx) of the installed Mixxx "
+            "bundle; the runner launches it through 'flatpak run' instead "
+            "of a binary path and stops it via 'flatpak kill'. Mutually "
+            "exclusive with --binary."
+        ),
     )
     parser.add_argument(
         "--label",
@@ -689,7 +774,14 @@ def main():
     # Set up global tracks cache (shared across all feature tests)
     tracks_cache = os.environ.get("MIXXX_TEST_TRACKS_DIR")
     if not tracks_cache:
-        tracks_cache = os.path.join(tempfile.gettempdir(), "mixxx-test-tracks")
+        container = profile.macos_sandbox_container(args.binary)
+        if container:
+            # A sandboxed macOS app bundle cannot read the harness temp
+            # directory, so the track files handed to the loadTrack RPC
+            # command must live inside the App Sandbox container.
+            tracks_cache = os.path.join(container, "tmp", "mixxx-test-tracks")
+        else:
+            tracks_cache = os.path.join(tempfile.gettempdir(), "mixxx-test-tracks")
     os.makedirs(tracks_cache, exist_ok=True)
 
     # Download tracks (if not already cached) and build the catalog:
@@ -775,11 +867,19 @@ def main():
             # wf-recorder must connect to the per-test cage compositor, not any
             # host session: explicit env ensures it picks up WAYLAND_DISPLAY.
             recorder_env = os.environ.copy()
+        creationflags = 0
+        if sys.platform == "win32":
+            # Own console process group: on Windows, CTRL_C_EVENT is
+            # delivered to every process of the console otherwise, taking
+            # the runner down instead of just the recorder (see
+            # _stop_recorder).
+            creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
         recorder_proc = subprocess.Popen(
             cmd,
             env=recorder_env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            creationflags=creationflags,
         )
         recording_start = time.time()
         global RECORDING_START
@@ -822,11 +922,22 @@ def main():
             "behave.contrib.formatter_missing_steps:MissingStepsFormatter"
         ]
         runner.config.show_timings = True
+        # --flatpak-package and --binary are mutually exclusive. --binary
+        # has a default ('mixxx') that also matches the fallback of an unset
+        # MIXXX_TEST_BINARY, so only flag a conflict when a binary other
+        # than that default accompanies the package.
+        if args.flatpak_package and args.binary not in (
+            "mixxx", os.environ.get("MIXXX_TEST_BINARY", "mixxx")
+        ):
+            raise SystemExit(
+                "--flatpak-package and --binary are mutually exclusive"
+            )
         runner.config.userdata = dict(
             tracks_dir=tracks_cache,
             tracks_catalog=tracks_catalog,
             run_seed=run_seed,
             binary=args.binary,
+            flatpak_package=args.flatpak_package,
             fail_early=args.fail_early,
             retry_max_attempts=args.retry,
             summary_path=os.path.join(
@@ -850,7 +961,23 @@ def main():
         if recorder_proc:
             recorder_name_pretty = os.path.basename(recorder_name)
             _stop_recorder(recorder_proc, recorder_name_pretty)
-            _mux_chapters(video_path, getattr(runner.context, "results", []), recording_start, _find_ffmpeg(args.ffmpeg_path))
+            # The chapter/snippet base is the first frame's wall time, not
+            # the spawn time: see _video_start_wall. Falls back to the
+            # spawn-time base when the duration cannot be probed.
+            stop_wall = time.time()
+            t0_wall = _video_start_wall(video_path, stop_wall)
+            if t0_wall is not None:
+                print(
+                    "video t=0 aligned to the first frame (recorder init "
+                    f"delay ~{t0_wall - recording_start:.2f}s)",
+                    file=sys.stderr,
+                )
+            _mux_chapters(
+                video_path,
+                getattr(runner.context, "results", []),
+                t0_wall if t0_wall is not None else recording_start,
+                _find_ffmpeg(args.ffmpeg_path),
+            )
         if "runner" in locals() and hasattr(runner.context, "results"):
             with open(result_path, "w") as f:
                 json.dump(runner.context.results, f, indent=2)

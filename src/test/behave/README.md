@@ -116,11 +116,24 @@ or expects:
 
 The test runtime has three layers:
 
-1. **`mixxx-test --serve`** -- A special build of the Mixxx binary that starts
-   the full QML UI and a spix XML-RPC server on port 9000. Custom C++ command
-   handlers (`getControlValue`, `setControlValue`, `loadTrack`, `library`,
+1. **`mixxx --serve`** -- The regular `mixxx` binary (built with `RPC_SERVER`,
+   on by default with the tests) hosted by the main QML application. The
+   `--serve` flag attaches a spix XML-RPC server on port 9000 to the running
+   QML UI — pass `--new-ui` (i.e. the QML UI must be loaded explicitly; `mixxx
+   --serve` logs a warning and does not start the server otherwise). Custom
+   C++ command handlers
+   (`getControlValue`, `setControlValue`, `loadTrack`, `library`,
    `reloadQml`) let the test harness read/write engine state and manage the
-   application.
+   application. Because this is the production binary, E2E tests can run
+   against any installation (build tree, DEB, MSI installer, DMG, AppImage or
+   Flatpak) by pointing the runner at it via `--binary`/`MIXXX_TEST_BINARY`,
+   or at an installed Flatpak bundle via `--flatpak-package <app-id>`
+   (`MIXXX_TEST_FLATPAK_PACKAGE`) — the runner then launches the sandboxed app
+   through `flatpak --user run` (scoped to the same `flatpak install --user`
+   installation the E2E workflow used, with `--filesystem=/tmp` for the test
+   profile and forwarded `QT_QPA_PLATFORM`) and reaps it through
+   `flatpak kill`, so no launcher wrapper script is needed. The two
+   ways of starting are mutually exclusive.
 
 2. **Python test infrastructure** -- `mixxx_profile.py` manages temporary Mixxx
    profiles and the `MixxxProcess` lifecycle (start, wait for RPC, stop).
@@ -161,12 +174,12 @@ Run a single feature with the built binary:
 ```bash
 src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
-  --binary build/mixxx-test \
+  --binary build/mixxx \
   src/test/behave/features/deck.feature
 ```
 
 On Windows, use `tools/Run-BehaveScenariosOnWindows.ps1` instead — a GUI
-`mixxx-test` cannot start from an SSH session, so the script routes it through
+`mixxx` cannot start from an SSH session, so the script routes it through
 `Start-InteractiveProcessOnWindows.ps1` and onto the logged-on user's desktop.
 See
 [AGENTS.md](AGENTS.md#running-the-tests-on-windows) for prerequisites, the
@@ -181,10 +194,10 @@ making it easy to jump directly to a specific scenario's playback. The
 scenarios complete, the runner muxes this data into the video as chapter markers.
 Videos are uploaded as CI artifacts for review.
 
-Every `mixxx-test` spawn also writes its complete application output
+Every `--serve` spawn also writes its complete application output
 (`--log-level debug`) to `mixxx-output.<pid>.log` in the artifacts directory,
 so crashes and restarts can be investigated without re-running. For failed
-scenarios, the CI report lists the PID(s) of the `mixxx-test` instance(s) each
+scenarios, the CI report lists the PID(s) of the `mixxx` instance(s) each
 attempt ran against (also recorded as `mixxx_pids` in
 `artifacts/results-*.json`), matching those log files, and links to the
 process logs archive on the job summary.

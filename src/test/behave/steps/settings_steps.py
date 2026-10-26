@@ -376,7 +376,8 @@ def step_set_setting(context, setting, value, method=None):
                 assert wait_visible(context.rpc, button), (
                     f"Setting '{setting}' next/prev button not visible"
                 )
-                _click_until_value_moves(context, path, button, "selected")
+                _click(context, button)
+                time.sleep(1)
     elif kind == "combo":
         try:
             index = spec["model"].index(value)
@@ -403,7 +404,8 @@ def step_set_setting(context, setting, value, method=None):
             if clicks == 0: break
             button = f"{path}/upButton" if clicks > 0 else f"{path}/downButton"
             assert wait_visible(context.rpc, button), f"Setting '{setting}' button not visible"
-            _click_until_value_moves(context, path, button, "realValue")
+            _click(context, button)
+            time.sleep(1)
     elif kind == "slider":
         method = method or "a drag"
         if method == "a drag":
@@ -1027,29 +1029,6 @@ def _combo_select_keyboard(context, path, index):
     time.sleep(0.3)
     context.rpc.enterKey("mainWindow", QT_KEY_ENTER, 0)
     time.sleep(0.3)
-
-
-def _click_until_value_moves(context, path, button, value_prop):
-    """Click ``button`` and poll ``value_prop`` on ``path`` until it moves.
-
-    spix's synthetic clicks are occasionally dropped when the machine is under
-    load (for instance a CI runner that is also capturing video), leaving the
-    control on its previous value. Poll after the click and re-click once when
-    the value has not changed, so a single dropped event does not fail the
-    scenario.
-    """
-    for _ in range(2):
-        before = _get_property(context, path, value_prop)
-        _click(context, button)
-        deadline = time.time() + 2
-        while time.time() < deadline:
-            try:
-                if _get_property(context, path, value_prop) != before:
-                    return
-            except Exception:
-                pass
-            time.sleep(0.1)
-        time.sleep(0.2)
 
 
 def _read_setting_value(context, spec):

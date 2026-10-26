@@ -3,10 +3,14 @@
 name: Platform build & tests
 
 # Per-platform fuse: called once per matrix entry by build.yml. The build job
-# compiles Mixxx and uploads the build directory as an artifact; the tests
-# job runs the static test matrix (unit + three E2E batches) for THIS
-# platform only, so each platform's tests start as soon as its own build is
-# done instead of waiting for the other platforms to finish theirs.
+# compiles Mixxx, runs the unit tests inline, and packages/upload the
+# installer; the e2e job then downloads that installer, installs it like a
+# user would and runs the static E2E batch matrix against the installed
+# binary, so each platform's tests start as soon as its own build is done
+# instead of waiting for the other platforms to finish theirs.
+#
+# This tests the actual shipped artifact instead of a bare build directory,
+# so no build directory artifact is needed at all.
 #
 # All platform metadata arrives serialised in the `platform` input (the JSON
 # of one entry of build.yml's static matrix), so the platform definitions
@@ -52,6 +56,7 @@ jobs:
       artifact-macos-macosarm: ${{ steps.prepare_deploy.outputs.artifact-macos-macosarm }}
       artifact-windows-win64: ${{ steps.prepare_deploy.outputs.artifact-windows-win64 }}
       artifact-windows-winarm: ${{ steps.prepare_deploy.outputs.artifact-windows-winarm }}
+      installer-artifact-id: ${{ fromJSON(inputs.platform).cpack_generator == 'AppImage' && steps.appimage_upload.outputs.artifact-id || steps.installer_upload.outputs.artifact-id }}
 
     env:
       # macOS codesigning
@@ -348,14 +353,15 @@ jobs:
           # Also matches caches made with an outdated build environment
           KEY_PREFIX: ${{ fromJSON(inputs.platform).os }}-${{ fromJSON(inputs.platform).compiler_cache_id }}-${{ inputs.branch }}-
 
-      - uses: actions/upload-artifact@v7
-        # The build directory is the runtime the tests jobs below (and the
-        # E2E batches) reuse; only testable platforms need it.
+      - name: "Run unit tests"
         if: fromJSON(inputs.platform).tests == true
-        with:
-          name: mixxx-build-${{ fromJSON(inputs.platform).artifacts_slug }}
-          path: build
-          retention-days: 1
+        run: ctest --timeout 45 --label-exclude 'e2e' ${{ fromJSON(inputs.platform).ctest_args }}
+        working-directory: build
+        env:
+          GTEST_COLOR: 1
+          # Windows tests fail randomly if run in parallel
+          CTEST_PARALLEL_LEVEL: ${{ runner.os == 'Windows' && 1 || 3 }}
+          CTEST_OUTPUT_ON_FAILURE: 1
 
       - name: "[Windows] Sign executables"
         env:
@@ -434,6 +440,7 @@ jobs:
           # name becomes the file name (the AppImage already is compressed,
           # so re-zipping it is wasted work).
           archive: "false"
+        id: appimage_upload
 
       - name: "[AppImage] Smoke test"
         # Run the packaged AppImage once.  This catches loader-level failures
@@ -653,332 +660,46 @@ jobs:
         # step with a stable name used by the publish workflow.
         if: fromJSON(inputs.platform).artifacts_path != null && fromJSON(inputs.platform).cpack_generator != 'AppImage'
         uses: actions/upload-artifact@v7.0.1
+        id: installer_upload
         with:
           archive: "false"
           path: ${{ fromJSON(inputs.platform).artifacts_path }}
 
-  tests:
-    name: Test ${{ matrix.target }} (${{ fromJSON(inputs.platform).name }})
+  e2e:
+    name: "Test ${{ matrix.target }} (${{ fromJSON(inputs.platform).name }})"
     needs: build
     if: fromJSON(inputs.platform).tests == true
     strategy:
       fail-fast: false
       matrix:
-        # Static test matrix: one unit entry plus three E2E batches of
-        # ~90 runtime scenarios each (batch composition targets the
-        # post-re-slice feature layout; see docs/e2e-matrix-reorg-kickoff.md).
-        # A future `test-matrix` input can dynamise this.
+        # Static E2E matrix: three batches of ~90 runtime scenarios each
+        # (batch composition targets the post-re-slice feature layout; see
+        # docs/e2e-matrix-reorg-kickoff.md). Space-separated feature stems
+        # below features/. A future `test-matrix` input can dynamise this.
         include:
-          - target: unit
           - target: e2e-batch-1
             features: "browse"
           - target: e2e-batch-2
-            features: "deck|waveform"
+            features: "deck waveform"
           - target: e2e-batch-3
-            features: "preferences|sound|analyzer|broadcast|recording"
-    runs-on: ${{ fromJSON(inputs.platform).os }}
-    steps:
-      - name: "Check out repository"
-        uses: actions/checkout@v7
-
-      - name: "Download build artifacts"
-        uses: actions/download-artifact@v8
-        with:
-          name: mixxx-build-${{ fromJSON(inputs.platform).artifacts_slug }}
-          path: build
-
-      - name: "Fix artifact permissions"
-        if: runner.os != 'Windows'
-        run: chmod +x build/mixxx-test
-
-      - name: "[macOS] Set up cmake"
-        uses: jwlawson/actions-setup-cmake@v2.2
-        if: runner.os == 'macOS'
-        with:
-          cmake-version: "3.22.x"
-
-      - name: "[Windows] Set up cmake"
-        uses: jwlawson/actions-setup-cmake@v2.2
-        if: runner.os == 'Windows' && runner.arch != 'ARM64'
-        with:
-          cmake-version: "3.30.x"
-
-      - name: "[Windows] Set up MSVC Developer Command Prompt"
-        if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: ${{ fromJSON(inputs.platform).arch }}
-
-      - name: "[Windows 11 ARM64] Install ARM64 CMake"
-        if: runner.os == 'Windows' && runner.arch == 'ARM64'
-        run: |
-          Invoke-WebRequest -Uri https://github.com/Kitware/CMake/releases/download/v3.30.1/cmake-3.30.1-windows-arm64.zip -OutFile cmake-arm64.zip
-          Expand-Archive cmake-arm64.zip -DestinationPath $env:USERPROFILE\cmake
-          $cmakePath = "$env:USERPROFILE\cmake\cmake-3.30.1-windows-arm64\bin"
-          $cmakePath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          $env:Path += ";$cmakePath"
-          cmake --version
-
-      - name: "[Linux] Bypass Azure APT cache"
-        if: vars.BYPASS_AZURE_APT_MIRROR != null && runner.os == 'Linux'
-        run: sudo sed -i '/azure\.archive\.ubuntu\.com/d' /etc/apt/apt-mirrors.txt
-
-      - name: "[macOS/Linux] Set up build environment"
-        if: fromJSON(inputs.platform).buildenv_script != null && runner.os != 'Windows'
-        run: ${{ fromJSON(inputs.platform).buildenv_script }} setup
-        env:
-          BUILDENV_BASEPATH: ${{ fromJSON(inputs.platform).buildenv_basepath }}
-
-      - name: "[Windows] Set up build environment"
-        if: fromJSON(inputs.platform).buildenv_script != null && runner.os == 'Windows'
-        # With the cmd shell the ERRORLEVEL is checked
-        shell: cmd
-        run: ${{ fromJSON(inputs.platform).buildenv_script }} setup
-        env:
-          BUILDENV_BASEPATH: ${{ fromJSON(inputs.platform).buildenv_basepath }}
-
-      - name: "[macOS/Windows] Get build environment name"
-        if: runner.os != 'Linux'
-        run: ${{ fromJSON(inputs.platform).buildenv_script }} name
-
-      - name: "[macOS/Windows] Restore buildenv archive cache"
-        if: env.BUILDENV_NAME != null
-        uses: actions/cache/restore@v6
-        with:
-          path: ${{ fromJSON(inputs.platform).buildenv_basepath }}/${{ env.BUILDENV_NAME }}.zip
-          key: buildenv-${{ env.BUILDENV_NAME }}
-
-      - name: "Download buildenv"
-        # No need for all the option, we just need to download the buildenv here
-        run: >-
-          cmake ..
-        working-directory: build
-        env:
-          CC: ${{ fromJSON(inputs.platform).cc }}
-          CXX: ${{ fromJSON(inputs.platform).cxx }}
-
-      - name: "[Linux] Install UI test dependencies"
-        if: runner.os == 'Linux' && startsWith(matrix.target, 'e2e-')
-        run: |
-          sudo apt-get update && sudo apt-get install -y \
-            xvfb ffmpeg \
-            cage wf-recorder wlr-randr
-
-      - name: "[Windows] Setup UI test dependencies"
-        if: runner.os == 'Windows' && startsWith(matrix.target, 'e2e-')
-        timeout-minutes: 5
-        shell: pwsh
-        working-directory: build
-        run: |
-          # Add OpenGL library for software rendering (no GPU in CI).
-          # Official prebuilt from download.qt.io, pinned by SHA-256
-          # (matches https://download.qt.io/development_releases/prebuilt/llvmpipe/windows/sha256sums.txt)
-          $downloadUrl = "https://download.qt.io/development_releases/prebuilt/llvmpipe/windows/opengl32sw-64.7z"
-          $localPath = "opengl32sw-64.7z"
-          $expectedChecksum = "a19b32017652de3a6d33bc861186303a95b92ec570c36277e137093909d47ccd"
-
-          Invoke-WebRequest -Uri $downloadUrl -OutFile $localPath
-
-          $actualChecksum = (Get-FileHash -Algorithm SHA256 -Path $localPath).Hash
-
-          if ($actualChecksum -ne $expectedChecksum) {
-              Write-Host "Checksum verification failed."
-              exit 1
-          }
-
-          Set-PSRepository -Name 'PSGallery' -SourceLocation "https://www.powershellgallery.com/api/v2" -InstallationPolicy Trusted
-          Install-Module -Name 7Zip4PowerShell -Force
-
-          Expand-7Zip -ArchiveFileName $localPath -TargetPath '.'
-          "QSG_RHI_BACKEND=opengl" >> $env:GITHUB_ENV
-
-      - name: "[Windows] Set screen resolution for UI test"
-        if: runner.os == 'Windows' && startsWith(matrix.target, 'e2e-')
-        run: |
-          Get-CimInstance CIM_VideoControllerResolution | Select-Object Caption, HorizontalResolution, VerticalResolution
-          if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
-              Install-PackageProvider -Name NuGet -Force -Scope CurrentUser
-          }
-
-          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-          Install-Module -Name DisplaySettings -Scope CurrentUser -Force -AllowClobber -Confirm:$false
-          Import-Module -Name DisplaySettings -Force
-          Set-DisplayResolution -Width 1920 -Height 1080
-
-      - name: "Run unit tests"
-        if: matrix.target == 'unit'
-        run: ctest --timeout 45 --label-exclude 'e2e' ${{ fromJSON(inputs.platform).ctest_args }}
-        working-directory: build
-        env:
-          GTEST_COLOR: 1
-          CTEST_PARALLEL_LEVEL: ${{ runner.os == 'Windows' && '1' || (runner.os == 'macOS' && '3' || '4' ) }}
-          CTEST_OUTPUT_ON_FAILURE: 1
-
-      - name: "[macOS] Find FFMPEG"
-        if: runner.os == 'macOS' && fromJSON(inputs.platform).crosscompile != true && startsWith(matrix.target, 'e2e-')
-        shell: bash
-        run: |
-          find "$BUILDENV_BASEPATH" -name ffmpeg
-          # Using $(echo ) to trim spaces
-          MIXXX_FFMPEG_BIN="${BUILDENV_BASEPATH}/$(echo $BUILDENV_NAME)/installed/$(echo $VCPKG_TARGET_TRIPLET)/tools/ffmpeg/ffmpeg"
-          if [ ! -f "$MIXXX_FFMPEG_BIN" ]; then
-            echo "Cannot find ffmpeg at: $MIXXX_FFMPEG_BIN"
-            exit 1
-          fi
-          echo "MIXXX_FFMPEG_BIN=$MIXXX_FFMPEG_BIN" >> $GITHUB_ENV
-
-      - name: "[Windows] Find FFMPEG"
-        if: runner.os == 'Windows' && startsWith(matrix.target, 'e2e-')
-        shell: bash
-        run: |
-          find "/c/buildenv/$(echo $BUILDENV_NAME)/installed/$(echo $VCPKG_TARGET_TRIPLET)/tools/" -name '*.exe'
-          # Using $(echo ) to trim spaces
-          MIXXX_FFMPEG_BIN="/c/buildenv/$(echo $BUILDENV_NAME)/installed/$(echo $VCPKG_TARGET_TRIPLET)/tools/ffmpeg/ffmpeg.exe"
-          if [ ! -f "$MIXXX_FFMPEG_BIN" ]; then
-            echo "Cannot find ffmpeg at: $MIXXX_FFMPEG_BIN"
-            exit 1
-          fi
-          # Rewriting in Windows format
-          MIXXX_FFMPEG_BIN="C:\\buildenv\\$(echo $BUILDENV_NAME)\\installed\\$(echo $VCPKG_TARGET_TRIPLET)\\tools\\ffmpeg\\ffmpeg.exe"
-          echo "MIXXX_FFMPEG_BIN=$MIXXX_FFMPEG_BIN" >> $GITHUB_ENV
-
-      - name: "[macOS/Windows] Test FFMPEG"
-        if: env.MIXXX_FFMPEG_BIN != null && startsWith(matrix.target, 'e2e-')
-        run: ${{ env.MIXXX_FFMPEG_BIN }} -formats
-
-      - name: "Run E2E batch"
-        if: startsWith(matrix.target, 'e2e-')
-        id: e2e_test
-        working-directory: build
-        shell: bash
-        # One runner invocation per feature file, sequential within the batch
-        # (the CTest suite serialises on the RPC port anyway); the batch
-        # membership is static (see the matrix above).
-        run: |
-          ctest -L 'e2e' -R "mixxx-behave-(${{ matrix.features }})\$" -V --timeout 3500
-        timeout-minutes: 60
-        env:
-          QSG_INFO: "1"
-          QT_LOGGING_RULES: "qt.scenegraph.general=true"
-          TARGET: ${{ matrix.target }}
-          MIXXX_TEST_HEADLESS: ${{ (runner.os == 'Linux' || fromJSON(inputs.platform).artifacts_slug == 'windows-winarm') && '1' || '' }}
-          # In the future, we could run both xwayland and xfb
-          MIXXX_TEST_DISPLAY_BACKEND: ${{ runner.os == 'Linux' && 'xwayland' || '' }}
-          MIXXX_TEST_RECORD: ${{ fromJSON(inputs.platform).artifacts_slug != 'windows-winarm' && '1' || '' }}
-          MIXXX_TEST_ARTIFACTS: ${{ github.workspace }}/src/test/behave/artifacts
-
-      - name: "Install @actions/artifact for video upload"
-        if: always() && steps.e2e_test.outcome != 'skipped'
-        working-directory: ${{ github.workspace }}
-        shell: bash
-        id: npm
-        run: |
-          npm install @actions/artifact
-          echo "root=`npm root`" >> $GITHUB_OUTPUT
-
-      - uses: actions/upload-artifact@v7
-        if: always() && steps.e2e_test.outcome != 'skipped'
-        with:
-          name: mixxx-ui-test-${{ fromJSON(inputs.platform).artifacts_slug }}-${{ matrix.target }}
-          path: |
-            ${{ github.workspace }}/src/test/behave/artifacts/*.json
-            ${{ github.workspace }}/src/test/behave/artifacts/mixxx-output.*.log
-
-      - name: "Upload unzipped videos"
-        if: always() && steps.e2e_test.outcome != 'skipped'
-        env:
-          NPM_ROOT: ${{ steps.npm.outputs.root }}
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const fs = require('fs');
-            const path = require('path');
-            const {DefaultArtifactClient} = require(`${process.env.NPM_ROOT}/@actions/artifact`);
-
-            const client = new DefaultArtifactClient();
-            const videosDir = path.resolve(process.env.GITHUB_WORKSPACE, 'src/test/behave/artifacts');
-            const entries = fs.existsSync(videosDir) ? fs.readdirSync(videosDir)
-              .filter(f => f.startsWith('mixxx-ui-test') && f.endsWith('.mkv'))
-              .map(f => ({name: f, absPath: path.resolve(videosDir, f)})): [];
-
-            if (entries.length === 0) {
-              core.notice('no videos found, skipping');
-              return;
-            }
-
-            // Parse label and timestamp from mixxx-ui-test-{label}-{timestamp}.mkv
-            const FILE_RE = /^mixxx-ui-test-(.+)-(\d{8}-\d{6})\.mkv$/;
-            const parsed = [];
-            for (const entry of entries) {
-              const m = entry.name.match(FILE_RE);
-              if (m) {
-                parsed.push({label: m[1], timestamp: m[2], ...entry});
-              }
-            }
-
-            // Upload artifacts and collect URLs
-            const urlsByName = {};
-            for (const entry of parsed) {
-              const {id} = await client.uploadArtifact(
-                entry.name,
-                [entry.absPath],
-                videosDir,
-                {skipArchive: true, retentionDays: 7}
-              );
-              urlsByName[entry.name] = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/artifacts/${id}`;
-            }
-
-            // Group by label (lowercase), sort by timestamp within each group
-            const groups = {};
-            for (const entry of parsed) {
-              const key = entry.label.toLowerCase();
-              if (!groups[key]) groups[key] = [];
-              groups[key].push(entry);
-            }
-            for (const key of Object.keys(groups)) {
-              groups[key].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-            }
-
-            // Build summary
-            const summaryLines = [`# ${{ fromJSON(inputs.platform).name }} — ${{ matrix.target }}`];
-            for (const [label, items] of Object.entries(groups)) {
-              const multi = items.length > 1;
-              summaryLines.push(`## ${label}`);
-              for (let i = 0; i < items.length; i++) {
-                const suffix = multi ? ` (attempt ${i + 1})` : '';
-                summaryLines.push(`  - [${items[i].name}](${urlsByName[items[i].name]})${suffix}`);
-              }
-              summaryLines.push('');
-            }
-
-            await core.summary
-              .addRaw(summaryLines.join('\n'), true)
-              .write();
-
-      - name: "Attach behave transcript to job summary"
-        if: always() && steps.e2e_test.outcome != 'skipped'
-        working-directory: ${{ github.workspace }}
-        shell: bash
-        run: |
-          artifacts_dir="src/test/behave/artifacts"
-          if ! compgen -G "$artifacts_dir/behave-output-*.txt" > /dev/null; then
-            echo "No behave transcript found, skipping summary attachment."
-            exit 0
-          fi
-          {
-            echo "## Behave transcript (with video timecodes)"
-            echo ""
-            shopt -s nullglob
-            for f in "$artifacts_dir"/behave-output-*.txt; do
-              label=$(basename "$f" | sed -E 's/^behave-output-(.+)\.txt$/\1/')
-              echo "<details>"
-              echo "<summary><strong>${label}</strong></summary>"
-              echo ""
-              echo '```'
-              cat "$f"
-              echo '```'
-              echo ""
-              echo "</details>"
-              echo ""
-            done
-          } >> "$GITHUB_STEP_SUMMARY"
+            features: "preferences sound analyzer broadcast recording"
+    uses: ./.github/workflows/e2e.yml
+    with:
+      installer_artifact_id: ${{ needs.build.outputs.installer-artifact-id }}
+      platform_name: ${{ fromJSON(inputs.platform).name }}
+      artifact_slug: ${{ fromJSON(inputs.platform).artifacts_slug }}
+      target: ${{ matrix.target }}
+      features: ${{ matrix.features }}
+      # Linux builds pin ubuntu-22.04 for the glibc baseline, but its apt
+      # inventory is too old to host the E2E: the jammy cage (0.1.4,
+      # wlroots 0.15) exits at startup in the runner's headless xwayland
+      # flow, unlike the 26.04 cage (0.2.1, wlroots 0.17). The installed
+      # artifacts run fine on 26.04 (glibc forward compatibility), so the
+      # Linux E2E legs host on ubuntu-26.04 while macOS/Windows pass
+      # through unchanged.
+      os: ${{ startsWith(fromJSON(inputs.platform).os, 'ubuntu') && 'ubuntu-26.04' || fromJSON(inputs.platform).os }}
+      # Running headless on Windows ARM since the runners suffer from incomplete UI setup, so no recording can be performed.
+      headless: ${{ (startsWith(fromJSON(inputs.platform).os, 'ubuntu') || fromJSON(inputs.platform).artifacts_slug == 'windows-winarm') && '1' || '' }}
+      display_backend: ${{ fromJSON(inputs.platform).artifacts_slug == 'linux-appimage' && 'xvfb' || (startsWith(fromJSON(inputs.platform).os, 'ubuntu') && 'xwayland' || '') }}
+      record: ${{ fromJSON(inputs.platform).artifacts_slug != 'windows-winarm' && '1' || '' }}
+    secrets: inherit

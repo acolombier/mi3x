@@ -55,6 +55,9 @@ CmdlineArgs::CmdlineArgs()
           m_controllerDebug(false),
           m_controllerAbortOnWarning(false),
           m_developer(false),
+#ifdef __RPC_SERVER__
+          m_serve(false),
+#endif
           m_stats(false),
 #ifdef MIXXX_USE_QML
           m_qml(false),
@@ -283,6 +286,15 @@ bool CmdlineArgs::parse(const QStringList& arguments, CmdlineArgs::ParseMode mod
                             : QString());
     parser.addOption(developer);
 
+#ifdef __RPC_SERVER__
+    const QCommandLineOption serve(QStringLiteral("serve"),
+            forUserFeedback ? QCoreApplication::translate("CmdlineArgs",
+                                      "Start the automation server (XML-RPC on port "
+                                      "9000) used to drive Mixxx for E2E UI testing.")
+                            : QString());
+    parser.addOption(serve);
+#endif
+
     const QCommandLineOption stats(QStringLiteral("stats"),
             forUserFeedback ? QCoreApplication::translate("CmdlineArgs",
                                       "Enables collection of performance statistics.")
@@ -477,6 +489,9 @@ bool CmdlineArgs::parse(const QStringList& arguments, CmdlineArgs::ParseMode mod
     m_controllerPreviewScreens = parser.isSet(controllerPreviewScreens);
     m_controllerAbortOnWarning = parser.isSet(controllerAbortOnWarning);
     m_developer = parser.isSet(developer);
+#ifdef __RPC_SERVER__
+    m_serve = parser.isSet(serve);
+#endif
     m_stats = parser.isSet(stats);
 #ifdef MIXXX_USE_QML
     m_qml = parser.isSet(qml);

@@ -148,6 +148,7 @@ def patch_scenario_with_autoretry(context, scenario, max_attempts=3):
             # -- SCENARIO FAILED:
             if attempt < max_attempts:
                 print(u"AUTO-RETRY SCENARIO (attempt {0})".format(attempt))
+                time.sleep(1)
                 _reset_session(context)
         # -- All attempts exhausted (or final attempt failed): poison the
         #    session so a later scenario never inherits partial state.
@@ -155,6 +156,7 @@ def patch_scenario_with_autoretry(context, scenario, max_attempts=3):
             return False    # -- NOT-FAILED = EXPECTED FAILURE
         message = u"AUTO-RETRY SCENARIO FAILED (after {0} attempts)"
         print(message.format(max_attempts))
+        time.sleep(1)
         _reset_session(context)
         context._session["had_failure"] = True
         return True

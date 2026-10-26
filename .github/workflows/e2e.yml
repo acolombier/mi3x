@@ -1,0 +1,430 @@
+name: E2E Test
+on:
+  workflow_call:
+    inputs:
+      installer_artifact_id:
+        description: "ID of the installer/bundle artifact to test (uploaded by the build job)"
+        required: true
+        type: string
+      platform_name:
+        description: "Human-readable platform name (must match the E2E comment generator's slug names)"
+        required: true
+        type: string
+      artifact_slug:
+        description: "Platform slug used in result artifact names (e.g. linux-appimage, flatpak-x86_64)"
+        required: true
+        type: string
+      target:
+        description: "E2E batch label (e.g. e2e-batch-1) used in artifact names and job links"
+        required: true
+        type: string
+      features:
+        description: "Space-separated feature file stems below src/test/behave/features/ to run in this batch"
+        required: true
+        type: string
+      headless:
+        description: "'1' to run under a headless virtual display; leave empty to drive the real desktop (Linux CI passes '1')"
+        required: false
+        default: ""
+        type: string
+      display_backend:
+        description: "Headless display backend (xvfb/xwayland); empty uses the runner's own 'auto' preference"
+        required: false
+        default: ""
+        type: string
+      record:
+        description: "'1' to record videos of the scenarios; leave empty to disable recording"
+        required: false
+        default: ""
+        type: string
+      retry:
+        description: "behave scenario auto-retry attempts"
+        required: false
+        default: "3"
+        type: string
+      os:
+        description: "Runner image to run the batch on (must host the installer kind being tested)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  test:
+    name: "Test ${{ inputs.target }} (${{ inputs.platform_name }})"
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 60
+    steps:
+      - name: "Check out repository"
+        uses: actions/checkout@v7
+
+      - name: "[Linux] Bypass Azure APT cache"
+        if: vars.BYPASS_AZURE_APT_MIRROR != null && runner.os == 'Linux'
+        run: sudo sed -i '/azure\.archive\.ubuntu\.com/d' /etc/apt/apt-mirrors.txt
+        shell: bash
+
+      - name: "Download installer"
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ inputs.installer_artifact_id }}
+          path: installer
+
+      - name: "Detect installer kind"
+        id: detect
+        shell: bash
+        run: |
+          kind=""
+          if compgen -G "installer/*.deb" > /dev/null; then
+            kind=deb
+          elif compgen -G "installer/*.AppImage" > /dev/null; then
+            kind=appimage
+          elif compgen -G "installer/Mixxx-*.flatpak" > /dev/null; then
+            kind=flatpak
+          elif compgen -G "installer/*.dmg" > /dev/null; then
+            kind=dmg
+          elif compgen -G "installer/*.msi" > /dev/null; then
+            kind=msi
+          fi
+          if [ -z "$kind" ]; then
+            echo "Unrecognized installer artifact:" >&2
+            ls -la installer >&2
+            exit 1
+          fi
+          echo "Detected installer kind: $kind"
+          echo "kind=$kind" >> "$GITHUB_OUTPUT"
+          if [ "$kind" = "flatpak" ]; then
+            echo "FLATPAK_PACKAGE=org.mixxx.Mixxx" >> "$GITHUB_ENV"
+          fi
+
+      - name: "[Linux] Install UI test dependencies"
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y \
+            libopengl0 libegl1 libglx0 \
+            xvfb ffmpeg \
+            cage wf-recorder wlr-randr
+        shell: bash
+
+      - name: "[Ubuntu] Install Mixxx from DEB"
+        if: steps.detect.outputs.kind == 'deb'
+        run: |
+          sudo apt-get install -y ./installer/mixxx-*.deb
+          echo "MIXXX_TEST_BINARY=$(readlink -f "$(which mixxx)")" >> "$GITHUB_ENV"
+        shell: bash
+
+      - name: "[AppImage] Make Mixxx AppImage executable"
+        if: steps.detect.outputs.kind == 'appimage'
+        run: |
+          installer=$(find installer -maxdepth 1 -name '*.AppImage' | head -n1)
+          chmod +x "$installer"
+          # Extract instead of mounting via FUSE: GitHub runners must not
+          # need extra fuse packages.
+          (cd installer && ./"$(basename "$installer")" --appimage-extract > /dev/null)
+          echo "MIXXX_TEST_BINARY=$PWD/installer/squashfs-root/AppRun" >> "$GITHUB_ENV"
+        shell: bash
+
+      - name: "[Flatpak] Install Mixxx from bundle"
+        if: steps.detect.outputs.kind == 'flatpak'
+        run: |
+          bundle=$(find installer -maxdepth 1 -name 'Mixxx-*.flatpak' ! -name '*Debug*' | head -n1)
+          if [ -z "$bundle" ]; then
+            echo "No Mixxx Flatpak bundle found" >&2
+            exit 1
+          fi
+          sudo apt-get update && sudo apt-get install -y flatpak
+          flatpak remote-add --user --if-not-exists flathub \
+            https://flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --noninteractive --bundle "$bundle"
+          echo "FLATPAK_PACKAGE=org.mixxx.Mixxx" >> "$GITHUB_ENV"
+        shell: bash
+
+      - name: "[macOS] Install Mixxx from DMG"
+        if: steps.detect.outputs.kind == 'dmg'
+        run: |
+          mkdir mixxx-dmg
+          mountpoint="$PWD/mixxx-dmg"
+          echo Y | hdiutil attach -readonly -nobrowse -mountpoint "$mountpoint" installer/*.dmg
+          app_dir=$(find "$mountpoint" -maxdepth 1 -name '*.app' | head -n1)
+          sudo cp -R "$app_dir" /Applications/
+          hdiutil detach "$mountpoint"
+          echo "MIXXX_TEST_BINARY=/Applications/$(basename "$app_dir")/Contents/MacOS/mixxx" >> "$GITHUB_ENV"
+        shell: bash
+
+      - name: "[macOS] Ensure ffmpeg for recording"
+        if: runner.os == 'macOS'
+        run: |
+          if ! command -v ffmpeg > /dev/null; then
+            brew install ffmpeg
+          fi
+        shell: bash
+
+      - name: "[Windows] Install Mixxx from MSI"
+        if: steps.detect.outputs.kind == 'msi'
+        shell: pwsh
+        run: |
+          # Install and test in the MSI's default per-machine location so
+          # the E2E exercises the tree a real user gets.
+          $mixxxDir = "C:\Program Files\Mixxx"
+          $msi = (Resolve-Path installer/*.msi).Path
+          $proc = Start-Process msiexec.exe -ArgumentList "/i", $msi, "/qn", "/norestart" -Wait -PassThru
+          if ($proc.ExitCode -ne 0) {
+            throw "msiexec failed with exit code $($proc.ExitCode)"
+          }
+          if (-not (Test-Path "$mixxxDir\mixxx.exe")) {
+            throw "Mixxx executable not found in $mixxxDir after MSI install"
+          }
+          "MIXXX_TEST_BINARY=$mixxxDir\mixxx.exe" >> $env:GITHUB_ENV
+
+      - name: "[Windows] Setup UI test dependencies"
+        if: steps.detect.outputs.kind == 'msi' && runner.arch == 'X64'
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          # Add OpenGL library for software rendering (no GPU in CI).
+          # Official prebuilt from download.qt.io, pinned by SHA-256
+          # (matches https://download.qt.io/development_releases/prebuilt/llvmpipe/windows/sha256sums.txt)
+          $downloadUrl = "https://download.qt.io/development_releases/prebuilt/llvmpipe/windows/opengl32sw-64.7z"
+          $localPath = "opengl32sw-64.7z"
+          $expectedChecksum = "a19b32017652de3a6d33bc861186303a95b92ec570c36277e137093909d47ccd"
+
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $localPath
+
+          $actualChecksum = (Get-FileHash -Algorithm SHA256 -Path $localPath).Hash
+
+          if ($actualChecksum -ne $expectedChecksum) {
+              Write-Host "Checksum verification failed."
+              exit 1
+          }
+
+          # GitHub-hosted Windows runners ship 7-Zip preinstalled; avoid a
+          # PowerShell Gallery dependency (flake: PSGallery not configured).
+          # The runner is elevated, so dropping the OpenGL fallback DLL next
+          # to the executable inside Program Files is possible — Windows
+          # loads OpenGL fallback DLLs from the application directory.
+          $mixxxDir = "C:\Program Files\Mixxx"
+          $sevenZip = "C:\Program Files\7-Zip\7z.exe"
+          if (-not (Test-Path $sevenZip)) {
+            throw "7-Zip not found at $sevenZip"
+          }
+          & $sevenZip x -y "-o$mixxxDir" $localPath
+          if ($LASTEXITCODE -ne 0) {
+            throw "7-Zip extraction failed with exit code $LASTEXITCODE"
+          }
+          "QSG_RHI_BACKEND=opengl" >> $env:GITHUB_ENV
+
+      - name: "[Windows] Set screen resolution for UI test"
+        if: steps.detect.outputs.kind == 'msi'
+        # The Gallery setup is flaky on Windows runners: fresh instances can
+        # miss the PSGallery registration and the NuGet provider/module
+        # downloads race transiently. Retry the step and self-heal the
+        # repository registration on each attempt (same flake as the 7-Zip
+        # fallback above; see also nick-fields/retry usage in platform.yml).
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 2
+          max_attempts: 3
+          retry_wait_seconds: 30
+          shell: pwsh
+          command: |
+            Get-CimInstance CIM_VideoControllerResolution | Select-Object Caption, HorizontalResolution, VerticalResolution
+            if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
+                Install-PackageProvider -Name NuGet -Force -Scope CurrentUser
+            }
+
+            if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
+                Register-PSRepository -Default
+            }
+            Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+            Install-Module -Name DisplaySettings -Scope CurrentUser -Force -AllowClobber -Confirm:$false
+            Import-Module -Name DisplaySettings -Force
+            Set-DisplayResolution -Width 1920 -Height 1080
+
+      - name: "[Windows] Ensure ffmpeg for recording"
+        if: steps.detect.outputs.kind == 'msi'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg -y --no-progress
+          }
+          # Chocolatey's PATH entry points at a ShimGen shim: killing the
+          # shim leaves the real ffmpeg running with the recorder's pipes
+          # open, which blocked _stop_recorder's stderr read indefinitely.
+          # Give the runner the real binary instead, so the recorder gets
+          # killed together with any piped daemon and the chapter muxer
+          # uses the same executable.
+          $realFfmpeg = (Get-ChildItem "C:\ProgramData\chocolatey\lib\ffmpeg\tools" -Recurse -Filter ffmpeg.exe | Select-Object -First 1).FullName
+          "MIXXX_FFMPEG_BIN=$realFfmpeg" >> $env:GITHUB_ENV
+
+      - name: "[Windows] Exempt test processes from Defender scans"
+        if: steps.detect.outputs.kind == 'msi'
+        shell: pwsh
+        run: |
+          # The RPC server (--serve) listens on port 9000, which otherwise
+          # triggers the interactive firewall prompt on the first spawn
+          netsh advfirewall firewall add rule name="Mixxx E2E" dir=in action=allow program="C:\Program Files\Mixxx\mixxx.exe" enable=yes profile=any
+          netsh advfirewall firewall add rule name="Mixxx E2E" dir=out action=allow program="C:\Program Files\Mixxx\mixxx.exe" enable=yes profile=any
+          # Defender exception
+          Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled
+          Add-MpPreference -ExclusionPath "C:\Program Files\Mixxx"
+          Add-MpPreference -ExclusionPath $env:TEMP
+          Add-MpPreference -ExclusionPath $env:GITHUB_WORKSPACE
+          Add-MpPreference -ExclusionProcess mixxx.exe, python.exe, ffmpeg.exe
+          Get-MpPreference | Select-Object -ExpandProperty ExclusionPath
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: "Install dependencies"
+        run: python -m pip install behave
+
+      - name: "Run E2E batch"
+        id: e2e_test
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        # One runner invocation per batch: all feature files run in the same
+        # behave process, producing one thread-chunked video (with one
+        # chapter per scenario) and one results/transcript file set per
+        # batch. The batch membership is static (see the caller's matrix).
+        run: |
+          args=()
+          for f in ${{ inputs.features }}; do
+            args+=("src/test/behave/features/$f.feature")
+          done
+          if [ -n "$FLATPAK_PACKAGE" ]; then
+            mode_args=(--flatpak-package "$FLATPAK_PACKAGE")
+          else
+            mode_args=(--binary "$MIXXX_TEST_BINARY")
+          fi
+          python src/test/behave/mixxx_test_runner.py \
+            "${mode_args[@]}" \
+            --label "${{ inputs.target }}" \
+            "${args[@]}"
+        env:
+          QSG_INFO: "1"
+          QT_LOGGING_RULES: "qt.scenegraph.general=true"
+          MIXXX_TEST_HEADLESS: ${{ inputs.headless }}
+          # In the future, we could run both xwayland and xfb
+          MIXXX_TEST_DISPLAY_BACKEND: ${{ inputs.display_backend }}
+          MIXXX_TEST_RECORD: ${{ inputs.record }}
+          MIXXX_TEST_ARTIFACTS: ${{ github.workspace }}/src/test/behave/artifacts
+          MIXXX_BEHAVE_RETRY: ${{ inputs.retry }}
+
+      - name: "Install @actions/artifact for video upload"
+        if: always() && steps.e2e_test.outcome != 'skipped'
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        id: npm
+        run: |
+          npm install @actions/artifact
+          echo "root=`npm root`" >> $GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.e2e_test.outcome != 'skipped'
+        with:
+          name: mixxx-ui-test-${{ inputs.artifact_slug }}-${{ inputs.target }}
+          path: |
+            ${{ github.workspace }}/src/test/behave/artifacts/*.json
+            ${{ github.workspace }}/src/test/behave/artifacts/mixxx-output.*.log
+
+      - name: "Upload unzipped videos"
+        if: always() && steps.e2e_test.outcome != 'skipped'
+        env:
+          NPM_ROOT: ${{ steps.npm.outputs.root }}
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const {DefaultArtifactClient} = require(`${process.env.NPM_ROOT}/@actions/artifact`);
+
+            const client = new DefaultArtifactClient();
+            const videosDir = path.resolve(process.env.GITHUB_WORKSPACE, 'src/test/behave/artifacts');
+            const entries = fs.existsSync(videosDir) ? fs.readdirSync(videosDir)
+              .filter(f => f.startsWith('mixxx-ui-test') && f.endsWith('.mkv'))
+              .map(f => ({name: f, absPath: path.resolve(videosDir, f)})): [];
+
+            if (entries.length === 0) {
+              core.notice('no videos found, skipping');
+              return;
+            }
+
+            // Parse label and timestamp from mixxx-ui-test-{label}-{timestamp}.mkv
+            const FILE_RE = /^mixxx-ui-test-(.+)-(\d{8}-\d{6})\.mkv$/;
+            const parsed = [];
+            for (const entry of entries) {
+              const m = entry.name.match(FILE_RE);
+              if (m) {
+                parsed.push({label: m[1], timestamp: m[2], ...entry});
+              }
+            }
+
+            // Upload artifacts and collect URLs
+            const urlsByName = {};
+            for (const entry of parsed) {
+              const {id} = await client.uploadArtifact(
+                entry.name,
+                [entry.absPath],
+                videosDir,
+                {skipArchive: true, retentionDays: 7}
+              );
+              urlsByName[entry.name] = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/artifacts/${id}`;
+            }
+
+            // Group by label (lowercase), sort by timestamp within each group
+            const groups = {};
+            for (const entry of parsed) {
+              const key = entry.label.toLowerCase();
+              if (!groups[key]) groups[key] = [];
+              groups[key].push(entry);
+            }
+            for (const key of Object.keys(groups)) {
+              groups[key].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+            }
+
+            // Build summary
+            const summaryLines = [`# ${{ inputs.platform_name }} — ${{ inputs.target }}`];
+            for (const [label, items] of Object.entries(groups)) {
+              const multi = items.length > 1;
+              summaryLines.push(`## ${label}`);
+              for (let i = 0; i < items.length; i++) {
+                const suffix = multi ? ` (attempt ${i + 1})` : '';
+                summaryLines.push(`  - [${items[i].name}](${urlsByName[items[i].name]})${suffix}`);
+              }
+              summaryLines.push('');
+            }
+
+            await core.summary
+              .addRaw(summaryLines.join('\n'), true)
+              .write();
+
+      - name: "Attach behave transcript to job summary"
+        if: always() && steps.e2e_test.outcome != 'skipped'
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        run: |
+          artifacts_dir="src/test/behave/artifacts"
+          if ! compgen -G "$artifacts_dir/behave-output-*.txt" > /dev/null; then
+            echo "No behave transcript found, skipping summary attachment."
+            exit 0
+          fi
+          {
+            echo "## Behave transcript (with video timecodes)"
+            echo ""
+            shopt -s nullglob
+            for f in "$artifacts_dir"/behave-output-*.txt; do
+              label=$(basename "$f" | sed -E 's/^behave-output-(.+)\.txt$/\1/')
+              echo "<details>"
+              echo "<summary><strong>${label}</strong></summary>"
+              echo ""
+              echo '```'
+              cat "$f"
+              echo '```'
+              echo ""
+              echo "</details>"
+              echo ""
+            done
+          } >> "$GITHUB_STEP_SUMMARY"

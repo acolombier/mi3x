@@ -2,10 +2,6 @@
 #include <benchmark/benchmark.h>
 #endif
 
-#ifdef USE_TEST_UI
-#include "test/servemode.h"
-#endif
-
 #include "errordialoghandler.h"
 #include "mixxxtest.h"
 #include "util/logging.h"
@@ -13,15 +9,6 @@
 int main(int argc, char **argv) {
     // We never want to popup error dialogs when running tests.
     ErrorDialogHandler::setEnabled(false);
-
-#ifdef USE_TEST_UI
-    // --serve needs a real display, handle before offscreen env is set
-    for (int i = 0; i < argc; ++i) {
-        if (strcmp(argv[i], "--serve") == 0) {
-            return runServeMode(argc, argv);
-        }
-    }
-#endif
 
     // By default, render analyzer waveform tests to an offscreen buffer
     if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")) {

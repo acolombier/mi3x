@@ -2819,33 +2819,80 @@ elseif(BUILD_BENCH AND NOT BUILD_TESTING)
   message(FATAL_ERROR "Benchmark needs Unittests (-DBUILD_TESTING=ON)")
 endif()
 
-default_option(BUILD_UI_TEST "Build Mixxx QML UI/E2E tests" "QML")
-if(BUILD_UI_TEST)
-  set(ANYRPC_INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/lib/libanyrpc-install")
+# Builds the Spix XML-RPC automation server into the main 'mixxx' binary,
+# enabled by 'mixxx --serve'. Used to drive the E2E (QML UI) tests against
+# any installed Mixxx, so it defaults to every build that can run the tests
+# (BUILD_TESTING) with a QML UI also shipping the automation server. The RPC
+# port only listens when '--serve' is passed on the command line.
+default_option(
+  RPC_SERVER
+  "Build Mixxx automation server (Spix XML-RPC, for E2E UI tests)"
+  "BUILD_TESTING;QML"
+)
+
+find_program(PYTHON3_EXECUTABLE python3)
+default_option(
+  ENABLE_UI_TESTING
+  "Run the UI testing with ctest"
+  "BUILD_TESTING;RPC_SERVER;PYTHON3_EXECUTABLE"
+)
+if(RPC_SERVER)
+  if(NOT QT6 OR NOT QML)
+    message(FATAL_ERROR "RPC_SERVER requires Qt 6 with QML")
+  endif()
+  target_compile_definitions(mixxx-lib PUBLIC __RPC_SERVER__)
+  # Optional preinstalled anyrpc/spix (e.g. built as Flatpak modules where
+  # the build sandbox has no network for ExternalProject git clones). When
+  # both dirs are provided, the external projects are skipped entirely and
+  # the imported libraries point at the preinstalled prefix.
+  set(
+    RPC_SERVER_ANYRPC_INSTALL_DIR
+    ""
+    CACHE PATH
+    "Preinstalled anyrpc prefix; skips the ExternalProject fetch"
+  )
+  set(
+    RPC_SERVER_SPIX_INSTALL_DIR
+    ""
+    CACHE PATH
+    "Preinstalled spix prefix; skips the ExternalProject fetch"
+  )
+  if(RPC_SERVER_ANYRPC_INSTALL_DIR AND RPC_SERVER_SPIX_INSTALL_DIR)
+    set(RPC_SERVER_EXTERNAL_PROJECTS OFF)
+    set(ANYRPC_INSTALL_DIR "${RPC_SERVER_ANYRPC_INSTALL_DIR}")
+    set(SPIX_INSTALL_DIR "${RPC_SERVER_SPIX_INSTALL_DIR}")
+  else()
+    set(RPC_SERVER_EXTERNAL_PROJECTS ON)
+    set(ANYRPC_INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/lib/libanyrpc-install")
+  endif()
   set(
     ANYRPC_LIBRARY
     "lib/${CMAKE_STATIC_LIBRARY_PREFIX}anyrpc${CMAKE_STATIC_LIBRARY_SUFFIX}"
   )
-  ExternalProject_Add(
-    libanyrpc
-    GIT_REPOSITORY https://github.com/sgieseking/anyrpc.git
-    GIT_TAG b1949b3d40849229055ae75cf5334b9d08579502
-    INSTALL_DIR ${ANYRPC_INSTALL_DIR}
-    LIST_SEPARATOR "|"
-    CMAKE_ARGS
-      -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DBUILD_WITH_LOG4CPLUS=OFF
-      -DCMAKE_INSTALL_PREFIX=${ANYRPC_INSTALL_DIR} -DBUILD_EXAMPLES=OFF
-      -DBUILD_PROTOCOL_MESSAGEPACK=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-      -DANYRPC_LIB_BUILD_SHARED=OFF
-      -$<IF:$<BOOL:${CMAKE_TOOLCHAIN_FILE}>,D,U>CMAKE_TOOLCHAIN_FILE:PATH=${CMAKE_TOOLCHAIN_FILE}
-      -$<IF:$<BOOL:${CMAKE_OSX_DEPLOYMENT_TARGET}>,D,U>CMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
-      -$<IF:$<BOOL:${CMAKE_OSX_ARCHITECTURES}>,D,U>CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
-      -DCMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}
-      -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
-    BUILD_BYPRODUCTS <INSTALL_DIR>/${ANYRPC_LIBRARY}
-    EXCLUDE_FROM_ALL TRUE
-  )
-  set(SPIX_INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/lib/libspix-install")
+  if(RPC_SERVER_EXTERNAL_PROJECTS)
+    ExternalProject_Add(
+      libanyrpc
+      GIT_REPOSITORY https://github.com/sgieseking/anyrpc.git
+      GIT_TAG b1949b3d40849229055ae75cf5334b9d08579502
+      INSTALL_DIR ${ANYRPC_INSTALL_DIR}
+      LIST_SEPARATOR "|"
+      CMAKE_ARGS
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DBUILD_WITH_LOG4CPLUS=OFF
+        -DCMAKE_INSTALL_PREFIX=${ANYRPC_INSTALL_DIR} -DBUILD_EXAMPLES=OFF
+        -DBUILD_PROTOCOL_MESSAGEPACK=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+        -DANYRPC_LIB_BUILD_SHARED=OFF
+        -$<IF:$<BOOL:${CMAKE_TOOLCHAIN_FILE}>,D,U>CMAKE_TOOLCHAIN_FILE:PATH=${CMAKE_TOOLCHAIN_FILE}
+        -$<IF:$<BOOL:${CMAKE_OSX_DEPLOYMENT_TARGET}>,D,U>CMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
+        -$<IF:$<BOOL:${CMAKE_OSX_ARCHITECTURES}>,D,U>CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
+        -DCMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}
+        -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
+      BUILD_BYPRODUCTS <INSTALL_DIR>/${ANYRPC_LIBRARY}
+      EXCLUDE_FROM_ALL TRUE
+    )
+  endif()
+  if(RPC_SERVER_EXTERNAL_PROJECTS)
+    set(SPIX_INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/lib/libspix-install")
+  endif()
   set(
     SPIX_QTQUICK_LIBRARY
     "${CMAKE_STATIC_LIBRARY_PREFIX}SpixCore${CMAKE_STATIC_LIBRARY_SUFFIX}"
@@ -2873,40 +2920,80 @@ if(BUILD_UI_TEST)
     "${CMAKE_PREFIX_PATH}"
   )
 
-  ExternalProject_Add(
-    libspix
-    GIT_REPOSITORY https://github.com/faaxm/spix.git
-    GIT_TAG 73ed4d0880e8434815a82a5ad876d03a51eaa1db
-    INSTALL_DIR ${SPIX_INSTALL_DIR}
-    LIST_SEPARATOR "|"
-    CMAKE_ARGS
-      -DSPIX_BUILD_EXAMPLES=OFF -DSPIX_CMAKE_CONFIG_DIR=${SPIX_INSTALL_DIR}
-      -DSPIX_QT_MAJOR=6 -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-      -DCMAKE_INSTALL_PREFIX=${SPIX_INSTALL_DIR}
-      -DCMAKE_INSTALL_BINDIR=${SPIX_INSTALL_DIR}
-      -DCMAKE_INSTALL_LIBDIR=${SPIX_INSTALL_DIR}
-      -DCMAKE_INSTALL_DATADIR=${SPIX_INSTALL_DIR}
-      -DCMAKE_INSTALL_INCLUDEDIR=${SPIX_INSTALL_DIR}
-      -DAnyRPC_INCLUDE_DIRS=${ANYRPC_INSTALL_DIR}/include
-      -DAnyRPC_LIBRARIES=${ANYRPC_INSTALL_DIR}/lib -DQt6Core_DIR=${Qt6Core_DIR}
-      -DQt6Gui_DIR=${Qt6Gui_DIR} -DQt6_DIR=${Qt6_DIR}
-      -DCMAKE_PREFIX_PATH=${PIPE_DELIMITED_CMAKE_PREFIX_PATH}
-      -DCMAKE_MODULE_PATH=${CMAKE_MODULE_PATH} ${SPIX_CXX_FLAGS}
-      -$<IF:$<BOOL:${CMAKE_TOOLCHAIN_FILE}>,D,U>CMAKE_TOOLCHAIN_FILE:PATH=${CMAKE_TOOLCHAIN_FILE}
-      -$<IF:$<BOOL:${CMAKE_OSX_DEPLOYMENT_TARGET}>,D,U>CMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
-      -$<IF:$<BOOL:${CMAKE_OSX_ARCHITECTURES}>,D,U>CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
-      -DCMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}
-      -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
-    BUILD_BYPRODUCTS
-      <INSTALL_DIR>/${SPIX_QTQUICK_LIBRARY}
-      <INSTALL_DIR>/${SPIX_CORE_LIBRARY}
-    EXCLUDE_FROM_ALL TRUE
-    PATCH_COMMAND
-      ${CMAKE_COMMAND} -DPATCH_FILE=${CMAKE_CURRENT_LIST_DIR}/spix.patch
-      -DWORKING_DIR=<SOURCE_DIR> -P
-      ${CMAKE_CURRENT_LIST_DIR}/cmake/ApplyPatch.cmake
+  if(RPC_SERVER_EXTERNAL_PROJECTS)
+    ExternalProject_Add(
+      libspix
+      GIT_REPOSITORY https://github.com/faaxm/spix.git
+      GIT_TAG 73ed4d0880e8434815a82a5ad876d03a51eaa1db
+      INSTALL_DIR ${SPIX_INSTALL_DIR}
+      LIST_SEPARATOR "|"
+      CMAKE_ARGS
+        -DSPIX_BUILD_EXAMPLES=OFF -DSPIX_CMAKE_CONFIG_DIR=${SPIX_INSTALL_DIR}
+        -DSPIX_QT_MAJOR=6 -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+        -DCMAKE_INSTALL_PREFIX=${SPIX_INSTALL_DIR}
+        -DCMAKE_INSTALL_BINDIR=${SPIX_INSTALL_DIR}
+        -DCMAKE_INSTALL_LIBDIR=${SPIX_INSTALL_DIR}
+        -DCMAKE_INSTALL_DATADIR=${SPIX_INSTALL_DIR}
+        -DCMAKE_INSTALL_INCLUDEDIR=${SPIX_INSTALL_DIR}
+        -DAnyRPC_INCLUDE_DIRS=${ANYRPC_INSTALL_DIR}/include
+        -DAnyRPC_LIBRARIES=${ANYRPC_INSTALL_DIR}/lib
+        -DQt6Core_DIR=${Qt6Core_DIR} -DQt6Gui_DIR=${Qt6Gui_DIR}
+        -DQt6_DIR=${Qt6_DIR}
+        -DCMAKE_PREFIX_PATH=${PIPE_DELIMITED_CMAKE_PREFIX_PATH}
+        -DCMAKE_MODULE_PATH=${CMAKE_MODULE_PATH} ${SPIX_CXX_FLAGS}
+        -$<IF:$<BOOL:${CMAKE_TOOLCHAIN_FILE}>,D,U>CMAKE_TOOLCHAIN_FILE:PATH=${CMAKE_TOOLCHAIN_FILE}
+        -$<IF:$<BOOL:${CMAKE_OSX_DEPLOYMENT_TARGET}>,D,U>CMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
+        -$<IF:$<BOOL:${CMAKE_OSX_ARCHITECTURES}>,D,U>CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
+        -DCMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}
+        -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
+      BUILD_BYPRODUCTS
+        <INSTALL_DIR>/${SPIX_QTQUICK_LIBRARY}
+        <INSTALL_DIR>/${SPIX_CORE_LIBRARY}
+      EXCLUDE_FROM_ALL TRUE
+      PATCH_COMMAND
+        ${CMAKE_COMMAND} -DPATCH_FILE=${CMAKE_CURRENT_LIST_DIR}/spix.patch
+        -DWORKING_DIR=<SOURCE_DIR> -P
+        ${CMAKE_CURRENT_LIST_DIR}/cmake/ApplyPatch.cmake
+    )
+  endif()
+  if(RPC_SERVER_EXTERNAL_PROJECTS)
+    add_dependencies(libspix libanyrpc)
+  endif()
+
+  # Spix installs headers and archives into a flat layout when used as an
+  # external project; a preinstalled prefix (e.g. Flatpak /app) uses the
+  # standard share/lib directories. Handle both for the imported targets.
+  if(RPC_SERVER_EXTERNAL_PROJECTS)
+    set(SPIX_LIBDIR "${SPIX_INSTALL_DIR}")
+    set(SPIX_INCLUDE_DIRS "${SPIX_INSTALL_DIR}")
+  else()
+    set(SPIX_LIBDIR "${SPIX_INSTALL_DIR}/lib")
+    set(SPIX_INCLUDE_DIRS "${SPIX_INSTALL_DIR}" "${SPIX_INSTALL_DIR}/include")
+  endif()
+
+  file(MAKE_DIRECTORY "${ANYRPC_INSTALL_DIR}/include")
+  add_library(AnyRpc STATIC IMPORTED)
+  set_target_properties(
+    AnyRpc
+    PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${ANYRPC_INSTALL_DIR}/include"
+      IMPORTED_LOCATION "${ANYRPC_INSTALL_DIR}/${ANYRPC_LIBRARY}"
   )
-  add_dependencies(libspix libanyrpc)
+
+  add_library(SpixCore STATIC IMPORTED)
+  set_target_properties(
+    SpixCore
+    PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${SPIX_INCLUDE_DIRS}"
+      IMPORTED_LOCATION "${SPIX_LIBDIR}/${SPIX_QTQUICK_LIBRARY}"
+  )
+  add_library(SpixQtQuick STATIC IMPORTED)
+  set_target_properties(
+    SpixQtQuick
+    PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${SPIX_INCLUDE_DIRS}"
+      IMPORTED_LOCATION "${SPIX_LIBDIR}/${SPIX_CORE_LIBRARY}"
+  )
 endif()
 
 # FFmpeg support
@@ -3208,41 +3295,6 @@ if(BUILD_TESTING)
     PRIVATE mixxx-lib mixxx-gitinfostore mixxx-xwax GTest::gtest GTest::gmock
   )
 
-  if(BUILD_UI_TEST)
-    add_compile_definitions(USE_TEST_UI)
-    add_dependencies(mixxx-test libspix)
-    target_sources(mixxx-test PRIVATE src/test/servemode.cpp)
-    target_include_directories(
-      mixxx-test
-      PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/lib/libspix-install/
-    )
-
-    file(MAKE_DIRECTORY "${ANYRPC_INSTALL_DIR}/include")
-    add_library(AnyRpc STATIC IMPORTED)
-    set_target_properties(
-      AnyRpc
-      PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${ANYRPC_INSTALL_DIR}/include"
-        IMPORTED_LOCATION "${ANYRPC_INSTALL_DIR}/${ANYRPC_LIBRARY}"
-    )
-
-    add_library(SpixCore STATIC IMPORTED)
-    set_target_properties(
-      SpixCore
-      PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${SPIX_INSTALL_DIR}"
-        IMPORTED_LOCATION "${SPIX_INSTALL_DIR}/${SPIX_QTQUICK_LIBRARY}"
-    )
-    add_library(SpixQtQuick STATIC IMPORTED)
-    set_target_properties(
-      SpixQtQuick
-      PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${SPIX_INSTALL_DIR}"
-        IMPORTED_LOCATION "${SPIX_INSTALL_DIR}/${SPIX_CORE_LIBRARY}"
-    )
-
-    target_link_libraries(mixxx-test PRIVATE AnyRpc SpixCore SpixQtQuick)
-  endif()
   if(BUILD_BENCH)
     add_compile_definitions(USE_BENCH)
     target_link_libraries(mixxx-test PRIVATE benchmark::benchmark)
@@ -3285,7 +3337,7 @@ if(BUILD_TESTING)
     DISCOVERY_TIMEOUT 60
   )
 
-  if(BUILD_UI_TEST)
+  if(ENABLE_UI_TESTING)
     find_program(PYTHON3_EXECUTABLE python3)
     if(NOT PYTHON3_EXECUTABLE)
       find_program(PYTHON3_EXECUTABLE python)
@@ -3296,31 +3348,28 @@ if(BUILD_TESTING)
         "Python executable could not be found. Make sure to install it if you wish to run the UI tests"
       )
     endif()
-    set(MIXXX_BEHAVE_VENV "${CMAKE_CURRENT_SOURCE_DIR}/src/test/behave/.venv")
+    if(NOT RPC_SERVER)
+      message(FATAL_ERROR "RPC_SERVER must be enabled to run the UI tests")
+    endif()
+    set(BEHAVE_VENV "${CMAKE_CURRENT_SOURCE_DIR}/src/test/behave/.venv")
     if(WIN32)
-      set(MIXXX_BEHAVE_PYTHON "${MIXXX_BEHAVE_VENV}/Scripts/python.exe")
+      set(BEHAVE_PYTHON "${BEHAVE_VENV}/Scripts/python.exe")
     else()
-      set(MIXXX_BEHAVE_PYTHON "${MIXXX_BEHAVE_VENV}/bin/python")
+      set(BEHAVE_PYTHON "${BEHAVE_VENV}/bin/python")
     endif()
     execute_process(
-      COMMAND ${PYTHON3_EXECUTABLE} -m venv "${MIXXX_BEHAVE_VENV}"
+      COMMAND ${PYTHON3_EXECUTABLE} -m venv "${BEHAVE_VENV}"
       RESULT_VARIABLE VENV_RESULT
     )
     if(NOT VENV_RESULT EQUAL 0)
-      message(
-        FATAL_ERROR
-        "Failed to create Python venv at ${MIXXX_BEHAVE_VENV}"
-      )
+      message(FATAL_ERROR "Failed to create Python venv at ${BEHAVE_VENV}")
     endif()
     execute_process(
-      COMMAND "${MIXXX_BEHAVE_PYTHON}" -m pip install behave
+      COMMAND "${BEHAVE_PYTHON}" -m pip install behave
       RESULT_VARIABLE PIP_RESULT
     )
     if(NOT PIP_RESULT EQUAL 0)
-      message(
-        FATAL_ERROR
-        "Failed to pip install behave into ${MIXXX_BEHAVE_VENV}"
-      )
+      message(FATAL_ERROR "Failed to pip install behave into ${BEHAVE_VENV}")
     endif()
     file(
       GLOB BEHAVE_FEATURE_FILES
@@ -3328,37 +3377,37 @@ if(BUILD_TESTING)
       "${CMAKE_CURRENT_SOURCE_DIR}/src/test/behave/features/**/*.feature"
     )
     # TODO add option to control these args via CMake
-    default_option(MIXXX_BEHAVE_HEADLESS "Run the UI test in headless mode. On non-Linux platform, headless is incompatible with recording." "LINUX")
+    default_option(BEHAVE_HEADLESS "Run the UI test in headless mode. On non-Linux platform, headless is incompatible with recording." "LINUX")
     option(
-      MIXXX_BEHAVE_RECORD
+      BEHAVE_RECORD
       "Run the UI test in headless mode. On non-Linux platform, headless is incompatible with recording."
       OFF
     )
     set(
-      MIXXX_BEHAVE_RETRY
+      BEHAVE_RETRY
       "3"
       CACHE STRING
       "Max retry attempts for autoretry per scenario"
     )
     if(
       NOT CMAKE_SYSTEM_NAME STREQUAL Linux
-      AND MIXXX_BEHAVE_RECORD
-      AND MIXXX_BEHAVE_HEADLESS
+      AND BEHAVE_RECORD
+      AND BEHAVE_HEADLESS
     )
       message(
         FATAL_ERROR
         "Headless and record is incompatible for UI tests on non-Linux platform?"
       )
     endif()
-    set(MIXXX_BEHAVE_ARGS "")
-    if(MIXXX_BEHAVE_HEADLESS)
-      list(APPEND MIXXX_BEHAVE_ARGS "--headless")
+    set(BEHAVE_ARGS "")
+    if(BEHAVE_HEADLESS)
+      list(APPEND BEHAVE_ARGS "--headless")
     endif()
-    if(MIXXX_BEHAVE_RECORD)
-      list(APPEND MIXXX_BEHAVE_ARGS "--record")
+    if(BEHAVE_RECORD)
+      list(APPEND BEHAVE_ARGS "--record")
     endif()
-    list(APPEND MIXXX_BEHAVE_ARGS "--retry" "${MIXXX_BEHAVE_RETRY}")
-    list(JOIN MIXXX_BEHAVE_ARGS " " MIXXX_BEHAVE_ARGS_JOINED)
+    list(APPEND BEHAVE_ARGS "--retry" "${BEHAVE_RETRY}")
+    list(JOIN BEHAVE_ARGS " " BEHAVE_ARGS_JOINED)
     foreach(FEATURE_FILE ${BEHAVE_FEATURE_FILES})
       string(
         REGEX REPLACE
@@ -3371,9 +3420,9 @@ if(BUILD_TESTING)
       add_test(
         NAME "mixxx-behave-${FEATURE_NAME}"
         COMMAND
-          "${MIXXX_BEHAVE_PYTHON}"
+          "${BEHAVE_PYTHON}"
           ${CMAKE_CURRENT_SOURCE_DIR}/src/test/behave/mixxx_test_runner.py
-          ${MIXXX_BEHAVE_ARGS} --binary "$<TARGET_FILE:mixxx-test>" --label
+          ${BEHAVE_ARGS} --binary "$<TARGET_FILE:mixxx>" --label
           "${FEATURE_NAME}" ${FEATURE_FILE}
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       )
@@ -3381,9 +3430,9 @@ if(BUILD_TESTING)
         "mixxx-behave-${FEATURE_NAME}"
         PROPERTIES
           LABELS "e2e;ui;qml"
-          DEPENDS mixxx-test
-          # Every behave test drives mixxx-test on the same XML-RPC port and
-          # uses the same global tracks cache, so they must never run in
+          DEPENDS mixxx
+          # Every behave test drives mixxx --serve on the same XML-RPC port
+          # and uses the same global tracks cache, so they must never run in
           # parallel with each other.
           RESOURCE_LOCK mixxx-behave-rpc-port
       )
@@ -4172,6 +4221,7 @@ if(QT_KNOWN_POLICY_QTP0002 AND ANDROID)
   qt6_policy(SET QTP0002 NEW)
 endif()
 
+is_static_library(Qt_IS_STATIC Qt${QT_VERSION_MAJOR}::Core)
 if(QML)
   target_sources(mixxx-lib PRIVATE src/skin/qml/qmlskin.cpp)
 
@@ -4243,11 +4293,15 @@ if(QML)
       res/qml/Mixxx/PlayerDropArea.qml
   )
 
-  # The QtCore QML module (StandardPaths, used by res/qml/Settings/Library.qml) is
-  # not pulled in by any Qt library target on MacOS, so its QML plugin has
-  # to be linked explicitly, otherwise the import fails at runtime with
+  # The QtCore QML module (StandardPaths, used by res/qml/Settings/Library.qml)
+  # is not pulled in by any Qt library target; on macOS and on statically
+  # linked Linux builds (AppImage) its static plugin has to be linked
+  # explicitly, otherwise the import fails at runtime with
   # 'module "QtCore" is not installed'.
-  if(APPLE AND TARGET Qt${QT_VERSION_MAJOR}::qtqmlcoreplugin)
+  if(
+    (APPLE OR (LINUX AND Qt_IS_STATIC))
+    AND TARGET Qt${QT_VERSION_MAJOR}::qtqmlcoreplugin
+  )
     target_link_libraries(
       mixxx-qml-lib
       PRIVATE Qt${QT_VERSION_MAJOR}::qtqmlcoreplugin
@@ -4255,6 +4309,16 @@ if(QML)
   endif()
 
   target_link_libraries(mixxx-lib PRIVATE mixxx-qml-lib)
+
+  if(RPC_SERVER)
+    target_compile_definitions(mixxx-qml-lib PRIVATE __RPC_SERVER__)
+    target_sources(mixxx-qml-lib PRIVATE src/qml/rpcserve.cpp)
+    if(RPC_SERVER_EXTERNAL_PROJECTS)
+      add_dependencies(mixxx-qml-lib libspix)
+    endif()
+    target_include_directories(mixxx-qml-lib PRIVATE ${SPIX_INCLUDE_DIRS})
+    target_link_libraries(mixxx-qml-lib PRIVATE SpixCore SpixQtQuick AnyRpc)
+  endif()
 
   # FIXME: Currently we need to add these include directories due to
   # QTBUG-87221. We should figure out a better way to fix this.
@@ -4426,7 +4490,6 @@ target_compile_definitions(
   mixxx-lib
   PUBLIC QT_TABLET_SUPPORT QT_USE_QSTRINGBUILDER
 )
-is_static_library(Qt_IS_STATIC Qt${QT_VERSION_MAJOR}::Core)
 if(Qt_IS_STATIC)
   # NOTE(rryan): If you are adding a plugin here, you must also
   # update src/mixxxapplication.cpp to define a Q_IMPORT_PLUGIN
@@ -5949,9 +6012,12 @@ if(QT6)
       "qml6-module-qt5compat-graphicaleffects"
     )
     list(APPEND CPACK_DEBIAN_PACKAGE_DEPENDS "qml6-module-qtmultimedia")
+    list(APPEND CPACK_DEBIAN_PACKAGE_DEPENDS "qml6-module-qtcore")
+    list(APPEND CPACK_DEBIAN_PACKAGE_DEPENDS "qml6-module-qtqml-models")
     list(APPEND CPACK_DEBIAN_PACKAGE_DEPENDS "qml6-module-qtqml-workerscript")
     list(APPEND CPACK_DEBIAN_PACKAGE_DEPENDS "qml6-module-qtquick-controls")
     list(APPEND CPACK_DEBIAN_PACKAGE_DEPENDS "qml6-module-qtquick-dialogs")
+    list(APPEND CPACK_DEBIAN_PACKAGE_DEPENDS "qml6-module-qtquick-effects")
     list(APPEND CPACK_DEBIAN_PACKAGE_DEPENDS "qml6-module-qtquick-layouts")
     list(APPEND CPACK_DEBIAN_PACKAGE_DEPENDS "qml6-module-qtquick-shapes")
     list(APPEND CPACK_DEBIAN_PACKAGE_DEPENDS "qml6-module-qtquick-templates")

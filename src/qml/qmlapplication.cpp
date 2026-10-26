@@ -21,6 +21,9 @@
 #include "waveform/guitick.h"
 #include "waveform/visualsmanager.h"
 #include "waveform/waveformwidgetfactory.h"
+#ifdef __RPC_SERVER__
+#include "qml/rpcserve.h"
+#endif
 #if defined(Q_OS_ANDROID)
 #include <android/api-level.h>
 #include <android/log.h>
@@ -257,6 +260,14 @@ QmlApplication::QmlApplication(
                 m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
             });
 
+#ifdef __RPC_SERVER__
+    // Start the automation server if requested. It attaches to this
+    // application instance (no separate Qt application setup needed).
+    if (CmdlineArgs::Instance().getServe()) {
+        m_pRpcServe = std::make_unique<RpcServe>(this, m_pCoreServices);
+    }
+#endif
+
 #if defined(Q_OS_ANDROID)
     APerformanceHintManager* manager = APerformanceHint_getManager();
     VERIFY_OR_DEBUG_ASSERT(manager) {
@@ -293,6 +304,11 @@ void QmlApplication::slotFrameSwapped() {
 }
 
 QmlApplication::~QmlApplication() {
+#ifdef __RPC_SERVER__
+    // Tear down the automation server first: it may reference the QML
+    // engine and the command handler, which must not outlive them.
+    m_pRpcServe.reset();
+#endif
     QmlApplicationProxy::registerReloadCallback({});
     // Destroy the QML engine before the waveform factory. Scene-graph nodes
     // owned by the engine may still reference QML waveform renderers and the
@@ -338,6 +354,12 @@ bool QmlApplication::loadQml(const QString& path) {
         }
         slotWindowChanged(pWindow);
         break;
+    }
+#endif
+
+#ifdef __RPC_SERVER__
+    if (m_pRpcServe) {
+        m_pRpcServe->onQmlLoaded();
     }
 #endif
     return true;

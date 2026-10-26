@@ -89,6 +89,7 @@ SLUG_NAMES = {
     "windows-win64": "Windows Server 2025 VS2026 x64",
     "windows-winarm": "Windows 11 VS2026 ARM64",
     "linux-appimage": "AppImage Linux x86_64",
+    "flatpak-x86_64": "Flatpak Linux x86_64",
 }
 
 # GitHub's comment size limit ("maximum is 65536 characters") is enforced
@@ -99,8 +100,10 @@ SLUG_NAMES = {
 GZIP_LIMIT = 60_000
 
 # Result artifacts are uploaded per platform AND per E2E batch:
-#   mixxx-ui-test-<platform-slug>-e2e-<batch>   (batch = "batch-1", ...)
-_SLUG_RE = re.compile(r"^(?P<base>.+?)-e2e(?:-(?P<batch>batch-\d+))?$")
+#   mixxx-ui-test-<platform-slug>-e2e-<batch>
+# where batch is "batch-1", ... (the batch membership is identical for every
+# platform, including the Flatpak leg).
+_SLUG_RE = re.compile(r"^(?P<base>.+?)-e2e(?:-(?P<batch>batch-(?:\d+)))?$")
 
 
 def parse_slug(slug):
@@ -599,7 +602,8 @@ def fetch_job_ids(repo, run_id):
     """Map (platform name, e2e batch target) to the job that ran it.
 
     The E2E jobs run one batch each and are named
-    "Test e2e-batch-N (<platform name>)". The job name reported by the API is
+    "Test e2e-batch-N (<platform name>)" — the same shape for every
+    platform, including the Flatpak leg. The job name reported by the API is
     prefixed with the caller when the workflow is called as a reusable
     workflow (e.g. "build / Test e2e-batch-1 (macOS 15 x64)"), so the prefix
     is optional in the pattern.
@@ -609,14 +613,15 @@ def fetch_job_ids(repo, run_id):
     pattern = re.compile(r"(?:.* / )?Test (e2e-batch-\d+) \((.+)\)")
     ids = {}
     for job in jobs:
-        m = pattern.fullmatch(job.get("name", "") or "")
+        name = job.get("name", "") or ""
+        m = pattern.fullmatch(name)
         if m:
             ids[(m.group(2), m.group(1))] = JobRef(
                 id=job["id"], attempt=job.get("run_attempt") or 1
             )
             LOG.debug(
                 "job %r -> id=%s attempt=%s",
-                job.get("name"),
+                name,
                 job["id"],
                 job.get("run_attempt"),
             )
@@ -947,6 +952,18 @@ def plan_snippets(all_results, snippet_dir, max_attachments):
     """
     ordered = group_scenarios(all_results)
 
+    def _feature_slug(name):
+        slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+        return slug or "feature"
+
+    # Snippets are written to a shared directory and cut by parallel ffmpeg
+    # jobs keyed on their filename, so two scenarios must never share one:
+    # the reuse-on-exists logic would attach the first clip to both cells
+    # (or two jobs would race-write the same output). One video can cover
+    # several features (one runner invocation per batch) and scenario
+    # numbers restart per feature, so the feature slug belongs in the name.
+    used_names = set()
+
     def assign_snippet(carrier, video_stem, start_ms, end_ms, attempts):
         if "snippet_relpath" in carrier:
             return
@@ -956,7 +973,16 @@ def plan_snippets(all_results, snippet_dir, max_attachments):
         span = (
             f"a{first_no}" if first_no == last_no else f"a{first_no}-{last_no}"
         )
-        fname = f"{video_stem}-s{scenario_no:02d}-{span}.mp4"
+        base = (
+            f"{video_stem}-{_feature_slug(carrier.get('feature', ''))}"
+            f"-s{scenario_no:02d}-{span}"
+        )
+        fname = f"{base}.mp4"
+        suffix = 0
+        while fname in used_names:
+            suffix += 1
+            fname = f"{base}-{suffix}.mp4"
+        used_names.add(fname)
         carrier["_clip_video"] = video_stem
         carrier["_clip_start_ms"] = start_ms
         carrier["_clip_end_ms"] = end_ms

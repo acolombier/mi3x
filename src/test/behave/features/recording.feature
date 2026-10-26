@@ -6,18 +6,19 @@ Feature: Recording Settings
   (bitrate mode and quality slider for lossy formats, compression slider
   for FLAC), and static file tags.
 
-  Background:
-    Given a new empty profile
-    And Mixxx is open and ready to operate
+  Rule: Recording settings page (popup open)
+
+    Background:
+      Given a new empty profile
+      And Mixxx is open and ready to operate
+      And the settings popup is open
 
   Scenario: Recording category is reachable in the settings sidebar
-    Given the settings popup is open
     When I select the "Recording" category
     Then the "Recording" category should be selected
 
   Scenario: Default settings
     # TODO(DSL): needs SETTING_MAP entries for the recording settings
-    Given the settings popup is open
     # And the recording settings are set to default
     When I select the "Recording" category
     # Then the "recording directory" setting should be "/home/.../Recordings"
@@ -27,7 +28,6 @@ Feature: Recording Settings
 
   Scenario: Save button enables on change and persists the setting
     # TODO(DSL): needs SETTING_MAP entries for the recording settings
-    Given the settings popup is open
     # And the recording settings are set to default
     When I select the "Recording" category
     # And I set the "recording title tag" setting to "My title"
@@ -37,7 +37,6 @@ Feature: Recording Settings
 
   Scenario: Lossless formats hide the bitrate controls
     # TODO(DSL): needs SETTING_MAP entries for the recording settings
-    Given the settings popup is open
     When I select the "Recording" category
     # When I set the "recording format" setting to "FLAC"
     # Then the "recording bitrate mode" setting should not be visible
