@@ -34,7 +34,7 @@ jobs:
       ) ||
       (
         github.event_name == 'pull_request_review_comment' &&
-        github.event.comment.user.login != 'mixxxbot' &&
+        github.event.comment.user.login != 'mi3xbot' &&
         (contains(github.event.comment.body, '/oc') || contains(github.event.comment.body, '/opencode'))
       )
     runs-on: ubuntu-latest
