@@ -228,7 +228,7 @@ Item {
         }
 
         contentItem: Item {
-            objectName: "contextMenuCreateEntityItem"
+            objectName: createEntityItem.creating ? "contextMenuCreateEntityItem" : ""
 
             TextInput {
                 id: input
@@ -313,7 +313,7 @@ Item {
             implicitHeight: contentHeight
             interactive: Window.window ? contentHeight + control.topPadding + control.bottomPadding > control.height : false
             model: control.contentModel
-            objectName: opened ? !depth ? "trackContextMenu" : `trackContextMenu_Sub${depth}` : null
+            objectName: (activeFocus || !depth) && opened ? !depth ? "trackContextMenu" : `trackContextMenu_Sub${depth}` : null
 
             ScrollIndicator.vertical: ScrollIndicator {
             }

@@ -74,6 +74,17 @@ int runMixxx(MixxxApplication* pApp, const CmdlineArgs& args) {
             mainQmlFilePath = pSkin->mainQmlFilePath();
         }
     }
+#ifdef __RPC_SERVER__
+    if (CmdlineArgs::Instance().getServe() && !loadQml) {
+        // The automation server is hosted by the QML application and is
+        // therefore not started without the QML UI. Explicitly requested
+        // QML skins ('--developer' + configured skin) also start it, as the
+        // former standalone serve-mode entry point did.
+        qWarning() << "'--serve' was passed but the QML UI is not being "
+                      "loaded, so the automation server will NOT start. Pass "
+                      "'--new-ui' or configure a QML skin with '--developer'.";
+    }
+#endif
     if (loadQml) {
         mixxx::qml::QmlApplication qmlApplication(pApp, pCoreServices, mainQmlFilePath);
         if (!qmlApplication.isReady() && !CmdlineArgs::Instance().getDeveloper()) {

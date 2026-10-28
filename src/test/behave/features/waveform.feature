@@ -32,8 +32,6 @@ Feature: Waveform
   # scenarios do.
 
   Scenario: Waveform tab has settings to display
-    Given the settings popup is open
-    And the "Interface" category is selected
     When I click the "waveform" tab
     Then the "waveform type" setting should be visible
     And the "end of track warning" setting should be visible

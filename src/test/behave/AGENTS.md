@@ -33,7 +33,7 @@ mixxx_test_runner.py   ← CTest entry point (CMake add_test target "mixxx-behav
 ```bash
 src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
-  --binary build/mixxx-test \
+  --binary build/mixxx \
   src/test/behave/features/browse.feature
 ```
 
@@ -43,7 +43,7 @@ src/test/behave/.venv/bin/python \
 # Using --headless flag (preferred — picks a headless display backend automatically)
 src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
-  --binary build/mixxx-test \
+  --binary build/mixxx \
   --headless \
   src/test/behave/features/browse.feature
 
@@ -53,14 +53,14 @@ src/test/behave/.venv/bin/python \
 #   auto     -> xwayland if cage+wf-recorder are installed, else xvfb, else offscreen
 src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
-  --binary build/mixxx-test \
+  --binary build/mixxx \
   --headless --display-backend=xwayland \
   src/test/behave/features/browse.feature
 
 # Or via QPA env var (equivalent, but no video recording)
 QT_QPA_PLATFORM=offscreen src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
-  --binary build/mixxx-test \
+  --binary build/mixxx \
   src/test/behave/features/browse.feature
 ```
 
@@ -72,7 +72,7 @@ run just one scenario:
 ```bash
 src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
-  --binary build/mixxx-test \
+  --binary build/mixxx \
   --headless \
   src/test/behave/features/browse.feature \
   -n "Maximize library with toggle"
@@ -86,7 +86,7 @@ By default, each scenario is run once with no retry on failure. Override with
 ```bash
 src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
-  --binary build/mixxx-test \
+  --binary build/mixxx \
   --headless \
   --retry 5 \
   src/test/behave/features/browse.feature
@@ -112,13 +112,13 @@ step output:
 
 Each entry in `artifacts/results-*.json` additionally records `run_seed`,
 `scenario_seed`, the `tracks` map (name → `"title - artist"`) and the
-`mixxx_pids` of the `mixxx-test` instance(s) the attempt ran against (matching
+`mixxx_pids` of the `mixxx` instance(s) the attempt ran against (matching
 the `mixxx-output.<pid>.log` files, referenced from the CI failure report), so
 
 ```bash
 src/test/behave/.venv/bin/python \
   src/test/behave/mixxx_test_runner.py \
-  --binary build/mixxx-test \
+  --binary build/mixxx \
   --headless \
   --seed <run_seed> \
   src/test/behave/features/browse.feature \
@@ -143,7 +143,7 @@ MIXXX_BEHAVE_RETRY=5 ctest -R mixxx-behave- --output-on-failure
 
 ### Tips for iterating
 
-- **Application output artifact**: every `mixxx-test` spawn writes its
+- **Application output artifact**: every `mixxx` spawn writes its
   complete stdout/stderr (`--log-level debug`) to
   `src/test/behave/artifacts/mixxx-output.<pid>.log` — one file per spawn,
   wrapped in `===== spawn =====` / `===== exited ... code=... =====`
@@ -158,7 +158,7 @@ MIXXX_BEHAVE_RETRY=5 ctest -R mixxx-behave- --output-on-failure
   (cage). Chapter metadata is embedded into the video from behave's scenario
   lifecycle hooks (ffmpeg is still used for chapter muxing on both backends).
 - **Session reuse**: scenarios sharing the same session key (profile directory +
-  sound-device signature) reuse the same `mixxx-test` process — only the first
+  sound-device signature) reuse the same `mixxx` process — only the first
   scenario pays startup cost. `a fresh ... profile` opts out: it force-kills the
   running process and spawns a new genuinely empty (no config, no DB, no tracks)
   or library-ready profile every scenario. Because a reused instance keeps its
@@ -167,7 +167,7 @@ MIXXX_BEHAVE_RETRY=5 ctest -R mixxx-behave- --output-on-failure
   `the window size is default` / `the library columns are in their default state`
   (see the Given step table).
 - After editing QML or `main.cpp`, rebuild:
-  `cmake --build build --target mixxx-test -j$(nproc)`
+  `cmake --build build --target mixxx -j$(nproc)`
 - After editing Python (`steps/`, `environment.py`, `mixxx_profile.py`, runner), no
   rebuild needed — just re-run the command.
 - If spix patches fail to apply during build, delete
@@ -183,7 +183,7 @@ launcher, and the invocation is different enough to be worth its own section.
 
 ### Why a launcher is required
 
-`mixxx-test` is a GUI application. An SSH session on Windows lands in session 0
+`mixxx` is a GUI application. An SSH session on Windows lands in session 0
 (non-interactive), where no window station/desktop exists, so the process either
 fails to start or starts with no usable display.
 `tools/Start-InteractiveProcessOnWindows.ps1` works around this: it registers
@@ -223,7 +223,7 @@ Consequences worth remembering:
 | Requirement | Path / check |
 | --- | --- |
 | Behave venv | `src\test\behave\.venv\Scripts\python.exe` (note: `Scripts`, not `bin`) |
-| Test binary | `build\mixxx-test.exe`, built from the `mixxx-test` target |
+| Test binary | `build\mixxx.exe`, built from the `mixxx` target |
 | Launcher | `tools/Start-InteractiveProcessOnWindows.ps1` |
 | Wrapper | `tools/Run-BehaveScenariosOnWindows.ps1` |
 | Console session | `query session` shows `console ... Active` |
@@ -313,7 +313,7 @@ Equivalent, and useful when you want flags the wrapper does not expose:
 ```powershell
 powershell.exe -ExecutionPolicy Bypass -File .\tools\Start-InteractiveProcessOnWindows.ps1 `
     -Program "D:\dev\mixxx\src\test\behave\.venv\Scripts\python.exe" `
-    -Arguments "src\test\behave\mixxx_test_runner.py --no-capture --retry 3 --binary build\mixxx-test.exe src\test\behave\features\browse.feature -n 'An empty music directory can be removed'" `
+    -Arguments "src\test\behave\mixxx_test_runner.py --no-capture --retry 3 --binary build\mixxx.exe src\test\behave\features\browse.feature -n 'An empty music directory can be removed'" `
     -WorkingDirectory "D:\dev\mixxx" `
     -WaitMode Exit -TimeoutSeconds 1800
 ```
@@ -418,14 +418,14 @@ Everything lands in `src\test\behave\artifacts\`:
   are muxed from the scenario timings, so the timecode in a failure's
   `# src/test/behave/steps/...` source comment seeks straight to it.
 - `mixxx-output.<pid>.log` — the complete application output of one
-  `mixxx-test` spawn (`--log-level debug`), with `===== spawn =====` and
+  `mixxx` spawn (`--log-level debug`), with `===== spawn =====` and
   `===== exited ... code=... =====` banners around it. The quickest way to
   see what the app did around a failure, and which crash code it died with;
   one file per spawn, so a run with restarts produces several.
 
 ### Debugging
 
-- **mixxx-test's own logs are in the artifacts on every platform.** Each
+- **mixxx's own logs are in the artifacts on every platform.** Each
   spawn writes the full `--log-level debug` output (roughly 2500
   `debug [Main] ...` lines for a single short scenario) to
   `mixxx-output.<pid>.log` in the artifacts dir; grep it rather than reading
@@ -438,7 +438,7 @@ Everything lands in `src\test\behave\artifacts\`:
   runner reaped the process. An access-violation crash on Windows shows up
   as `code=3221225477 (0xC0000005)`; a missing exit banner means the runner
   itself died before it could reap the process. The transcript also carries
-  a one-line `mixxx-test stopped: pid=... exit=...` notice per stop, so
+  a one-line `mixxx stopped: pid=... exit=...` notice per stop, so
   restarts can be correlated with the behave output without opening the
   logs.
 - **Unbuffered output is mandatory over SSH.** The launcher sets
@@ -457,8 +457,8 @@ Everything lands in `src\test\behave\artifacts\`:
 - **Timestamps are in the log**: each `Scenario:` block is followed by
   `start_time`/`end_time` in `results-<label>.json`. A scenario that never
   appears there died before behave recorded it — usually a launcher or
-  `mixxx-test` startup problem rather than a test problem.
-- **Stuck processes**: `taskkill /IM mixxx-test.exe /F`, then re-run. The
+  `mixxx` startup problem rather than a test problem.
+- **Stuck processes**: `taskkill /IM mixxx.exe /F`, then re-run. The
   launcher reuses a session only within one process, so a leftover from a
   killed run will not be reused but will still hold the profile directory.
 - **Video is the ground truth** for spix interaction bugs. If a click "did
@@ -466,27 +466,33 @@ Everything lands in `src\test\behave\artifacts\`:
   recorder is ffmpeg `gdigrab` capturing the `desktop` input, hardcoded to
   `1920x1080` at 30 fps, so the video is letterboxed/scaled on any other
   resolution — judge timing and cursor position, not pixel geometry.
-- **`-Record` currently dies during teardown on Windows, after the scenarios
-  have already passed.** `_stop_recorder` in `mixxx_test_runner.py` calls
-  `recorder_proc.send_signal(signal.CTRL_C_EVENT)`, but the ffmpeg child is
-  started without `creationflags=CREATE_NEW_PROCESS_GROUP`, so it shares the
-  runner's console. `GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)` targets group
-  0 — *every* process attached to that console — so the runner receives the
-  Ctrl-C too, raises `KeyboardInterrupt` out of `recorder_proc.wait(timeout=5)`,
-  and dies with `0xC000013A` (reported as exit 58 through `cmd.exe`). The
-  behave transcript in that run says `1 scenario passed, 0 failed`, so **the
-  video is usually fine and the exit code is the misleading part.** Reproduced
-  with a minimal probe: a plain `Popen` child plus `send_signal(CTRL_C_EVENT)`
-  raises `KeyboardInterrupt` in the parent whenever a real console is attached,
-  and does nothing at all in session 0 (no console), which is why it only
-  shows up through the launcher. Until this is fixed, treat a `-Record` run's
-  video as valid and ignore its exit code.
+- **`-Record` on Windows: the recorder gets its own process group.** The
+  ffmpeg child is started with `creationflags=CREATE_NEW_PROCESS_GROUP`, so
+  the `CTRL_C_EVENT` sent by `_stop_recorder` targets the recorder alone
+  instead of every process on the runner's console (which previously raised
+  `KeyboardInterrupt` in the runner and exited with `0xC000013A`, reported
+  as exit 58 through `cmd.exe`). Treat the `-Record` teardown exit code as
+  trustworthy again; if you still see exit 58, the console-group flag was
+  lost somewhere between the launcher and the runner.
+- **`--ffmpeg-path` must resolve the real ffmpeg, not a shim.** Chocolatey's
+  `C:\ProgramData\chocolatey\bin\ffmpeg.exe` is a ShimGen wrapper whose real
+  binary runs as its own child: killing the wrapper leaves that child
+  alive, holding the recorder's inherited stdout/stderr pipe write-ends, so
+  `_stop_recorder`'s informational read blocked forever — observed on the
+  Windows E2E legs as minutes of transcript silence after behave had
+  already finished. Two guards address it: the CI exports `MIXXX_FFMPEG_BIN`
+  pointing at the real binary inside `C:\ProgramData\chocolatey\lib\ffmpeg`,
+  and `_stop_recorder` reads the recorder's pipes through
+  `mixxx_test_runner._read_pipe_bounded` (never blocking past a short
+  bound) instead of a bare `read()`. Keep that helper in place whenever the
+  recorder or chapter mux may run a wrapped remote binary — including any
+  user-supplied `--ffmpeg-path`.
 
 ### Extending coverage on Windows
 
 Adding features and steps is platform-independent — write the Gherkin, add the
 step definitions, add item names in QML (see the naming convention under Path
-Resolution), rebuild `mixxx-test`. Specifically:
+Resolution), rebuild `mixxx`. Specifically:
 
 - **Steps are shared.** The modules under `steps/` are the same files on both
   platforms; do not add Windows-only branches to a step. Platform differences
@@ -528,22 +534,67 @@ Resolution), rebuild `mixxx-test`. Specifically:
    `tools/generate_gh_e2e_comment.py` does when it builds the CI comment.
    `had_failure` / `fail_early` is only set when all retries are exhausted.
 
-## mixxx-test --serve Mode
+## mixxx --serve Mode
 
-The `mixxx-test` binary built with `USE_TEST_UI=ON` supports `--serve` flag:
+The regular `mixxx` binary built with `RPC_SERVER=ON` (on by default with `BUILD_TESTING`) supports the `--serve` flag:
 
-- Parses `--settings-path <dir>` via `CmdlineArgs::Instance()` (singleton — see
-  `src/test/mixxxtest.cpp:29`). **Important**: `ApplicationScope` must call
-  `CmdlineArgs::Instance().parse()` rather than constructing a local
-  `CmdlineArgs`, otherwise `--settings-path` is lost.
-- Creates `CoreServices` + `QmlApplication` to load the full Mixxx QML UI.
+- The server is **hosted by the main QML application** (`src/qml/rpcserve.cpp`
+  attached from `QmlApplication`), not a separate entry point. It therefore
+  requires the QML UI to load: pass `--new-ui`. Running `--serve` without the
+  QML UI only logs a warning and never opens port 9000.
 - Registers a **generic command handler** (see below) and starts an
   **AnyRpcServer** (spix) on **port 9000**.
+
+### Ways of starting Mixxx under test
+
+| Runner mode | Launch | Stop |
+| --- | --- | --- |
+| `--binary <path>` (default; also `MIXXX_TEST_BINARY`) | Directly spawn the binary with `--serve --new-ui ...` | SIGTERM, then SIGKILL after 15 s |
+| `--flatpak-package <app-id>` (also `MIXXX_TEST_FLATPAK_PACKAGE`) | `flatpak --user run --filesystem=/tmp [--env=QT_QPA_PLATFORM=…] <app-id> --serve --new-ui ...` | SIGTERM/SIGKILL the `flatpak run` CLI, then `flatpak kill <app-id>` and wait until `flatpak ps` no longer lists the app |
+
+The flatpak mode exists because terminating the `flatpak run` CLI process does
+not stop the sandboxed application: without the escalation the orphaned
+instance keeps port 9000 and the profile directory, breaking the next
+fresh-profile scenario. `--user` on the launch matches the installation the
+E2E workflow installed the bundle into (`flatpak install --user`); `kill` and
+`ps` need no installation scoping — they enumerate running instances via
+`$XDG_RUNTIME_DIR/.flatpak`, independent of any installation. There is no
+port-free probe in the wait — the runner cross-checks `flatpak ps` only, in
+line with the bounded-poll style used elsewhere. The two modes are mutually
+exclusive on the command line.
+
+### macOS App Sandbox (DMG installs)
+
+The packaged `Mixxx.app` is signed with the `com.apple.security.app-sandbox`
+entitlement (`packaging/macos/Mixxx.entitlements`), and the sandbox applies
+even to the ad-hoc signatures used by CI builds. A sandboxed process can only
+write inside its own container, so when `--binary` points inside an `.app`
+bundle on macOS, the runner automatically relocates the writable state the
+sandboxed instance needs:
+
+- **Test profiles** are created under
+  `~/Library/Containers/org.mixxx.mixxx/Data/tmp/mixxx-test-profile-*`
+  instead of the harness temp directory (`macos_sandbox_container()` in
+  `mixxx_profile.py`). The harness runs as the same user, so it can pre-create
+  the directory; the app can always write its own container.
+- **The track cache** moves into the container for the same reason: the
+  sandboxed instance must be able to *read* the files handed to the
+  `loadTrack` RPC command. An explicit `MIXXX_TEST_TRACKS_DIR` still wins.
+- The `--serve` XML-RPC server must *listen* on port 9000, which the App
+  Sandbox only permits with the `com.apple.security.network.server`
+  entitlement — it is part of `Mixxx.entitlements` for exactly this reason.
+
+If the settings path is still inaccessible at startup (e.g. the profile was
+pointed at a host temp dir), a non-interactive `--serve` instance must not
+hang on the sandbox recovery dialogs: `CoreServices::initializeSettings`
+disables them and exits with a `Cannot access settings folder` diagnostic
+instead. Build-tree binaries (`build/mixxx`) are not sandboxed and keep the
+plain temp-directory behavior.
 
 ## Custom spix Command: `getControlValue`
 
 The `--serve` mode registers a custom handler via
-`server.setGenericCommandHandler(...)` in `src/test/servemode.cpp`.
+`server.setGenericCommandHandler(...)` in `src/qml/rpcserve.cpp`.
 
 | Command           | Payload               | Result                                                                 | How to read result                                        |
 |-------------------|-----------------------|------------------------------------------------------------------------|-----------------------------------------------------------|
@@ -625,7 +676,7 @@ def _set_control_value(context, group, key, value):
 
 ### Adding new custom commands
 
-To add a new C++ command, extend the lambda in `src/test/servemode.cpp`:
+To add a new C++ command, extend the lambda in `src/qml/rpcserve.cpp`:
 
 ```cpp
 if (command == "myCommand") {
@@ -646,7 +697,7 @@ result = context.rpc.getStringProperty("mainWindow", "myResult")
 ### `create_empty_profile(settings_dir)`
 
 - Creates the `settings_dir` directory (profile folder). Does **not** create a
-  database — the `mixxx-test --serve` binary creates the database and applies
+  database — the `mixxx --serve` binary creates the database and applies
   schema migrations on startup.
 
 ### Profile types
@@ -655,7 +706,7 @@ result = context.rpc.getStringProperty("mainWindow", "myResult")
 
 ### `MixxxProcess` class
 
-- `start()`: spawns `mixxx-test --serve --settings-path <dir> --developer
+- `start()`: spawns `mixxx --serve --new-ui --settings-path <dir> --developer
   --log-level debug`
 - When constructed with `output_dir=<dir>`, every spawn persists its full
   stdout/stderr (stderr is merged into stdout) to
@@ -674,7 +725,7 @@ result = context.rpc.getStringProperty("mainWindow", "myResult")
 - Waits up to 20s for port 9000 to be reachable (override with
   `MIXXX_TEST_RPC_TIMEOUT=<seconds>`)
 - `stop()`: terminate with 15s grace, then kill; appends the exit banner and
-  prints a `mixxx-test stopped: pid=... exit=...` line, which is how
+  prints a `mixxx stopped: pid=... exit=...` line, which is how
   kill/restart cycles become visible in the behave transcript.
 
 ### Track downloads

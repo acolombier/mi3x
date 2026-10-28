@@ -1,10 +1,11 @@
 Feature: Browse
 
-  Background:
-    Given a new library-ready profile
-    And Mixxx is open and ready to operate
-    And the window size is default
-    And the library columns are in their default state
+  Rule: Library track list (library-ready profile)
+    Background:
+      Given a new library-ready profile
+      And Mixxx is open and ready to operate
+      And the window size is default
+      And the library columns are in their default state
 
   # --- Track list & columns (@sub/library) -------------------------------------
   # (from the former features/library.feature)
@@ -118,13 +119,19 @@ Feature: Browse
   # At the track list (res/qml/Library/TrackList.qml):
   #   trackTitleForRow(row), trackDataForRow(row)
   #
-  # Search state must be declared per scenario: "no search is currently
-  # active" resets leftover criteria/query, "the library search criteria
-  # include the field ..." builds a deterministic token search.
+  # The rule Background resets leftover criteria/query with "no search is
+  # currently active"; "the library search criteria include the field ..."
+  # builds a deterministic token search.
+
+  Rule: Library search
+
+    Background:
+      Given a new library-ready profile
+      And Mixxx is open and ready to operate
+      And no search is currently active
 
   @sub/search
   Scenario: Search bar opens and closes without filtering
-    Given no search is currently active
     When I activate the library search
     Then the library search bar should be visible
     When I deactivate the library search
@@ -132,7 +139,6 @@ Feature: Browse
 
   @sub/search
   Scenario: Search filters the track results
-    Given no search is currently active
     And a track available in the library with a unique title
     When I activate the library search
     And I type "title:" into the library search
@@ -143,7 +149,6 @@ Feature: Browse
 
   @sub/search
   Scenario: Clearing the search shows all tracks again
-    Given no search is currently active
     And a track available in the library
     When I activate the library search
     And I type the title of this track into the library search
@@ -153,14 +158,12 @@ Feature: Browse
 
   @sub/search
   Scenario: Search suggests matching field names
-    Given no search is currently active
     When I activate the library search
     And I type "art" into the library search
     Then the library search suggestion "Artist:" should be visible
 
   @sub/search
   Scenario: A field suggestion creates a search token
-    Given no search is currently active
     When I activate the library search
     And I type "art" into the library search
     And I press the "Down" key in the library search
@@ -169,7 +172,6 @@ Feature: Browse
 
   @sub/search
   Scenario: A committed search appears in recent searches
-    Given no search is currently active
     And a track available in the library
     When I activate the library search
     And I type the title of this track into the library search
@@ -180,26 +182,22 @@ Feature: Browse
 
   @sub/search
   Scenario: Search bar is present in the library pane
-    Given no search is currently active
     Then the library search bar should be present
     And the search placeholder "Search..." should be visible
 
   @sub/search
   Scenario: Activating the search bar expands it
-    Given no search is currently active
     When I activate the library search
     Then the library search bar should be visible
     And the library search bar should be expanded
 
   @sub/search
   Scenario: An activated search bar shows a suggestion placeholder
-    Given no search is currently active
     When I activate the library search
     Then the search placeholder "Start typing to get suggestion" should be visible
 
   @sub/search
   Scenario: Typing a field name shows the matching field suggestion and the Tab hint
-    Given no search is currently active
     When I activate the library search
     And I type "art" into the library search
     Then the library search suggestion "Artist:" should be visible
@@ -207,7 +205,6 @@ Feature: Browse
 
   @sub/search
   Scenario: Typing filters the field suggestions
-    Given no search is currently active
     When I activate the library search
     And I type "alb" into the library search
     Then the library search suggestion "Album:" should be visible
@@ -215,14 +212,12 @@ Feature: Browse
 
   @sub/search
   Scenario: Typing an unknown field shows no field suggestion
-    Given no search is currently active
     When I activate the library search
     And I type "zzz" into the library search
     Then the library search suggestion "zzz:" should not be visible
 
   @sub/search
   Scenario: Tab accepts the suggested field criterion and awaits its value
-    Given no search is currently active
     When I activate the library search
     And I type "art" into the library search
     And I press the "Tab" key in the library search
@@ -232,7 +227,6 @@ Feature: Browse
 
   @sub/search
   Scenario: A typed field-and-value query becomes a criterion token
-    Given no search is currently active
     When I activate the library search
     And I type "artist:Rockot" into the library search
     Then a search token "Artist" should be shown in the search bar
@@ -241,7 +235,6 @@ Feature: Browse
 
   @sub/search
   Scenario: Multiple criteria can coexist and preserve the insertion order
-    Given no search is currently active
     When I activate the library search
     And I type "artist:Rockot" into the library search
     And I press the "Tab" key in the library search
@@ -252,7 +245,6 @@ Feature: Browse
 
   @sub/search
   Scenario: A pasted multi-criteria query becomes exact-match criteria
-    Given no search is currently active
     And a track available in the library with a unique title
     When I paste "artist:="<artist of this track>" title:"<title of this track>"" into the library search
     Then the library search criteria should be "Artist,Title"
@@ -260,7 +252,6 @@ Feature: Browse
 
   @sub/search
   Scenario: Pasting a query keeps its non-criteria words as free text
-    Given no search is currently active
     And a track available in the library with a unique title
     When I paste "artist:"<artist of this track>" <title of this track>" into the library search
     Then the library search criteria should be "Artist"
@@ -268,7 +259,6 @@ Feature: Browse
 
   @sub/search
   Scenario: A pasted free-text search is preserved when no criteria are recognized
-    Given no search is currently active
     And a track available in the library
     When I paste "<title of this track>" into the library search
     Then the library search query should be "<title of this track>"
@@ -281,7 +271,6 @@ Feature: Browse
   @xfail
   @sub/search
   Scenario: A pasted query with an OR word keeps its criteria
-    Given no search is currently active
     And a track available in the library with a unique title and with search operator in its metadata
     When I paste "artist:Rockot Baby Mandala | Nepalese Drill Music" into the library search
     Then the library search criteria should be "Artist"
@@ -289,7 +278,6 @@ Feature: Browse
 
   @sub/search
   Scenario: The equals prefix enables an exact match
-    Given no search is currently active
     When I activate the library search
     And I type "artist:" into the library search
     And I type "=Rockot" into the library search
@@ -297,13 +285,11 @@ Feature: Browse
 
   @sub/search
   Scenario: Multi-word values are quoted so they stay a single criterion
-    Given no search is currently active
     Given the library search criteria include the field "Artist" with the value "Please Calm My Mind"
     Then the library search query should be "artist:"Please Calm My Mind""
 
   @sub/search
   Scenario: Typing an artist value shows matching value suggestions
-    Given no search is currently active
     Given a track available in the library with a unique title
     When I activate the library search
     And I type "artist:" into the library search
@@ -312,7 +298,6 @@ Feature: Browse
 
   @sub/search
   Scenario: Enter selects the highlighted value suggestion
-    Given no search is currently active
     Given a track available in the library with a unique title
     When I activate the library search
     And I type "artist:" into the library search
@@ -324,7 +309,6 @@ Feature: Browse
 
   @sub/search
   Scenario: A key suggestion is shown with its notation and applies as a key criterion
-    Given no search is currently active
     When I activate the library search
     And I type "key:" into the library search
     And I type "10" into the library search
@@ -341,7 +325,6 @@ Feature: Browse
   # covered by the typed field:value path instead.
   @sub/search
   Scenario: A typed BPM value applies as a BPM criterion
-    Given no search is currently active
     When I activate the library search
     And I type "bpm:1" into the library search
     Then a search token "BPM" should be shown in the search bar
@@ -349,7 +332,6 @@ Feature: Browse
 
   @sub/search
   Scenario: Clicking a recent search restores the query
-    Given no search is currently active
     And a track available in the library
     When I activate the library search
     And I type the title of this track into the library search
@@ -361,7 +343,6 @@ Feature: Browse
 
   @sub/search
   Scenario: A recent search can be applied with the keyboard
-    Given no search is currently active
     And a track available in the library
     When I activate the library search
     And I type the title of this track into the library search
@@ -374,7 +355,6 @@ Feature: Browse
 
   @sub/search
   Scenario: A single criterion filters the library results
-    Given no search is currently active
     And a track available in the library with a unique title
     When I activate the library search
     And I type the title of this track into the library search
@@ -384,7 +364,6 @@ Feature: Browse
 
   @sub/search
   Scenario: An artist criterion filters the library results
-    Given no search is currently active
     And a track available in the library with a unique title
     When I activate the library search
     And I type "artist:" into the library search
@@ -395,7 +374,6 @@ Feature: Browse
 
   @sub/search
   Scenario: Multiple criteria are combined with AND
-    Given no search is currently active
     And a track available in the library with a unique title
     When I activate the library search
     And I type "artist:" into the library search
@@ -408,13 +386,11 @@ Feature: Browse
 
   @sub/search
   Scenario: Ctrl+F activates the search bar
-    Given no search is currently active
     When I press the "Ctrl+F" key in the library search
     Then the library search bar should be visible
 
   @sub/search
   Scenario: The Right arrow moves the focus between criteria tokens
-    Given no search is currently active
     When I activate the library search
     And I type "artist:Rockot" into the library search
     And I press the "Tab" key in the library search
@@ -428,7 +404,6 @@ Feature: Browse
 
   @sub/search
   Scenario: Backspace on an empty value removes the previous token
-    Given no search is currently active
     When I activate the library search
     And I type "artist:" into the library search
     And I press the "Backspace" key in the library search
@@ -436,7 +411,6 @@ Feature: Browse
 
   @sub/search
   Scenario: Delete removes the active criterion token
-    Given no search is currently active
     When I activate the library search
     And I type "artist:Rockot" into the library search
     And I press the "Delete" key in the library search
@@ -444,15 +418,21 @@ Feature: Browse
 
   @sub/search
   Scenario: The search bar is anchored to the bottom-right of the library pane
-    Given no search is currently active
     Then the library search bar should be anchored to the bottom-right of the library pane
 
   # --- Library sidebar sources and tracklists ------------------------------------
   #
   # Covers new Playlist/Crate/Explorer sources, capability-driven create UI,
   # creation flows, activation and sync when items are created.
+  Rule: Library sidebar sources and tracklists
+
+    Background:
+      Given a new library-ready profile
+      And Mixxx is open and ready to operate
+      And the window size is default
+      And the library columns are in their default state
+
   Scenario: Sidebar shows all default sources at launch
-    Given Mixxx is open and ready to operate
     Then the library sidebar should show the source "All..."
     And the library sidebar should show the source "Playlists"
     And the library sidebar should show the source "Crates"
@@ -576,327 +556,245 @@ Feature: Browse
     Then this track should be visible in the left track list
     And this track should be visible in the right track list
 
-  # --- Library settings (former features/settings/library.feature) ----------------
-  #
-  # These scenarios configure the library through the settings popup. Their
-  # original Background ("a fresh new empty profile", Mixxx open, settings
-  # popup open on the Library category) is inlined per scenario, because this
-  # feature's Background provides a library-ready profile instead.
-  #
-  # The "Search completion" / "Search history keyboard shortcuts" scenarios
-  # from the former features/settings/interface.feature are not duplicated
-  # here: both pages bind the same config keys ([Library]
-  # EnableSearchCompletions / EnableSearchHistoryShortcuts), so the copies on
-  # the Library page cover the setting once.
+  Rule: Library settings (fresh profile)
 
-  @sub/library
-  Scenario: Music library integrations are shown
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    Then the "Rhythmbox integration" setting should be "off"
-    And the "Banshee integration" setting should be "off"
-    And the "iTunes integration" setting should be "off"
-    And the "Traktor integration" setting should be "off"
-    And the "Rekordbox integration" setting should be "off"
-    And the "Serato integration" setting should be "off"
+    Background:
+      Given a fresh new empty profile
+      And Mixxx is open and ready to operate
+      And the settings popup is open
+      And the "Library" category is selected
 
-  @sub/library
-  Scenario: An integration can be enabled and saved
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    When I toggle the "Serato integration" setting to "on"
-    And I click the save button
-    Then the "Serato integration" setting should be "on"
-    And the "Serato integration" should be saved as "on"
+    # --- Library settings (former features/settings/library.feature) ----------------
+    #
+    # These scenarios configure the library through the settings popup.
+    #
+    # The "Search completion" / "Search history keyboard shortcuts" scenarios
+    # from the former features/settings/interface.feature are not duplicated
+    # here: both pages bind the same config keys ([Library]
+    # EnableSearchCompletions / EnableSearchHistoryShortcuts), so the copies on
+    # the Library page cover the setting once.
 
-  @sub/library
-  Scenario: Metadata synchronisation with files can be enabled
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    When I toggle the "synchronise metadata with file" setting to "on"
-    And I click the save button
-    Then the "synchronise metadata with file" setting should be "on"
-    And the "synchronise metadata with file" should be saved as "on"
+    @sub/library
+    Scenario: Music library integrations are shown
+      Then the "Rhythmbox integration" setting should be "off"
+      And the "Banshee integration" setting should be "off"
+      And the "iTunes integration" setting should be "off"
+      And the "Traktor integration" setting should be "off"
+      And the "Rekordbox integration" setting should be "off"
+      And the "Serato integration" setting should be "off"
 
-  @sub/library
-  Scenario: Metadata synchronisation with Serato can be enabled
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    When I toggle the "synchronise metadata with Serato library" setting to "on"
-    Then the "synchronise metadata with Serato library" setting should be "on"
+    @sub/library
+    Scenario: An integration can be enabled and saved
+      When I toggle the "Serato integration" setting to "on"
+      And I click the save button
+      Then the "Serato integration" setting should be "on"
+      And the "Serato integration" should be saved as "on"
 
-  @sub/library
-  Scenario: Relative path export can be preferred
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    When I toggle the "prefer relative path on playlist export" setting to "on"
-    And I click the save button
-    Then the "prefer relative path on playlist export" setting should be "on"
-    And the "prefer relative path on playlist export" should be saved as "on"
+    @sub/library
+    Scenario: Metadata synchronisation with files can be enabled
+      When I toggle the "synchronise metadata with file" setting to "on"
+      And I click the save button
+      Then the "synchronise metadata with file" setting should be "on"
+      And the "synchronise metadata with file" should be saved as "on"
 
-  @sub/library
-  Scenario: Track duplicate distance can be changed
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    When I set the "track duplicate distance" setting to "5"
-    And I click the save button
-    Then the "track duplicate distance" setting should be "5"
-    And the "track duplicate distance" should be saved as "5"
+    @sub/library
+    Scenario: Metadata synchronisation with Serato can be enabled
+      When I toggle the "synchronise metadata with Serato library" setting to "on"
+      Then the "synchronise metadata with Serato library" setting should be "on"
 
-  @sub/library
-  Scenario: History cleanup threshold can be changed
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    When I set the "delete history playlist with less than" setting to "10"
-    And I click the save button
-    Then the "delete history playlist with less than" setting should be "10"
-    And the "delete history playlist with less than" should be saved as "10"
+    @sub/library
+    Scenario: Relative path export can be preferred
+      When I toggle the "prefer relative path on playlist export" setting to "on"
+      And I click the save button
+      Then the "prefer relative path on playlist export" setting should be "on"
+      And the "prefer relative path on playlist export" should be saved as "on"
 
-  @sub/search
-  Scenario: Search completion can be disabled
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    When I toggle the "library search completion" setting to "off"
-    And I click the save button
-    Then the "library search completion" setting should be "off"
+    @sub/library
+    Scenario: Track duplicate distance can be changed
+      When I set the "track duplicate distance" setting to "5"
+      And I click the save button
+      Then the "track duplicate distance" setting should be "5"
+      And the "track duplicate distance" should be saved as "5"
 
-  @sub/search
-  Scenario: Search history keyboard shortcuts can be disabled
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    When I toggle the "library search history keyboard shortcuts" setting to "off"
-    And I click the save button
-    Then the "library search history keyboard shortcuts" setting should be "off"
+    @sub/library
+    Scenario: History cleanup threshold can be changed
+      When I set the "delete history playlist with less than" setting to "10"
+      And I click the save button
+      Then the "delete history playlist with less than" setting should be "10"
+      And the "delete history playlist with less than" should be saved as "10"
 
-  @sub/library
-  Scenario: Search-as-you-type timeout can be changed
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    When I set the "search-as-you-type timeout" setting to "5" with the spinbox
-    And I click the save button
-    Then the "search-as-you-type timeout" setting should be "5"
-    And the "search-as-you-type timeout" should be saved as "5"
+    @sub/search
+    Scenario: Search completion can be disabled
+      When I toggle the "library search completion" setting to "off"
+      And I click the save button
+      Then the "library search completion" setting should be "off"
 
-  @sub/library
-  Scenario: Pitch slider fuzz BPM range can be changed
-    # UI round-trip only: save() writes the raw 0-100 slider value to the
-    # 0-100 "search_bpm_fuzzy_range" config key, which looks like a units bug
-    # (config default is 0.06). Asserting persistence would enshrine it.
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    When I set the "pitch slider for fuzz BPM search" setting to "50" with the spinbox
-    Then the "pitch slider for fuzz BPM search" setting should be "50"
+    @sub/search
+    Scenario: Search history keyboard shortcuts can be disabled
+      When I toggle the "library search history keyboard shortcuts" setting to "off"
+      And I click the save button
+      Then the "library search history keyboard shortcuts" setting should be "off"
 
-  # --- Music directories (sources) ---------------------------------------------
-  #
-  # Directories are seeded via the `library` RPC command; the last add runs a
-  # blocking scan, whose completion refreshes the sources list in the already
-  # open popup (scanner onRunningChanged -> loadSources()). Removal is driven
-  # through the real UI (select row -> Remove -> keep/hide/purge -> Save).
-  #
-  # Adding directories is driven through the real UI too: the "Add" button is
-  # routed to a test dialog mock (Library.qml testDialog) in test mode, which
-  # emulates the native FolderDialog so the test can inject a folder path.
+    @sub/library
+    Scenario: Search-as-you-type timeout can be changed
+      When I set the "search-as-you-type timeout" setting to "5" with the spinbox
+      And I click the save button
+      Then the "search-as-you-type timeout" setting should be "5"
+      And the "search-as-you-type timeout" should be saved as "5"
 
-  Scenario: The music directory list is empty on a new profile
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    Then the music directory list should be empty
+    @sub/library
+    Scenario: Pitch slider fuzz BPM range can be changed
+      # UI round-trip only: save() writes the raw 0-100 slider value to the
+      # 0-100 "search_bpm_fuzzy_range" config key, which looks like a units bug
+      # (config default is 0.06). Asserting persistence would enshrine it.
+      When I set the "pitch slider for fuzz BPM search" setting to "50" with the spinbox
+      Then the "pitch slider for fuzz BPM search" setting should be "50"
 
-  Scenario: Newly added directories appear in the music directory list
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    Given the following music directories
-      | id | tracks | permission | dir |
-      | 0  | 0      | read       | M1  |
-      | 1  | 0      | read       | M2  |
-      | 2  | 0      | read       | M3  |
-    When I add the test music directory 0
-    Then the music directory list should contain 1 source
-    And the save button should be enabled
-    When I add the test music directory 1
-    And I add the test music directory 2
-    Then the music directory list should contain 3 sources
-    When I click the save button
-    Then the music directory list should contain 3 sources
-    And the save button should be disabled
-    And the library state should match the following
-      | key     | value |
-      | sources | 3     |
+    # --- Music directories (sources) ---------------------------------------------
+    #
+    # Directories are seeded via the `library` RPC command; the last add runs a
+    # blocking scan, whose completion refreshes the sources list in the already
+    # open popup (scanner onRunningChanged -> loadSources()). Removal is driven
+    # through the real UI (select row -> Remove -> keep/hide/purge -> Save).
+    #
+    # Adding directories is driven through the real UI too: the "Add" button is
+    # routed to a test dialog mock (Library.qml testDialog) in test mode, which
+    # emulates the native FolderDialog so the test can inject a folder path.
 
-  Scenario: A single directory with tracks can be added and saved
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    Given a music directory
-    When I add the test music directory 0
-    Then the music directory list should contain 1 source
-    And the save button should be enabled
-    When I click the save button
-    Then the music directory list should contain 1 source
-    And the save button should be disabled
-    And the library state should match the following
-      | key     | value |
-      | sources | 1     |
+    Scenario: The music directory list is empty on a new profile
+      Then the music directory list should be empty
 
-  Scenario: An empty music directory can be removed
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    Given the library contains 2 music directories
-    When I select the music directory at row 0
-    Then the remove button of the music directory at row 0 should be visible
-    When I click the remove button for the music directory at row 0
-    Then the music directory list should contain 2 sources
-    And the save button should be enabled
-    When I click the save button
-    Then the music directory list should contain 1 source
-    And the library state should match the following
-      | key     | value |
-      | sources | 1     |
+    Scenario: Newly added directories appear in the music directory list
+      Given the following music directories
+        | id | tracks | permission | dir |
+        | 0  | 0      | read       | M1  |
+        | 1  | 0      | read       | M2  |
+        | 2  | 0      | read       | M3  |
+      When I add the test music directory 0
+      Then the music directory list should contain 1 source
+      And the save button should be enabled
+      When I add the test music directory 1
+      And I add the test music directory 2
+      Then the music directory list should contain 3 sources
+      When I click the save button
+      Then the music directory list should contain 3 sources
+      And the save button should be disabled
+      And the library state should match the following
+        | key     | value |
+        | sources | 3     |
 
-  Scenario: Cancelling a removal keeps the music directory
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    Given the library contains 2 music directories
-    When I select the music directory at row 0
-    And I click the remove button for the music directory at row 0
-    And I click the cancel button
-    Then the music directory list should contain 2 sources
-    And the save button should be disabled
+    Scenario: A single directory with tracks can be added and saved
+      Given a music directory
+      When I add the test music directory 0
+      Then the music directory list should contain 1 source
+      And the save button should be enabled
+      When I click the save button
+      Then the music directory list should contain 1 source
+      And the save button should be disabled
+      And the library state should match the following
+        | key     | value |
+        | sources | 1     |
 
-  Scenario Outline: A music directory with tracks can be removed and its tracks <action>
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    Given the tracks directory is in the library
-    When I select the music directory at row 0
-    And I click the remove button for the music directory at row 0
-    And I choose to <action> the tracks of the music directory at row 0
-    And I click the save button
-    Then the music directory list should contain 0 sources
-    And the library state should match the following
-      | key               | value |
-      | visibleTrackCount | <visible> |
-      | hiddenTrackCount  | <hidden>  |
+    Scenario: An empty music directory can be removed
+      Given the library contains 2 music directories
+      When I select the music directory at row 0
+      Then the remove button of the music directory at row 0 should be visible
+      When I click the remove button for the music directory at row 0
+      Then the music directory list should contain 2 sources
+      And the save button should be enabled
+      When I click the save button
+      Then the music directory list should contain 1 source
+      And the library state should match the following
+        | key     | value |
+        | sources | 1     |
 
-    Examples:
-      | action | visible | hidden |
-      | keep   | >0      | =0     |
-      | hide   | =0      | >0     |
-      | purge  | =0      | =0     |
+    Scenario: Cancelling a removal keeps the music directory
+      Given the library contains 2 music directories
+      When I select the music directory at row 0
+      And I click the remove button for the music directory at row 0
+      And I click the cancel button
+      Then the music directory list should contain 2 sources
+      And the save button should be disabled
 
-  Scenario: Relink is available for a selected music directory
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    Given the tracks directory is in the library
-    When I select the music directory at row 0
-    Then the relink button of the music directory at row 0 should be visible
-    And the remove button of the music directory at row 0 should be visible
+    Scenario Outline: A music directory with tracks can be removed and its tracks <action>
+      Given the tracks directory is in the library
+      When the scanning overlay is hidden
+      And I select the music directory at row 0
+      And I click the remove button for the music directory at row 0
+      And I choose to <action> the tracks of the music directory at row 0
+      And I click the save button
+      And the scanning overlay is hidden
+      Then the music directory list should contain 0 sources
+      And the library state should match the following
+        | key               | value |
+        | visibleTrackCount | <visible> |
+        | hiddenTrackCount  | <hidden>  |
 
-  # --- Library row height (former features/settings/interface.feature) ------------
+      Examples:
+        | action | visible | hidden |
+        | keep   | >0      | =0     |
+        | hide   | =0      | >0     |
+        | purge  | =0      | =0     |
 
-  @sub/library
-  Scenario: Library row height can be changed
-    Given the settings popup is open
-    And the "Interface" category is selected
-    When I set the "library row height" setting to "50" with a drag
-    Then the "library row height" setting should be "50"
+    Scenario: Relink is available for a selected music directory
+      Given the tracks directory is in the library
+      When I select the music directory at row 0
+      Then the relink button of the music directory at row 0 should be visible
+      And the remove button of the music directory at row 0 should be visible
 
-  # --- Responsiveness -------------------------------------------------------------
-  #
-  # The sources grid switches between 2 and 1 columns at 800px of content
-  # width (integrations stack below the music directory pane), and the
-  # metadata / history grids collapse their columns on narrow rows. On a
-  # short window the category overflows its ScrollView and below-the-fold
-  # settings must be reachable by scrolling.
+    # --- Library row height (former features/settings/interface.feature) ------------
 
-  @category/responsiveness
-  Scenario: Sources and integrations stack on a narrow window
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    Given the window's width is 1792px
-    Then the Library sources grid should be displayed in 2 columns
-    When I resize the window's width to 700px
-    Then the Library sources grid should be displayed in 1 column
-    When I resize the window's width to 1792px
+    @sub/library
+    Scenario: Library row height can be changed
+      Given the "Interface" category is selected
+      When I set the "library row height" setting to "50" with a drag
+      Then the "library row height" setting should be "50"
 
-  @sub/library
-  @category/responsiveness
-  Scenario: Metadata and history settings rearrange on a narrow window
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    Given the window's width is 1792px
-    Then the Library metadata grid should be displayed in 2 columns
-    And the Library history grid should be displayed in 2 columns
-    When I resize the window's width to 700px
-    Then the Library metadata grid should be displayed in 1 column
-    And the Library history grid should be displayed in 1 column
-    When I resize the window's width to 1792px
+    # --- Responsiveness -------------------------------------------------------------
+    #
+    # The sources grid switches between 2 and 1 columns at 800px of content
+    # width (integrations stack below the music directory pane), and the
+    # metadata / history grids collapse their columns on narrow rows. On a
+    # short window the category overflows its ScrollView and below-the-fold
+    # settings must be reachable by scrolling.
 
-  @sub/library
-  @category/responsiveness
-  Scenario: Below-the-fold settings can be scrolled into view on a short window
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    Given the window's width is 1792px
-    When I resize the window's height to 500px
-    Then the "pitch slider for fuzz BPM search" setting should not be visible on screen
-    When I scroll down in the settings
-    Then the "pitch slider for fuzz BPM search" setting should be visible on screen
-    When I set the "pitch slider for fuzz BPM search" setting to "50" with the spinbox
-    Then the "pitch slider for fuzz BPM search" setting should be "50"
-    When I resize the window's height to 1008px
+    @category/responsiveness
+    Scenario: Sources and integrations stack on a narrow window
+      Given the window's width is 1792px
+      Then the Library sources grid should be displayed in 2 columns
+      When I resize the window's width to 700px
+      Then the Library sources grid should be displayed in 1 column
+      When I resize the window's width to 1792px
 
-  @category/responsiveness
-  Scenario: Integration options compact when the row is narrow
-    Given a fresh new empty profile
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Library" category is selected
-    Given the window's width is 1792px
-    Then the Library integrations grid should be displayed in 1 column
-    When I resize the window's width to 700px
-    Then the Library integrations grid should be displayed in 2 columns
-    And the integrations grid should be below the library source pane
-    And the integrations grid should not overlap the library source pane
-    When I resize the window's width to 1792px
+    @sub/library
+    @category/responsiveness
+    Scenario: Metadata and history settings rearrange on a narrow window
+      Given the window's width is 1792px
+      Then the Library metadata grid should be displayed in 2 columns
+      And the Library history grid should be displayed in 2 columns
+      When I resize the window's width to 700px
+      Then the Library metadata grid should be displayed in 1 column
+      And the Library history grid should be displayed in 1 column
+      When I resize the window's width to 1792px
+
+    @sub/library
+    @category/responsiveness
+    Scenario: Below-the-fold settings can be scrolled into view on a short window
+      Given the window's width is 1792px
+      When I resize the window's height to 500px
+      Then the "pitch slider for fuzz BPM search" setting should not be visible on screen
+      When I scroll down in the settings
+      Then the "pitch slider for fuzz BPM search" setting should be visible on screen
+      When I set the "pitch slider for fuzz BPM search" setting to "50" with the spinbox
+      Then the "pitch slider for fuzz BPM search" setting should be "50"
+      When I resize the window's height to 1008px
+
+    @category/responsiveness
+    Scenario: Integration options compact when the row is narrow
+      Given the window's width is 1792px
+      Then the Library integrations grid should be displayed in 1 column
+      When I resize the window's width to 700px
+      Then the Library integrations grid should be displayed in 2 columns
+      And the integrations grid should be below the library source pane
+      And the integrations grid should not overlap the library source pane
+      When I resize the window's width to 1792px

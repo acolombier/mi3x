@@ -27,7 +27,7 @@
 #include "util/sample.h"
 #include "vinylcontrol/defs_vinylcontrol.h"
 
-#ifdef USE_TEST_UI
+#ifdef __RPC_SERVER__
 #include <QJsonArray>
 
 #include "soundio/sounddevicemock.h"
@@ -164,7 +164,7 @@ QList<SoundDevicePointer> SoundManager::getDeviceList(
         filteredDeviceList.push_back(pDevice);
     };
 
-#ifdef USE_TEST_UI
+#ifdef __RPC_SERVER__
     if (filterAPI == "Mock") {
         for (const auto& pDevice : m_devices) {
             appendIfMatch(pDevice);
@@ -174,7 +174,7 @@ QList<SoundDevicePointer> SoundManager::getDeviceList(
         for (const auto& pDevice : m_pEnumerator->queryDevices()) {
             appendIfMatch(pDevice);
         }
-#ifdef USE_TEST_UI
+#ifdef __RPC_SERVER__
     }
 #endif
 
@@ -189,7 +189,7 @@ QList<QString> SoundManager::getHostAPIList() const {
         apiList.push_back(api);
     }
 
-#ifdef USE_TEST_UI
+#ifdef __RPC_SERVER__
     if (m_testMockingMode) {
         apiList.push_back("Mock");
     }
@@ -198,7 +198,7 @@ QList<QString> SoundManager::getHostAPIList() const {
     return apiList;
 }
 
-#ifdef USE_TEST_UI
+#ifdef __RPC_SERVER__
 void SoundManager::registerMockDevices(const QJsonArray& devices) {
     for (const auto& entry : devices) {
         QJsonObject obj = entry.toObject();
@@ -403,7 +403,7 @@ SoundDeviceStatus SoundManager::setupDevices() {
     // loop over all available devices
 
     std::vector<SoundDevicePointer> devices =
-#ifdef USE_TEST_UI
+#ifdef __RPC_SERVER__
             m_config.getAPI() == "Mock"
             ? std::vector<SoundDevicePointer>(
                       m_devices.begin(), m_devices.end())

@@ -1,17 +1,16 @@
+#include "qml/rpcserve.h"
+
 #include <Spix/AnyRpcServer.h>
 #include <Spix/QtQmlBot.h>
-#include <qdir.h>
 
-#include <QApplication>
-#include <QCoreApplication>
 #include <QDebug>
 #include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QQmlApplicationEngine>
 #include <QQuickWindow>
 #include <QSqlQuery>
-#include <QThread>
 #include <atomic>
 #include <memory>
 #include <utility>
@@ -23,8 +22,6 @@
 #include "library/trackcollectionmanager.h"
 #include "library/trackset/crate/cratesummary.h"
 #include "mixer/playermanager.h"
-#include "mixxxapplication.h"
-#include "mixxxtest.h"
 #include "qml/qmlapplication.h"
 #include "soundio/soundmanager.h"
 #include "track/track.h"
@@ -47,39 +44,15 @@ void persistLibraryJsonState(const QJsonObject& state) {
 }
 } // namespace
 
-int runServeMode(int argc, char** argv) {
-    spix::AnyRpcServer server(9000);
-    QCoreApplication::setOrganizationDomain("mixxx.org");
-    QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+namespace mixxx {
+namespace qml {
 
-    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(
-            Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
-    QGuiApplication::setDesktopFileName(QStringLiteral("org.mixxx.Mixxx"));
-
-    QCoreApplication::setApplicationName(VersionStore::applicationName());
-    QCoreApplication::setApplicationVersion(VersionStore::version());
-
-    CmdlineArgs& args = CmdlineArgs::Instance();
-    args.parse(argc, argv);
-
-    QThread::currentThread()->setObjectName("Main");
-
-    MixxxApplication app(argc, argv);
-
-    auto pCoreServices =
-            std::make_shared<mixxx::CoreServices>(args, &app);
-
-    mixxx::qml::QmlApplication qmlApplication(&app, pCoreServices);
-
-    auto rootObjects = qmlApplication.qmlEngine()->rootObjects();
-    for (auto* root : std::as_const(rootObjects)) {
-        if (auto* window = qobject_cast<QQuickWindow*>(root)) {
-            if (window->objectName().isEmpty()) {
-                window->setObjectName(root->objectName());
-            }
-        }
-    }
-
+RpcServe::RpcServe(
+        QmlApplication* pQmlApplication,
+        std::shared_ptr<CoreServices> pCoreServices)
+        : m_pQmlApplication(pQmlApplication),
+          m_server(9000),
+          m_pBot(std::make_unique<spix::QtQmlBot>()) {
     auto pPlayerManager = pCoreServices->getPlayerManager();
     auto pTrackCollectionManager = pCoreServices->getTrackCollectionManager();
 
@@ -103,13 +76,15 @@ int runServeMode(int argc, char** argv) {
                 }
             });
 
-    server.setGenericCommandHandler(
+    onQmlLoaded();
+
+    m_server.setGenericCommandHandler(
             [pCoreServices,
                     pPlayerManager,
                     pTrackCollectionManager,
                     pActiveScanCount,
                     pCompletedScanCount,
-                    &qmlApplication](const std::string& command,
+                    pQmlApplication](const std::string& command,
                     const std::string& payload) {
                 if (command == "getControlValue") {
                     QString rest = QString::fromStdString(payload);
@@ -427,17 +402,28 @@ int runServeMode(int argc, char** argv) {
                     pCoreServices->getSoundManager()->setConfig(config);
                     qDebug() << "clearMockDevices: cleared";
                 } else if (command == "reloadQml") {
-                    qmlApplication.loadQml(qmlApplication.mainFilePath());
+                    pQmlApplication->loadQml(pQmlApplication->mainFilePath());
                     qDebug() << "reloadQml: QML engine reloaded";
                 } else {
                     qWarning() << "Unknown generic command:" << QString::fromStdString(command);
                 }
             });
 
-    auto* pBot = new spix::QtQmlBot();
-    pBot->runTestServer(server);
-
-    app.exec();
-    delete pBot;
-    return 0;
+    m_pBot->runTestServer(m_server);
 }
+
+void RpcServe::onQmlLoaded() {
+    auto rootObjects = m_pQmlApplication->qmlEngine()->rootObjects();
+    for (auto* root : std::as_const(rootObjects)) {
+        if (auto* window = qobject_cast<QQuickWindow*>(root)) {
+            if (window->objectName().isEmpty()) {
+                window->setObjectName(root->objectName());
+            }
+        }
+    }
+}
+
+RpcServe::~RpcServe() = default;
+
+} // namespace qml
+} // namespace mixxx

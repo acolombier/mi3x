@@ -40,6 +40,7 @@ QT_KEY_ENTER = 0x01000005
 QT_KEY_SPACE = 0x20
 QT_KEY_DOWN = 0x01000015
 QT_KEY_UP = 0x01000013
+QT_KEY_LEFT = 0x01000012
 QT_KEY_TAB = 0x01000001
 QT_KEY_A = 0x41
 QT_KEY_DELETE = 0x01000007
@@ -868,7 +869,7 @@ def _wait_for_search_suggestion(context, value, timeout=15):
 
 def search_field_quote(value):
     """Quote a criterion value the same way res/qml/Library/SearchPane.qml does."""
-    if re.search(r"[\s\"'=~-]", value):
+    if re.search(r"[\s\"'=~]", value):
         return '"' + value + '"'
     return value
 

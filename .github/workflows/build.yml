@@ -134,7 +134,6 @@ jobs:
           - name: Android 15 arm64
             os: ubuntu-26.04
             cmake_args: >-
-              -DBUILD_UI_TEST=OFF
               -DHID=ON
               -DVCPKG_TARGET_TRIPLET=arm64-android
               -DVCPKG_DEFAULT_HOST_TRIPLET=x64-linux-release
@@ -155,13 +154,14 @@ jobs:
           - name: AppImage Linux x86_64
             os: ubuntu-22.04
             cmake_args: >-
-              -DBUILD_UI_TEST=OFF
               -DMIXXX_APPIMAGE=ON
               -DINSTALL_USER_UDEV_RULES=OFF
               -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="-O2 -DNDEBUG"
               -DCMAKE_INSTALL_PREFIX=/usr
               -DCMAKE_INSTALL_LIBDIR=lib
               -DCMAKE_EXE_LINKER_FLAGS="-Wl,--allow-shlib-undefined"
+            ctest_args: ""
+            cpack_generator: AppImage
             buildenv_basepath: /home/runner/buildenv
             buildenv_script: tools/appimage_release_buildenv.sh
             artifacts_name: AppImage Linux x86_64
@@ -173,7 +173,8 @@ jobs:
             compiler_cache_id: appimage-qt6
             crosscompile: true
             qml: ON
-            tests: true
+            # FIXME: AppImage relies on xcb QPA which appears to suffers from compatibility issues with Spix, leading to too many false positives.
+            tests: false
     uses: ./.github/workflows/platform.yml
     with:
       platform: ${{ toJSON(matrix) }}
@@ -185,7 +186,7 @@ jobs:
   e2e-comment:
     name: "Update E2E comment"
     if: always() && github.event_name == 'pull_request'
-    needs: platform
+    needs: [platform, flatpak]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -197,6 +198,10 @@ jobs:
       - name: "Fetch base branch"
         continue-on-error: true
         run: git fetch --depth=1 origin "${{ github.event.pull_request.base.ref }}"
+
+      - name: "Bypass Azure APT cache"
+        if: vars.BYPASS_AZURE_APT_MIRROR != null && runner.os == 'Linux'
+        run: sudo sed -i '/azure\.archive\.ubuntu\.com/d' /etc/apt/apt-mirrors.txt
 
       - name: "Install ffmpeg"
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
@@ -221,83 +226,14 @@ jobs:
           E2E_LOG_LEVEL: debug
         run: python3 tools/generate_gh_e2e_comment.py
 
-  build-flatpak:
+  flatpak:
     name: "Flatpak"
-    container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.10
-      options: --privileged
-      volumes:
-        - /usr:/host/usr
-        - /opt:/host/opt
-    strategy:
-      matrix:
-        variant:
-          - arch: x86_64
-            runner: ubuntu-26.04
-          - arch: aarch64
-            runner: ubuntu-26.04-arm
-    runs-on: ${{ matrix.variant.runner }}
-    steps:
-      - name: "Recover host disk space"
-        run: |
-          rm -rf /host/opt/hostedtoolcache/CodeQL
-          rm -rf /host/opt/hostedtoolcache/go
-          rm -rf /host/usr/local/lib/android
-          rm -rf /host/usr/local/.ghcup
-          rm -rf /host/usr/local/share/powershell
-          rm -rf /host/usr/share/swift
-          rm -rf /host/usr/share/dotnet
-
-      - name: "Check out repository"
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: "Store Git version"
-        run: |
-          git config --global --add safe.directory "${GITHUB_WORKSPACE}"
-          GIT_DESC=$(git describe --always --first-parent --dirty=-modified)
-          if [ -z "$GIT_DESC" ]; then
-            GIT_DESC="unknown"
-          fi
-          echo "GIT_DESC=$GIT_DESC" >> $GITHUB_ENV
-
-      - name: "Build Flatpak"
-        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
-        with:
-          manifest-path: packaging/flatpak/org.mixxx.Mixxx.yaml
-          arch: ${{ matrix.variant.arch }}
-          build-bundle: false
-          upload-artifact: false
-          # The Flatpak caches (~1.4 GB per arch) are only saved by branch pushes
-          # (main and the release branches) to stay within the 10 GB quota.
-          # Pull requests can still restore the cache of their base branch.
-          save-cache: ${{ github.event_name == 'push' && github.ref_type == 'branch' }}
-
-      - name: "Create Flatpak bundle"
-        run: |
-          flatpak build-bundle repo \
-            --arch=${{ matrix.variant.arch }} \
-            --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
-            Mixxx-${GIT_DESC}-${{ matrix.variant.arch }}.flatpak org.mixxx.Mixxx
-
-      - name: "Create Debug extension"
-        run: |
-          flatpak build-bundle repo \
-            --arch=${{ matrix.variant.arch }} \
-            --runtime Mixxx-${GIT_DESC}-${{ matrix.variant.arch }}.Debug.flatpak org.mixxx.Mixxx.Debug
-
-      - name: "Upload Flatpak bundle"
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          archive: "false"
-          path: Mixxx-${{ env.GIT_DESC }}-${{ matrix.variant.arch }}.flatpak
-
-      - name: "Upload Debug extension"
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          archive: "false"
-          path: Mixxx-${{ env.GIT_DESC }}-${{ matrix.variant.arch }}.Debug.flatpak
+    uses: ./.github/workflows/flatpak-build.yml
+    with:
+      publish: ${{ inputs.publish }}
+      branch: ${{ inputs.branch }}
+      ref: ${{ inputs.ref }}
+    secrets: inherit
 
   update_manifest:
     name: "Update manifest file on download server"

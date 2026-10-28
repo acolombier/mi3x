@@ -58,6 +58,8 @@ modules:
   - modules/libebur128.yaml
   - modules/libkeyfinder.yaml
   - modules/libdjinterop.yaml
+  - modules/anyrpc.yaml
+  - modules/spix.yaml
   - name: mixxx
     buildsystem: cmake-ninja
     run-tests: true
@@ -71,7 +73,14 @@ modules:
       - -DINSTALL_USER_UDEV_RULES=OFF
       - -DBUILD_BENCH=OFF
       - -DBUILD_TESTING=ON
-      - -DBUILD_UI_TEST=OFF
+      # ENABLE_UI_TESTING=OFF skips the Python venv/ behave pip setup and the
+      # behave CTest registration: the sandbox has no network for pip, and
+      # the Flatpak E2E tests the bundle via the installer artifacts, not
+      # via ctest.
+      - -DENABLE_UI_TESTING=OFF
+      # TODO: we need a way to disable this some public builds don't include the following deps that could cause issues with licensing
+      - -DRPC_SERVER_ANYRPC_INSTALL_DIR=/app
+      - -DRPC_SERVER_SPIX_INSTALL_DIR=/app
     sources:
       - type: dir
         path: ../../

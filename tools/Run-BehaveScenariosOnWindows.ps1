@@ -89,7 +89,7 @@ if (-not (Test-Path $python)) {
     throw "Behave venv python not found at $python"
 }
 
-$binary = Join-Path $RepoRoot "build\mixxx-test.exe"
+$binary = Join-Path $RepoRoot "build\mixxx.exe"
 
 if (-not (Test-Path $binary)) {
     throw "mixxx-test binary not found at $binary. Build it before running the UI tests."
@@ -146,7 +146,7 @@ $runnerArgs = @(
     "src\test\behave\mixxx_test_runner.py"
     "--no-capture"
     "--retry", $Retry
-    "--binary", "build\mixxx-test.exe"
+    "--binary", "build\mixxx.exe"
 )
 
 if (![string]::IsNullOrWhiteSpace($Label)) {

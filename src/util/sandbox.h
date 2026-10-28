@@ -40,10 +40,12 @@ class Sandbox {
 
     // Checks if the given settings path is accessible. If the path does not
     // exist, attempts to create it. If it is unwritable, prompts the user to
-    // select a new location via a file dialog.
+    // select a new location via a file dialog (unless allowUserRecovery is
+    // false, e.g. in headless automation, in which case it fails immediately).
     // If a new location is selected, pSettingsPath is updated.
     // Returns true if an accessible path was secured, false otherwise.
-    static bool ensureSettingsPathAccessible(QString* pSettingsPath);
+    static bool ensureSettingsPathAccessible(
+            QString* pSettingsPath, bool allowUserRecovery = true);
 
     // Returns true if we are in a sandbox.
     static bool enabled() {

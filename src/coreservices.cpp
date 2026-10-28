@@ -448,7 +448,18 @@ void CoreServices::initializeSettings() {
     // prompt the user to grant access or select a new location.
     // See https://github.com/mixxxdj/mixxx/issues/15489
     if (m_cmdlineArgs.getSettingsPathSet()) {
-        if (!Sandbox::ensureSettingsPathAccessible(&settingsPath)) {
+#ifdef __RPC_SERVER__
+        bool interactive = !m_cmdlineArgs.getServe();
+        bool sandboxCheck = Sandbox::ensureSettingsPathAccessible(&settingsPath, interactive);
+        if (!sandboxCheck && !interactive) {
+            qCritical() << "Cannot access settings folder" << settingsPath
+                        << "-- exiting (--serve automation mode)";
+            exit(1);
+        }
+#else
+        bool sandboxCheck = Sandbox::ensureSettingsPathAccessible(&settingsPath);
+#endif
+        if (!sandboxCheck) {
             // The user either declined the permission dialog or the
             // folder remains unwritable. Show a clear error and exit.
             QMessageBox::critical(nullptr,

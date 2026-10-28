@@ -18,6 +18,9 @@ class APerformanceHintSession;
 
 namespace mixxx {
 namespace qml {
+#ifdef __RPC_SERVER__
+class RpcServe;
+#endif
 
 class QmlApplication : public QObject {
     Q_OBJECT
@@ -61,6 +64,12 @@ class QmlApplication : public QObject {
     bool m_ownsWaveformWidgetFactory{false};
     bool m_loadSucceeded;
     QmlAutoReload m_autoReload;
+
+#ifdef __RPC_SERVER__
+    // Automation server (--serve); created on demand at the end of the
+    // constructor, destroyed before the QML engine in the destructor.
+    std::unique_ptr<RpcServe> m_pRpcServe;
+#endif
 
 #if defined(Q_OS_ANDROID)
     // The following are necessary to implement the performance manager

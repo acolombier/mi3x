@@ -16,9 +16,11 @@ from helpers import (
     MUSIC_DIRECTORY_LIST,
     QT_KEY_DOWN,
     QT_KEY_ENTER,
+    QT_KEY_ESCAPE,
     QT_KEY_SPACE,
     QT_KEY_TAB,
     QT_KEY_UP,
+    QT_KEY_LEFT,
     RIGHT_TRACKLIST_PATH,
     RIGHT_TRACKLIST_TABLE_PATH,
     SEARCH_APPLY_DELAY,
@@ -71,8 +73,6 @@ from helpers import (
     _wait_for_search_suggestion,
     _wait_for_visible,
     search_field_quote,
-)
-from helpers import (
     wait_clickable,
     wait_hidden,
     wait_visible,
@@ -91,19 +91,13 @@ import time
 # --- relocated from settings_steps.py (browse-exclusive) ---
 
 MUSIC_DIRECTORY_ROW = "mainWindow/sourceRow_%d"
-
 SOURCE_REMOVE_BUTTON = "mainWindow/sourceRemoveButton_%d"
-
 SOURCE_REMOVE_MODE_SELECTOR = "mainWindow/sourceRemoveModeSelector_%d"
-
 SOURCE_REMOVE_MODE_OPTIONS = ["keep", "hide", "purge"]
-
 SOURCE_RELINK_BUTTON = "mainWindow/sourceRelinkButton_%d"
-
 ADD_SOURCE_BUTTON = "mainWindow/addSourceButton"
-
+LIBRARY_SCAN_OVERLAY = "mainWindow/libraryScanOverlay"
 ADD_FOLDER_DIALOG_TEST = "mainWindow/addFolderDialogTest"
-
 MUSIC_DIRECTORY_DEFAULT_TRACK_COUNT = 1
 
 def _wait_for_music_directory_count(context, expected, timeout=10):
@@ -274,23 +268,31 @@ def step_click_track_below_fold(context):
 def step_select_track_menu(context, path):
 
     steps = list(map(lambda raw: raw.strip()[1:-1], path.split('>')))
+    time.sleep(1)
 
     def activate(steps, depth=0):
         menu_path = TRACK_CONTEXT_MENU_PATH if not depth else f"{TRACK_CONTEXT_MENU_PATH}_Sub{depth}"
         assert wait_visible(context.rpc, menu_path, timeout=5), f"Context {'menu' if not depth else 'submenu'} is not visible"
         step = steps.pop(0)
         menu = json.loads(context.rpc.invokeMethod(menu_path, "serialisedDump", []))
-        target_index, item = [(i, item) for i, item in enumerate(menu["items"]) if item.get("text") == step][0]
+        entry = [(i, item) for i, item in enumerate(menu["items"]) if item.get("text") == step]
+        if not entry:
+            print("Content menu content was:", menu)
+        assert entry, f"Unable to find the item {repr(step)} in context menu"
+        target_index, item = entry[0]
         path = menu_path + "/" + item["objectName"]
 
         context.rpc.invokeMethod(menu_path, "forceActiveFocus", [])
         current_index = menu["currentIndex"]
         while current_index != target_index and current_index < menu["count"] - 1:
+            if context.rpc.existsAndVisible(f"{TRACK_CONTEXT_MENU_PATH}_Sub{depth+1}"):
+                context.rpc.enterKey(f"{TRACK_CONTEXT_MENU_PATH}_Sub{depth+1}", QT_KEY_LEFT, 0)
+                time.sleep(0.5)
             # Later, we could extend the DSL to request a click on the item. This may be useful to assert granularly the context menu behaviour
             # _click(context, path)
             # time.sleep(0.3)
             # new_index = int(_get_property(context, menu_path, "currentIndex"))
-            context.rpc.enterKey(menu_path, QT_KEY_DOWN, 0)
+            context.rpc.enterKey(menu_path, QT_KEY_DOWN if current_index < target_index else QT_KEY_UP, 0)
             time.sleep(0.5)
             new_index = int(_get_property(context, menu_path, "currentIndex"))
             # Some platform may struggle with dispatching the emulated keyboard input, so we use the direct setter as fallback
@@ -314,7 +316,7 @@ def step_select_track_menu(context, path):
 def step_select_track_menu(context):
     deadline = time.time() + 5
     while time.time() < deadline and _is_visible(context, TRACK_CONTEXT_MENU_PATH):
-        _click(context, "mainWindow")
+        context.rpc.mouseClickWithProportion("mainWindow", 0.99, 0.99)
         time.sleep(0.2)
     assert not _is_visible(context, TRACK_CONTEXT_MENU_PATH), "Context menu is still visible"
 
@@ -811,7 +813,7 @@ def step_press_key_in_search(context, key):
     else:
         code, modifiers = binding, 0
     context.rpc.enterKey("mainWindow", code, modifiers)
-    time.sleep(0.3)
+    time.sleep(1)
 
 @when('I click the recent library search "{search}"')
 def step_click_recent_search(context, search):
@@ -1038,6 +1040,11 @@ def step_select_music_directory(context, row):
     assert wait_clickable(context.rpc, path), f"Music directory row {row} is not visible"
     _click(context, path)
     time.sleep(0.3)
+
+@when("the scanning overlay is hidden")
+def step_scanning_overlay_hidden(context):
+    # Rescanning library may be slow
+    assert wait_hidden(context.rpc, LIBRARY_SCAN_OVERLAY, timeout=10), "Library scanning overlay is still visible"
 
 @when("I click the remove button for the music directory at row {row:d}")
 def step_click_remove_music_directory(context, row):

@@ -560,7 +560,8 @@ QString Sandbox::migrateOldSettings() {
 #endif
 
 // static
-bool Sandbox::ensureSettingsPathAccessible(QString* pSettingsPath) {
+bool Sandbox::ensureSettingsPathAccessible(
+        QString* pSettingsPath, bool allowUserRecovery) {
     QDir settingsDir(*pSettingsPath);
 
     if (!settingsDir.exists()) {
@@ -579,6 +580,13 @@ bool Sandbox::ensureSettingsPathAccessible(QString* pSettingsPath) {
     qInfo() << "Sandbox::ensureSettingsPathAccessible:"
             << "Settings path is not accessible:"
             << settingsDir.absolutePath();
+
+    if (!allowUserRecovery) {
+        qWarning() << "Sandbox::ensureSettingsPathAccessible:"
+                   << "Cannot prompt for an accessible settings folder in "
+                      "non-interactive mode";
+        return false;
+    }
 
     QString title = QObject::tr("Mixxx needs access to the settings folder");
     QString result = QFileDialog::getExistingDirectory(

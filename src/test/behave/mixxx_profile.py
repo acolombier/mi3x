@@ -42,6 +42,30 @@ def mixxx_cfg_path():
     return os.path.join(profile_dir(), SETTINGS_FILE)
 
 
+# Bundle ID of the installed Mixxx.app, used to locate the App Sandbox
+# container when testing the packaged macOS bundle.
+MACOS_SANDBOX_BUNDLE_ID = "org.mixxx.mixxx"
+
+
+def macos_sandbox_container(binary):
+    """Return the App Sandbox container of a macOS .app bundle binary.
+
+    The installed Mixxx.app is signed with the App Sandbox entitlement
+    (packaging/macos/Mixxx.entitlements), so the spawned process can only
+    write inside its own container — not in the harness's temp directory,
+    where profiles and the track cache would otherwise be created. Returns
+    None when the binary is not the main executable of an .app bundle
+    (build-tree binaries are not sandboxed) or not running on macOS.
+    """
+    if sys.platform != "darwin" or not binary:
+        return None
+    parts = os.path.abspath(binary).split(os.sep)
+    if not any(part.endswith(".app") for part in parts[:-1]):
+        return None
+    container_home = f"~/Library/Containers/{MACOS_SANDBOX_BUNDLE_ID}/Data"
+    return os.path.expanduser(container_home)
+
+
 def load_track_manifest():
     with open(TRACK_MANIFEST) as f:
         return json.load(f)
@@ -290,8 +314,14 @@ class MixxxProcess:
     # TODO: make that a CLI arg?
     ATTACH_MODE = False
 
-    def __init__(self, binary, profile_dir, display=None, output_dir=None):
+    def __init__(
+        self, binary, profile_dir, display=None, output_dir=None,
+        flatpak_package=None,
+    ):
         self.binary = binary
+        self.flatpak_package = flatpak_package
+        if not binary and not flatpak_package:
+            raise ValueError("either binary or flatpak_package is required")
         self.profile_dir = profile_dir
         self.display = display
         self.output_dir = output_dir
@@ -366,9 +396,26 @@ class MixxxProcess:
         if self.display:
             env["DISPLAY"] = self.display
 
-        args = [
-            self.binary,
+        if self.flatpak_package:
+            args = [
+                "flatpak",
+                "--user",
+                "run",
+                "--filesystem=/tmp",
+            ]
+            qpa_platform = env.get("QT_QPA_PLATFORM")
+            if qpa_platform:
+                args.append(f"--env=QT_QPA_PLATFORM={qpa_platform}")
+            args.append(self.flatpak_package)
+            launched_as = f"flatpak:{self.flatpak_package}"
+        else:
+            args = [self.binary]
+            launched_as = self.binary
+        args += [
             "--serve",
+            # The automation server is hosted by the QML application, so the
+            # QML UI must be loaded explicitly.
+            "--new-ui",
             "--settings-path",
             self.profile_dir,
             "--developer",
@@ -388,7 +435,7 @@ class MixxxProcess:
         self._output_file = output_file
         self._write_output_banner(
             f"===== spawn {time.strftime('%Y-%m-%d %H:%M:%S')} "
-            f"pid={self.process.pid} binary={self.binary} "
+            f"pid={self.process.pid} binary={launched_as} "
             f"profile={self.profile_dir} =====\n"
         )
 
@@ -444,6 +491,55 @@ class MixxxProcess:
             f"after {timeout}s (unresponsive process pid {pid} killed)"
         )
 
+    def _flatpak_app_running(self):
+        """"True when 'flatpak ps' still lists the sandboxed application."""
+        try:
+            result = subprocess.run(
+                ["flatpak", "ps"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=10,
+            )
+        except (
+            OSError, subprocess.SubprocessError
+        ) as e:
+            print(f"Warning: 'flatpak ps' failed: {e}")
+            return False
+        return any(
+            self.flatpak_package in line
+            for line in result.stdout.splitlines()
+        )
+
+    def _stop_flatpak_app(self):
+        """Kill the sandboxed app left behind by 'flatpak run'.
+
+        The CLI child has already been SIGTERMed/SIGKILLed by stop(); the
+        sandboxed application itself keeps running into the next scenario's
+        spawn unless 'flatpak kill' reaps it. kill/ps need no installation
+        scoping: both enumerate running instances via $XDG_RUNTIME_DIR/.flatpak,
+        independent of the installation. Bounded wait in line with the
+        long-standing stop()/reap behavior in this class.
+        """
+        try:
+            subprocess.run(
+                ["flatpak", "kill", self.flatpak_package],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except (OSError, subprocess.SubprocessError) as e:
+            print(f"Warning: 'flatpak kill' failed: {e}")
+        deadline = time.time() + 15
+        while time.time() < deadline:
+            if not self._flatpak_app_running():
+                return
+            time.sleep(0.5)
+        print(
+            f"Warning: '{self.flatpak_package}' still listed by"
+            " 'flatpak ps' after stop"
+        )
+
     def stop(self):
         """Reap the subprocess; returns True when a process was stopped.
 
@@ -452,6 +548,12 @@ class MixxxProcess:
         recognizable) and prints a one-line stop notice so kill/restart
         cycles are visible in the behave transcript, not only in the log
         file.
+
+        For flatpak-mode processes, terminating the 'flatpak run' CLI
+        process does not kill the sandboxed application, so an escalation
+        to 'flatpak kill' plus a bounded wait on 'flatpak ps' guarantees
+        that a fresh-profile scenario does not inherit an orphan instance
+        still holding port 9000 and the profile directory.
         """
         if self.ATTACH_MODE:
             return True
@@ -464,6 +566,8 @@ class MixxxProcess:
         except subprocess.TimeoutExpired:
             self.process.kill()
             self.process.wait()
+        if self.flatpak_package:
+            self._stop_flatpak_app()
         pid = self.process.pid
         code = self._format_exit_code(self.process.returncode)
         self.process = None
@@ -511,9 +615,20 @@ def setup_profile(base_dir, profile_type):
     return base_dir
 
 
-def make_temp_profile(profile_type="empty"):
-    """Create a temporary profile directory and return its path."""
-    base = tempfile.mkdtemp(prefix="mixxx-test-profile-")
+def make_temp_profile(profile_type="empty", container=None):
+    """Create a temporary profile directory and return its path.
+
+    When ``container`` is set (sandboxed macOS .app bundles, see
+    ``macos_sandbox_container``), the profile is created inside the App
+    Sandbox container instead of the harness temp directory: the sandboxed
+    Mixxx process cannot write outside of it.
+    """
+    if container:
+        container_tmp = os.path.join(container, "tmp")
+        os.makedirs(container_tmp, exist_ok=True)
+        base = tempfile.mkdtemp(prefix="mixxx-test-profile-", dir=container_tmp)
+    else:
+        base = tempfile.mkdtemp(prefix="mixxx-test-profile-")
     return setup_profile(base, profile_type)
 
 

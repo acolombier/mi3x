@@ -7,18 +7,19 @@ Feature: Broadcast Settings (connection profiles as tiles)
   place, while other tiles dim — the same interaction as selecting a
   controller on the Controllers page.
 
-  Background:
-    Given a new empty profile
-    And Mixxx is open and ready to operate
+  Rule: Broadcast connection profiles (popup open)
+
+    Background:
+      Given a new empty profile
+      And Mixxx is open and ready to operate
+      And the settings popup is open
 
   Scenario: Broadcast category is reachable in the settings sidebar
-    Given the settings popup is open
     When I select the "Broadcast" category
     Then the "Broadcast" category should be selected
 
   Scenario: Default layout shows one profile tile and the add tile
     # TODO(DSL): needs tile visibility steps
-    Given the settings popup is open
     When I select the "Broadcast" category
     # Then the "broadcastAddProfile" tile should be visible
     # And the "broadcastProfileName_Broadcast profile 1" tile should be visible
@@ -26,7 +27,6 @@ Feature: Broadcast Settings (connection profiles as tiles)
 
   Scenario: Add profile creates and focuses a new profile tile
     # TODO(DSL): needs a click step resolving objectNames inside the popup
-    Given the settings popup is open
     When I select the "Broadcast" category
     # And I click the "broadcastAddProfile" tile
     # Then the "broadcastProfileSettings_Broadcast profile 2" settings should be visible
@@ -34,7 +34,6 @@ Feature: Broadcast Settings (connection profiles as tiles)
 
   Scenario: Focusing a profile unfolds its settings and dims the others
     # TODO(DSL): needs click + visibility steps
-    Given the settings popup is open
     When I select the "Broadcast" category
     # And I click the "broadcastProfileGear_Broadcast profile 1" button
     # Then the "broadcastServerType" combo should be visible
@@ -44,7 +43,6 @@ Feature: Broadcast Settings (connection profiles as tiles)
 
   Scenario: Saving returns the page to the overview state
     # TODO(DSL): needs click + visibility steps
-    Given the settings popup is open
     When I select the "Broadcast" category
     # And I click the "broadcastProfileGear_Broadcast profile 1" button
     # And I click the "broadcastSaveButton" button
