@@ -11,47 +11,48 @@ Item {
         SnapOnRelease
     }
 
-    property bool bar: false
+    readonly property real availableHeight: Math.max(0, height - topPadding - bottomPadding)
+    readonly property real availableWidth: Math.max(0, width - leftPadding - rightPadding)
     property alias background: backgroundItem.data
-    property real barMargin: 0
+    property bool bar: false
     property alias barColor: barPath.strokeColor
-    property alias barWidth: barPath.strokeWidth
+    property real barMargin: 0
     property real barStart: 0
+    property alias barWidth: barPath.strokeWidth
     property real bottomPadding: 0
+    readonly property real displayValue: dragArea.active ? dragArea.dragValue : dragHandler.active ? dragHandler.value : value
     property real from: 0
     property alias handle: handleItem.data
+    readonly property bool horizontal: orientation === Qt.Horizontal
     property real leftPadding: 0
     property bool live: true
     property int orientation: Qt.Vertical
+    readonly property real position: valueToPosition(displayValue)
+    readonly property bool pressed: dragHandler.active || dragArea.active
     property real rightPadding: 0
     property int snapMode: Slider.NoSnap
     property real stepSize: 0
     property real to: 1
     property real topPadding: 0
     property real value: from
+    readonly property bool vertical: orientation === Qt.Vertical
+    readonly property real visualPosition: vertical ? 1 - position : position
     property bool wheelEnabled: true
     property real wheelStepSize: (root.to - root.from) / 100
 
-    readonly property real availableHeight: Math.max(0, height - topPadding - bottomPadding)
-    readonly property real availableWidth: Math.max(0, width - leftPadding - rightPadding)
-    readonly property bool horizontal: orientation === Qt.Horizontal
-    readonly property real position: valueToPosition(displayValue)
-    readonly property bool pressed: dragHandler.active
-    readonly property bool vertical: orientation === Qt.Vertical
-    readonly property real visualPosition: vertical ? 1 - position : position
-
-    readonly property real displayValue: dragHandler.active ? dragHandler.value : value
-
     signal moved(real value)
 
-    activeFocusOnTab: true
-    implicitHeight: Math.max(backgroundItem.implicitHeight, handleItem.implicitHeight)
-    implicitWidth: Math.max(backgroundItem.implicitWidth, handleItem.implicitWidth)
-
+    function applyInteractiveValue(targetValue, isFinal) {
+        value = clamp(snapValue(targetValue, isFinal));
+        dragHandler.value = value;
+        dragArea.dragValue = value;
+        if (root.live || isFinal) {
+            root.moved(value);
+        }
+    }
     function clamp(targetValue) {
         return Math.max(Math.min(root.from, root.to), Math.min(Math.max(root.from, root.to), targetValue));
     }
-
     function snapValue(targetValue, isFinal) {
         if (root.stepSize <= 0 || root.snapMode === Slider.NoSnap || (!isFinal && root.snapMode !== Slider.SnapAlways)) {
             return targetValue;
@@ -60,17 +61,14 @@ Item {
         const stepSize = Math.abs(root.stepSize);
         return root.from + Math.round((targetValue - root.from) / stepSize) * stepSize;
     }
-
     function stepValue(direction) {
         const rangeDirection = root.to >= root.from ? 1 : -1;
         return root.clamp(root.value + direction * rangeDirection * Math.abs(root.stepSize || root.wheelStepSize));
     }
-
     function valueAt(targetPosition) {
         targetPosition = Math.max(0, Math.min(1, targetPosition));
         return snapValue(root.from + targetPosition * (root.to - root.from), false);
     }
-
     function valueToPosition(targetValue) {
         if (root.from === root.to) {
             return 0;
@@ -78,11 +76,17 @@ Item {
         return Math.max(0, Math.min(1, (targetValue - root.from) / (root.to - root.from)));
     }
 
-    function applyInteractiveValue(targetValue, isFinal) {
-        dragHandler.value = clamp(snapValue(targetValue, isFinal));
-        if (root.live || isFinal) {
-            root.moved(dragHandler.value);
-        }
+    activeFocusOnTab: true
+    implicitHeight: Math.max(backgroundItem.implicitHeight, handleItem.implicitHeight)
+    implicitWidth: Math.max(backgroundItem.implicitWidth, handleItem.implicitWidth)
+
+    Binding on value {
+        value: dragHandler.value
+        when: dragHandler.active && root.live
+    }
+    Binding on value {
+        value: dragArea.dragValue
+        when: dragArea.active && root.live
     }
 
     Keys.onPressed: event => {
@@ -107,14 +111,12 @@ Item {
         anchors.fill: parent
         z: 0
     }
-
     Item {
         id: handleItem
 
         anchors.fill: parent
         z: 2
     }
-
     Shape {
         id: barShape
 
@@ -127,11 +129,11 @@ Item {
         ShapePath {
             id: barPath
 
-            strokeColor: "transparent"
-            strokeWidth: 2
             fillColor: "transparent"
             startX: barShape.width * (root.horizontal ? (1 - root.barStart) : 0.5)
             startY: barShape.height * (root.vertical ? (1 - root.barStart) : 0.5)
+            strokeColor: "transparent"
+            strokeWidth: 2
 
             PathLine {
                 x: root.horizontal ? (barShape.width * root.position) : barPath.startX
@@ -140,6 +142,8 @@ Item {
         }
     }
 
+    // Mouse-only gesture path; finger touches are routed through the
+    // window-wide TouchHub reached via the TouchClient below.
     DragHandler {
         id: dragHandler
 
@@ -148,11 +152,12 @@ Item {
         property real value: root.value
 
         acceptedButtons: Qt.LeftButton
-        enabled: root.enabled && !Mixxx.Core.hasPopup
-        target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         dragThreshold: 0
+        enabled: root.enabled && !Mixxx.Core.hasPopup
         maximumPointCount: 1
         minimumPointCount: 1
+        target: null
 
         onActiveChanged: {
             if (active) {
@@ -175,11 +180,46 @@ Item {
             root.applyInteractiveValue(value + (diff / length) * (root.to - root.from), false);
         }
     }
-    Binding on value {
-        value: dragHandler.value
-        when: dragHandler.active && root.live
-    }
+    TouchClient {
+        id: dragArea
 
+        property real dragValue
+        property bool dragged: false
+
+        anchors.fill: parent
+        gestureEnabled: root.enabled && !Mixxx.Core.hasPopup
+        sourceItem: root
+
+        onGestureCancelled: {
+            if (dragged && (!root.live || root.snapMode === Slider.SnapOnRelease)) {
+                root.applyInteractiveValue(dragValue, true);
+            }
+            dragged = false;
+        }
+        onMovedAt: (dx, dy, x, y) => {
+            const diff = root.horizontal ? dx : -dy;
+            if (diff === 0) {
+                return;
+            }
+            dragged = true;
+            const length = Math.max(1, root.horizontal ? root.availableWidth : root.availableHeight);
+            dragValue = root.clamp(root.snapValue(dragValue + (diff / length) * (root.to - root.from), false));
+            if (root.live) {
+                root.moved(dragValue);
+            }
+        }
+        onPressedAt: (x, y) => {
+            root.forceActiveFocus();
+            dragValue = root.value;
+            dragged = false;
+        }
+        onReleasedAt: (x, y) => {
+            if (dragged && (!root.live || root.snapMode === Slider.SnapOnRelease)) {
+                root.applyInteractiveValue(dragValue, true);
+            }
+            dragged = false;
+        }
+    }
     MouseArea {
         acceptedButtons: Qt.NoButton
         anchors.fill: parent

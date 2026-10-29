@@ -114,6 +114,7 @@ Category {
     }
 
     label: qsTr("Analyzer")
+    objectName: "analyzerPage"
 
     Component.onCompleted: {
         root.load();

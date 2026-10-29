@@ -4403,10 +4403,11 @@ if(QML)
       res/qml/Mixxx/Controls/Knob.qml
       res/qml/Mixxx/Controls/Fader.qml
       res/qml/Mixxx/Controls/Spinny.qml
-      res/qml/Mixxx/Controls/KeyColorIndicator.qml
+      res/qml/Mixxx/Controls/TouchClient.qml
+      res/qml/Mixxx/Controls/TouchHub.qml
+      res/qml/Mixxx/Controls/ValueHud.qml
       res/qml/Mixxx/Controls/WaveformOverviewHotcueMarker.qml
       res/qml/Mixxx/Controls/WaveformOverviewMarker.qml
-      res/qml/Mixxx/Controls/WaveformOverviewMarkerLayer.qml
       res/qml/Mixxx/Controls/WaveformOverview.qml
       res/qml/Mixxx/Controls/WaveformDisplay.qml
   )

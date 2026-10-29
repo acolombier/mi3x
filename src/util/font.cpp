@@ -55,7 +55,7 @@ bool addFont(const QString& path) {
 void FontUtils::initializeFonts(const QString& resourcePath) {
     QDir fontsDir(resourcePath);
     if (!fontsDir.cd("fonts")) {
-#ifdef __LINUX__
+#if defined(__LINUX__) && !defined(__ANDROID__)
         // If the fonts already have been installed via the package
         // manager, this is okay. We currently have no way to verify that
         // though.

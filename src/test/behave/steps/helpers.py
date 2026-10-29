@@ -616,8 +616,8 @@ def _column_index(context, column):
     except (ValueError, json.JSONDecodeError):
         return -1
 
-def _track_row_path(row):
-    return f"{TRACK_ROW_PATH}/trackRow_{row}"
+def _track_row_path(row, panel="left"):
+    return (RIGHT_TRACKLIST_TABLE_PATH if panel == "right" else TRACK_TABLE_PATH) + f"/trackRow_{row}"
 
 def _sidebar_feature_row_path(context, feature):
     assert _is_visible(context, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
@@ -1015,8 +1015,6 @@ TRACK_ACTIONS = {
     "right-click": _right_click,
     "long-press": _long_press,
 }
-
-TRACK_ROW_PATH = f"{TRACK_TABLE_PATH}"
 
 _ROW_HEIGHT = 30
 

@@ -15,36 +15,37 @@ Skin.Button {
     required property string group
     property alias mode: modeControl.value
 
-    function toggleSync() {
-        enabledControl.value = !enabledControl.value;
-    }
-
-    function toggleLeader() {
-        leaderControl.value = !leaderControl.value;
-    }
-
     activeColor: {
         switch (mode) {
-            case SyncButton.SyncMode.ImplicitLeader:
-                return Theme.yellow;
-            case SyncButton.SyncMode.ExplicitLeader:
-                return Theme.red;
-            default:
-                return Theme.deckActiveColor;
-        }
-    }
-    text: {
-        switch (mode) {
-            case SyncButton.SyncMode.ImplicitLeader:
-                case SyncButton.SyncMode.ExplicitLeader:
-                    return "Leader";
-            default:
-                return "Sync";
+        case SyncButton.SyncMode.ImplicitLeader:
+            return Theme.yellow;
+        case SyncButton.SyncMode.ExplicitLeader:
+            return Theme.red;
+        default:
+            return Theme.deckActiveColor;
         }
     }
     highlight: enabledControl.value
-    onClicked: toggleSync()
-    onPressAndHold: toggleLeader()
+    text: {
+        switch (mode) {
+        case SyncButton.SyncMode.ImplicitLeader:
+        case SyncButton.SyncMode.ExplicitLeader:
+            return "Leader";
+        default:
+            return "Sync";
+        }
+    }
+
+    onClicked: {
+        enabledControl.value = !enabledControl.value;
+    }
+    onPressAndHold: {
+        if (play.value) {
+            leaderControl.value = !leaderControl.value;
+        } else {
+            syncTempo.trigger();
+        }
+    }
 
     Mixxx.ControlProxy {
         id: enabledControl
@@ -52,18 +53,28 @@ Skin.Button {
         group: root.group
         key: "sync_enabled"
     }
-
     Mixxx.ControlProxy {
         id: modeControl
 
         group: root.group
         key: "sync_mode"
     }
-
     Mixxx.ControlProxy {
         id: leaderControl
 
         group: root.group
         key: "sync_leader"
+    }
+    Mixxx.ControlProxy {
+        id: play
+
+        group: root.group
+        key: "play"
+    }
+    Mixxx.ControlProxy {
+        id: syncTempo
+
+        group: root.group
+        key: "beatsync_tempo"
     }
 }
