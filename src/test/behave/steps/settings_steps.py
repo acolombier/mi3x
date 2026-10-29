@@ -1,6 +1,7 @@
 import time
 from helpers import (
     COMMITTING_OVERLAY,
+    QT_LEFT_BUTTON,
     QT_CONTROL_MODIFIER,
     QT_KEY_A,
     QT_KEY_DOWN,
@@ -408,8 +409,8 @@ def step_set_setting(context, setting, value, method=None):
             if clicks == 0: break
             button = f"{path}/upButton" if clicks > 0 else f"{path}/downButton"
             assert wait_visible(context.rpc, button), f"Setting '{setting}' button not visible"
-            _click(context, button)
-            time.sleep(1)
+            context.rpc.mouseClickAndHold(button, QT_LEFT_BUTTON, 0, 10)
+            context.rpc.wait(50)
     elif kind == "slider":
         method = method or "a drag"
         if method == "a drag":
