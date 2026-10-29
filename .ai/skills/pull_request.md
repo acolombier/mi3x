@@ -164,12 +164,21 @@ if that filter ever drifts.
    a. **Answer detail requests** (always, even when the skip below
       applies): check contributors' replies on your unresolved threads that
       ask for detail; answer briefly in that thread, per the Tone section.
-      This is your only permitted thread interaction besides resolving.
+      This is your only permitted thread interaction besides resolving and
+      the 3d still-live replies.
 
    b. **Re-verify the backlog against the current head** by actually
       reading the code: are your previously flagged findings still live?
       Any new findings in the new commits? Is the previous summary's stance
       still completely true?
+      Map each re-verified live finding to one existing **unresolved** thread
+      of yours: same file, overlapping line/line-range at the current head,
+      same core claim. Multiple open threads for one claim (duplicates from
+      older runs) → the **newest** matching thread is the canonical one; the
+      older duplicates get resolved as superseded in step 3d. A matching
+      thread that is resolved while the claim still verifiably fails at the
+      current head counts as a new finding instead (fresh inline comment in
+      the next batch).
 
    c. **Nothing changed** — every previously flagged finding re-verified
       still present, no new findings, and the stance is still fully true →
@@ -185,7 +194,8 @@ if that filter ever drifts.
         `repository.pullRequest.reviewThreads { nodes { id isResolved
         comments(first: 50) { nodes { id body author { login } } } } }` —
         or by reading); anything now fixed, obsolete, or invalidated →
-        resolve (mutation in the cheat sheet below). Keep the resolved
+        resolve (mutation in the cheat sheet below), as is every older
+        duplicate of a canonical thread identified in 3b. Keep the resolved
         marker + history; do NOT delete or rewrite old comments. Addressed
         points are closed forever afterwards: no endorsement comments, no
         "you could instead ..." alternatives, and never re-batched or
@@ -199,15 +209,27 @@ if that filter ever drifts.
 
       - **Submit one new review batch** at the current head: fresh summary
         body per the Review summary section (stance re-evaluated;
-        bare-confidence verdict when the backlog is now empty) plus inline
-        comments for **every currently-live finding** — previously flagged
-        ones restated fresh at the new head's lines (never copied text) and
-        any new findings, strongest first.
+        bare-confidence verdict when the backlog is now empty), plus inline
+        comments **only for findings that have no existing open thread** —
+        new findings, strongest first, per the Tone cap. Still-live
+        previously flagged findings are **never** batch comments: post one
+        reply on their canonical existing thread instead (API in the cheat
+        sheet below), e.g. *"Still an issue at `<short sha>`."* plus a
+        one-line re-verification note only when the surrounding code
+        changed; never copy the old body.
 
-   Invariants: at most **one review submission per run**; findings live
-   only inside a review batch — never as standalone comments; the visible
-   review must match the current head's true state — untouched when nothing
-   changed, fully refreshed when something changed.
+    **Relocation exception**: a live claim whose original anchor line no
+    longer exists but whose defect moved to new lines is the only path that
+    creates a second thread for a claim — resolve the old thread as obsolete
+    and include the claim as a fresh inline comment; the fresh comment then
+    becomes the canonical thread.
+
+   Invariants: at most **one review submission per run**; **one open
+    thread per claim** — review batches carry only findings without an
+    open thread, still-live findings surface as thread replies, never as
+    duplicate annotations; the visible review must match the current head's
+    true state — untouched when nothing changed, fully refreshed when
+    something changed.
 4. **Draft/empty changes**: if the PR has no reviewable content (whitespace or
    CI config only), post a one-sentence summary with the footer, nothing more.
 
@@ -232,6 +254,16 @@ value; `$SUBJECT_ID` is the retired review's node id — the `id` field from
 gh api graphql \
   -f query='mutation($id: ID!){ minimizeComment(input:{ subjectId: $id, classifier: OUTDATED }){ minimizedComment { isMinimized minimizedReason } } }' \
   -f id="$SUBJECT_ID"
+```
+
+**Reply on an existing thread** for a still-live finding (`$ROOT_ID` is the
+root comment's database id of the canonical thread; do **not** pass
+`path`, `line`, or `commit_id` — the reply anchors to the thread; on
+drifted lines it simply displays as *Outdated*):
+
+```bash
+gh api -X POST repos/$GITHUB_REPOSITORY/pulls/<n>/comments \
+  -F in_reply_to="$ROOT_ID" -f body="Still an issue at <short sha>."
 ```
 
 **Payload hygiene**: bodies containing quotes, newlines, or `'` go through a
