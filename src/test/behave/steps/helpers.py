@@ -415,18 +415,12 @@ SETTING_CATEGORY_SLUG = {
 }
 
 SETTINGS_POPUP_ITEM = "mainWindow/settingsPopupItem"
-
-COMMITTING_OVERLAY = "mainWindow/committingOverlay"
-
-ENGINE_SECTION = "mainWindow/engineSection"
-
-DELAYS_SECTION = "mainWindow/delaysSection"
-
-ROUTER_SECTION = "mainWindow/routerSection"
-
-INPUT_COLUMN = "mainWindow/inputColumn"
-
-OUTPUT_COLUMN = "mainWindow/outputColumn"
+COMMITTING_OVERLAY = "mainWindow/soundHardware/committingOverlay"
+ENGINE_SECTION = "mainWindow/soundHardware/engineSection"
+DELAYS_SECTION = "mainWindow/soundHardware/delaysSection"
+ROUTER_SECTION = "mainWindow/soundHardware/router"
+INPUT_COLUMN = "mainWindow/soundHardware/inputColumn"
+OUTPUT_COLUMN = "mainWindow/soundHardware/outputColumn"
 
 # Waveform tab live-feedback paths. The "waveformSettingsTab" SettingGroup
 # exposes the derived values the settings' own preview renderers consume
@@ -910,12 +904,12 @@ DECK_BUTTON_PATHS = {
 #   "color"   -> DefaultColorSelector: click `path_color_<index>`, read `currentIndex`
 SETTING_MAP = {
     # Sound category (RatioChoice)
-    "Main Mix": {"path": "mainWindow/setting_MainMix", "kind": "ratio", "options": ["on", "off"]},
-    "Main Output Mode": {"path": "mainWindow/setting_MainOutputMode", "kind": "ratio", "options": ["mono", "stereo"]},
-    "Sound Clock": {"path": "mainWindow/setting_SoundClock", "kind": "ratio", "options": ["soundcard", "network"]},
-    "Keylock engine": {"path": "mainWindow/setting_KeylockEngine", "kind": "ratio"},
-    "Sound API": {"path": "mainWindow/setting_SoundAPI", "kind": "ratio"},
-    "Sample Rate": {"path": "mainWindow/setting_SampleRate", "kind": "ratio"},
+    "Main Mix": {"path": "mainWindow/soundHardware/mainMixEnabled", "kind": "ratio", "options": ["on", "off"]},
+    "Main Output Mode": {"path": "mainWindow/soundHardware/mainOutputMode", "kind": "ratio", "options": ["mono", "stereo"]},
+    "Sound Clock": {"path": "mainWindow/soundHardware/soundClock", "kind": "ratio", "options": ["soundcard", "network"]},
+    "Keylock engine": {"path": "mainWindow/soundHardware/keylock", "kind": "ratio"},
+    "Sound API": {"path": "mainWindow/soundHardware/soundApi", "kind": "ratio"},
+    "Sample Rate": {"path": "mainWindow/soundHardware/sampleRate", "kind": "ratio"},
     # Interface category — theme & color tab
     "skin": {"path": "mainWindow/setting_skin", "kind": "combo", "model": ["Unnamed"]},
     "color": {"path": "mainWindow/setting_color", "kind": "combo", "model": ["Dark", "Light"]},

@@ -337,8 +337,9 @@ def step_open_and_ready(context):
         session["registered_devices"] = desired_devices
     time.sleep(0.5)
 
-    # First launch on Windows 10 CI runner is quite slow
-    _wait_for_hidden(context, "mainWindow/splash", timeout=40)  # FIXME: First launch on Windows 10 CI runner is quite slow
+    # First launch on Windows 10 CI runner may be quite slow
+    _wait_for_visible(context, "mainWindow/deck1", timeout=40)
+    _wait_for_hidden(context, "mainWindow/splash", timeout=40)
     _set_property(context, "mainWindow", "enableDiagnosticClick", "true")
     # The system might constrain the size below or default one (e.g windows policy), so we keep track of what the system default are in order to reset between scenarios
     session["default_size"] = (_get_property(context, "mainWindow", "width"), _get_property(context, "mainWindow", "height"))

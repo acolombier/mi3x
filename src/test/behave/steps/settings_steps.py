@@ -347,6 +347,7 @@ def step_set_setting(context, setting, value, method=None):
     spec = _setting_spec(setting)
     path = spec["path"]
     _scroll_setting_into_view(context, path)
+    assert wait_visible(context.rpc, path), f"Setting '{setting}' not visible"
     kind = spec["kind"]
     if kind == "ratio":
         options = spec.get("options")
