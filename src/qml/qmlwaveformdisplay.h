@@ -102,6 +102,7 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
     double getPosition() const;
     void setZoom(double zoom) {
         WaveformWidgetRenderer::setZoom(zoom);
+        m_dirtyFlag.setFlag(DirtyFlag::Geometry, true);
         emit zoomChanged();
     }
 

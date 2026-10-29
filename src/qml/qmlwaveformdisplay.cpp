@@ -95,8 +95,8 @@ void QmlWaveformDisplay::setPosition(double value) {
     if (m_manualPosition < 0 || m_manualPosition > 1) {
         return;
     }
-    m_visualPlayPosition->set(std::clamp(value, 0.0, 1.0),
-            1.0,
+    m_visualPlayPosition->set(std::fmax(m_manualPosition, 0),
+            0,
             0,
             0.0,
             0.0,
@@ -108,6 +108,7 @@ void QmlWaveformDisplay::setPosition(double value) {
             0,
             m_pTrack->internal()->getDuration(),
             0);
+    m_dirtyFlag.setFlag(DirtyFlag::Geometry, true);
     update();
 }
 
@@ -137,9 +138,10 @@ void QmlWaveformDisplay::setStaticTrack(QmlTrackProxy* track) {
             false,
             0,
             0,
-            m_pTrack->internal()->getDuration(),
+            track->internal()->getDuration(),
             0);
     setCurrentTrack(track->internal());
+    setGroup({});
     emit trackChanged(track);
     emit groupChanged("");
     update();

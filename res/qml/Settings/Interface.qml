@@ -1531,7 +1531,10 @@ Category {
                                         anchors.fill: parent
                                         clip: true
                                         currentIndex: waveformDropdown.highlightedIndex
-                                        implicitHeight: contentHeight
+                                        implicitHeight: {
+                                            let pos = mapToItem(root.Window.contentItem, 0, 0);
+                                            return Math.min(contentHeight, root.Window.contentItem.height - pos.y);
+                                        }
                                         model: waveformDropdown.popup.visible ? waveformDropdown.delegateModel : null
 
                                         ScrollIndicator.vertical: ScrollIndicator {
@@ -1548,12 +1551,20 @@ Category {
                                 }
 
                                 Timer {
+                                    property var lastUpdate: null
+
                                     interval: 25
                                     repeat: true
                                     running: !waveformDropdown.player?.isLoaded && waveformDropdown.track !== null
 
                                     onTriggered: {
-                                        waveformDropdown.playbackProgress += interval / 1000 / waveformDropdown.track.duration;
+                                        if (!lastUpdate) {
+                                            lastUpdate = Date.now();
+                                            return;
+                                        }
+                                        let current = Date.now();
+                                        waveformDropdown.playbackProgress += (current - lastUpdate) / 1000 / waveformDropdown.track.duration;
+                                        lastUpdate = current;
                                         if (waveformDropdown.playbackProgress > 0.8) {
                                             waveformDropdown.playbackProgress = 0.2;
                                         }

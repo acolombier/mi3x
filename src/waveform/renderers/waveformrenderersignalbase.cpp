@@ -59,6 +59,16 @@ WaveformRendererSignalBase::WaveformRendererSignalBase(
 WaveformRendererSignalBase::~WaveformRendererSignalBase() = default;
 
 bool WaveformRendererSignalBase::init() {
+    if (m_waveformRenderer->getGroup().isEmpty()) {
+        m_pEQEnabled.reset();
+        m_pLowFilterControlObject.reset();
+        m_pMidFilterControlObject.reset();
+        m_pHighFilterControlObject.reset();
+        m_pLowKillControlObject.reset();
+        m_pMidKillControlObject.reset();
+        m_pHighKillControlObject.reset();
+        return onInit();
+    }
     m_pEQEnabled = std::make_unique<ControlProxy>(
             m_waveformRenderer->getGroup(), QStringLiteral("filterWaveformEnable"));
     const QString effectGroup = kEffectGroupFormat.arg(m_waveformRenderer->getGroup());
