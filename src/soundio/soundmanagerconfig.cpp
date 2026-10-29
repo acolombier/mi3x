@@ -23,6 +23,10 @@ const QString SoundManagerConfig::kAPIIosAudio = QStringLiteral("iOS Audio");
 const QString SoundManagerConfig::kAPICoreAudio = QStringLiteral("Core Audio");
 const QString SoundManagerConfig::kAPIPipewire = QStringLiteral("PipeWire");
 
+#ifdef __RPC_SERVER__
+const QString SoundManagerConfig::kAPIMock = QStringLiteral("Mock");
+#endif
+
 const QString SoundManagerConfig::kEmptyComboBox = QStringLiteral("---");
 const unsigned int SoundManagerConfig::kDefaultDeckCount = 2;
 
@@ -522,6 +526,9 @@ bool SoundManagerConfig::hasExternalRecordBroadcast() {
  */
 void SoundManagerConfig::loadDefaults(SoundManager* soundManager, unsigned int flags) {
     if (flags & SoundManagerConfig::API) {
+#ifdef __RPC_SERVER__
+        m_api = SoundManagerConfig::kAPIMock;
+#else
         QList<QString> apiList = soundManager->getHostAPIList();
         if (!apiList.isEmpty()) {
 #ifdef __LINUX__
@@ -554,6 +561,7 @@ void SoundManagerConfig::loadDefaults(SoundManager* soundManager, unsigned int f
             m_api = SoundManagerConfig::kAPICoreAudio;
 #endif
         }
+#endif
     }
 
     mixxx::audio::SampleRate defaultSampleRate = kFallbackSampleRate;

@@ -27,6 +27,12 @@
     <!-- Allow opening outgoing network connections -->
     <key>com.apple.security.network.client</key>
     <true/>
+    <!-- Allow listening for incoming network connections.
+         Required by the mixxx serve automation mode (E2E tests), which
+         hosts a local XML-RPC endpoint on port 9000.
+      -->
+    <key>com.apple.security.network.server</key>
+    <true/>
     <!-- Allow access to files selected with an Open/Save dialog -->
     <key>com.apple.security.files.user-selected.read-write</key>
     <true/>

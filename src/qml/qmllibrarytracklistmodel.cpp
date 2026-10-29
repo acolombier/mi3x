@@ -1,7 +1,5 @@
 #include "qml/qmllibrarytracklistmodel.h"
 
-#include <qnamespace.h>
-
 #include <QObject>
 #include <QQmlEngine>
 #include <QSortFilterProxyModel>
@@ -10,10 +8,11 @@
 
 #include "library/basetracktablemodel.h"
 #include "library/columncache.h"
+#include "library/library.h"
 #include "moc_qmllibrarytracklistmodel.cpp"
 #include "qml/asyncimageprovider.h"
+#include "qml/qmllibraryproxy.h"
 #include "qml/qmllibrarytracklistcolumn.h"
-#include "qml_owned_ptr.h"
 #include "qmltrackproxy.h"
 #include "track/track.h"
 #include "util/assert.h"
@@ -25,10 +24,9 @@ namespace {
 const QHash<int, QByteArray> kRoleNames = {
         {Qt::DisplayRole, "display"},
         {Qt::DecorationRole, "decoration"},
-        {QmlLibraryTrackListModel::Delegate, "delegate"},
-        {QmlLibraryTrackListModel::Track, "track"},
         {QmlLibraryTrackListModel::FileURL, "file_url"},
         {QmlLibraryTrackListModel::CoverArt, "cover_art"},
+        {QmlLibraryTrackListModel::ColumnTypeRole, "columnType"},
 };
 
 QColor colorFromRgbCode(double colorValue) {
@@ -47,6 +45,7 @@ QmlLibraryTrackListModel::QmlLibraryTrackListModel(
         QObject* pParent)
         : QIdentityProxyModel(pParent),
           m_columns() {
+    setObjectName(pModel->objectName());
     m_columns.reserve(librarySource.size());
     for (const auto* pColumn : std::as_const(librarySource)) {
         m_columns.emplace_back(make_parented<QmlLibraryTrackListColumn>(this,
@@ -55,8 +54,9 @@ QmlLibraryTrackListModel::QmlLibraryTrackListModel(
                 pColumn->columnIdx(),
                 pColumn->preferredWidth(),
                 pColumn->autoHideWidth(),
-                pColumn->delegate(),
-                pColumn->role()));
+                pColumn->role(),
+                pColumn->columnType(),
+                pColumn->display()));
     }
 
     auto* pTrackModel = dynamic_cast<TrackModel*>(pModel);
@@ -65,6 +65,19 @@ QmlLibraryTrackListModel::QmlLibraryTrackListModel(
     }
     pTrackModel->select();
     setSourceModel(pModel);
+
+    connect(pModel, &QAbstractItemModel::modelReset, this, [this]() {
+        m_trackProxyCache.clear();
+    });
+    connect(pModel, &QAbstractItemModel::rowsInserted, this, [this]() {
+        m_trackProxyCache.clear();
+    });
+    connect(pModel, &QAbstractItemModel::rowsRemoved, this, [this]() {
+        m_trackProxyCache.clear();
+    });
+    connect(pModel, &QAbstractItemModel::layoutChanged, this, [this]() {
+        m_trackProxyCache.clear();
+    });
 }
 
 QVariant QmlLibraryTrackListModel::data(const QModelIndex& proxyIndex, int role) const {
@@ -86,14 +99,6 @@ QVariant QmlLibraryTrackListModel::data(const QModelIndex& proxyIndex, int role)
     const auto& pColumn = m_columns[columnIdx];
 
     switch (role) {
-    case Track: {
-        if (pTrackModel == nullptr) {
-            return {};
-        }
-        auto pTrack = make_qml_owned<QmlTrackProxy>(pTrackModel->getTrack(
-                QIdentityProxyModel::mapToSource(proxyIndex)));
-        return QVariant::fromValue(pTrack.get());
-    }
     case Qt::DecorationRole: {
         if (pTrackTableModel == nullptr) {
             return {};
@@ -120,6 +125,15 @@ QVariant QmlLibraryTrackListModel::data(const QModelIndex& proxyIndex, int role)
         if (location.isEmpty()) {
             return {};
         }
+        Library* pLibrary = QmlLibraryProxy::get();
+        VERIFY_OR_DEBUG_ASSERT(pLibrary) {
+            return AsyncImageProvider::trackLocationToCoverArtUrl(location);
+        }
+        auto coverInfo = pLibrary->trackCollectionManager()->getCoverInfoForTrackLocation(
+                location);
+        if (!coverInfo.hasImage()) {
+            return {};
+        }
 
         return AsyncImageProvider::trackLocationToCoverArtUrl(location);
     }
@@ -129,8 +143,8 @@ QVariant QmlLibraryTrackListModel::data(const QModelIndex& proxyIndex, int role)
         }
         return pTrackModel->getTrackUrl(QIdentityProxyModel::mapToSource(proxyIndex));
     }
-    case Delegate:
-        return QVariant::fromValue(pColumn->delegate());
+    case ColumnTypeRole:
+        return QVariant::fromValue(pColumn->columnType());
         break;
     }
     if (pColumn->columnIdx() < 0) {
@@ -177,14 +191,40 @@ QUrl QmlLibraryTrackListModel::getUrl(int row) const {
     return pTrackModel->getTrackUrl(sourceModel()->index(row, 0));
 }
 
-QmlTrackProxy* QmlLibraryTrackListModel::getTrack(int row) const {
+QmlTrackProxy* QmlLibraryTrackListModel::getOrCreateTrackProxy(int row) const {
+    auto it = m_trackProxyCache.find(row);
+    if (it != m_trackProxyCache.end()) {
+        if (auto* pProxy = it->data()) {
+            return pProxy;
+        }
+        m_trackProxyCache.erase(it);
+    }
+
+    auto* const pTrackModel = dynamic_cast<TrackModel*>(sourceModel());
+    if (pTrackModel == nullptr) {
+        return {};
+    }
+
+    auto* pProxy = new QmlTrackProxy(
+            pTrackModel->getTrack(sourceModel()->index(row, 0)),
+            const_cast<QmlLibraryTrackListModel*>(this));
+    // JavaScript ownership: the proxy is garbage-collected once no JS
+    // reference keeps it alive. Parenting it to the model would keep every
+    // created proxy (and with it a strong reference to its track) alive
+    // forever, blocking the eviction and deferred save of analyzed tracks.
+    QQmlEngine::setObjectOwnership(pProxy, QQmlEngine::JavaScriptOwnership);
+    m_trackProxyCache.insert(row, QPointer<QmlTrackProxy>(pProxy));
+    return pProxy;
+}
+
+QmlTrackProxy* QmlLibraryTrackListModel::getTrackByRow(int row) const {
     auto* const pTrackModel = dynamic_cast<TrackModel*>(sourceModel());
 
     if (pTrackModel == nullptr) {
         // TODO search for column with role
         return {};
     }
-    return make_qml_owned<QmlTrackProxy>(pTrackModel->getTrack(sourceModel()->index(row, 0)));
+    return getOrCreateTrackProxy(row);
 }
 
 TrackModel::Capabilities QmlLibraryTrackListModel::getCapabilities() const {
@@ -199,9 +239,19 @@ bool QmlLibraryTrackListModel::hasCapabilities(TrackModel::Capabilities caps) co
     return (getCapabilities() & caps) == caps;
 }
 
-void QmlLibraryTrackListModel::search(const QString& searchText) {
+QString QmlLibraryTrackListModel::search() const {
     auto* const pTrackModel = dynamic_cast<TrackModel*>(sourceModel());
-    VERIFY_OR_DEBUG_ASSERT(pTrackModel) {
+
+    VERIFY_OR_DEBUG_ASSERT(pTrackModel != nullptr) {
+        return {};
+    }
+    return pTrackModel->currentSearch();
+}
+
+void QmlLibraryTrackListModel::setSearch(const QString& searchText) {
+    auto* const pTrackModel = dynamic_cast<TrackModel*>(sourceModel());
+
+    VERIFY_OR_DEBUG_ASSERT(pTrackModel != nullptr) {
         return;
     }
     pTrackModel->search(searchText);

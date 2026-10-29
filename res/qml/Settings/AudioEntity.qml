@@ -20,7 +20,9 @@ Item {
     signal gatewayReady(string address, Item node)
     signal scrolled
 
-    implicitHeight: 45 + 28 * gatewayRepeater.visibleChannels
+    implicitHeight: 52 + 26 * gatewayRepeater.visibleChannels
+    objectName: "entity_" + name.replace('/', '') // '/' is used as separator on Spix
+
     width: 105
     z: 10
 
@@ -103,10 +105,6 @@ Item {
 
                     model: node.channels.length / 2 * instances
 
-                    Component.onCompleted: {
-                        root.gatewayReady(address, node);
-                    }
-
                     Item {
                         id: channel
 
@@ -118,6 +116,11 @@ Item {
                         visible: (edgeItem.connection?.ready || index == node.connectionCount) && (!node.advanced || root.advanced)
                         width: parent.width
 
+                        Component.onCompleted: {
+                            if (channel.index === 0) {
+                                root.gatewayReady(address, node);
+                            }
+                        }
                         onVisibleChanged: {
                             if (counted != channel.visible)
                                 gatewayRepeater.visibleChannels += channel.visible ? 1 : -1;
@@ -141,7 +144,7 @@ Item {
                                 elide: Text.ElideRight
                                 font.pixelSize: 10
                                 fontSizeMode: Text.Fit
-                                text: node.instances == 1 ? label : `${label} #${index + 1}`
+                                text: index == 0 ? label : `${label} #${index + 1}`
                                 verticalAlignment: Text.AlignVCenter
                             }
                             // Item {
@@ -156,6 +159,8 @@ Item {
                                 clip: true
                                 currentIndex: node.channelAssignation[channel.index] ?? 0
                                 font.pixelSize: 12
+                                implicitWidth: 66
+                                indicator.visible: false
                                 model: {
                                     return [...Array(node.channels.length / 2)].map((e, i) => `Ch ${i * 2 + node.channels[0] + 1} - ${i * 2 + node.channels[0] + 2}`);
                                 }
@@ -182,6 +187,10 @@ Item {
                             property int instance: index / (node.channels.length / 2)
                             property string type: node.type
 
+                            // Used for testing
+                            function connectionObjectName() {
+                                return edge.connection?.objectName;
+                            }
                             function updateConnectionPosition() {
                                 if (edge.connection && edge.connection.source == edge) {
                                     edge.connection.sourcePosition = edge.mapToItem(edge.connection.router, edge.width / 2, edge.height / 2);
@@ -194,15 +203,12 @@ Item {
                             anchors.verticalCenter: inputLabel.verticalCenter
                             color: Theme.midGray
                             height: width
+                            objectName: "edge_" + node.address + index
                             radius: width / 2
                             width: 15
                             z: 100
 
                             states: [
-                                State {
-                                    name: "idle"
-                                    when: !edge.connecting && !edge.connection
-                                },
                                 State {
                                     name: "warning"
                                     when: (!edge.connection && node.required) || (edge.connection && edge.connection.state == "warning")
@@ -211,6 +217,10 @@ Item {
                                         edge.color: Theme.warningColor
                                         edge.width: 20
                                     }
+                                },
+                                State {
+                                    name: "idle"
+                                    when: !edge.connecting && !edge.connection
                                 },
                                 State {
                                     name: "hidden"
@@ -228,6 +238,10 @@ Item {
                                         edge.color: Theme.accentColor
                                         edge.width: 15
                                     }
+                                },
+                                State {
+                                    name: "existing"
+                                    when: edge.connection && edge.connection.existing
                                 },
                                 State {
                                     name: "creating"

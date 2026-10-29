@@ -74,14 +74,20 @@ int runMixxx(MixxxApplication* pApp, const CmdlineArgs& args) {
             mainQmlFilePath = pSkin->mainQmlFilePath();
         }
     }
+#ifdef __RPC_SERVER__
+    if (CmdlineArgs::Instance().getServe() && !loadQml) {
+        // The automation server is hosted by the QML application and is
+        // therefore not started without the QML UI. Explicitly requested
+        // QML skins ('--developer' + configured skin) also start it, as the
+        // former standalone serve-mode entry point did.
+        qWarning() << "'--serve' was passed but the QML UI is not being "
+                      "loaded, so the automation server will NOT start. Pass "
+                      "'--new-ui' or configure a QML skin with '--developer'.";
+    }
+#endif
     if (loadQml) {
-        // This is a workaround to support Qt 6.4.2, currently shipped on
-        // Ubuntu 24.04 See
-        // https://github.com/mixxxdj/mixxx/pull/14514#issuecomment-2770811094
-        // for further details
-        qputenv("QT_QUICK_TABLEVIEW_COMPAT_VERSION", "6.4");
         mixxx::qml::QmlApplication qmlApplication(pApp, pCoreServices, mainQmlFilePath);
-        if (!qmlApplication.isReady()) {
+        if (!qmlApplication.isReady() && !CmdlineArgs::Instance().getDeveloper()) {
             exitCode = kFatalErrorOnStartupExitCode;
         } else {
             exitCode = pApp->exec();

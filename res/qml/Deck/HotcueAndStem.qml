@@ -1,6 +1,5 @@
 import ".." as Skin
 import Mixxx 1.0 as Mixxx
-import Qt5Compat.GraphicalEffects
 import QtQuick 2.12
 import QtQuick.Layouts
 import QtQuick.Shapes
@@ -116,6 +115,7 @@ Item {
                         Layout.fillHeight: true
                         Layout.fillWidth: true
                         Layout.row: parseInt(index / 4)
+                        objectName: "hotcue_" + (index + 1)
 
                         Skin.Hotcue {
                             id: hotcue
@@ -135,45 +135,18 @@ Item {
 
                             anchors.fill: parent
                             color: hotcue.isSet ? hotcue.color : '#2B2B2B'
+                            radius: 1
 
+                            border {
+                                color: '#1C1C1C'
+                                width: 1
+                            }
                             MouseArea {
                                 id: activator
 
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 anchors.fill: parent
                             }
-                        }
-                        DropShadow {
-                            id: effect1
-
-                            anchors.fill: backgroundImage
-                            color: "#80000000"
-                            horizontalOffset: 0
-                            radius: 1.0
-                            source: backgroundImage
-                            verticalOffset: 0
-                        }
-                        InnerShadow {
-                            id: effect2
-
-                            anchors.fill: parent
-                            color: "#353535"
-                            horizontalOffset: 1
-                            radius: 12
-                            samples: 24
-                            source: effect1
-                            spread: 0.2
-                            verticalOffset: 1
-                        }
-                        InnerShadow {
-                            anchors.fill: parent
-                            color: "#353535"
-                            horizontalOffset: -1
-                            radius: 12
-                            samples: 24
-                            source: effect2
-                            spread: 0.2
-                            verticalOffset: -1
                         }
                         ColumnLayout {
                             anchors.centerIn: backgroundImage
@@ -208,257 +181,23 @@ Item {
                 fadeTarget: stemTab
             }
 
-            RowLayout {
+            GridLayout {
                 anchors.bottomMargin: 6
                 anchors.fill: parent
                 anchors.leftMargin: 9
                 anchors.rightMargin: 9
                 anchors.topMargin: 6
-                spacing: 9
+                columnSpacing: 9
+                columns: width < 250 ? 1 : root.currentTrack.stemsModel.rowCount()
 
                 Repeater {
                     model: root.currentTrack.stemsModel
 
-                    Item {
-                        id: stem
-
-                        required property color color
-                        readonly property string fxGroup: `[QuickEffectRack1_${group}]`
-                        readonly property string group: `${root.group.substr(0, root.group.length - 1)}_Stem${index + 1}]`
-                        required property int index
-                        required property string label
-
+                    Skin.Stem {
                         Layout.fillHeight: true
                         Layout.fillWidth: true
-
-                        Item {
-                            id: content
-
-                            anchors.fill: parent
-                            visible: false
-
-                            Rectangle {
-                                id: backgroundColor
-
-                                anchors.fill: parent
-                                color: stem.color
-                                opacity: 0.75
-                                radius: 1
-                            }
-                        }
-                        InnerShadow {
-                            anchors.fill: parent
-                            color: "#4b000000"
-                            horizontalOffset: 0
-                            radius: 4.0
-                            samples: 24
-                            smooth: true
-                            source: content
-                            spread: 0
-                            verticalOffset: 4
-                        }
-                        Item {
-                            id: stemButton
-
-                            height: parent.height / 3 * 2
-                            width: parent.width / 3 * 2
-
-                            anchors {
-                                bottom: stemFxSelector.top
-                                left: parent.left
-                                top: parent.top
-                            }
-                            Item {
-                                id: contentStemButton
-
-                                anchors.fill: parent
-                                visible: false
-
-                                Rectangle {
-                                    anchors.fill: parent
-                                    color: stem.color
-                                    opacity: stemMute.value ? 0.6 : 1.0
-                                }
-                            }
-                            DropShadow {
-                                id: effect1
-
-                                anchors.fill: parent
-                                color: "#80000000"
-                                horizontalOffset: 0
-                                radius: 2.0
-                                source: contentStemButton
-                                spread: 0.5
-                                verticalOffset: 0
-                            }
-                            InnerShadow {
-                                id: effect2
-
-                                anchors.fill: parent
-                                color: "#353535"
-                                horizontalOffset: 2
-                                radius: 4.0
-                                samples: 24
-                                smooth: true
-                                source: effect1
-                                spread: 0.4
-                                verticalOffset: 2
-                            }
-                            InnerShadow {
-                                anchors.fill: parent
-                                color: "#353535"
-                                horizontalOffset: -2
-                                radius: 4.0
-                                samples: 24
-                                smooth: true
-                                source: effect2
-                                spread: 0.4
-                                verticalOffset: -2
-                            }
-                            Item {
-                                anchors.fill: parent
-                                anchors.margins: 6
-                                clip: true
-
-                                Label {
-                                    id: stemLabel
-
-                                    readonly property bool rotated: fontMetrics.advanceWidth > parent.width && parent.height >= parent.width
-
-                                    anchors.centerIn: parent
-                                    color: Theme.white
-                                    elide: Text.ElideRight
-                                    font.weight: Font.Bold
-                                    height: font.pixelSize
-                                    horizontalAlignment: rotated ? Text.AlignLeft : Text.AlignHCenter
-                                    text: stem.label
-                                    width: rotated ? parent.height : parent.width
-
-                                    transform: Rotation {
-                                        angle: stemLabel.rotated ? 90 : 0
-                                        origin.x: stemLabel.width / 2
-                                        origin.y: stemLabel.height / 2
-                                    }
-
-                                    TextMetrics {
-                                        id: fontMetrics
-
-                                        font: stemLabel.font
-                                        text: stem.label
-                                    }
-                                }
-                            }
-                            Mixxx.ControlProxy {
-                                id: stemMute
-
-                                group: stem.group
-                                key: "mute"
-                            }
-                            TapHandler {
-                                onTapped: stemMute.value = !stemMute.value
-                            }
-                        }
-                        Skin.ComboBox {
-                            id: stemFxSelector
-
-                            clip: true
-                            currentIndex: fxSelect.value == -1 ? 0 : fxSelect.value
-                            font.pixelSize: 10
-                            height: Math.min(parent.width, parent.height) / 3
-                            indicator.width: 0
-                            model: Mixxx.EffectsManager.quickChainPresetModel
-                            popupMaxItem: 8
-                            popupWidth: 100
-                            spacing: 2
-                            textRole: "display"
-                            width: parent.width / 3 * 2
-
-                            onActivated: index => {
-                                fxSelect.value = index;
-                            }
-
-                            anchors {
-                                bottom: parent.bottom
-                                left: parent.left
-                            }
-                            Mixxx.ControlProxy {
-                                id: fxSelect
-
-                                group: stem.fxGroup
-                                key: "loaded_chain_preset"
-                            }
-                        }
-                        Item {
-                            id: stemVolume
-
-                            width: parent.width / 3
-
-                            anchors {
-                                bottom: stemFxKnob.top
-                                bottomMargin: 3
-                                left: stemButton.right
-                                right: parent.right
-                                top: parent.top
-                            }
-
-                            // Skin.VuMeter {
-                            //     x: 15
-                            //     y: (parent.height - height) / 2
-                            //     width: 4
-                            //     height: parent.height - 40
-                            //     group: root.group
-                            //     key: "vu_meter_left"
-                            // }
-
-                            // Skin.VuMeter {
-                            //     x: parent.width - width - 15
-                            //     y: (parent.height - height) / 2
-                            //     width: 4
-                            //     height: parent.height - 40
-                            //     group: root.group
-                            //     key: "vu_meter_right"
-                            // }
-
-                            Skin.ControlFader {
-                                id: volumeSlider
-
-                                anchors.fill: parent
-                                bar.color: Theme.volumeSliderBarColor
-                                bg: Theme.imgVolumeSliderBackground
-                                group: stem.group
-                                implicitWidth: 10
-                                key: "volume"
-
-                                handleImage {
-                                    width: parent.width - 4
-                                }
-                            }
-                        }
-                        Item {
-                            id: stemFxKnob
-
-                            height: stemFxSelector.height
-                            width: parent.width / 3
-
-                            anchors {
-                                bottom: parent.bottom
-                                right: parent.right
-                            }
-                            Skin.QuickFxKnob {
-                                anchors.centerIn: parent
-                                group: stem.fxGroup
-                                height: width
-                                knob.arcStyle: ShapePath.DashLine
-                                knob.arcStylePattern: [2, 2]
-                                knob.color: Theme.eqFxColor
-                                width: Math.min(parent.width, parent.height)
-
-                                knob {
-                                    height: width * 0.8
-                                    width: width * 0.8
-                                }
-                            }
-                        }
+                        compact: parent.columns == 1
+                        group: `${root.group.substr(0, root.group.length - 1)}_Stem${index + 1}]`
                     }
                 }
             }
@@ -492,10 +231,12 @@ Item {
             implicitHeight: 30
 
             contentItem: Shape {
+                property int multiSamplingLevel: Mixxx.Config.multiSamplingLevel
+
                 anchors.fill: parent
                 antialiasing: true
-                layer.enabled: true
-                layer.samples: 4
+                layer.enabled: multiSamplingLevel > 1
+                layer.samples: multiSamplingLevel
 
                 ShapePath {
                     fillColor: '#D9D9D9'

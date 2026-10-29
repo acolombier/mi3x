@@ -8,19 +8,19 @@
 
 #include "coreservices.h"
 #include "qmlautoreload.h"
-#include "util/parented_ptr.h"
 
-class ControlProxy;
-class ControlPushButton;
 class GuiTick;
 class VisualsManager;
-class QQuickWindow;
 #if defined(Q_OS_ANDROID)
+class QQuickWindow;
 class APerformanceHintSession;
 #endif
 
 namespace mixxx {
 namespace qml {
+#ifdef __RPC_SERVER__
+class RpcServe;
+#endif
 
 class QmlApplication : public QObject {
     Q_OBJECT
@@ -35,30 +35,28 @@ class QmlApplication : public QObject {
         return m_loadSucceeded;
     }
 
+    QQmlApplicationEngine* qmlEngine() const {
+        return m_pAppEngine.get();
+    }
+
+    const QString& mainFilePath() const {
+        return m_mainFilePath;
+    }
+
   public slots:
     bool loadQml(const QString& path);
 
+#if defined(Q_OS_ANDROID)
   private slots:
     void slotFrameSwapped();
     void slotWindowChanged(QQuickWindow* window);
+#endif
 
   private:
-    void registerImageProvider();
-    void setupSpinnyCoverControls();
-    void updateSpinnyCoverControls();
-
     std::shared_ptr<CoreServices> m_pCoreServices;
     std::unique_ptr<::VisualsManager> m_visualsManager;
     std::unique_ptr<GuiTick> m_pGuiTick;
     QTimer m_guiTickTimer;
-
-    parented_ptr<ControlProxy> m_pShowSpinny;
-    parented_ptr<ControlProxy> m_pShowCover;
-    std::unique_ptr<ControlPushButton> m_pShowSpinnyAndOrCover;
-    std::unique_ptr<ControlPushButton> m_pSelectBigSpinnyCover;
-    std::unique_ptr<ControlPushButton> m_pShowSmallSpinnyCover;
-    std::unique_ptr<ControlPushButton> m_pShowBigSpinnyCover;
-    std::unique_ptr<ControlPushButton> m_pWaveformOverviewType;
 
     QString m_mainFilePath;
 
@@ -66,6 +64,12 @@ class QmlApplication : public QObject {
     bool m_ownsWaveformWidgetFactory{false};
     bool m_loadSucceeded;
     QmlAutoReload m_autoReload;
+
+#ifdef __RPC_SERVER__
+    // Automation server (--serve); created on demand at the end of the
+    // constructor, destroyed before the QML engine in the destructor.
+    std::unique_ptr<RpcServe> m_pRpcServe;
+#endif
 
 #if defined(Q_OS_ANDROID)
     // The following are necessary to implement the performance manager

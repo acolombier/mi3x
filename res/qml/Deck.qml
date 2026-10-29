@@ -1,11 +1,11 @@
 import "." as Skin
 import Mixxx 1.0 as Mixxx
 import Mixxx.Controls 1.0 as MixxxControls
-import Qt5Compat.GraphicalEffects
 import QtQuick 2.12
 import QtQuick.Layouts
 import QtQuick.Shapes
 import QtQuick.Controls 2.12
+import QtQuick.Effects
 import QtQml.Models // DelegateChoice for Qt >= 6.9
 import Qt.labs.qmlmodels // DelegateChooser
 import "Theme"
@@ -45,19 +45,23 @@ Item {
         return result;
     }
 
-    Drag.active: dragArea.drag.active
     Drag.dragType: Drag.Automatic
     Drag.mimeData: {
         let data = {
             "mixxx/player": group
         };
-        const trackLocationUrl = currentTrack.trackLocationUrl;
+        const trackLocationUrl = currentTrack?.trackLocationUrl;
         if (trackLocationUrl)
-            data["text/uri-list"] = trackLocationUrl;
+            data["text/uri-list"] = trackLocationUrl.toString();
 
         return data;
     }
     Drag.supportedActions: Qt.CopyAction
+
+    Binding on Drag.active {
+        delayed: true
+        value: dragArea.drag.active
+    }
 
     Component.onCompleted: {
         itemModel.append({
@@ -167,8 +171,6 @@ Item {
     }
     Component.onDestruction: {
         // TODO to be saved by setting editor
-        console.log(`normal interface for ${root.group}:`, JSON.stringify(serializeModel(itemModel)));
-        console.log(`minimized interface for ${root.group}:`, JSON.stringify(serializeModel(minimizedItemModel)));
     }
 
     Skin.SectionBackground {
@@ -255,6 +257,7 @@ Item {
                 editLabel.text: "Beatjump"
                 editOverlay.color: Theme.midGray
                 height: 92
+                objectName: "beatjump"
 
                 DeckComponent.BeatJump {
                     anchors.fill: parent
@@ -273,6 +276,7 @@ Item {
                 editLabel.font.pixelSize: 14
                 editLabel.text: "Waveform overview"
                 editOverlay.color: Qt.alpha('black', 0.5)
+                objectName: "overview"
 
                 DeckComponent.WaveformOverview {
                     anchors.fill: parent
@@ -312,6 +316,7 @@ Item {
                 editLabel.color: Theme.white
                 editLabel.text: "Tempo"
                 editOverlay.color: Qt.alpha('black', 0.5)
+                objectName: "rateSlider"
 
                 DeckComponent.TempoColumn {
                     anchors.fill: parent
@@ -332,11 +337,13 @@ Item {
                 editOverlay.border.color: '#000000'
                 editOverlay.border.width: 2
                 editOverlay.color: Theme.darkGray2
+                objectName: "playButtonItem"
 
                 DeckComponent.PlayButton {
                     anchors.fill: parent
                     group: root.group
                     minimized: root.minimized
+                    objectName: "playButton"
                 }
             }
         }
@@ -352,6 +359,7 @@ Item {
                 editOverlay.border.color: '#000000'
                 editOverlay.border.width: 2
                 editOverlay.color: Theme.darkGray2
+                objectName: "cueButton"
 
                 DeckComponent.CueButton {
                     anchors.fill: parent
@@ -371,6 +379,7 @@ Item {
                 editOverlay.color: "#BDBDBD"
                 editOverlay.radius: height
                 height: 140
+                objectName: "spinny"
                 width: 140
 
                 DeckComponent.Spinny {
@@ -425,6 +434,7 @@ Item {
                 editLabel.text: "Hotcue & Stem"
                 editOverlay.color: Qt.alpha('black', 0.5)
                 height: 92
+                objectName: "hotcueAndStem"
 
                 DeckComponent.HotcueAndStem {
                     anchors.fill: parent
@@ -557,7 +567,6 @@ Item {
                         cardinality: cardinality,
                         completed: false
                     };
-                    return true;
                 }
 
                 if (candidate.completed) {
@@ -590,7 +599,7 @@ Item {
                 let currentParent = drag.source.parent;
                 let reverse = [];
                 while (currentParent != topParent) {
-                    reverse.push(currentParent.index);
+                    reverse.push(currentParent.parent.children.indexOf(currentParent));
                     currentParent = currentParent.parent;
                 }
                 let modelRef = root.minimized ? minimizedItemModel : itemModel;
@@ -623,7 +632,7 @@ Item {
             candidate = null;
         }
         onPositionChanged: drag => {
-            if (drag.formats.includes("mixxx/player")) {
+            if (drag.formats.includes("mixxx/player") || drag.formats.includes("text/uri-list")) {
                 return;
             }
 
@@ -634,19 +643,13 @@ Item {
                 return;
             }
 
-            if (!drag.source.parent.items) {
-                console.error(`No items list on the parent of ${drag.source}`);
+            if (!drag.source.parent.itemsModel) {
+                console.error(`No items list on the parent of ${drag.source} (${drag.source.parent}: ${drag.source.parent.itemsModel})`);
                 candidate = null;
                 return;
             }
-            let sourceIdx;
-            for (let i = 0; i < drag.source.parent.children.length; i++) {
-                if (drag.source.parent.children[i] == drag.source) {
-                    sourceIdx = i;
-                    break;
-                }
-            }
-            if (sourceIdx === null) {
+            let sourceIdx = drag.source.parent.children.indexOf(drag.source);
+            if (sourceIdx === -1) {
                 console.error("Cannot find the source item in the parent's children");
                 candidate = null;
                 return;
@@ -667,6 +670,7 @@ Item {
         property var beginDrag: null
         property var disposition: GridLayout.TopToBottom
         property alias editOverlay: overlay
+        readonly property var itemsModel: items
         property var move: null
         property bool selected: false
 
@@ -698,7 +702,7 @@ Item {
 
         Drag.active: mouseArea.drag.active
         Drag.hotSpot: Qt.point(width / 2, height / 2)
-        columns: disposition == GridLayout.TopToBottom ? 1 : items.count
+        columns: disposition == GridLayout.TopToBottom ? 1 : itemsModel.rowCount()
         visible: typeof minWidth !== 'number' || root.width <= 0 || minWidth < root.width
 
         Behavior on x {
@@ -753,6 +757,7 @@ Item {
             id: overlay
 
             color: Qt.alpha(Theme.accentColor, 0.2)
+            objectName: visible ? "selectedGroupOverlay" : "groupOverlay"
             parent: root
             visible: root.editMode && selected
 
@@ -830,11 +835,9 @@ Item {
                 }
             }
         }
-        GaussianBlur {
+        MultiEffect {
             anchors.fill: layoutItem
-            deviation: 4
-            radius: blurRadius
-            samples: 16
+            blur: root.editMode ? Math.min(1, layoutItem.blurRadius / 16) : 0
             source: content
             visible: root.editMode
         }
@@ -843,6 +846,7 @@ Item {
 
             anchors.fill: layoutItem
             color: Qt.alpha("black", 0.4)
+            objectName: "overlayItem"
             visible: root.editMode
             z: 90
 
@@ -871,20 +875,27 @@ Item {
 
         function selectParent() {
             let currentParent = target.parent;
+            let currentlySelected = 0;
+            let nestedGroups = [];
             while (currentParent != root) {
-                if (currentParent.selected === false) {
-                    let updatedRecursive = children => {
-                        for (let i = 1; i < children.length; i++) {
-                            if (children[i].selected === true)
-                                children[i].selected = false;
-                            updatedRecursive(children[i].children);
-                        }
-                    };
-                    updatedRecursive(currentParent.children);
-                    currentParent.selected = true;
-                    break;
+                if (typeof currentParent.selected === "boolean") {
+                    nestedGroups.push(currentParent);
+                    if (currentParent.selected) {
+                        currentlySelected = nestedGroups.length;
+                    }
                 }
                 currentParent = currentParent.parent;
+            }
+            let updatedRecursive = children => {
+                for (let i = 1; i < children.length; i++) {
+                    if (children[i].selected === true)
+                        children[i].selected = false;
+                    updatedRecursive(children[i].children);
+                }
+            };
+            updatedRecursive(root.children);
+            for (let i = 0; i < nestedGroups.length; i++) {
+                nestedGroups[i].selected = currentlySelected === i;
             }
         }
 

@@ -1,5 +1,6 @@
 import QtQuick 2.12
 import QtQuick.Shapes 1.12
+import Mixxx 1.0 as Mixxx
 
 Item {
     id: root
@@ -13,11 +14,13 @@ Item {
     readonly property real availableHeight: Math.max(0, height - topPadding - bottomPadding)
     readonly property real availableWidth: Math.max(0, width - leftPadding - rightPadding)
     property alias background: backgroundItem.data
-    // A typed property is required so inherited controls accept grouped bindings such as bar.margin.
-    property BarSettings bar: BarSettings {
-    }
+    property bool bar: false
+    property alias barColor: barPath.strokeColor
+    property real barMargin: 0
+    property real barStart: 0
+    property alias barWidth: barPath.strokeWidth
     property real bottomPadding: 0
-    readonly property real displayValue: dragHandler.active ? dragHandler.value : value
+    readonly property real displayValue: dragArea.active ? dragArea.dragValue : dragHandler.active ? dragHandler.value : value
     property real from: 0
     property alias handle: handleItem.data
     readonly property bool horizontal: orientation === Qt.Horizontal
@@ -25,7 +28,7 @@ Item {
     property bool live: true
     property int orientation: Qt.Vertical
     readonly property real position: valueToPosition(displayValue)
-    readonly property bool pressed: dragHandler.active
+    readonly property bool pressed: dragHandler.active || dragArea.active
     property real rightPadding: 0
     property int snapMode: Slider.NoSnap
     property real stepSize: 0
@@ -35,16 +38,16 @@ Item {
     readonly property bool vertical: orientation === Qt.Vertical
     readonly property real visualPosition: vertical ? 1 - position : position
     property bool wheelEnabled: true
-    property real wheelStepSize: (root.to - root.from) / root.wheelSteps
-    // Match the legacy MIDI-style fader resolution across the control range.
-    readonly property int wheelSteps: 127
+    property real wheelStepSize: (root.to - root.from) / 100
 
     signal moved(real value)
 
     function applyInteractiveValue(targetValue, isFinal) {
-        dragHandler.value = clamp(snapValue(targetValue, isFinal));
+        value = clamp(snapValue(targetValue, isFinal));
+        dragHandler.value = value;
+        dragArea.dragValue = value;
         if (root.live || isFinal) {
-            root.moved(dragHandler.value);
+            root.moved(value);
         }
     }
     function clamp(targetValue) {
@@ -76,6 +79,15 @@ Item {
     activeFocusOnTab: true
     implicitHeight: Math.max(backgroundItem.implicitHeight, handleItem.implicitHeight)
     implicitWidth: Math.max(backgroundItem.implicitWidth, handleItem.implicitWidth)
+
+    Binding on value {
+        value: dragHandler.value
+        when: dragHandler.active && root.live
+    }
+    Binding on value {
+        value: dragArea.dragValue
+        when: dragArea.active && root.live
+    }
 
     Keys.onPressed: event => {
         if (event.key === Qt.Key_Left || event.key === Qt.Key_Down) {
@@ -109,26 +121,29 @@ Item {
         id: barShape
 
         anchors.fill: parent
-        anchors.margins: root.bar.margin
+        anchors.margins: root.barMargin
         antialiasing: true
-        visible: root.bar.enabled
+        visible: root.bar
         z: 1
 
         ShapePath {
             id: barPath
 
             fillColor: "transparent"
-            startX: root.horizontal ? barShape.width * (1 - root.bar.start) : (root.bar.axis >= 0 ? root.bar.axis - root.bar.margin : barShape.width * 0.5)
-            startY: root.vertical ? barShape.height * (1 - root.bar.start) : (root.bar.axis >= 0 ? root.bar.axis - root.bar.margin : barShape.height * 0.5)
-            strokeColor: root.bar.color
-            strokeWidth: root.bar.width
+            startX: barShape.width * (root.horizontal ? (1 - root.barStart) : 0.5)
+            startY: barShape.height * (root.vertical ? (1 - root.barStart) : 0.5)
+            strokeColor: "transparent"
+            strokeWidth: 2
 
             PathLine {
                 x: root.horizontal ? (barShape.width * root.position) : barPath.startX
-                y: root.vertical ? (barShape.height * (1 - root.position)) : barPath.startY
+                y: root.vertical ? (barShape.height * (1 - root.position)) + 4 : barPath.startY
             }
         }
     }
+
+    // Mouse-only gesture path; finger touches are routed through the
+    // window-wide TouchHub reached via the TouchClient below.
     DragHandler {
         id: dragHandler
 
@@ -137,7 +152,11 @@ Item {
         property real value: root.value
 
         acceptedButtons: Qt.LeftButton
-        enabled: root.enabled
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        dragThreshold: 0
+        enabled: root.enabled && !Mixxx.Core.hasPopup
+        maximumPointCount: 1
+        minimumPointCount: 1
         target: null
 
         onActiveChanged: {
@@ -161,29 +180,53 @@ Item {
             root.applyInteractiveValue(value + (diff / length) * (root.to - root.from), false);
         }
     }
-    Binding {
-        property: "value"
-        target: root
-        value: dragHandler.value
-        when: dragHandler.active && root.live
+    TouchClient {
+        id: dragArea
+
+        property real dragValue
+        property bool dragged: false
+
+        anchors.fill: parent
+        gestureEnabled: root.enabled && !Mixxx.Core.hasPopup
+        sourceItem: root
+
+        onGestureCancelled: {
+            if (dragged && (!root.live || root.snapMode === Slider.SnapOnRelease)) {
+                root.applyInteractiveValue(dragValue, true);
+            }
+            dragged = false;
+        }
+        onMovedAt: (dx, dy, x, y) => {
+            const diff = root.horizontal ? dx : -dy;
+            if (diff === 0) {
+                return;
+            }
+            dragged = true;
+            const length = Math.max(1, root.horizontal ? root.availableWidth : root.availableHeight);
+            dragValue = root.clamp(root.snapValue(dragValue + (diff / length) * (root.to - root.from), false));
+            if (root.live) {
+                root.moved(dragValue);
+            }
+        }
+        onPressedAt: (x, y) => {
+            root.forceActiveFocus();
+            dragValue = root.value;
+            dragged = false;
+        }
+        onReleasedAt: (x, y) => {
+            if (dragged && (!root.live || root.snapMode === Slider.SnapOnRelease)) {
+                root.applyInteractiveValue(dragValue, true);
+            }
+            dragged = false;
+        }
     }
     MouseArea {
         acceptedButtons: Qt.NoButton
         anchors.fill: parent
         enabled: root.enabled && root.wheelEnabled
 
-        onWheel: event => {
-            root.moved(root.stepValue(event.angleDelta.y > 0 ? 1 : -1));
-            event.accepted = true;
+        onWheel: {
+            root.moved(root.stepValue(wheel.angleDelta.y < 0 ? 1 : -1));
         }
-    }
-
-    component BarSettings: QtObject {
-        property real axis: -1
-        property color color: "transparent"
-        property bool enabled: false
-        property real margin: 0
-        property real start: 0
-        property real width: 2
     }
 }

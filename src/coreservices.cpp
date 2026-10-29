@@ -448,7 +448,18 @@ void CoreServices::initializeSettings() {
     // prompt the user to grant access or select a new location.
     // See https://github.com/mixxxdj/mixxx/issues/15489
     if (m_cmdlineArgs.getSettingsPathSet()) {
-        if (!Sandbox::ensureSettingsPathAccessible(&settingsPath)) {
+#ifdef __RPC_SERVER__
+        bool interactive = !m_cmdlineArgs.getServe();
+        bool sandboxCheck = Sandbox::ensureSettingsPathAccessible(&settingsPath, interactive);
+        if (!sandboxCheck && !interactive) {
+            qCritical() << "Cannot access settings folder" << settingsPath
+                        << "-- exiting (--serve automation mode)";
+            exit(1);
+        }
+#else
+        bool sandboxCheck = Sandbox::ensureSettingsPathAccessible(&settingsPath);
+#endif
+        if (!sandboxCheck) {
             // The user either declined the permission dialog or the
             // folder remains unwritable. Show a clear error and exit.
             QMessageBox::critical(nullptr,
@@ -632,6 +643,13 @@ void CoreServices::initialize(QApplication* pApp) {
             &TrackDAO::waveformSummaryUpdated,
             pOverviewCache,
             &OverviewCache::onTrackSummaryChanged);
+    // Forward per-track analyzer progress to OverviewCache so that
+    // OverviewCache clients (e.g. QmlWaveformOverview) can repaint
+    // the partial waveform during analysis.
+    connect(m_pPlayerManager.get(),
+            &PlayerManager::trackAnalyzerProgress,
+            pOverviewCache,
+            &OverviewCache::onTrackAnalysisProgress);
 
     // Binding the PlayManager to the Library may already trigger
     // loading of tracks which requires that the GlobalTrackCache has
@@ -641,7 +659,15 @@ void CoreServices::initialize(QApplication* pApp) {
 
     bool musicDirAdded = false;
 
-    if (m_pTrackCollectionManager->internalCollection()->loadRootDirs().isEmpty()) {
+    if (m_pTrackCollectionManager->internalCollection()
+                    ->loadRootDirs()
+                    .isEmpty()) {
+#ifndef Q_OS_ANDROID
+        if (CmdlineArgs::Instance().getDeveloper()) {
+            qInfo() << "No music directory configured - skipping first-run "
+                       "directory prompt because developer mode is enabled";
+        } else {
+#endif
 #if defined(Q_OS_IOS) || defined(Q_OS_WASM)
         // On the web and iOS, we are running in a sandbox (a virtual file
         // system on the web). Since we are generally limited to paths within
@@ -711,6 +737,9 @@ void CoreServices::initialize(QApplication* pApp) {
         if (!fd.isEmpty() && m_pLibrary->requestAddDir(fd)) {
             musicDirAdded = true;
         }
+#ifndef Q_OS_ANDROID
+        }
+#endif
     }
 
     emit initializationProgressUpdate(60, tr("controllers"));

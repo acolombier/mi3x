@@ -12,9 +12,72 @@ import "../Theme"
 Rectangle {
     id: root
 
+    // Display labels of every column in model order, as a JSON array. Exposed
+    // for the E2E test harness: unlike a header delegate, this also covers
+    // columns that are hidden and therefore have no delegate to read ``index``
+    // from.
+    readonly property string columnLabels: {
+        if (!root.sidebar) {
+            return "[]";
+        }
+        const columns = root.sidebar.tracklist?.columns;
+        let labels = [];
+        for (let i = 0; i < columns?.length; i++) {
+            labels.push(columns[i].label);
+        }
+        return JSON.stringify(labels);
+    }
+    // Disable the dynamic column width provider and force computation based on an arbitrary width. This can be useful to temporary limit layout recomputation, for example during a transitional state such as animation
+    property int inhibitColumnWidth: 0
     required property var model
+    property var movedColumn: new Object()
+    property var sidebar: model.sidebar
+    readonly property alias view: view
+
+    // Restore the library columns to their default order, visibility and sort
+    // state. Used by the E2E test harness to reset state between scenarios
+    // that share a running Mixxx instance, without a full QML reload.
+    function resetColumns() {
+        root.movedColumn = new Object();
+        view.clearColumnReordering();
+        horizontalHeader.sortingColumn = -1;
+        horizontalHeader.sortingOrder = Qt.DescendingOrder;
+        for (let i = 0; i < view.model.columns.length; i++) {
+            view.model.columns[i].display = Mixxx.TrackListColumn.Display.Auto;
+        }
+        view.clearColumnWidths();
+    }
+
+    // Title, artist, BPM, key text and location of the track model row as a
+    // JSON object string, for the E2E test harness
+    function trackDataForRow(row) {
+        const track = view.model ? view.model.getTrackByRow(row) : null;
+        if (!track) {
+            return "{}";
+        }
+        return JSON.stringify({
+            title: track.title,
+            artist: track.artist,
+            bpm: Math.round(track.bpm),
+            key: track.keyText,
+            location: track.trackLocationUrl.toString().replace(/^file:\/\//, "")
+        });
+    }
+
+    // Displayed title of the track model row, for the E2E test harness
+    function trackTitleForRow(row) {
+        const track = view.model ? view.model.getTrackByRow(row) : null;
+        return track ? track.title : "";
+    }
 
     color: Theme.darkGray
+    objectName: "trackList"
+
+    onInhibitColumnWidthChanged: {
+        if (!inhibitColumnWidth)
+            view.forceLayout();
+        view.cachedColumnWidth = Object();
+    }
 
     LibraryComponent.Control {
         id: libraryControl
@@ -36,6 +99,71 @@ Rectangle {
             view.selectionModel.moveSelectionVertical(offset);
         }
     }
+    Menu {
+        id: columnSelectionMenu
+
+        contentItem.objectName: "columnPickerMenu"
+
+        Instantiator {
+            property int readyCount: 0
+
+            model: root.sidebar.tracklist?.columns
+
+            delegate: Action {
+                property var data: view.getColumn(index)
+
+                checkable: true
+                checked: (!view.columnShouldAutoHide(data) || data?.display == Mixxx.TrackListColumn.Display.Show) && data?.display != Mixxx.TrackListColumn.Display.Hide
+                text: data?.label ? qsTr(data?.label) : ""
+
+                onTriggered: {
+                    if (!view.columnShouldAutoHide(data) === checked) {
+                        data.display = Mixxx.TrackListColumn.Display.Auto;
+                    } else {
+                        data.display = checked ? Mixxx.TrackListColumn.Display.Show : Mixxx.TrackListColumn.Display.Hide;
+                    }
+                    let currentExplicitWidth = view.explicitColumnWidth(index);
+                    if (data.display == Mixxx.TrackListColumn.Display.Hide) {
+                        if (currentExplicitWidth > 0) {
+                            data.preferredWidth = currentExplicitWidth;
+                        }
+                        view.setColumnWidth(index, 0);
+                    } else if (data.display != Mixxx.TrackListColumn.Display.Hide) {
+                        view.setColumnWidth(index, data.preferredWidth);
+                    }
+                }
+            }
+
+            onObjectAdded: (index, object) => {
+                if (readyCount >= root.sidebar.tracklist?.columns.length)
+                    return;
+                readyCount += 1;
+            }
+            onObjectRemoved: (index, object) => {
+                if (readyCount <= 0)
+                    return;
+                readyCount -= 1;
+            }
+            onReadyCountChanged: {
+                if (readyCount !== root.sidebar.tracklist?.columns.length)
+                    return;
+                for (let action = columnSelectionMenu.actionAt(0); action; action = columnSelectionMenu.actionAt(0)) {
+                    columnSelectionMenu.removeAction(action);
+                }
+                for (let i = 0; i < readyCount; i++) {
+                    columnSelectionMenu.insertAction(i, objectAt(i));
+                }
+            }
+        }
+        Connections {
+            function onColumnMoved(logicalId, oldId, newId) {
+                let previousName = columnSelectionMenu.actionAt(logicalId).data.label;
+                columnSelectionMenu.actionAt(newId).data = view.model.columns[logicalId];
+            }
+
+            target: view
+        }
+    }
     HorizontalHeaderView {
         id: horizontalHeader
 
@@ -46,6 +174,9 @@ Rectangle {
         anchors.margins: 5
         anchors.right: parent.right
         anchors.top: parent.top
+        clip: true
+        movableColumns: true
+        objectName: "columnHeader"
         syncView: view
 
         delegate: Item {
@@ -56,14 +187,15 @@ Rectangle {
 
             implicitHeight: columnName.contentHeight + 5
             implicitWidth: columnName.contentWidth + 5
+            objectName: display
 
-            MouseArea {
-                id: columnMouseHandler
-
+            TapHandler {
                 acceptedButtons: Qt.LeftButton
-                anchors.fill: parent
 
-                onClicked: {
+                onLongPressed: {
+                    columnSelectionMenu.popup(parent);
+                }
+                onTapped: {
                     if (horizontalHeader.sortingColumn == index) {
                         horizontalHeader.sortingOrder = horizontalHeader.sortingOrder == Qt.DescendingOrder ? Qt.AscendingOrder : Qt.DescendingOrder;
                     } else {
@@ -71,6 +203,13 @@ Rectangle {
                         horizontalHeader.sortingOrder = Qt.AscendingOrder;
                     }
                     view.model.sort(horizontalHeader.sortingColumn, horizontalHeader.sortingOrder);
+                }
+            }
+            TapHandler {
+                acceptedButtons: Qt.RightButton
+
+                onTapped: (eventPoint, button) => {
+                    columnSelectionMenu.popup(parent, eventPoint.position);
                 }
             }
             Text {
@@ -92,7 +231,7 @@ Rectangle {
                 anchors {
                     bottom: parent.bottom
                     left: parent.left
-                    leftMargin: 5
+                    leftMargin: 8
                     top: parent.top
                 }
                 Label {
@@ -126,8 +265,6 @@ Rectangle {
                 MouseArea {
                     id: columnResizeHandler
 
-                    property int sizeOffset: 0
-
                     anchors.fill: parent
                     cursorShape: Qt.SizeHorCursor
                     preventStealing: true
@@ -135,7 +272,7 @@ Rectangle {
                     onMouseXChanged: {
                         if (drag.active) {
                             column.width += mouseX;
-                            sizeOffset += mouseX;
+                            view.setColumnWidth(index, column.width);
                         }
                     }
 
@@ -143,15 +280,6 @@ Rectangle {
                         axis: Drag.XAxis
                         target: parent
                         threshold: 2
-
-                        onActiveChanged: {
-                            if (!drag.active && columnResizeHandler.sizeOffset !== 0) {
-                                view.model.columns[index].preferredWidth = column.width;
-                                columnResizeHandler.sizeOffset = 0;
-                                view.updateColumnSize();
-                                view.forceLayout();
-                            }
-                        }
                     }
                 }
             }
@@ -160,9 +288,56 @@ Rectangle {
     TableView {
         id: view
 
-        property int dynamicColumnCount: 0
-        property int usedWidth: 0
+        property var cachedColumnWidth: Object()
 
+        function columnShouldAutoHide(column, viewWidth) {
+            return column?.display == Mixxx.TrackListColumn.Display.Auto && column?.autoHideWidth > 0 && column?.autoHideWidth > (viewWidth ?? root.width);
+        }
+
+        // E2E test function
+        function currentlyActiveModel() {
+            return view.model.sourceModel.objectName;
+        }
+        function getColumn(index) {
+            return model.columns[root.movedColumn[index] !== undefined ? root.movedColumn[index] : index];
+        }
+        function innerColumnWidthProvider(column, viewWidth) {
+            const columnDef = getColumn(column);
+            let explicitWidth = explicitColumnWidth(column);
+            if (explicitWidth == -1) {
+                explicitWidth = columnDef.preferredWidth;
+            }
+            if (columnDef.display == Mixxx.TrackListColumn.Display.Hide || view.columnShouldAutoHide(columnDef, viewWidth)) {
+                return 0;
+            }
+            if (explicitWidth != -1) {
+                return explicitWidth;
+            }
+            if (model == null) {
+                return 0;
+            }
+
+            let usedWidth = 0;
+            let dynamicColumnCount = 0;
+            for (let c = 0; c < model.columns.length; c++) {
+                const columnDef = getColumn(c);
+                if (columnDef.display == Mixxx.TrackListColumn.Display.Hide || view.columnShouldAutoHide(columnDef, viewWidth)) {
+                    continue;
+                }
+                let explicitWidth = explicitColumnWidth(c);
+                if (explicitWidth == -1) {
+                    explicitWidth = columnDef.preferredWidth;
+                }
+
+                if (explicitWidth >= 0) {
+                    usedWidth += explicitWidth;
+                } else if (explicitWidth != 0) {
+                    dynamicColumnCount += columnDef.fillSpan || 1;
+                }
+            }
+            const span = columnDef.fillSpan || 1;
+            return span * (viewWidth - usedWidth) / dynamicColumnCount;
+        }
         function loadSelectedTrack(group, play) {
             const urls = this.selectionModel.selectedTrackUrls();
             if (urls.length == 0)
@@ -177,25 +352,8 @@ Rectangle {
 
             Mixxx.PlayerManager.loadLocationUrlIntoNextAvailableDeck(urls[0], play);
         }
-        function updateColumnSize() {
-            const oldUsedWidth = usedWidth;
-            const oldDynamicColumnCount = dynamicColumnCount;
-            usedWidth = 0;
-            dynamicColumnCount = 0;
-            if (model == null) {
-                return;
-            }
-            for (let c = 0; c < model.columns.length; c++) {
-                if (model.columns[c].hidden || model.columns[c].autoHideWidth > view.width) {
-                    continue;
-                } else if (model.columns[c].preferredWidth > 0) {
-                    usedWidth += model.columns[c].preferredWidth;
-                } else {
-                    dynamicColumnCount += model.columns[c].fillSpan || 1;
-                }
-            }
-            return oldDynamicColumnCount != dynamicColumnCount || oldUsedWidth != usedWidth;
-        }
+
+        // End E2E test function
 
         anchors.bottom: parent.bottom
         anchors.left: parent.left
@@ -204,68 +362,90 @@ Rectangle {
         anchors.top: horizontalHeader.bottom
         clip: true
         columnWidthProvider: function (column) {
-            const columnDef = view.model.columns[column];
-            if (columnDef.hidden) {
-                return 0;
+            if (root.inhibitColumnWidth > 0) {
+                if (view.cachedColumnWidth[column] === undefined) {
+                    view.cachedColumnWidth[column] = innerColumnWidthProvider(column, root.inhibitColumnWidth);
+                }
+                return view.cachedColumnWidth[column];
             }
-            if (columnDef.autoHideWidth > 0 && columnDef.autoHideWidth > view.width) {
-                return 0;
-            }
-            if (columnDef.preferredWidth >= 0) {
-                return columnDef.preferredWidth;
-            }
-            const span = columnDef.fillSpan || 1;
-            return span * (view.width - view.usedWidth) / view.dynamicColumnCount;
+            return innerColumnWidthProvider(column, view.width);
         }
         keyNavigationEnabled: false
-        model: root.model
+        model: root.sidebar.tracklist
+        objectName: "trackTableView"
         pointerNavigationEnabled: false
         reuseItems: true
+        rowHeightProvider: () => 30
+        selectionBehavior: TableView.SelectRows
 
         ScrollBar.vertical: ScrollBar {
             policy: ScrollBar.AlwaysOn
         }
-        delegate: Item {
-            id: item
+        delegate: DelegateChooser {
+            role: "columnType"
 
-            required property url cover_art
-            required property color decoration
-            required property var display
-            required property string file_url
-            required property int row
-            required property bool selected
-            required property var track
+            DelegateChoice {
+                roleValue: Mixxx.TrackListColumn.ColumnType.AlbumArt
 
-            implicitHeight: 30
+                Rectangle {
+                    required property url cover_art
+                    required property color decoration
 
-            Loader {
-                id: loader
+                    color: decoration
+                    implicitHeight: 30
 
-                property var capabilities: root.model ? root.model.getCapabilities() : Mixxx.LibraryTrackListModel.Capability.None
-                property url cover_art: item.cover_art
-                property color decoration: item.decoration
-                property var display: item.display
-                property url file_url: item.file_url
-                property int row: item.row
-                property bool selected: item.selected
-                property var tableView: view
-                property var track: item.track
-
-                anchors.fill: parent
-                focus: true
-                sourceComponent: delegate
-
-                onLoaded:
-                // Workaround needed for WaveformOverview column to load the data
-                //     if (track)
-                //         Mixxx.Library.analyze(track)
-                {}
+                    Image {
+                        anchors.fill: parent
+                        asynchronous: true
+                        clip: true
+                        fillMode: Image.PreserveAspectCrop
+                        source: cover_art
+                    }
+                }
             }
-            // Workaround needed for WaveformOverview column to load the data
-            // TableView.onReused: {
-            //     if (track)
-            //         Mixxx.Library.analyze(track)
-            // }
+            DelegateChoice {
+                roleValue: Mixxx.TrackListColumn.ColumnType.Overview
+
+                Mixxx.WaveformOverview {
+                    id: waveformOverview
+
+                    channels: Mixxx.WaveformOverview.Channels.LeftChannel
+                    colorHigh: Theme.white
+                    colorLow: Theme.green
+                    colorMid: Theme.blue
+                    implicitHeight: 30
+                    implicitWidth: 30
+                    renderer: Mixxx.WaveformOverview.Renderer.Filtered
+                    trackUrl: file_url
+                }
+            }
+            DelegateChoice {
+                Cell {
+                    color: selected ? Theme.accentColor : (row % 2 == 0 ? Theme.sunkenBackgroundColor : Theme.backgroundColor)
+                    objectName: "trackRow_" + row
+                    track.capabilities: root.sidebar.tracklist ? root.sidebar.tracklist.getCapabilities() : Mixxx.LibraryTrackListModel.Capability.None
+                    track.crates: root.model.crate
+                    track.playlists: root.model.playlist
+
+                    // Pooled items remains parented and set with their previous property, meaning
+                    // that Spix, used for testing, may accidentally picked a pooled, now stale item.
+                    TableView.onPooled: {
+                        objectName = "";
+                    }
+                    TableView.onReused: {
+                        objectName = Qt.binding(() => "trackRow_" + row);
+                    }
+
+                    Text {
+                        anchors.fill: parent
+                        color: Theme.textColor
+                        elide: Text.ElideRight
+                        font.pixelSize: 14
+                        text: display ?? ""
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+            }
         }
         selectionModel: ItemSelectionModel {
             function moveSelectionVertical(value) {
@@ -284,6 +464,9 @@ Rectangle {
                 }
                 const newRow = Mixxx.MathUtils.positiveModulo(row, rowCount);
                 this.select(this.model.index(newRow, 0), ItemSelectionModel.Rows | ItemSelectionModel.Select | ItemSelectionModel.Clear | ItemSelectionModel.Current);
+                if (!view.isRowLoaded(newRow)) {
+                    view.positionViewAtRow(newRow, TableView.Visible | TableView.AlignVCenter);
+                }
             }
             function selectedTrackUrls() {
                 return this.selectedIndexes.map(index => {
@@ -292,19 +475,19 @@ Rectangle {
             }
 
             model: view.model
+            objectName: "selectionModel"
         }
 
-        Component.onCompleted: this.updateColumnSize()
         Keys.onDownPressed: this.selectionModel.moveSelectionVertical(1)
         Keys.onEnterPressed: this.loadSelectedTrackIntoNextAvailableDeck(false)
         Keys.onReturnPressed: this.loadSelectedTrackIntoNextAvailableDeck(false)
         Keys.onUpPressed: this.selectionModel.moveSelectionVertical(-1)
-        onModelChanged: this.updateColumnSize()
-        onWidthChanged: {
-            if (view.updateColumnSize()) {
-                // forceLayout is costly - only invoke if there was a change in the column layouts
-                view.forceLayout();
+        onColumnMoved: (logicalIndex, oldVisualIndex, newVisualIndex) => {
+            if (root.movedColumn[newVisualIndex] !== undefined && logicalIndex === newVisualIndex) {
+                delete root.movedColumn[newVisualIndex];
+                return;
             }
+            root.movedColumn[newVisualIndex] = logicalIndex;
         }
     }
 }
