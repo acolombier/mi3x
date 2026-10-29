@@ -259,9 +259,13 @@ def _tap(context, path):
 @given("the settings popup is open")
 def step_settings_popup_open(context):
     if not _is_visible(context, SETTINGS_POPUP_ITEM):
-        _click(context, "mainWindow/showPreferencesButton")
+        # FIXME it would seem Spix click occasionally get registered as long click,
+        # leading to the legacy preference window to show. To avoid this, using the
+        # signal directly.
+        context.rpc.invokeMethod("mainWindow/showPreferencesButton", "clicked", [])
         # Sometimes pretty slow on Windows Server CI runner
-        assert wait_visible(context.rpc, SETTINGS_POPUP_ITEM, timeout=10), "Settings popup did not open"
+        # FIXME should we restrict large timeout to windows-only platform?
+        assert wait_visible(context.rpc, SETTINGS_POPUP_ITEM, timeout=60), "Settings popup did not open"
         time.sleep(0.5)
 
 
