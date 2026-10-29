@@ -17,6 +17,7 @@
 #include "effects/backends/audiounit/audiounitmanifest.h"
 #include "effects/defs.h"
 #include "util/compatibility/qmutex.h"
+#include "util/sandbox.h"
 
 /// An effects backend for Audio Unit (AU) plugins. macOS-only.
 class AudioUnitBackend : public EffectsBackend {
@@ -115,6 +116,16 @@ class AudioUnitBackend : public EffectsBackend {
 
         for (AVAudioUnitComponent* component in allComponents) {
             qDebug() << "Found audio unit" << [component name];
+
+            // Instantiating Audio Units that are not safe for sandboxing in a
+            // sandboxed host makes macOS show a security prompt for lowering
+            // the security settings.
+            if (Sandbox::enabled() && !component.isSandboxSafe) {
+                qWarning() << "Skipping Audio Unit" << [component name]
+                           << "because it is not sandbox-safe and Mixxx is "
+                              "sandboxed";
+                continue;
+            }
 
             QString effectId = QString::fromNSString(
                     [NSString stringWithFormat:@"%@~%@~%@",
