@@ -251,7 +251,6 @@ Item {
                     icon.source: "images/notification_bell.svg"
                     icon.width: 16
                     implicitWidth: implicitHeight
-                    objectName: "showPreferencesButton"
 
                     onClicked: {
                         if (!notificationPopup.opened) {
