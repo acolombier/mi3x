@@ -4,9 +4,10 @@
 
 namespace mixxx {
 
-Notification::Notification(const QString& text, Flags flags)
+Notification::Notification(const QString& text, Flags flags, const QString& key)
         : m_flags(flags),
           m_text(text),
+          m_key(key),
           m_timeoutSecs(0) {
 }
 
@@ -15,7 +16,7 @@ void NotificationButton::invoke() {
         qWarning() << "Notification action has no receiver! This is will "
                       "lead actions to default to the GUI thread which may "
                       "have unexpected performance impacts.";
-        func();
+        return func();
     }
     QMetaObject::invokeMethod(receiver, [this]() {
         func();

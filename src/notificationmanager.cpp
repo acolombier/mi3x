@@ -51,8 +51,25 @@ void NotificationManager::notify(const NotificationPointer& pNotification) {
     emit notificationAdded(pNotification);
 }
 
+void NotificationManager::clear() {
+    QMutexLocker lock(&m_mutex);
+    for (auto it = m_notifications.begin(); it != m_notifications.end(); it++) {
+        if ((*it)->flags().testFlag(Notification::Flag::Sticky)) {
+            continue;
+        }
+        emit notificationClosed(*it);
+        m_notifications.erase(it);
+    }
+    lock.unlock();
+
+    slotUpdateNotifications();
+}
+
 void NotificationManager::closeNotification(const NotificationPointer& pNotification) {
+    QMutexLocker lock(&m_mutex);
     m_notifications.removeAll(pNotification);
+    lock.unlock();
+
     slotUpdateNotifications();
     emit notificationClosed(pNotification);
 }
@@ -74,8 +91,8 @@ void NotificationManager::slotUpdateNotifications() {
                     pNotification->timeoutSecs()) <=
                 QDateTime::currentDateTimeUtc()) {
             qDebug() << "Notification timed out:" << pNotification->text();
-            it = m_notifications.erase(it);
             emit notificationClosed(*it);
+            it = m_notifications.erase(it);
         } else {
             timedNotificationLeft = true;
             it++;
@@ -86,7 +103,6 @@ void NotificationManager::slotUpdateNotifications() {
     if (!timedNotificationLeft) {
         m_timer.stop();
     }
-
 }
 
 } // namespace mixxx

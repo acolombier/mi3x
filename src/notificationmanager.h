@@ -19,9 +19,17 @@ class NotificationManager : public QObject, public Singleton<NotificationManager
   public:
     void notify(const NotificationPointer& pNotification);
 
-    const QList<NotificationPointer>& activeNotifications() const {
+    QList<NotificationPointer> activeNotifications() {
+        QMutexLocker lock(&m_mutex);
         return m_notifications;
     }
+
+    qsizetype count() {
+        QMutexLocker lock(&m_mutex);
+        return m_notifications.count();
+    }
+
+    void clear();
 
     void closeNotification(const NotificationPointer& pNotification);
 

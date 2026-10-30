@@ -70,7 +70,7 @@ qsizetype QmlCoreServices::count_notification(QQmlListProperty<mixxx::Notificati
     VERIFY_OR_DEBUG_ASSERT(pCoreServices) {
         return -1;
     };
-    return pCoreServices->m_pInternal->getNotificationManager()->activeNotifications().count();
+    return pCoreServices->m_pInternal->getNotificationManager()->count();
 }
 
 mixxx::Notification* QmlCoreServices::at_notification(
@@ -90,9 +90,7 @@ void QmlCoreServices::clear_notification(QQmlListProperty<mixxx::Notification>* 
     VERIFY_OR_DEBUG_ASSERT(pCoreServices) {
         return;
     };
-    // TODO is this allowed?
-    return;
-    // return pCoreServices->m_pInternal->getNotificationManager()->activeNotifications().clear();
+    pCoreServices->m_pInternal->getNotificationManager()->clear();
 }
 
 void QmlCoreServices::addOpenedPopup(QObject* popup) {

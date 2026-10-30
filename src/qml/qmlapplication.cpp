@@ -347,6 +347,45 @@ QmlApplication::QmlApplication(
             QCoreApplication::exit(0);
         });
         m_pCoreServices->getNotificationManager()->notify(pNotification);
+    } else if (result != SoundDeviceStatus::Ok) {
+        auto pNotification =
+                std::make_shared<mixxx::Notification>(tr("Sound Device Error"),
+                        mixxx::Notification::Flag::Sticky |
+                                mixxx::Notification::Flag::Wrap |
+                                mixxx::Notification::Flag::Error);
+        pNotification->setDetails("<html> <p>" %
+                        tr("Mixxx was unable to open all the configured sound "
+                           "devices.") +
+                "</p> <p>" %
+                        m_pCoreServices->getSoundManager()
+                                ->getLastErrorMessage(result)
+                                .replace("\n", "<br/>") %
+                        "</p><ul>"
+                        "<li>" %
+                        tr("<b>Retry</b> after fixing an issue") %
+                        "</li>"
+                        "<li>" %
+                        tr("<b>Reconfigure</b> Mixxx's sound device settings.") %
+                        "</li>"
+                        "<li>" %
+                        tr("Get <b>Help</b> from the Mixxx Wiki.") %
+                        "</li>"
+                        "<li>" %
+                        tr("<b>Exit</b> Mixxx.") %
+                        "</li>"
+                        "</ul></html>");
+        pNotification->addButton("Retry", this, [this, pNotification]() {
+            m_pCoreServices->getSoundManager()->clearAndQueryDevices();
+            auto result = m_pCoreServices->getSoundManager()->setupDevices();
+            if (result != SoundDeviceStatus::ErrorDeviceCount &&
+                    result != SoundDeviceStatus::ErrorExcessiveOutputChannel) {
+                m_pCoreServices->getNotificationManager()->closeNotification(pNotification);
+            }
+        });
+        pNotification->addButton("Exit", this, [this, pNotification]() {
+            QCoreApplication::exit(0);
+        });
+        m_pCoreServices->getNotificationManager()->notify(pNotification);
     }
 
     // Test for at least one output device. If none, display another dialog

@@ -27,6 +27,7 @@ class Notification : public QObject {
 
     Q_PROPERTY(Notification::Flags flags MEMBER m_flags NOTIFY flagsChanged);
     Q_PROPERTY(QString text MEMBER m_text NOTIFY textChanged);
+    Q_PROPERTY(QString key MEMBER m_key CONSTANT);
     Q_PROPERTY(QString details MEMBER m_details NOTIFY detailsChanged);
     Q_PROPERTY(int timeoutSecs MEMBER m_timeoutSecs CONSTANT);
     Q_PROPERTY(QDateTime lastUpdated MEMBER m_lastUpdated CONSTANT);
@@ -48,7 +49,9 @@ class Notification : public QObject {
     };
     Q_DECLARE_FLAGS(Flags, Flag);
 
-    explicit Notification(const QString& text, Flags flags = Flag::Default);
+    explicit Notification(const QString& text,
+            Flags flags = Flag::Default,
+            const QString& key = {});
     ~Notification() {};
 
     Flags flags() const {
@@ -90,6 +93,10 @@ class Notification : public QObject {
         return m_timeoutSecs;
     }
 
+    const QString& key() const {
+        return m_key;
+    }
+
     void setLastUpdated(const QDateTime& lastUpdated) {
         m_lastUpdated = lastUpdated;
     }
@@ -101,12 +108,10 @@ class Notification : public QObject {
     // Sticky notifications remain until explicitly closed; non-sticky ones
     // are auto-removed by NotificationManager after timeoutSecs().
     void setSticky(bool sticky) {
-        const Flags newFlags =
-                sticky ? Notification::Flag::Sticky : Notification::Flag::None;
-        if (m_flags == newFlags) {
+        if (m_flags.testFlags(Notification::Flag::Sticky) == sticky) {
             return;
         }
-        m_flags = newFlags;
+        m_flags.setFlag(Notification::Flag::Sticky, sticky);
         emit flagsChanged();
     }
 
@@ -143,6 +148,7 @@ class Notification : public QObject {
     Flags m_flags;
     QString m_text;
     QString m_details;
+    QString m_key;
     int m_timeoutSecs;
     QDateTime m_lastUpdated;
     QVector<NotificationButton> m_buttons;

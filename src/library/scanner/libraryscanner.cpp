@@ -1,7 +1,5 @@
 #include "library/scanner/libraryscanner.h"
 
-#include <qthread.h>
-
 #include "library/coverartutils.h"
 #include "library/library_decl.h"
 #include "library/queryutil.h"
@@ -674,8 +672,7 @@ void LibraryScanner::slotDirectoryUnchanged(const QString& directoryPath,
 }
 
 void LibraryScanner::slotTrackExists(const QString& trackPath) {
-    kLogger.debug() << "slotTrackExists" << trackPath;
-    QThread::currentThread()->msleep(10);
+    //kLogger.debug() << "slotTrackExists" << trackPath;
     ScopedTimer timer(QStringLiteral("LibraryScanner::slotTrackExists"));
     if (m_scannerGlobal) {
         m_scannerGlobal->addVerifiedTrack(trackPath);

@@ -311,16 +311,30 @@ void ControllerScriptEngineBase::scriptErrorNotification(
         return;
     }
 
-    auto flags = mixxx::Notification::Flag::Sticky |
-            mixxx::Notification::Flag::Wrap;
-    if (bFatalError) {
-        flags |= mixxx::Notification::Flag::Error;
-    } else {
-        flags |= mixxx::Notification::Flag::Warn;
+    mixxx::NotificationPointer pNotification;
+    bool newNotification = false;
+    for (const auto& pActiveNotification :
+            mixxx::NotificationManager::instance()->activeNotifications()) {
+        if (pActiveNotification->key() == key) {
+            pNotification = std::move(pActiveNotification);
+            break;
+        }
     }
-    auto pNotification =
-            std::make_shared<mixxx::Notification>(tr("Controller Mapping Error"),
-                    flags);
+
+    if (!pNotification) {
+        auto flags = mixxx::Notification::Flag::Sticky |
+                mixxx::Notification::Flag::Wrap;
+        if (bFatalError) {
+            flags |= mixxx::Notification::Flag::Error;
+        } else {
+            flags |= mixxx::Notification::Flag::Warn;
+        }
+        pNotification =
+                std::make_shared<mixxx::Notification>(tr("Controller Mapping Error"),
+                        flags,
+                        key);
+        newNotification = true;
+    }
 
     QString additionalErrorText;
     if (bFatalError) {
@@ -379,8 +393,11 @@ void ControllerScriptEngineBase::scriptErrorNotification(
         });
     }
     m_bDisplayingExceptionDialog = true;
-    pNotification->moveToThread(mixxx::NotificationManager::instance()->thread());
-    mixxx::NotificationManager::instance()->notify(pNotification);
+
+    if (newNotification) {
+        pNotification->moveToThread(mixxx::NotificationManager::instance()->thread());
+        mixxx::NotificationManager::instance()->notify(pNotification);
+    }
 }
 #endif
 
