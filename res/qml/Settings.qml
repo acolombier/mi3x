@@ -24,6 +24,7 @@ Popup {
 
     focus: true
     horizontalPadding: 20
+    // Used by notifications to interact with the setting popup
     objectName: "settingsPopup"
     verticalPadding: 20
 
@@ -45,6 +46,8 @@ Popup {
         anchors.fill: parent
         anchors.margins: 10
         asynchronous: true
+        // Used by notifications to interact with the setting popup
+        objectName: "settingsLoader"
         sourceComponent: content
         visible: item !== null && status == Loader.Ready
 

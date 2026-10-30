@@ -8,6 +8,7 @@
 
 #include "library/autodj/autodjprocessor.h"
 #include "notification.h"
+#include "qmlapplication.h"
 #include "track/track_decl.h"
 #include "util/singleton.h"
 
@@ -70,7 +71,7 @@ class QmlCoreServices : public QObject, public Singleton<QmlCoreServices> {
     Q_INVOKABLE void notificationClosed(mixxx::Notification*);
 
   protected:
-    QmlCoreServices(std::shared_ptr<::mixxx::CoreServices> pCoreServices);
+    QmlCoreServices(QmlApplication* parent);
     ~QmlCoreServices() override = default;
 
     friend class Singleton<QmlCoreServices>;
@@ -89,7 +90,6 @@ class QmlCoreServices : public QObject, public Singleton<QmlCoreServices> {
     // Workaround for https://qt-project.atlassian.net/browse/QTBUG-87815
     // This is necessary to make touchscreen/Android usable
     QSet<QObject*> m_popups;
-    std::shared_ptr<::mixxx::CoreServices> m_pInternal;
 
     static void append_notification(QQmlListProperty<mixxx::Notification>* list,
             mixxx::Notification* slice);

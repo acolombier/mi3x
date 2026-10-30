@@ -39,6 +39,10 @@ class QmlApplication : public QObject {
         return m_pAppEngine.get();
     }
 
+    const std::shared_ptr<CoreServices>& coreServices() const {
+        return m_pCoreServices;
+    }
+
     const QString& mainFilePath() const {
         return m_mainFilePath;
     }

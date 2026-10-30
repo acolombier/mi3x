@@ -134,9 +134,7 @@ QmlApplication::QmlApplication(
     }
 #endif
 
-    QJSEngine::setObjectOwnership(
-            QmlCoreServices::createInstance(m_pCoreServices),
-            QJSEngine::CppOwnership);
+    QJSEngine::setObjectOwnership(QmlCoreServices::createInstance(this), QJSEngine::CppOwnership);
 
     m_loadSucceeded = loadQml(m_mainFilePath);
     if (!m_loadSucceeded && !CmdlineArgs::Instance().getDeveloper()) {
@@ -422,43 +420,47 @@ QmlApplication::QmlApplication(
         });
         pNotification->addButton("Reconfigure", this, [this, pNotification]() {
             auto windows = QGuiApplication::topLevelWindows();
-            mixxx::qml::QmlSettingGroup* pEngineSection = nullptr;
-            QObject* pSettings = nullptr;
+            QObject* pSettingsPopup = nullptr;
+            QObject* pSettingsLoader = nullptr;
             for (auto* w : std::as_const(windows)) {
-                pEngineSection = w->findChild<mixxx::qml::QmlSettingGroup*>("engineSection");
-                pSettings = w->findChild<QObject*>("settingsPopup");
-                if (pEngineSection && pSettings) {
+                pSettingsPopup = w->findChild<QObject*>("settingsPopup");
+                pSettingsLoader = w->findChild<QObject*>("settingsLoader");
+                if (pSettingsPopup && pSettingsLoader) {
                     break;
                 }
             }
-            VERIFY_OR_DEBUG_ASSERT(pEngineSection && pSettings) {
+            VERIFY_OR_DEBUG_ASSERT(pSettingsPopup && pSettingsLoader) {
                 return;
             }
-            QMetaObject::invokeMethod(pSettings, "open", Qt::QueuedConnection);
-            QMetaObject::invokeMethod(pSettings,
-                    "focusSection",
-                    Qt::QueuedConnection,
-                    Q_ARG(QVariant, QVariant::fromValue(pEngineSection)));
-            connect(pEngineSection,
-                    &mixxx::qml::QmlSettingGroup::saved,
-                    this,
-                    [this, pNotification]() {
-                        if (!m_pCoreServices->getSoundManager()
-                                        ->getConfig()
-                                        .getOutputs()
-                                        .isEmpty() ||
-                                m_pCoreServices->getSoundManager()
-                                        ->pipewireSkipConfig()) {
-                            m_pCoreServices->getNotificationManager()
-                                    ->closeNotification(pNotification);
-                            // The user has either reconfigured devices or
-                            // accepted no outputs, so it's now safe to write
-                            // the new config to disk.
-                            m_pCoreServices->getSoundManager()
-                                    ->getConfig()
-                                    .writeToDisk();
-                        }
-                    });
+
+            QMetaObject::invokeMethod(pSettingsPopup, "open", Qt::QueuedConnection);
+            // TODO: The content of the setting page is lazy loaded so we cannot
+            // interact with the category currently. auto* pEngineSection =
+            // w->findChild<mixxx::qml::QmlSettingGroup*>("engineSection");
+            // QMetaObject::invokeMethod(pSettings,
+            //     "focusSection",
+            //     Qt::QueuedConnection,
+            //     Q_ARG(QVariant, QVariant::fromValue(pEngineSection)));
+            // connect(pEngineSection,
+            //     &mixxx::qml::QmlSettingGroup::saved,
+            //     this,
+            //     [this, pNotification]() {
+            //         if (!m_pCoreServices->getSoundManager()
+            //                         ->getConfig()
+            //                         .getOutputs()
+            //                         .isEmpty() ||
+            //                 m_pCoreServices->getSoundManager()
+            //                         ->pipewireSkipConfig()) {
+            //             m_pCoreServices->getNotificationManager()
+            //                     ->closeNotification(pNotification);
+            //             // The user has either reconfigured devices or
+            //             // accepted no outputs, so it's now safe to write
+            //             // the new config to disk.
+            //             m_pCoreServices->getSoundManager()
+            //                     ->getConfig()
+            //                     .writeToDisk();
+            //         }
+            // });
         });
         pNotification->addButton("Exit", this, [this, pNotification]() {
             QCoreApplication::exit(0);
