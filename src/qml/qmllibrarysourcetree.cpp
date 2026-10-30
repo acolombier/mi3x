@@ -36,6 +36,7 @@ void QmlLibrarySourceTree::append_source(
     QmlLibrarySourceTree* librarySourceTree = qobject_cast<QmlLibrarySourceTree*>(p->object);
     if (librarySourceTree->isComponentComplete()) {
         librarySourceTree->m_model->update();
+        emit librarySourceTree->sidebarChanged();
     }
 }
 
@@ -44,6 +45,7 @@ void QmlLibrarySourceTree::clear_source(QQmlListProperty<QmlLibraryAbstractSourc
     QmlLibrarySourceTree* librarySourceTree = qobject_cast<QmlLibrarySourceTree*>(p->object);
     if (librarySourceTree->isComponentComplete()) {
         librarySourceTree->m_model->update();
+        emit librarySourceTree->sidebarChanged();
     }
 }
 void QmlLibrarySourceTree::replace_source(QQmlListProperty<QmlLibraryAbstractSource>* p,
@@ -53,6 +55,7 @@ void QmlLibrarySourceTree::replace_source(QQmlListProperty<QmlLibraryAbstractSou
     QmlLibrarySourceTree* librarySourceTree = qobject_cast<QmlLibrarySourceTree*>(p->object);
     if (librarySourceTree->isComponentComplete()) {
         librarySourceTree->m_model->update();
+        emit librarySourceTree->sidebarChanged();
     }
 }
 void QmlLibrarySourceTree::removeLast_source(QQmlListProperty<QmlLibraryAbstractSource>* p) {
@@ -60,6 +63,7 @@ void QmlLibrarySourceTree::removeLast_source(QQmlListProperty<QmlLibraryAbstract
     QmlLibrarySourceTree* librarySourceTree = qobject_cast<QmlLibrarySourceTree*>(p->object);
     if (librarySourceTree->isComponentComplete()) {
         librarySourceTree->m_model->update();
+        emit librarySourceTree->sidebarChanged();
     }
 }
 
