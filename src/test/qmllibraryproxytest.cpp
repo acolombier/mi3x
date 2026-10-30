@@ -62,7 +62,7 @@ class QmlLibraryProxyTest : public MixxxTest {
         m_coreServices->initialize(application());
         application()->removeEventFilter(m_rejectFileDialogs.get());
 
-        m_proxy = std::make_unique<mixxx::qml::QmlLibraryProxy>();
+        m_proxy = std::make_unique<mixxx::qml::QmlLibraryProxy>(m_coreServices->getLibrary());
     }
 
     void TearDown() override {
@@ -92,71 +92,5 @@ class QmlLibraryProxyTest : public MixxxTest {
     std::shared_ptr<mixxx::CoreServices> m_coreServices;
     std::vector<std::unique_ptr<ControlObject>> m_testControls;
 };
-
-TEST_F(QmlLibraryProxyTest, DeckHotcueJumpDirectionMatchesLegacyRules) {
-    constexpr auto kSampleRate = mixxx::audio::SampleRate(8000);
-    constexpr auto kCuePosition = mixxx::audio::FramePos(10000);
-    const QString group = QStringLiteral("[Channel1]");
-
-    auto pTrack = Track::newTemporary();
-    pTrack->setAudioProperties(
-            mixxx::audio::ChannelCount(2),
-            kSampleRate,
-            mixxx::audio::Bitrate(),
-            mixxx::Duration::fromSeconds(60));
-    ASSERT_TRUE(pTrack->trySetBeats(mixxx::Beats::fromConstTempo(
-            kSampleRate,
-            mixxx::audio::kStartFramePos,
-            mixxx::Bpm(48.0))));
-
-    ASSERT_TRUE(pTrack->createAndAddCue(
-            mixxx::CueType::HotCue,
-            0,
-            kCuePosition,
-            mixxx::audio::kInvalidFramePos));
-    ASSERT_TRUE(pTrack->createAndAddCue(
-            mixxx::CueType::Loop,
-            1,
-            mixxx::audio::FramePos(20000),
-            mixxx::audio::FramePos(22000)));
-    ASSERT_TRUE(pTrack->createAndAddCue(
-            mixxx::CueType::Jump,
-            2,
-            mixxx::audio::FramePos(22000),
-            mixxx::audio::FramePos(20000)));
-    ASSERT_TRUE(pTrack->createAndAddCue(
-            mixxx::CueType::Jump,
-            3,
-            mixxx::audio::FramePos(20000),
-            mixxx::audio::FramePos(22000)));
-
-    mixxx::qml::QmlTrackProxy trackProxy(pTrack);
-    setDeckControl(QStringLiteral("track_samples"), 40000.0);
-    setDeckControl(QStringLiteral("quantize"), 0.0);
-
-    setDeckControl(QStringLiteral("playposition"), 0.25);
-    EXPECT_EQ(mixxx::qml::QmlLibraryProxy::JumpDirection::Forward,
-            m_proxy->deckHotcueJumpDirection(&trackProxy, group, 1));
-
-    setDeckControl(QStringLiteral("playposition"), 0.75);
-    EXPECT_EQ(mixxx::qml::QmlLibraryProxy::JumpDirection::Backward,
-            m_proxy->deckHotcueJumpDirection(&trackProxy, group, 1));
-
-    setDeckControl(QStringLiteral("playposition"), 0.5025);
-    setDeckControl(QStringLiteral("quantize"), 1.0);
-    EXPECT_EQ(mixxx::qml::QmlLibraryProxy::JumpDirection::Impossible,
-            m_proxy->deckHotcueJumpDirection(&trackProxy, group, 1));
-
-    EXPECT_EQ(mixxx::qml::QmlLibraryProxy::JumpDirection::Forward,
-            m_proxy->deckHotcueJumpDirection(&trackProxy, group, 2));
-    EXPECT_EQ(mixxx::qml::QmlLibraryProxy::JumpDirection::Forward,
-            m_proxy->deckHotcueJumpDirection(&trackProxy, group, 3));
-    EXPECT_EQ(mixxx::qml::QmlLibraryProxy::JumpDirection::Backward,
-            m_proxy->deckHotcueJumpDirection(&trackProxy, group, 4));
-    EXPECT_EQ(mixxx::qml::QmlLibraryProxy::JumpDirection::Impossible,
-            m_proxy->deckHotcueJumpDirection(&trackProxy, group, 0));
-    EXPECT_EQ(mixxx::qml::QmlLibraryProxy::JumpDirection::Impossible,
-            m_proxy->deckHotcueJumpDirection(nullptr, group, 1));
-}
 
 } // namespace

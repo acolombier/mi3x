@@ -150,6 +150,18 @@ Category {
         Mixxx.Config.controlRatePermCoarse = adjustmentButtonsPermanentCoarseInput.value / 100;
         Mixxx.Config.controlRatePermFine = adjustmentButtonsPermanentFineInput.value / 100;
         Mixxx.Config.controlRateRampSensitivity = rampingSensitivityInput.value;
+        // TODO: following setting are currently not exposed
+        // Mixxx.Config.waveformOverviewType
+        // Mixxx.Config.waveformOverviewStereo
+        // Mixxx.Config.waveformOverviewMinuteMarkers
+        // Mixxx.Config.waveformEnabled
+        // Mixxx.Config.waveformFrameRate
+        // Mixxx.Config.waveformStemOpacity
+        // Mixxx.Config.waveformStemOutlineOpacity
+        // Mixxx.Config.waveformStemReorderOnChange
+        // Mixxx.Config.waveformStemSplitTracks
+        // Mixxx.Config.waveformCachingEnabled
+        // Mixxx.Config.waveformGenerationWithAnalysisEnabled
         loadDeck();
     }
     function saveInterface() {
