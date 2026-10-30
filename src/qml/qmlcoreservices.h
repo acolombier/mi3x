@@ -12,6 +12,7 @@
 #include "util/singleton.h"
 
 class PlayerManager;
+class LibraryScanResultSummary;
 
 namespace mixxx {
 class CoreServices;
@@ -79,6 +80,7 @@ class QmlCoreServices : public QObject, public Singleton<QmlCoreServices> {
     // connectUserNotifications()). TODO(#51): scaffolding for the QML
     // notification space.
     void slotTrackLoadFailed(TrackPointer pTrack, const QString& reason);
+    void slotLibraryScanSummary(const LibraryScanResultSummary&);
     void slotBroadcastError(const QString& title, const QString& text);
     void slotAutoDJError(AutoDJProcessor::AutoDJError error);
 

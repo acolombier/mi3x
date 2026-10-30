@@ -68,6 +68,8 @@ class ControllerScriptEngineLegacy : public ControllerScriptEngineBase {
             const LegacyControllerMapping::ScreenInfo& screeninfo,
             const QImage& frame,
             const QDateTime& timestamp);
+    // Notify about auto reload
+    void notify();
 
   signals:
     /// Emitted when a screen has been rendered.

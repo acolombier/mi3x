@@ -1559,8 +1559,6 @@ add_library(
   src/network/jsonwebtask.cpp
   src/network/networktask.cpp
   src/network/webtask.cpp
-  src/notification.cpp
-  src/notificationmanager.cpp
   src/preferences/colorpaletteeditor.cpp
   src/preferences/colorpaletteeditor.cpp
   src/preferences/colorpaletteeditormodel.cpp
@@ -4483,6 +4481,8 @@ if(QML)
       src/control/controlsortfiltermodel.cpp
       # needed for qml/qmlautoreload.cpp
       src/util/autofilereloader.cpp
+      src/notification.cpp
+      src/notificationmanager.cpp
   )
 
   if(STEM)

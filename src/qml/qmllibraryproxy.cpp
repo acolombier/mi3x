@@ -3,6 +3,7 @@
 #include <QAbstractItemModel>
 #include <QQmlEngine>
 #include <cmath>
+#include <memory>
 
 #include "control/controlobject.h"
 #include "library/library.h"
@@ -11,6 +12,7 @@
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #include "moc_qmllibraryproxy.cpp"
+#include "notificationmanager.h"
 #include "preferences/colorpalettesettings.h"
 #include "qml/qmlconfigproxy.h"
 #include "qml/qmllibrarytracklistmodel.h"
@@ -124,15 +126,15 @@ QmlLibraryScannerProxy::QmlLibraryScannerProxy(LibraryScanner* libraryScanner, Q
     connect(libraryScanner,
             &LibraryScanner::progressLoading,
             this,
-            &QmlLibraryScannerProxy::progress);
+            &QmlLibraryScannerProxy::slotProgressLoading);
     connect(libraryScanner,
-            &LibraryScanner::scanStarted,
+            &LibraryScanner::progressHashing,
             this,
-            &QmlLibraryScannerProxy::started);
+            &QmlLibraryScannerProxy::slotProgressLoading);
     connect(libraryScanner,
-            &LibraryScanner::scanFinished,
+            &LibraryScanner::progressCoverArt,
             this,
-            &QmlLibraryScannerProxy::finished);
+            &QmlLibraryScannerProxy::slotProgressLoading);
     connect(this,
             &QmlLibraryScannerProxy::requestCancel,
             libraryScanner,
@@ -142,19 +144,49 @@ QmlLibraryScannerProxy::QmlLibraryScannerProxy(LibraryScanner* libraryScanner, Q
     connect(libraryScanner,
             &LibraryScanner::scanStarted,
             this,
-            [this]() {
-                m_cancelling = false;
-                m_running = true;
-                emit stateChanged();
-            });
+            &QmlLibraryScannerProxy::slotScanStarted);
     connect(libraryScanner,
             &LibraryScanner::scanFinished,
             this,
-            [this]() {
-                m_cancelling = false;
-                m_running = false;
-                emit stateChanged();
-            });
+            &QmlLibraryScannerProxy::slotScanFinished);
+}
+
+// FIXME: currently, all scanner operation are handled here. We should
+// differentiate the operation, like the scanner dialog
+void QmlLibraryScannerProxy::slotProgressLoading(const QString& path) {
+    emit progress(path);
+
+    if (m_pNotification) {
+        m_pNotification->setDetails(tr("Processing: ") + path);
+    }
+}
+
+void QmlLibraryScannerProxy::slotScanStarted() {
+    m_cancelling = false;
+    m_running = true;
+    emit stateChanged();
+    emit started();
+
+    m_pNotification = std::make_shared<mixxx::Notification>(
+            tr("Library Scanner"), mixxx::Notification::Flag::Sticky);
+    m_pNotification->setDetails(
+            tr("It's taking Mixxx a minute to scan your music library, please "
+               "wait..."));
+    m_pNotification->addButton("Cancel", this, [this]() {
+        m_pLibraryScanner->slotCancel();
+    });
+    NotificationManager::instance()->notify(m_pNotification);
+}
+
+void QmlLibraryScannerProxy::slotScanFinished() {
+    m_cancelling = false;
+    m_running = false;
+    emit stateChanged();
+    emit finished();
+    if (m_pNotification) {
+        NotificationManager::instance()->closeNotification(m_pNotification);
+        m_pNotification.reset();
+    }
 }
 
 QmlLibraryProxy::~QmlLibraryProxy() = default;

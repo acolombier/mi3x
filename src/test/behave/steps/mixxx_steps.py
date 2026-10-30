@@ -281,6 +281,29 @@ def step_new_empty_profile(context, profile_type):
     )
 
 
+@given("a profile with unopenable sound devices configured")
+def step_profile_with_unopenable_sound_devices(context):
+    # Startup sound-setup-failure notifications (sound.feature,
+    # @sub/notifications). The profile factory must pre-seed the profile's
+    # saved sound configuration with devices that cannot be opened, so
+    # SoundManager::setupDevices() fails with ErrorDeviceCount at startup.
+    # Needs a forced fresh profile instance for a deterministic state.
+    raise NotImplementedError(
+        "Needs profile-machinery variant seeding an unopenable [Soundcard "
+        "Config] (mixxx_profile.py)")
+
+
+@then("Mixxx should have quit")
+def step_mixxx_should_have_quit(context):
+    # Notification CTA Exit is exit(0) in the application. Bounded poll on
+    # the MixxxProcess liveness (process exited / port 9000 closed); the
+    # session machinery reaps the dead instance and resets ready_key so the
+    # next scenario spawns cleanly. The abrupt process death is expected.
+    raise NotImplementedError(
+        "Needs a bounded process-liveness poll (context.mixxx.process "
+        "exit, ~5s)")
+
+
 @given("Mixxx is open and ready to operate")
 def step_open_and_ready(context):
     session = context._session

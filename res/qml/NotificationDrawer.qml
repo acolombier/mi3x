@@ -22,68 +22,75 @@ Skin.ActionPopup {
 
     contentItem: Loader {
         sourceComponent: root.focusedNotification ? focusedItem : listItem
-    }
 
-    Component {
-        id: focusedItem
+        Component {
+            id: focusedItem
 
-        NotificationDelegate {
-            id: focused
+            NotificationDelegate {
+                id: focused
 
-            color: 'red'
+                color: Theme.backgroundColor
+                layer.enabled: true
+                notification: root.focusedNotification
 
-            // layer.enabled: true
-            // layer.effect: MultiEffect {
-            //     shadowBlur: 0.8
-            //     shadowColor: '#c0000000'
-            //     shadowEnabled: true
-            // }
-            notification: root.focusedNotification
-        }
-    }
-    Component {
-        id: listItem
-
-        Item {
-            clip: true
-            implicitHeight: notificationList.contentHeight
-            width: 500
-
-            ListView {
-                id: notificationList
-
-                height: contentHeight
-                model: Mixxx.Core.notifications
-                width: parent.width
-
-                delegate: Item {
-                    required property int index
-                    required property var modelData
-
-                    height: inner.height
-                    width: ListView.view.width
-
-                    NotificationDelegate {
-                        id: inner
-
-                        notification: modelData
-                        width: parent.width
-                    }
-                    Rectangle {
-                        anchors.bottom: parent.bottom
-                        color: 'black'
-                        height: 2
-                        visible: index != notificationList.count - 1
-                        width: parent.width
-                    }
-                }
-
-                onCountChanged: {
-                    if (count)
-                        return;
-                    root.close();
+                layer.effect: MultiEffect {
+                    shadowBlur: 0.8
+                    shadowColor: '#c0000000'
+                    shadowEnabled: true
                 }
             }
+        }
+        Component {
+            id: listItem
+
+            Item {
+                clip: true
+                implicitHeight: notificationList.contentHeight
+                width: 500
+
+                ListView {
+                    id: notificationList
+
+                    height: contentHeight
+                    model: Mixxx.Core.notifications
+                    width: parent.width
+
+                    delegate: Item {
+                        required property int index
+                        required property var modelData
+
+                        height: inner.height
+                        width: ListView.view.width
+
+                        NotificationDelegate {
+                            id: inner
+
+                            notification: modelData
+                            width: parent.width
+                        }
+                        Rectangle {
+                            anchors.bottom: parent.bottom
+                            color: 'black'
+                            height: 2
+                            visible: index != notificationList.count - 1
+                            width: parent.width
+                        }
+                    }
+
+                    onCountChanged: {
+                        if (count)
+                            return;
+                        root.close();
+                    }
+                }
+            }
+        }
+    }
+
+    Component.onCompleted: {
+        if (Mixxx.Core.notifications) {
+            root.focusedNotification = Mixxx.Core.notifications[0];
+            root.open();
         }
     }
 
@@ -91,6 +98,10 @@ Skin.ActionPopup {
         id: delegate
 
         required property var notification
+
+        function isLevel(level) {
+            return (notification.flags & level) == level;
+        }
 
         color: 'transparent'
         implicitHeight: notificationGrid.height + 10
@@ -103,13 +114,26 @@ Skin.ActionPopup {
             width: parent.width
 
             Item {
+                readonly property color color: {
+                    if (delegate.isLevel(Mixxx.Notification.Flags.Warn)) {
+                        return '#ded600';
+                    }
+                    if (delegate.isLevel(Mixxx.Notification.Flags.Error)) {
+                        return '#FF9A9A';
+                    }
+                    if (delegate.isLevel(Mixxx.Notification.Flags.Critical)) {
+                        return '#ff2f2f';
+                    }
+                    return '#9AEDFF';
+                }
+
                 Layout.fillHeight: true
                 Layout.minimumWidth: 60
                 Layout.rowSpan: 3
 
                 Rectangle {
                     anchors.centerIn: parent
-                    color: Qt.alpha('#FF9A9A', 0.3)
+                    color: Qt.alpha(parent.color, 0.3)
                     height: width
                     radius: width / 2
                     width: 30
@@ -120,7 +144,15 @@ Skin.ActionPopup {
                         font.pixelSize: 24
                         font.weight: Font.DemiBold
                         horizontalAlignment: Text.AlignHCenter
-                        text: '!'
+                        text: {
+                            if (delegate.isLevel(Mixxx.Notification.Flags.Warn) || delegate.isLevel(Mixxx.Notification.Flags.Error)) {
+                                return '!';
+                            }
+                            if (delegate.isLevel(Mixxx.Notification.Flags.Critical)) {
+                                return '!!';
+                            }
+                            return '?';
+                        }
                         verticalAlignment: Text.AlignVCenter
                     }
                 }
@@ -131,7 +163,7 @@ Skin.ActionPopup {
                 color: '#FFFFFF'
                 font.pixelSize: 13
                 font.weight: Font.DemiBold
-                text: notification.text
+                text: notification?.text
                 verticalAlignment: Text.AlignBottom
                 wrapMode: Text.WrapAnywhere
             }
@@ -140,33 +172,26 @@ Skin.ActionPopup {
 
                 Layout.fillWidth: true
                 clip: true
-                implicitHeight: scrollingText.implicitHeight
-                visible: notification.details.length > 0
+                implicitHeight: detailText.implicitHeight
+                visible: notification?.details.length > 0
 
                 Text {
-                    id: scrollingText
+                    id: detailText
 
-                    readonly property var maxScrollingOffset: Math.min(0, detailViewport.width - scrollingText.width)
+                    readonly property var maxScrollingOffset: Math.min(0, detailViewport.width - detailText.width)
+                    readonly property bool wrap: notification.flags & Mixxx.Notification.Flags.Wrap
 
                     color: '#656565'
                     font.pixelSize: 13
-                    text: notification.details
+                    text: notification?.details
+                    width: wrap ? parent.width : undefined
+                    wrapMode: wrap ? Text.Wrap : undefined
 
-                    // x: detailViewport.width
-                    // y: (detailViewport.height - height) / 2
-
-                    // NumberAnimation on x {
-                    //     running: scrollingText.width > scrollingText.parent.width
-                    //     from: detaildetailViewport.width
-                    //     to: -scrollingText.width
-                    //     duration: 8000
-                    //     loops: Animation.Infinite
-                    // }
                     SequentialAnimation {
                         id: tickerAnimation
 
                         loops: Animation.Infinite
-                        running: true // scrollingText.width > scrollingText.parent.width
+                        running: detailText.width > detailText.parent.width && !detailText.wrap
 
                         // 1. Let the beginning be read
                         PauseAnimation {
@@ -175,11 +200,11 @@ Skin.ActionPopup {
 
                         // 2. Scroll slowly to reveal the end
                         NumberAnimation {
-                            duration: Math.max(2500, (scrollingText.width - detailViewport.width) * 25)
+                            duration: Math.max(2500, (detailText.width - detailViewport.width) * 25)
                             easing.type: Easing.Linear
                             property: "x"
-                            target: scrollingText
-                            to: scrollingText.maxScrollingOffset
+                            target: detailText
+                            to: detailText.maxScrollingOffset
                         }
 
                         // 3. Keep the end visible
@@ -192,21 +217,21 @@ Skin.ActionPopup {
                             duration: 350
                             easing.type: Easing.InOutQuad
                             property: "opacity"
-                            target: scrollingText
+                            target: detailText
                             to: 0
                         }
 
                         // 5. Reset position and opacity
                         PropertyAction {
                             property: "x"
-                            target: scrollingText
+                            target: detailText
                             value: 0
                         }
                         NumberAnimation {
                             duration: 250
                             easing.type: Easing.InOutQuad
                             property: "opacity"
-                            target: scrollingText
+                            target: detailText
                             to: 1
                         }
                     }
@@ -215,7 +240,7 @@ Skin.ActionPopup {
                     id: leftGradient
 
                     color: 'transparent'
-                    opacity: scrollingText.x == 0 ? 0 : 1
+                    opacity: detailText.x == 0 ? 0 : 1
                     width: 10
 
                     gradient: Gradient {
@@ -246,7 +271,7 @@ Skin.ActionPopup {
                     id: rightGradient
 
                     color: 'transparent'
-                    opacity: scrollingText.x == scrollingText.maxScrollingOffset ? 0 : 1
+                    opacity: detailText.x == detailText.maxScrollingOffset ? 0 : 1
                     width: 10
 
                     gradient: Gradient {
@@ -275,6 +300,8 @@ Skin.ActionPopup {
                 }
             }
             RowLayout {
+                Layout.rightMargin: 5
+
                 Item {
                     Layout.fillWidth: true
                 }
@@ -284,17 +311,25 @@ Skin.ActionPopup {
                     Item {
                         required property var modelData
 
+                        Layout.bottomMargin: 5
                         Layout.preferredHeight: 15
                         Layout.preferredWidth: button.implicitWidth
-                        Layout.rightMargin: 10
+                        Layout.rightMargin: 0
 
                         Skin.Button {
                             id: button
 
                             activeColor: Theme.white
+                            implicitWidth: Math.max(52, fontMetrics.advanceWidth + 8)
                             text: modelData.label
 
                             onClicked: modelData.invoke()
+                        }
+                        TextMetrics {
+                            id: fontMetrics
+
+                            font: button.font
+                            text: button.text
                         }
                     }
                 }

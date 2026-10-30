@@ -11,6 +11,7 @@
 
 #include "library/dao/directorydao.h"
 #include "library/scanner/libraryscanner.h"
+#include "notification.h"
 #include "qml/qmllibrarysource.h"
 #include "qml/qmllibrarytracklistmodel.h"
 #include "qml/qmlrecentsearchmodel.h"
@@ -73,6 +74,11 @@ class QmlLibraryScannerProxy : public QObject {
         emit requestCancel();
     }
 
+  private slots:
+    void slotProgressLoading(const QString& path);
+    void slotScanStarted();
+    void slotScanFinished();
+
   signals:
     void progress(const QString& path);
     void started();
@@ -85,6 +91,7 @@ class QmlLibraryScannerProxy : public QObject {
 
   private:
     LibraryScanner* m_pLibraryScanner;
+    NotificationPointer m_pNotification;
     bool m_running;
     bool m_cancelling;
 };

@@ -1,4 +1,6 @@
 #pragma once
+#include <qobjectdefs.h>
+
 #include <QDateTime>
 #include <QDialogButtonBox>
 #include <QObject>
@@ -9,14 +11,6 @@
 
 namespace mixxx {
 
-enum class NotificationFlag {
-    None = 0,
-    Sticky = 1,
-    Default = None,
-};
-Q_DECLARE_FLAGS(NotificationFlags, NotificationFlag);
-Q_DECLARE_OPERATORS_FOR_FLAGS(NotificationFlags);
-
 struct NotificationButton {
     Q_GADGET
     Q_PROPERTY(QString label MEMBER label)
@@ -25,27 +19,39 @@ struct NotificationButton {
     QObject* receiver;
     std::function<void()> func;
 
-    Q_INVOKABLE void invoke() {
-        func();
-    }
+    Q_INVOKABLE void invoke();
 };
 
 class Notification : public QObject {
     Q_OBJECT
-    QML_NAMED_ELEMENT(Notification)
 
-    Q_PROPERTY(NotificationFlags flags MEMBER m_flags NOTIFY flagsChanged);
+    Q_PROPERTY(Notification::Flags flags MEMBER m_flags NOTIFY flagsChanged);
     Q_PROPERTY(QString text MEMBER m_text NOTIFY textChanged);
     Q_PROPERTY(QString details MEMBER m_details NOTIFY detailsChanged);
     Q_PROPERTY(int timeoutSecs MEMBER m_timeoutSecs CONSTANT);
     Q_PROPERTY(QDateTime lastUpdated MEMBER m_lastUpdated CONSTANT);
     Q_PROPERTY(QVector<NotificationButton> buttons MEMBER m_buttons CONSTANT);
 
+    Q_FLAGS(Flags)
+    QML_NAMED_ELEMENT(Notification)
+
   public:
-    explicit Notification(const QString& text, NotificationFlags flags = NotificationFlag::Default);
+    enum class Flag : int {
+        None = 0,
+        Info,
+        Warn,
+        Error,
+        Critical,
+        Wrap = 1 << 3,
+        Sticky = 1 << 4,
+        Default = None | Info,
+    };
+    Q_DECLARE_FLAGS(Flags, Flag);
+
+    explicit Notification(const QString& text, Flags flags = Flag::Default);
     ~Notification() {};
 
-    NotificationFlags flags() const {
+    Flags flags() const {
         return m_flags;
     }
 
@@ -95,8 +101,8 @@ class Notification : public QObject {
     // Sticky notifications remain until explicitly closed; non-sticky ones
     // are auto-removed by NotificationManager after timeoutSecs().
     void setSticky(bool sticky) {
-        const NotificationFlags newFlags =
-                sticky ? NotificationFlag::Sticky : NotificationFlag::None;
+        const Flags newFlags =
+                sticky ? Notification::Flag::Sticky : Notification::Flag::None;
         if (m_flags == newFlags) {
             return;
         }
@@ -134,7 +140,7 @@ class Notification : public QObject {
     // place (see setText/setDetails/setSticky): progress notifications are
     // first created sticky and later demoted to auto-timeout, avoiding
     // churn in the notification list.
-    NotificationFlags m_flags;
+    Flags m_flags;
     QString m_text;
     QString m_details;
     int m_timeoutSecs;
@@ -143,6 +149,8 @@ class Notification : public QObject {
 };
 
 typedef std::shared_ptr<Notification> NotificationPointer;
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(mixxx::Notification::Flags)
 
 } // namespace mixxx
 

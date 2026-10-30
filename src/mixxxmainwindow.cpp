@@ -355,6 +355,7 @@ void MixxxMainWindow::initialize() {
     bool retryClicked;
     do {
         retryClicked = false;
+
         SoundDeviceStatus result = m_pCoreServices->getSoundManager()->setupDevices();
         if (result == SoundDeviceStatus::ErrorDeviceCount ||
                 result == SoundDeviceStatus::ErrorExcessiveOutputChannel) {

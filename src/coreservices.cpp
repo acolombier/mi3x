@@ -750,7 +750,7 @@ void CoreServices::initialize(QApplication* pApp) {
             // prompt the use to add their directory
             auto pNotification =
                     std::make_shared<mixxx::Notification>("No music directory configured!",
-                            mixxx::NotificationFlag::Sticky);
+                            mixxx::Notification::Flag::Sticky);
             pNotification->addButton(tr("Choose Directory"), this, [this]() {
                 QString fd = QFileDialog::getExistingDirectory(nullptr,
                         tr("Choose music library directory"),

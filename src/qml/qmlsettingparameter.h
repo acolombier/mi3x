@@ -18,7 +18,8 @@ class QmlSettingGroup : public QQuickItem {
         return m_label;
     }
   signals:
-    Q_INVOKABLE void activated();
+    void activated();
+    void saved();
 
   signals:
     void labelChanged();

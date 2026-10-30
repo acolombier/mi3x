@@ -167,7 +167,7 @@ void ErrorDialogHandler::errorDialog(ErrorDialogProperties* pProps) {
         locker.unlock();
 
         auto pNotification = std::make_shared<mixxx::Notification>(
-                props->m_title, mixxx::NotificationFlag::Sticky);
+                props->m_title, mixxx::Notification::Flag::Sticky);
         // m_text is the primary message, m_infoText the supporting one.
         pNotification->setText(props->m_infoText.isEmpty()
                         ? props->m_text

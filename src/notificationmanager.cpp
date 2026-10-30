@@ -16,7 +16,8 @@ constexpr int kAutoTimeoutSecs = 10;
 
 namespace mixxx {
 
-NotificationManager::NotificationManager() {
+NotificationManager::NotificationManager()
+        : m_timer() {
     m_timer.setInterval(1000);
     connect(&m_timer, &QTimer::timeout, this, &NotificationManager::slotUpdateNotifications);
 };
@@ -27,13 +28,13 @@ void NotificationManager::notify(const NotificationPointer& pNotification) {
     VERIFY_OR_DEBUG_ASSERT(pNotification) {
         return;
     }
-    qWarning() << "New notification:" << pNotification->text();
+    qDebug() << "New notification:" << pNotification->text();
 
     if (!pNotification->lastUpdated().isValid()) {
         pNotification->setLastUpdated(QDateTime::currentDateTimeUtc());
     }
 
-    if (!pNotification->flags().testFlag(NotificationFlag::Sticky)) {
+    if (!pNotification->flags().testFlag(Notification::Flag::Sticky)) {
         if (pNotification->timeoutSecs() == 0) {
             pNotification->setTimeoutSecs(kAutoTimeoutSecs);
         }
@@ -52,6 +53,7 @@ void NotificationManager::notify(const NotificationPointer& pNotification) {
 
 void NotificationManager::closeNotification(const NotificationPointer& pNotification) {
     m_notifications.removeAll(pNotification);
+    slotUpdateNotifications();
     emit notificationClosed(pNotification);
 }
 
@@ -62,7 +64,7 @@ void NotificationManager::slotUpdateNotifications() {
     auto it = m_notifications.begin();
     while (it != m_notifications.end()) {
         const NotificationPointer pNotification = *it;
-        if (pNotification->flags().testFlag(NotificationFlag::Sticky)) {
+        if (pNotification->flags().testFlag(Notification::Flag::Sticky)) {
             it++;
             continue;
         }

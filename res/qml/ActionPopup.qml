@@ -19,7 +19,7 @@ Popup {
     }
 
     property alias arrow: arrow
-    property alias children: content.children
+    default property alias children: content.children
     property var facing: ActionPopup.Facing.Left
 
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
@@ -47,11 +47,6 @@ Popup {
                 readonly property bool isPinned: pinTo.x != 0 || pinTo.y != 0
                 property point pinTo: Qt.point(0, 0)
 
-                // anchors.bottom: !isPinned && root.facing == ActionPopup.Facing.Bottom ? parent.bottom : undefined
-                // anchors.left: !isPinned && root.facing == ActionPopup.Facing.Left ? parent.left : undefined
-                // anchors.right: !isPinned && root.facing == ActionPopup.Facing.Right ? parent.right : undefined
-                // anchors.top: !isPinned && root.facing == ActionPopup.Facing.Top ? parent.top : undefined
-                // anchors.verticalCenter: isPinned ? undefined : parent.verticalCenter
                 implicitHeight: 20
                 rotation: {
                     switch (root.facing) {
@@ -66,11 +61,64 @@ Popup {
                     }
                 }
                 transformOrigin: Item.Center
-                x: isPinned ? pinTo.x : 0
-                y: isPinned ? pinTo.y : 0
+
+                states: [
+                    State {
+                        name: "pinned"
+                        when: arrow.isPinned
+
+                        AnchorChanges {
+                            anchors.bottom: undefined
+                            anchors.left: undefined
+                            anchors.right: undefined
+                            anchors.top: undefined
+                            anchors.verticalCenter: undefined
+                            target: arrow
+                        }
+                        PropertyChanges {
+                            target: arrow
+                            x: arrow.pinTo.x
+                            y: arrow.pinTo.y
+                        }
+                    },
+                    State {
+                        when: root.facing == ActionPopup.Facing.Bottom
+
+                        AnchorChanges {
+                            anchors.bottom: arrow.parent.bottom
+                            target: arrow
+                        }
+                    },
+                    State {
+                        when: root.facing == ActionPopup.Facing.Left
+
+                        AnchorChanges {
+                            anchors.left: arrow.parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            target: arrow
+                        }
+                    },
+                    State {
+                        when: root.facing == ActionPopup.Facing.Right
+
+                        AnchorChanges {
+                            anchors.right: arrow.parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            target: arrow
+                        }
+                    },
+                    State {
+                        when: root.facing == ActionPopup.Facing.Top
+
+                        AnchorChanges {
+                            anchors.top: arrow.parent.top
+                            target: arrow
+                        }
+                    }
+                ]
 
                 ShapePath {
-                    fillColor: 'green'
+                    fillColor: Theme.backgroundColor
                     fillRule: ShapePath.OddEvenFill
                     startX: 0
                     startY: 10
@@ -98,7 +146,7 @@ Popup {
                 anchors.rightMargin: root.facing == ActionPopup.Facing.Right ? 20 : 0
                 anchors.topMargin: root.facing == ActionPopup.Facing.Top ? 20 : 0
                 border.width: 0
-                color: 'green'
+                color: Theme.backgroundColor
                 radius: 8
             }
         }
@@ -113,6 +161,20 @@ Popup {
             anchors.rightMargin: root.facing == ActionPopup.Facing.Right ? 20 : 0
             anchors.topMargin: root.facing == ActionPopup.Facing.Top ? 20 : 0
             spacing: 2
+        }
+    }
+    enter: Transition {
+        NumberAnimation {
+            from: 0.0
+            property: "opacity"
+            to: 1.0
+        }
+    }
+    exit: Transition {
+        NumberAnimation {
+            from: 1.0
+            property: "opacity"
+            to: 0.0
         }
     }
 

@@ -115,6 +115,49 @@ Item {
             RowLayout {
                 anchors.fill: parent
 
+                Item {
+                    height: 26
+                    implicitWidth: 130
+
+                    Image {
+                        id: logo
+
+                        anchors.fill: parent
+                        anchors.leftMargin: 10
+                        fillMode: Image.PreserveAspectFit
+                        source: "qrc:/images/mixxx-icon-logo-symbolic.svg"
+                    }
+                    TapHandler {
+                        id: tapHandler
+
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+                        onLongPressed: () => {
+                            contextMenu.popup(parent, parent.width / 2, parent.height / 2);
+                        }
+                        onTapped: (eventPoint, button) => {
+                            contextMenu.popup(parent);
+                        }
+                    }
+                    Menu {
+                        id: contextMenu
+
+                        contentItem.objectName: "globalContextMenu"
+                        title: qsTr("File")
+
+                        Menu {
+                            title: qsTr("Library")
+
+                            MenuItem {
+                                text: qsTr("Scan")
+
+                                onTriggered: {
+                                    Mixxx.Library.scanner.start();
+                                }
+                            }
+                        }
+                    }
+                }
                 Skin.Button {
                     id: show4DecksButton
 

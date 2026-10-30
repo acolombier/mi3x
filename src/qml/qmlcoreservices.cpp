@@ -5,6 +5,7 @@
 #include "broadcast/broadcastmanager.h"
 #include "coreservices.h"
 #include "library/library.h"
+#include "library/library_prefs.h"
 #include "mixer/playermanager.h"
 #include "moc_qmlcoreservices.cpp"
 #include "notification.h"
@@ -25,6 +26,10 @@ const QString kAutoDJErrorTitle = QStringLiteral("Auto DJ");
 QmlCoreServices::QmlCoreServices(std::shared_ptr<::mixxx::CoreServices> pCoreServices)
         : QObject(),
           m_pInternal(std::move(pCoreServices)) {
+    connect(m_pInternal.get(),
+            &mixxx::CoreServices::libraryScanSummary,
+            this,
+            &QmlCoreServices::slotLibraryScanSummary);
 }
 
 void QmlCoreServices::setReady() {
@@ -121,8 +126,71 @@ void QmlCoreServices::slotTrackLoadFailed(
     // (MixxxMainWindow::slotTrackLoadFailed).
     Q_UNUSED(pTrack);
     auto pNotification = std::make_shared<Notification>(
-            tr("Couldn't load track."));
+            tr("Couldn't load track."), mixxx::Notification::Flag::Error);
     pNotification->setDetails(reason);
+    m_pInternal->getNotificationManager()->notify(pNotification);
+}
+
+void QmlCoreServices::slotLibraryScanSummary(const LibraryScanResultSummary& result) {
+    if (!m_pInternal->getSettings()->getValue<bool>(
+                ::mixxx::library::prefs::kShowScanSummaryConfigKey, true)) {
+        return;
+    }
+
+    // Don't show the report dialog when the scan is run during startup and no
+    // noteworthy changes have been detected.
+    if (result.autoscan &&
+            result.numNewTracks == 0 &&
+            result.numNewMissingTracks == 0 &&
+            result.numRediscoveredTracks == 0) {
+        return;
+    }
+    auto pNotification = std::make_shared<Notification>(tr("Library scan finished"));
+    if (result.noDirectoriesConfigured) {
+        pNotification->setDetails(tr("No music directories configured for scanning.") +
+                QStringLiteral("<br>") +
+                tr("Add directories in the library preferences."));
+        m_pInternal->getNotificationManager()->notify(pNotification);
+        return;
+    }
+
+    QString summary =
+            tr("Scan took %1").arg(result.durationString) + QStringLiteral("<br><br>");
+    if (result.numNewTracks == 0 &&
+            result.numMovedTracks == 0 &&
+            result.numNewMissingTracks == 0 &&
+            result.numRediscoveredTracks == 0) {
+        summary += tr("No changes detected.") +
+                QStringLiteral("<br><b>") +
+                tr("%n track(s) in total", nullptr, result.tracksTotal) +
+                QStringLiteral("</b>");
+    } else {
+        if (result.numNewTracks != 0) {
+            summary += tr("%n new track(s) found", nullptr, result.numNewTracks) +
+                    QStringLiteral("<br>");
+        }
+        if (result.numMovedTracks != 0) {
+            summary += tr("%n moved track(s) detected", nullptr, result.numMovedTracks) +
+                    QStringLiteral("<br>");
+        }
+        if (result.numNewMissingTracks != 0) {
+            summary += tr("%n track(s) missing (%1 total)",
+                    nullptr,
+                    result.numNewMissingTracks)
+                               .arg(result.numMissingTracks);
+        }
+        if (result.numRediscoveredTracks != 0) {
+            summary += QStringLiteral("<br>") +
+                    tr("%n track(s) rediscovered",
+                            nullptr,
+                            result.numRediscoveredTracks);
+        }
+        summary += QStringLiteral("<br><br><b>") +
+                tr("%n track(s) in total", nullptr, result.tracksTotal) +
+                QStringLiteral("</b>");
+    }
+
+    pNotification->setDetails(summary);
     m_pInternal->getNotificationManager()->notify(pNotification);
 }
 
@@ -131,7 +199,7 @@ void QmlCoreServices::slotBroadcastError(
     // TODO(#51): transient vs permanent handling (sticky + Retry/
     // Edit-connection CTAs) once opening the broadcast preferences from
     // the notification space is defined.
-    auto pNotification = std::make_shared<Notification>(title, NotificationFlag::Sticky);
+    auto pNotification = std::make_shared<Notification>(title, Notification::Flag::Sticky);
     pNotification->setDetails(text);
     m_pInternal->getNotificationManager()->notify(pNotification);
 }
@@ -140,7 +208,7 @@ void QmlCoreServices::slotAutoDJError(
         AutoDJProcessor::AutoDJError error) {
     // TODO add buttons
     auto pNotification = std::make_shared<Notification>(
-            kAutoDJErrorTitle, NotificationFlag::Sticky);
+            kAutoDJErrorTitle, Notification::Flag::Sticky);
 
     switch (error) {
     case AutoDJProcessor::ADJ_NOT_TWO_DECKS:

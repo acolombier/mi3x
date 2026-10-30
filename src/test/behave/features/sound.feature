@@ -179,4 +179,69 @@ Feature: Sound
     And I click the cancel button
     Then the router should match the saved configuration
 
+  # --- Sound device setup notifications (@sub/notifications) --------------------
+  #
+  # Sound-setup failures are surfaced as sticky notifications at start-up
+  # (QmlApplication) instead of modal dialogs. Both notifications are raised
+  # before the Background steps run, so the settings popup above does not
+  # interfere with the assertions below.
+
+  Rule: Sound device setup notifications
+
+    @sub/notifications
+    Scenario: A startup without output devices is acknowledged in a sticky notification
+      # The feature Background configures no outputs, so the "No Output
+      # Devices" sticky notification is raised during start-up.
+      Then the notification "No Output Devices" should be visible
+      And the notification "No Output Devices" should be sticky
+
+    @sub/notifications
+    Scenario: Unopenable configured sound devices raise a sticky notification at startup
+      # To be backed by a profile-machinery Given: a profile whose saved
+      # sound configuration references unopenable devices, making
+      # SoundManager::setupDevices() fail. Requires a forced fresh profile.
+      Given a profile with unopenable sound devices configured
+      And Mixxx is open and ready to operate
+      Then the notification "Sound Device Busy" should be visible
+      And the notification "Sound Device Busy" should be sticky
+
+    @sub/notifications
+    Scenario: The "Reconfigure" action of the no-output notification focuses the sound engine section
+      # The Background already leaves the engine section focused; the CTA
+      # re-focuses it. The notification stays: it only clears once the sound
+      # settings are saved with at least one output
+      # (QmlSettingGroup::saved watcher, QmlApplication).
+      When I click the "Reconfigure" action of the "No Output Devices" notification
+      Then the engine section should be visible
+      And the notification "No Output Devices" should be visible
+
+    @sub/notifications
+    Scenario: The "Reconfigure" action of the no-output notification only clears it after a saved reconfiguration
+      # Saving while no output is configured keeps the notification alive
+      # (the saved watcher only closes it for a non-empty output set).
+      When I click the "Reconfigure" action of the "No Output Devices" notification
+      And I click the save button
+      And the committing overlay is not visible
+      Then the notification "No Output Devices" should be visible
+
+    @sub/notifications
+    Scenario: The "Reconfigure" action of the busy notification closes it
+      # Unlike the no-output notification, the busy notification closes
+      # immediately when its Reconfigure CTA is clicked.
+      Given a profile with unopenable sound devices configured
+      And Mixxx is open and ready to operate
+      When I click the "Reconfigure" action of the "Sound Device Busy" notification
+      Then the engine section should be visible
+      And no notification should be visible
+
+    @sub/notifications
+    Scenario: The "Exit" action of the busy notification stops the process
+      # The Exit CTA is exit(0), shared by both startup notification kinds;
+      # testing it on the busy case keeps the no-output scenarios
+      # process-alive.
+      Given a profile with unopenable sound devices configured
+      And Mixxx is open and ready to operate
+      When I click the "Exit" action of the "Sound Device Busy" notification
+      Then Mixxx should have quit
+
   # --- Multi-Soundcard Synchronization ---

@@ -66,6 +66,11 @@ class ControllerScriptEngineBase : public QObject {
   protected:
     virtual void shutdown();
 
+#ifdef MIXXX_USE_QML
+    void scriptErrorNotification(const QString& detailedError,
+            const QString& key,
+            bool bFatal = false);
+#endif
     void scriptErrorDialog(const QString& detailedError, const QString& key, bool bFatal = false);
     void logOrThrowError(const QString& errorMessage);
 
