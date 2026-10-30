@@ -119,11 +119,8 @@ def wait_visible(rpc, path, timeout=5):
     """Poll ``existsAndVisible`` until true or ``timeout`` seconds elapse."""
     deadline = time.time() + timeout
     while time.time() < deadline:
-        try:
-            if rpc.existsAndVisible(path):
-                return True
-        except Exception:
-            pass
+        if rpc.existsAndVisible(path):
+            return True
         time.sleep(0.3)
     return False
 
@@ -132,11 +129,8 @@ def wait_hidden(rpc, path, timeout=5):
     """Poll ``existsAndVisible`` until false or ``timeout`` seconds elapse."""
     deadline = time.time() + timeout
     while time.time() < deadline:
-        try:
-            if not rpc.existsAndVisible(path):
-                return True
-        except Exception:
-            pass
+        if not rpc.existsAndVisible(path):
+            return True
         time.sleep(0.3)
     return False
 
