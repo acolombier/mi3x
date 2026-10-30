@@ -313,8 +313,9 @@ void ControllerScriptEngineBase::scriptErrorNotification(
 
     mixxx::NotificationPointer pNotification;
     bool newNotification = false;
+    auto notifications = mixxx::NotificationManager::instance()->activeNotifications();
     for (const auto& pActiveNotification :
-            mixxx::NotificationManager::instance()->activeNotifications()) {
+            std::as_const(notifications)) {
         if (pActiveNotification->key() == key) {
             pNotification = std::move(pActiveNotification);
             break;
