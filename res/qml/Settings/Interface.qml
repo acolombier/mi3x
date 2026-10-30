@@ -1024,7 +1024,6 @@ Category {
                     };
                 }
 
-                anchors.fill: parent
                 implicitHeight: waveformTabColumn.y + waveformTabColumn.height
                 label: "Waveform"
                 objectName: "waveformSettingsTab"

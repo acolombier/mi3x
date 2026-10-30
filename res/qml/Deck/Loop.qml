@@ -205,7 +205,7 @@ Rectangle {
                 contentWidth: sizeRow.implicitWidth
                 contentX: {
                     let focusedItem = loopSizeRepeater.itemAt(scroll.selectedIndex);
-                    return Math.min(contentWidth - width, Math.max(0, focusedItem.x + focusedItem.width / 2 - width / 2));
+                    return focusedItem ? Math.min(contentWidth - width, Math.max(0, focusedItem.x + focusedItem.width / 2 - width / 2)) : 0;
                 }
                 flickableDirection: Flickable.HorizontalFlick
 
