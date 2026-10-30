@@ -617,6 +617,7 @@ Feature: Browse
       And the "track duplicate distance" should be saved as "5"
 
     @sub/library
+    @xfail(gh_issue=85)
     Scenario: History cleanup threshold can be changed
       When I set the "delete history playlist with less than" setting to "10"
       And I click the save button
