@@ -182,7 +182,7 @@ Item {
 
         Component.onCompleted: {
             if (group == root.group) {
-                value = Mixxx.Config.waveformDefaultZoom
+                value = Mixxx.Config.waveformDefaultZoom;
             }
         }
     }
@@ -198,7 +198,7 @@ Item {
                 root.splitStemTracks = !root.splitStemTracks;
             }
         }
-        onPositionChanged: {
+        onPositionChanged: mouse => {
             const diff = mouse.x - mouseAnchor.x;
             switch (mouseStatus) {
             case WaveformDisplay.MouseStatus.Bending:
@@ -211,14 +211,13 @@ Item {
                     wheelControl.parameter = Math.max(Math.min(v, 1), 0);
                     break;
                 }
-                ;
             case WaveformDisplay.MouseStatus.Scratching:
                 // TODO: Calculate position properly
                 scratchPositionControl.value = -diff * zoomControl.value * 200;
                 break;
             }
         }
-        onPressed: (mouse) => {
+        onPressed: mouse => {
             mouseAnchor = Qt.point(mouse.x, mouse.y);
             if (mouse.button == Qt.LeftButton) {
                 if (mouseStatus == WaveformDisplay.MouseStatus.Bending)

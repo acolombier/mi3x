@@ -264,10 +264,15 @@ def _set_control_value(context, group, key, value):
     context.rpc.command("setControlValue", f"{group},{key},{value}")
 
 
-def _set_hotcue_label(context, group, hotcue, label):
+def _set_hotcue(context, group, hotcue, label=None, hotcue_type="cue"):
+    payload = {"group": group, "hotcueNumber": hotcue}
+    if label:
+        payload["label"] = label
+    if hotcue_type:
+        payload["type"] = hotcue_type
     context.rpc.command(
-        "setHotcueLabel",
-        json.dumps({"group": group, "hotcueNumber": hotcue, "label": label}))
+        "setHotcue",
+        json.dumps(payload))
 
 
 # --- Remember store ---

@@ -43,11 +43,6 @@ Popup {
         sourceComponent: content
         visible: item !== null && status == Loader.Ready
 
-        Binding on asynchronous {
-            delayed: true
-            value: !popup.opened || timeout.running
-        }
-
         // Accelerate the load of the setting popup after a specific delay
         Timer {
             id: timeout
@@ -56,6 +51,10 @@ Popup {
             interval: 500
             repeat: false
             running: popup.opened
+
+            onRunningChanged: {
+                loader.asynchronous = running;
+            }
         }
         Component {
             id: content
@@ -442,6 +441,9 @@ Popup {
         }
     }
 
+    onAboutToHide: {
+        loader.asynchronous = true;
+    }
     onClosed: {
         Mixxx.Core.removeOpenedPopup(this);
     }

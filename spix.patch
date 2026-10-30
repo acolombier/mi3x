@@ -156,28 +156,31 @@ index 26810ea..b8f26b7 100644
  {
  }
  
-@@ -30,8 +38,23 @@ void ClickOnItem::execute(CommandEnvironment& env)
+@@ -30,8 +38,26 @@ void ClickOnItem::execute(CommandEnvironment& env)
  
      auto size = item->size();
      auto mousePoint = m_position.positionForItemSize(size);
 -    env.scene().events().mouseDown(item.get(), mousePoint, m_mouseButton, m_keyModifier);
 -    env.scene().events().mouseUp(item.get(), mousePoint, m_mouseButton, m_keyModifier);
 +
-+    // Using a future to time precisely the sequence of events and prevent deadlock on Xcb QPA related to DragHandler
-+    auto future = std::async(std::launch::async, [this, &item, &path, &env, mousePoint] { 
-+        qWarning() << "ClickOnItem::ClickOnItem:" << static_cast<int>(m_mouseButton) << static_cast<int>(m_keyModifier) << mousePoint.x << mousePoint.y << m_holdTime;        
-+        env.scene().events().mouseDown(item.get(), mousePoint, m_mouseButton, m_keyModifier);
-+        std::this_thread::sleep_for (std::chrono::milliseconds(m_holdTime));
-+        // Click may have mutated the object
-+        item = env.scene().itemAtPath(path);
-+        if (!item) {
-+            return;
-+        }           
-+        env.scene().events().mouseUp(item.get(), mousePoint, m_mouseButton, m_keyModifier);
-+    });
-+    for (auto status = future.wait_for(std::chrono::milliseconds(0)); status != std::future_status::ready; status = future.wait_for(std::chrono::milliseconds(5))){
-+        QCoreApplication::processEvents(QEventLoop::AllEvents | QEventLoop::WaitForMoreEvents, m_holdTime);
++    const auto hold = std::chrono::milliseconds(m_holdTime);
++    const auto deadline = std::chrono::steady_clock::now() + hold;
++
++    env.scene().events().mouseDown(
++        item.get(), mousePoint, m_mouseButton, m_keyModifier);
++
++    while (std::chrono::steady_clock::now() < deadline) {
++        QCoreApplication::processEvents(QEventLoop::AllEvents);
++        std::this_thread::sleep_for(std::chrono::milliseconds(1));
 +    }
++
++    item = env.scene().itemAtPath(path);
++
++    if (item) {
++        env.scene().events().mouseUp(
++            item.get(), mousePoint, m_mouseButton, m_keyModifier);
++    }
++
 +    qWarning() << "ClickOnItem::ClickOnItem: finished";     
  }
  

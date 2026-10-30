@@ -1,6 +1,7 @@
 import time
 from helpers import (
     COMMITTING_OVERLAY,
+    QT_LEFT_BUTTON,
     QT_CONTROL_MODIFIER,
     QT_KEY_A,
     QT_KEY_DOWN,
@@ -259,9 +260,13 @@ def _tap(context, path):
 @given("the settings popup is open")
 def step_settings_popup_open(context):
     if not _is_visible(context, SETTINGS_POPUP_ITEM):
-        _click(context, "mainWindow/showPreferencesButton")
+        # FIXME it would seem Spix click occasionally get registered as long click,
+        # leading to the legacy preference window to show. To avoid this, using the
+        # signal directly.
+        context.rpc.invokeMethod("mainWindow/showPreferencesButton", "clicked", [])
         # Sometimes pretty slow on Windows Server CI runner
-        assert wait_visible(context.rpc, SETTINGS_POPUP_ITEM, timeout=10), "Settings popup did not open"
+        # FIXME should we restrict large timeout to windows-only platform?
+        assert wait_visible(context.rpc, SETTINGS_POPUP_ITEM, timeout=60), "Settings popup did not open"
         time.sleep(0.5)
 
 
@@ -404,8 +409,8 @@ def step_set_setting(context, setting, value, method=None):
             if clicks == 0: break
             button = f"{path}/upButton" if clicks > 0 else f"{path}/downButton"
             assert wait_visible(context.rpc, button), f"Setting '{setting}' button not visible"
-            _click(context, button)
-            time.sleep(1)
+            context.rpc.mouseClickAndHold(button, QT_LEFT_BUTTON, 0, 10)
+            context.rpc.wait(50)
     elif kind == "slider":
         method = method or "a drag"
         if method == "a drag":
@@ -787,7 +792,7 @@ def step_grid_columns(context, grid, columns):
 
 
 SPATIAL_ITEM_PATHS = {
-    "integrations grid": "mainWindow/libraryIntegrationsGrid",
+    "integrations grid": LIBRARY_GRIDS["Library integrations"],
     "library source pane": "mainWindow/librarySourcePane",
 }
 
