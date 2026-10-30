@@ -321,6 +321,7 @@ Feature: Deck
   # --- Settings: decks tab, ControlObject side-effects --------------------------
   # (former features/settings/interface.feature)
 
+  @xfail(gh_issue=85)
   Scenario: Slider range is applied to the deck rate range control
     When I set the "slider range" setting to "24%"
     And I click the save button

@@ -89,7 +89,7 @@ Item {
 
                     height: contentList.height
                     implicitWidth: root.normalizedWidth ? root.cellSize : fontMetrics.advanceWidth(modelData) + root.spacing * 2
-                    objectName: root.objectName ? "option" + index : ""
+                    objectName: "option" + index
 
                     Rectangle {
                         id: contentOption
@@ -209,12 +209,12 @@ Item {
             }
         }
         down.indicator: Indicator {
-            objectName: root.objectName ? "prevButton" : ""
+            objectName: "prevButton"
             text: "<"
             x: contentSpin.mirrored ? parent.width - width : 0
         }
         up.indicator: Indicator {
-            objectName: root.objectName ? "nextButton" : ""
+            objectName: "nextButton"
             text: ">"
             x: contentSpin.mirrored ? 0 : parent.width - width
         }

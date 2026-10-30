@@ -1024,7 +1024,6 @@ Category {
                     };
                 }
 
-                anchors.fill: parent
                 implicitHeight: waveformTabColumn.y + waveformTabColumn.height
                 label: "Waveform"
                 objectName: "waveformSettingsTab"
@@ -1462,7 +1461,7 @@ Category {
 
                                     height: 99
                                     highlighted: waveformDropdown.highlightedIndex === this.index
-                                    objectName: "setting_waveformType_option_" + this.index
+                                    objectName: "option_" + this.index
                                     width: parent.width
 
                                     background: Rectangle {
@@ -2089,7 +2088,7 @@ Category {
                                     required property int index
 
                                     highlighted: root.highlightedIndex === this.index
-                                    objectName: "setting_timeFormat_option_" + index
+                                    objectName: "option_" + index
                                     text: content.text
                                     width: parent.width
 

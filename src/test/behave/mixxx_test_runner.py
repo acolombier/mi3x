@@ -26,6 +26,7 @@ import time
 from behave.configuration import Configuration
 from behave.runner import Runner
 from behave.formatter.pretty import PrettyFormatter
+from behave.reporter.summary import SummaryReporter
 
 # Wall-clock time at the start of video recording. Written by main() after
 # spawning the recorder; read by XFailPrettyFormatter to append a video
@@ -518,6 +519,15 @@ def _mux_chapters(video_path, results, recording_start, ffmpeg_bin):
         if os.path.exists(meta_file):
             os.remove(meta_file)
 
+# Due to the use of rules, feature duration appears off - likely a bug
+class RulesAwareSummaryReporter(SummaryReporter):
+    def process_feature(self, feature):
+        for scenario in feature.walk_scenarios():
+            self.duration += scenario.duration
+        self.feature_summary[feature.status.name] += 1
+        self.process_run_items_for(feature)
+
+
 class XFailPrettyFormatter(PrettyFormatter):
     XFAIL_ARGS_RE = re.compile(r"xfail\((.*)\)")
 
@@ -922,6 +932,11 @@ def main():
             "behave.contrib.formatter_missing_steps:MissingStepsFormatter"
         ]
         runner.config.show_timings = True
+        runner.config.reporters = [
+            RulesAwareSummaryReporter(config)
+            if isinstance(reporter, SummaryReporter) else reporter
+            for reporter in config.reporters
+        ]
         # --flatpak-package and --binary are mutually exclusive. --binary
         # has a default ('mixxx') that also matches the fallback of an unset
         # MIXXX_TEST_BINARY, so only flag a conflict when a binary other

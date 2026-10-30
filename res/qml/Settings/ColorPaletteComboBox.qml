@@ -12,8 +12,8 @@ Skin.ComboBox {
     readonly property var currentPalette: Mixxx.Config.colorPalette(root.displayText)
 
     implicitWidth: fontMetrics.advanceWidth(root.displayText) + 30 + currentPalette.length * 8 + indicator.width
-    popupWidth: Math.max.apply(null, model.map(palette => fontMetrics.advanceWidth(palette) + 30 + Mixxx.Config.colorPalette(palette).length * 8 + indicator.width))
     model: Mixxx.Config.paletteNames()
+    popupWidth: Math.max.apply(null, model.map(palette => fontMetrics.advanceWidth(palette) + 30 + Mixxx.Config.colorPalette(palette).length * 8 + indicator.width))
 
     contentItem: RowLayout {
         anchors.fill: parent
@@ -48,7 +48,7 @@ Skin.ComboBox {
 
         height: 30
         highlighted: root.highlightedIndex === this.index
-        objectName: root.objectName ? root.objectName + "_option_" + index : ""
+        objectName: "option_" + index
         text: root.textAt(this.index)
         width: parent.width
 

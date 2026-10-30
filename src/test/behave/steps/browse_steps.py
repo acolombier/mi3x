@@ -1061,8 +1061,9 @@ def step_choose_track_handling(context, action, row):
     assert wait_clickable(context.rpc, path), (
         f"Track handling option '{action}' for music directory row {row} is not visible"
     )
+    # Let the animation settle
+    time.sleep(2)
     _click(context, path)
-    time.sleep(0.3)
 
 @when("I add the test music directory {directory_id}")
 def step_add_test_music_directory(context, directory_id):

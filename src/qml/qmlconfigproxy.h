@@ -678,10 +678,11 @@ class QmlConfigProxy : public QmlConfigProxyBase {
             Signal signal) {
         if (value == defaultValue) {
             m_pConfig->remove(ConfigKey(group, key));
-        } else {
+            emit(this->*signal)();
+        } else if (m_pConfig->getValue(ConfigKey(group, key), defaultValue) != value) {
             m_pConfig->setValue(ConfigKey(group, key), value);
+            emit(this->*signal)();
         }
-        emit(this->*signal)();
     }
 
     static inline UserSettingsPointer s_pUserSettings = nullptr;

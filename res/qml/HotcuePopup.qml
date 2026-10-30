@@ -37,7 +37,7 @@ Popup {
     required property var currentTrack
     property bool failedToConvert: false
     readonly property bool forwardSpan: cueEndPosition >= cuePosition
-    readonly property bool hasSpan: isLoopOrJump && trackSamples > 0 && cuePosition >= 0 && cueEndPosition >= 0 && spanSamples > 0
+    readonly property bool hasSpan: isLoopOrJump && trackSamples > 0 && cueEndPosition >= 0 && spanSamples > 0
     required property Hotcue hotcue
     readonly property bool isLoopOrJump: hotcue.type === hotcue.typeLoop || hotcue.type === hotcue.typeJump
     readonly property real sampleRate: currentTrack ? currentTrack.sampleRate : 0

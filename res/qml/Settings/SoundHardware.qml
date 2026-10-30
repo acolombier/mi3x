@@ -8,8 +8,6 @@ import "../Theme"
 Category {
     id: root
 
-    objectName: "soundHardware"
-
     property bool committing: false
     property bool hasChanges: router.hasChanges
 
@@ -149,6 +147,7 @@ Category {
     }
 
     label: "Sound hardware"
+    objectName: "soundHardware"
     tabs: ["engine", "delays", "stats"]
 
     Component.onCompleted: {
@@ -205,8 +204,12 @@ Category {
     }
     ColumnLayout {
         anchors.fill: parent
+
         ScrollView {
             id: scrollView
+
+            Layout.fillHeight: true
+            Layout.fillWidth: true
 
             ScrollBar.vertical: ScrollBar {
                 anchors.bottom: parent.bottom
@@ -215,9 +218,6 @@ Category {
                 objectName: "soundSettingsScrollBar"
                 policy: ScrollBar.AsNeeded
             }
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-
 
             ColumnLayout {
                 Item {
@@ -260,7 +260,6 @@ Category {
                                     }
                                     RatioChoice {
                                         id: mainMixEnabled
-                                        objectName: "setting_MainMix"
 
                                         options: ["on", "off"]
                                         selected: options[mainEnabled.value ? 0 : 1]
@@ -283,7 +282,6 @@ Category {
                                     }
                                     RatioChoice {
                                         id: mainOutputMode
-                                        objectName: "setting_MainOutputMode"
 
                                         maxWidth: tabSection.width * 0.18
                                         options: ["mono", "stereo"]
@@ -307,7 +305,6 @@ Category {
                                     }
                                     RatioChoice {
                                         id: soundClock
-                                        objectName: "setting_SoundClock"
 
                                         maxWidth: tabSection.width * 0.28
                                         options: ["soundcard", "network"]
@@ -326,7 +323,6 @@ Category {
                                     }
                                     RatioChoice {
                                         id: keylock
-                                        objectName: "setting_KeylockEngine"
 
                                         function update() {
                                             let options = [];
@@ -378,7 +374,6 @@ Category {
                                     }
                                     RatioChoice {
                                         id: soundApi
-                                        objectName: "setting_SoundAPI"
 
                                         maxWidth: tabSection.width * 0.4
                                         options: []
@@ -407,7 +402,6 @@ Category {
                                     }
                                     RatioChoice {
                                         id: sampleRate
-                                        objectName: "setting_SampleRate"
 
                                         function update(api) {
                                             let data = [];
@@ -632,7 +626,6 @@ Category {
 
                     AudioRouter {
                         id: router
-                        objectName: "routerSection"
 
                         anchors.fill: parent
                     }

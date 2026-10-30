@@ -1,15 +1,10 @@
-Feature: Sound Settings
+Feature: Sound
 
-  Background:
-    Given a new empty profile
-    And I have the following sound devices
-      | name            | api  | outputChannels | inputChannels |
-      | Built-in Audio  | Mock | 4              | 4             |
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Sound hardware" category is selected
-    And the "Sound API" setting is "Mock"
-
+  Rule: Sound setting can be navigated
+    Background:
+      Given a new empty profile
+      And Mixxx is open and ready to operate
+      And the settings popup is open
 
   # --- Tab Navigation ---
 
@@ -84,6 +79,17 @@ Feature: Sound Settings
     When I set the router mode to "advanced"
     Then the inputs column should be visible
     And the "Record/Broadcast" entity should be visible in the router
+
+  Rule: Engine allows connection inputs and output
+    Background:
+      Given a new empty profile
+      And I have the following sound devices
+        | name            | api  | outputChannels | inputChannels |
+        | Built-in Audio  | Mock | 4              | 4             |
+      And Mixxx is open and ready to operate
+      And the settings popup is open
+      And the "Sound hardware" category is selected
+      And the "Sound API" setting is "Mock"
 
   Scenario: Switching to legacy mode hides router entities
     Given the router mode is "simple"
