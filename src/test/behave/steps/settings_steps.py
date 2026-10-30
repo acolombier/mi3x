@@ -391,7 +391,7 @@ def step_set_setting(context, setting, value, method=None):
             raise ValueError(f"Setting '{setting}' has no option '{value}'")
         assert wait_visible(context.rpc, path), f"Setting '{setting}' control not visible"
         _click(context, path)
-        option_path = f"{path}_option_{index}"
+        option_path = f"{path}_popupList/option_{index}"
         in_view = bool(wait_visible(context.rpc, option_path)) and _scroll_combo_option_into_view(
             context, path, index
         )
@@ -964,7 +964,7 @@ def _scroll_combo_option_into_view(context, path, index):
     caller then falls back to keyboard selection).
     """
     list_path = f"{path}_popupList"
-    option_path = f"{path}_option_{index}"
+    option_path = f"{list_path}/option_{index}"
     deadline = time.time() + 8
     while time.time() < deadline:
         try:
