@@ -70,19 +70,6 @@ QmlWaveformDisplay::~QmlWaveformDisplay() {
     m_rendererStack.clear();
 }
 
-void QmlWaveformDisplay::componentComplete() {
-    if (!getGroup().isEmpty()) {
-        qDebug() << "QmlWaveformDisplay ready for group" << getGroup() << "with"
-                 << m_waveformRenderers.count() << "renderer(s)";
-    } else if (m_pTrack && m_pTrack->internal()) {
-        qDebug() << "QmlWaveformDisplay ready for track" << m_pTrack->internal().get() << "with"
-                 << m_waveformRenderers.count() << "renderer(s)";
-    } else {
-        qWarning() << "QmlWaveformDisplay initialised with neither a track nor a group!";
-    }
-    QQuickItem::componentComplete();
-}
-
 double QmlWaveformDisplay::getPosition() const {
     return m_visualPlayPosition->getEnginePlayPos();
 }
