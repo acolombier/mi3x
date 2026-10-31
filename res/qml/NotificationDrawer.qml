@@ -167,136 +167,18 @@ Skin.ActionPopup {
                 verticalAlignment: Text.AlignBottom
                 wrapMode: Text.WrapAnywhere
             }
-            Item {
+            ScrollingText {
                 id: detailViewport
 
                 Layout.fillWidth: true
-                clip: true
-                implicitHeight: detailText.implicitHeight
+                color: delegate.color
                 visible: notification?.details.length > 0
+                wrap: notification.flags & Mixxx.Notification.Flags.Wrap ? Text.Wrap : Text.NoWrap
 
-                Text {
-                    id: detailText
-
-                    readonly property var maxScrollingOffset: Math.min(0, detailViewport.width - detailText.width)
-                    readonly property bool wrap: notification.flags & Mixxx.Notification.Flags.Wrap
-
+                text {
                     color: '#656565'
                     font.pixelSize: 13
                     text: notification?.details
-                    width: wrap ? parent.width : undefined
-                    wrapMode: wrap ? Text.Wrap : undefined
-
-                    SequentialAnimation {
-                        id: tickerAnimation
-
-                        loops: Animation.Infinite
-                        running: detailText.width > detailText.parent.width && !detailText.wrap
-
-                        // 1. Let the beginning be read
-                        PauseAnimation {
-                            duration: 1000
-                        }
-
-                        // 2. Scroll slowly to reveal the end
-                        NumberAnimation {
-                            duration: Math.max(2500, (detailText.width - detailViewport.width) * 25)
-                            easing.type: Easing.Linear
-                            property: "x"
-                            target: detailText
-                            to: detailText.maxScrollingOffset
-                        }
-
-                        // 3. Keep the end visible
-                        PauseAnimation {
-                            duration: 1000
-                        }
-
-                        // 4. Fade out
-                        NumberAnimation {
-                            duration: 350
-                            easing.type: Easing.InOutQuad
-                            property: "opacity"
-                            target: detailText
-                            to: 0
-                        }
-
-                        // 5. Reset position and opacity
-                        PropertyAction {
-                            property: "x"
-                            target: detailText
-                            value: 0
-                        }
-                        NumberAnimation {
-                            duration: 250
-                            easing.type: Easing.InOutQuad
-                            property: "opacity"
-                            target: detailText
-                            to: 1
-                        }
-                    }
-                }
-                Rectangle {
-                    id: leftGradient
-
-                    color: 'transparent'
-                    opacity: detailText.x == 0 ? 0 : 1
-                    width: 10
-
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-
-                        GradientStop {
-                            color: delegate.color
-                            position: 0
-                        }
-                        GradientStop {
-                            color: 'transparent'
-                            position: 1
-                        }
-                    }
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: 500
-                        }
-                    }
-
-                    anchors {
-                        bottom: parent.bottom
-                        left: parent.left
-                        top: parent.top
-                    }
-                }
-                Rectangle {
-                    id: rightGradient
-
-                    color: 'transparent'
-                    opacity: detailText.x == detailText.maxScrollingOffset ? 0 : 1
-                    width: 10
-
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-
-                        GradientStop {
-                            color: delegate.color
-                            position: 1
-                        }
-                        GradientStop {
-                            color: 'transparent'
-                            position: 0
-                        }
-                    }
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: 500
-                        }
-                    }
-
-                    anchors {
-                        bottom: parent.bottom
-                        right: parent.right
-                        top: parent.top
-                    }
                 }
             }
             RowLayout {

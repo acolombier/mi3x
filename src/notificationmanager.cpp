@@ -91,7 +91,9 @@ void NotificationManager::slotUpdateNotifications() {
                     pNotification->timeoutSecs()) <=
                 QDateTime::currentDateTimeUtc()) {
             qDebug() << "Notification timed out:" << pNotification->text();
+            lock.unlock();
             emit notificationClosed(*it);
+            lock.relock();
             it = m_notifications.erase(it);
         } else {
             timedNotificationLeft = true;
