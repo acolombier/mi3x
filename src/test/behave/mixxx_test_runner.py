@@ -36,6 +36,12 @@ RECORDING_START = None
 
 LIBRARY_TRACK_COUNT = 50
 
+# Recorder capture frame rate: low enough to halve the encoder's CPU load
+# (which can flake spix interactions sharing the host), while chapter
+# seeking stays ms-granular. The nominal rate is probed from the file,
+# never assumed from this constant.
+RECORD_FPS = 15
+
 
 def _env_flag(name):
     """Strictly interpret an environment boolean flag.
@@ -304,10 +310,20 @@ def _build_record_cmd(backend, ffmpeg_bin, wf_recorder_bin, display, artifacts_d
             "--codec=libx264",
             "--pixel-format=yuv420p",
             "--no-damage",
-            "-r", "30",
+            "-r", str(RECORD_FPS),
             "-f", output,
         ]
-    common = [ffmpeg_bin, "-nostdin", "-hide_banner", "-loglevel", "error"]
+    # -use_wallclock_as_timestamps 1: frames carry wall-clock pts, so
+    # stalls/dropped frames cannot compress the container duration.
+    common = [
+        ffmpeg_bin,
+        "-nostdin",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-use_wallclock_as_timestamps",
+        "1",
+    ]
     if sys.platform == "linux":
         return common + [
             "-f", "x11grab",
@@ -315,10 +331,10 @@ def _build_record_cmd(backend, ffmpeg_bin, wf_recorder_bin, display, artifacts_d
             "-video_size", "1920x1080",
             "-i", display,
             "-map", "0:v",
-            "-r", "30",
+            "-r", str(RECORD_FPS),
             "-c:v", "libx264",
             "-preset", "veryfast",
-            "-b:v", "2000k",
+            "-b:v", "1000k",
             output,
             "-y",
         ]
@@ -326,10 +342,10 @@ def _build_record_cmd(backend, ffmpeg_bin, wf_recorder_bin, display, artifacts_d
         return common + [
             "-f", "avfoundation",
             "-video_size", "1920x1080",
-            "-r", "30",
+            "-r", str(RECORD_FPS),
             "-i", "0:none",
             "-codec:v", "mpeg4",
-            "-b:v", "10000k",
+            "-b:v", "5000k",
             output,
             "-y",
         ]
@@ -337,12 +353,12 @@ def _build_record_cmd(backend, ffmpeg_bin, wf_recorder_bin, display, artifacts_d
         return common + [
             "-f", "gdigrab",
             "-video_size", "1920x1080",
-            "-framerate", "30",
+            "-framerate", str(RECORD_FPS),
             "-probesize", "20M",
             "-i", "desktop",
             "-codec:v", "mpeg4",
-            "-r", "30",
-            "-b:v", "10000k",
+            "-r", str(RECORD_FPS),
+            "-b:v", "5000k",
             output,
             "-y",
         ]
@@ -440,17 +456,29 @@ def _generate_ffmetadata(results, dest):
             f.write(f"title={ch['title']}\n")
 
 
-def _video_start_wall(video_path, stop_wall):
-    """Wall-clock time of the recording's first frame, or None.
+EPOCH_START_TIME_S = 1e8
+# start_time above this can only be an epoch pts base (unlikely to survive
+# container muxing, which rebases to ~0)
 
-    Every backend writes one continuous capture from its first frame to the
-    SIGINT stop, so the first frame's wall time is the stop time minus the
-    finished file's duration. Offsets taken at spawn time would bake in the
-    recorder's init delay (compositor or capture-device open, which can take
-    seconds, e.g. avfoundation on macOS) and shift every chapter and snippet
-    window earlier. Requires ffprobe (ships with ffmpeg); on any failure
-    returns None and the caller falls back to the spawn-time base.
-    """
+ANCHOR_WALLCLOCK_PTS = "wall-clock pts (stream start_time)"
+ANCHOR_DURATION = "container duration"
+ANCHOR_UNAVAILABLE = "spawn time (probe unavailable)"
+
+
+def _parse_rate(rate):
+    """Parse a "30/1" frame rate, returning 30.0, or None."""
+    if not isinstance(rate, str) or "/" not in rate:
+        return None
+    num, _, den = rate.partition("/")
+    try:
+        value = float(num) / float(den)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+    return value if value > 0 else None
+
+
+def _probe_video(video_path):
+    """One ffprobe pass: pt-timing/pacing facts of a finished recording, or None."""
     ffprobe = shutil.which("ffprobe")
     if not ffprobe or not video_path or not os.path.isfile(video_path):
         return None
@@ -458,18 +486,218 @@ def _video_start_wall(video_path, stop_wall):
         p = subprocess.run(
             [
                 # No -nostdin: ffprobe does not support that ffmpeg-only flag.
-                ffprobe, "-v", "error",
-                "-show_entries", "format=duration",
-                "-of", "default=nw=1:nk=1", video_path,
+                ffprobe,
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=start_time,duration,nb_frames,r_frame_rate,avg_frame_rate",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "json",
+                video_path,
             ],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
-        duration = float(p.stdout.strip())
-    except (OSError, ValueError, subprocess.SubprocessError):
+        doc = json.loads(p.stdout)
+    except (OSError, json.JSONDecodeError, subprocess.SubprocessError):
         return None
-    if duration <= 0:
+    streams = doc.get("streams") or []
+    stream = streams[0] if streams else {}
+    fmt = doc.get("format") or {}
+
+    def _num(value):
+        if value is None or value == "N/A":
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    stream_duration = _num(stream.get("duration"))
+    format_duration = _num(fmt.get("duration"))
+    duration = format_duration if format_duration else stream_duration
+    if duration is None:
         return None
-    return stop_wall - duration
+    return {
+        "duration": duration,
+        "start_time": _num(stream.get("start_time")),
+        "stream_duration": stream_duration,
+        "format_duration": format_duration,
+        "nb_frames": _num(stream.get("nb_frames")),
+        "r_frame_rate": stream.get("r_frame_rate"),
+        "avg_frame_rate": stream.get("avg_frame_rate"),
+    }
+
+
+def _video_start_wall(video_path, stop_wall, probe=None):
+    """The recording's first-frame wall time and the anchor that derived it.
+
+    Returns (t0, anchor) with the anchor one of ANCHOR_*: epoch pts if
+    present, else first-frame-to-SIGINT span as deduced from the container
+    duration, else (None, ANCHOR_UNAVAILABLE) to fall back to spawn time.
+    """
+    if probe is None:
+        probe = _probe_video(video_path)
+    if probe is None:
+        return None, ANCHOR_UNAVAILABLE
+    start_time = probe.get("start_time")
+    if start_time is not None and start_time > EPOCH_START_TIME_S:
+        return start_time, ANCHOR_WALLCLOCK_PTS
+    duration = probe.get("duration")
+    if duration is not None and duration > 0:
+        return stop_wall - duration, ANCHOR_DURATION
+    return None, ANCHOR_UNAVAILABLE
+
+
+def _write_video_probe(
+    artifacts_dir,
+    video_path,
+    recorder_name,
+    recording_start,
+    stop_wall,
+    t0_wall,
+    anchor,
+    probe,
+    results,
+    stderr_tail,
+):
+    """Write artifacts/video-probe.txt; return (kind, detail) flags to echo."""
+    if not artifacts_dir:
+        return []
+    path = os.path.join(artifacts_dir, "video-probe.txt")
+    flags = []
+    lines = []
+
+    lines.append(f"=== video probe {datetime.datetime.now().isoformat()} ===")
+    lines.append(
+        f"recorder: {recorder_name}  output: {os.path.basename(video_path)}"
+    )
+    lines.append(
+        f"wall: spawn {recording_start:.3f} stop {stop_wall:.3f} "
+        f"interval {stop_wall - recording_start:.2f}s"
+    )
+    duration = probe.get("duration") if probe else None
+    if probe is None:
+        flags.append(
+            (
+                "probe",
+                "ffprobe failed or file missing; chapters anchored at spawn time",
+            )
+        )
+        lines.append("probed: FAIL (ffprobe unavailable)")
+    else:
+        nb_frames = probe.get("nb_frames")
+        # Matroska carries no nb_frames; avg_frame_rate (pts-derived) is the
+        # pacing fallback.
+        pacing = None
+        if nb_frames and duration:
+            pacing = nb_frames / duration
+        elif duration:
+            pacing = _parse_rate(probe.get("avg_frame_rate"))
+        nominal = _parse_rate(
+            probe.get("r_frame_rate") or probe.get("avg_frame_rate")
+        )
+
+        def _fmt(value):
+            return "n/a" if value is None else f"{value}"
+
+        lines.append(
+            f"probed: duration {_fmt(duration)}s  "
+            f"start_time {_fmt(probe.get('start_time'))}s  "
+            f"stream_duration {_fmt(probe.get('stream_duration'))}s  "
+            f"format_duration {_fmt(probe.get('format_duration'))}s"
+        )
+        lines.append(
+            f"probed: nb_frames {nb_frames}  "
+            f"r_frame_rate {probe.get('r_frame_rate')}  "
+            f"avg_frame_rate {probe.get('avg_frame_rate')}"
+        )
+        if (
+            pacing is not None
+            and nominal is not None
+            and 0 <= pacing < nominal * 0.95
+        ):
+            flags.append(
+                (
+                    "pacing",
+                    f"delivered frame pacing {pacing:.1f}/s is below the nominal "
+                    f"{nominal:.1f}/s with start_time ~ 0: timestamps do not "
+                    "track wall clock, duration-derived offsets are UNRELIABLE",
+                )
+            )
+        lines.append(
+            f"pacing: {pacing:.1f}/s vs nominal {nominal:.1f}/s"
+            if pacing is not None and nominal is not None
+            else "pacing: underivable (no nb_frames/avg_frame_rate)"
+        )
+        if anchor != ANCHOR_WALLCLOCK_PTS:
+            gap = (stop_wall - recording_start) - (duration or 0)
+            if gap > 30:
+                flags.append(
+                    (
+                        "delay",
+                        f"wall interval exceeds the recording by {gap:.0f}s "
+                        "(recorder init/slow-start delta); verify the first "
+                        "chapter seeks to the start of the first scenario",
+                    )
+                )
+    t0_base = t0_wall if t0_wall is not None else recording_start
+    lines.append(f"anchor: {anchor} -> t0 {t0_base:.3f}")
+    if t0_wall is not None:
+        lines.append(
+            f"anchor: recorder init/slow-start delta ~{t0_wall - recording_start:.2f}s"
+        )
+
+    chapters = [
+        ch
+        for ch in (results or [])
+        if ch.get("start_time") is not None and ch.get("end_time") is not None
+    ]
+    if chapters:
+        first = min(chapters, key=lambda ch: ch["start_time"])
+        last = max(chapters, key=lambda ch: ch["end_time"])
+        first_ms = int((first["start_time"] - t0_base) * 1000)
+        last_ms = int((last["end_time"] - t0_base) * 1000)
+        lines.append(
+            f"chapters: {len(chapters)}  mapped first {first_ms}ms  "
+            f"last {last_ms}ms  (video duration {duration}s)"
+        )
+        if first_ms < -1000:
+            flags.append(
+                (
+                    "chapter",
+                    f"first chapter starts {first_ms}ms BEFORE frame 0",
+                )
+            )
+        if duration is not None and last_ms > duration * 1000:
+            flags.append(
+                (
+                    "chapter",
+                    f"last chapter ends {last_ms - duration * 1000:.0f}ms AFTER "
+                    f"the container's {duration}s duration",
+                )
+            )
+    else:
+        lines.append("chapters: none recorded")
+
+    lines.append("recorder stderr tail:")
+    tail = (stderr_tail or "").strip()
+    if tail:
+        for line in tail.splitlines()[-40:]:
+            lines.append(f"  {line}")
+    else:
+        lines.append("  (empty)")
+    try:
+        with open(path, "w") as f:
+            f.write("\n".join(lines) + "\n")
+    except OSError as e:
+        flags.append(("probe-file", f"failed to write {path}: {e}"))
+    return flags
 
 
 def _mux_chapters(video_path, results, recording_start, ffmpeg_bin):
@@ -924,6 +1152,7 @@ def main():
             return 1
 
     exit_code = 1
+    runner = None
     try:
         config = Configuration(args.behave_args)
         runner = Runner(config)
@@ -979,22 +1208,55 @@ def main():
             _stop_recorder(recorder_proc, recorder_name_pretty)
             # The chapter/snippet base is the first frame's wall time, not
             # the spawn time: see _video_start_wall. Falls back to the
-            # spawn-time base when the duration cannot be probed.
+            # spawn-time base when the file cannot be probed.
             stop_wall = time.time()
-            t0_wall = _video_start_wall(video_path, stop_wall)
+            stderr_tail = None
+            if recorder_proc.stderr is not None:
+                # Recorder is dead: bounded read is safe; tail logs into video-probe.txt.
+                stderr_tail = _read_pipe_bounded(recorder_proc.stderr)
+            probe = _probe_video(video_path)
+            t0_wall, anchor = _video_start_wall(video_path, stop_wall, probe)
             if t0_wall is not None:
                 print(
-                    "video t=0 aligned to the first frame (recorder init "
+                    f"video t=0 via {anchor} (recorder init "
                     f"delay ~{t0_wall - recording_start:.2f}s)",
                     file=sys.stderr,
                 )
+            else:
+                print(
+                    f"video t=0 unknown ({anchor}); chapters anchored at "
+                    "the recorder spawn time",
+                    file=sys.stderr,
+                )
+            results = getattr(runner.context, "results", []) if runner else []
+            flags = _write_video_probe(
+                artifacts,
+                video_path,
+                recorder_name_pretty,
+                recording_start,
+                stop_wall,
+                t0_wall,
+                anchor,
+                probe,
+                results,
+                stderr_tail,
+            )
+            if flags:
+                print(
+                    f"\n=== video timing flagged ({anchor}) - full report: "
+                    "artifacts/video-probe.txt ===",
+                    file=sys.stderr,
+                )
+                for kind, detail in flags:
+                    print(f"- [{kind}] {detail}", file=sys.stderr)
+                print("=== end video timing report ===\n", file=sys.stderr)
             _mux_chapters(
                 video_path,
-                getattr(runner.context, "results", []),
+                results,
                 t0_wall if t0_wall is not None else recording_start,
                 _find_ffmpeg(args.ffmpeg_path),
             )
-        if "runner" in locals() and hasattr(runner.context, "results"):
+        if runner is not None and hasattr(runner.context, "results"):
             with open(result_path, "w") as f:
                 json.dump(runner.context.results, f, indent=2)
         if display_proc:
