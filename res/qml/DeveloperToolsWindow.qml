@@ -11,8 +11,8 @@ import "Theme"
 Window {
     id: root
 
-    title: "Developer Tools"
     color: Theme.toolbarBackgroundColor
+    title: "Developer Tools"
 
     ColumnLayout {
         anchors.fill: parent
@@ -23,6 +23,7 @@ Window {
 
             Layout.fillWidth: true
             placeholderText: "Search Term..."
+
             onTextChanged: controlModel.setFilterFixedString(text)
         }
 
@@ -47,69 +48,211 @@ Window {
                 BorderImage {
                     anchors.fill: parent
                     horizontalTileMode: BorderImage.Stretch
-                    verticalTileMode: BorderImage.Stretch
                     source: Theme.imgPopupBackground
+                    verticalTileMode: BorderImage.Stretch
 
                     border {
-                        top: 10
+                        bottom: 10
                         left: 20
                         right: 20
-                        bottom: 10
+                        top: 10
                     }
                 }
-
                 Text {
                     id: columnName
 
-                    text: headerDlgt.display
                     anchors.fill: parent
                     anchors.margins: 5
-                    elide: Text.ElideRight
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    font.family: Theme.fontFamily
-                    font.capitalization: Font.AllUppercase
-                    font.bold: true
-                    font.pixelSize: Theme.buttonFontPixelSize
                     color: Theme.buttonNormalColor
+                    elide: Text.ElideRight
+                    font.bold: true
+                    font.capitalization: Font.AllUppercase
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.buttonFontPixelSize
+                    horizontalAlignment: Text.AlignHCenter
+                    text: headerDlgt.display
+                    verticalAlignment: Text.AlignVCenter
                 }
-
                 Text {
                     id: sortIndicator
 
-                    text: controlModel.sortDescending ? "▲" : "▼"
-                    visible: controlModel.sortColumn == headerDlgt.column
                     anchors.fill: parent
                     anchors.margins: 5
-                    elide: Text.ElideRight
-                    horizontalAlignment: Text.AlignRight
-                    verticalAlignment: Text.AlignVCenter
-                    font.family: Theme.fontFamily
-                    font.capitalization: Font.AllUppercase
-                    font.bold: true
-                    font.pixelSize: Theme.buttonFontPixelSize
                     color: Theme.buttonNormalColor
+                    elide: Text.ElideRight
+                    font.bold: true
+                    font.capitalization: Font.AllUppercase
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.buttonFontPixelSize
+                    horizontalAlignment: Text.AlignRight
+                    text: controlModel.sortDescending ? "▲" : "▼"
+                    verticalAlignment: Text.AlignVCenter
+                    visible: controlModel.sortColumn == headerDlgt.column
                 }
-
                 TapHandler {
                     onTapped: controlModel.toggleSortColumn(headerDlgt.column)
                 }
             }
         }
-
         TableView {
             id: tableView
 
-            property var columnWidths: [0.3, 0.4, 0.15, 0.15]
+            property var columnWidths: [0.2, 0.3, 0.15, 0.1]
 
             Layout.fillHeight: true
             Layout.fillWidth: true
-            columnSpacing: 1
-            rowSpacing: 1
-            clip: true
-            onWidthChanged: forceLayout()
             boundsBehavior: Flickable.StopAtBounds
+            clip: true
+            columnSpacing: 1
+            rowHeightProvider: _ => 24
+            rowSpacing: 1
 
+            ScrollBar.vertical: ScrollBar {
+                policy: ScrollBar.AlwaysOn
+            }
+            delegate: DelegateChooser {
+                DelegateChoice {
+                    column: 0
+
+                    delegate: Rectangle {
+                        id: groupDelegate
+
+                        required property int column
+                        required property string display
+
+                        color: root.color
+                        implicitHeight: groupName.contentHeight
+                        implicitWidth: (root.width - 10) * tableView.columnWidths[groupDelegate.column]
+
+                        Text {
+                            id: groupName
+
+                            anchors.fill: parent
+                            color: Theme.deckTextColor
+                            elide: Text.ElideRight
+                            text: groupDelegate.display
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                }
+                DelegateChoice {
+                    column: 1
+
+                    delegate: Rectangle {
+                        id: keyDelegate
+
+                        required property int column
+                        required property string display
+
+                        color: root.color
+                        implicitHeight: keyName.contentHeight
+                        implicitWidth: (root.width - 10) * tableView.columnWidths[keyDelegate.column]
+
+                        Text {
+                            id: keyName
+
+                            anchors.fill: parent
+                            color: Theme.deckTextColor
+                            elide: Text.ElideRight
+                            text: keyDelegate.display
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                }
+                DelegateChoice {
+                    column: 2
+
+                    delegate: RowLayout {
+                        id: valueDelegate
+
+                        required property int column
+                        required property string display
+                        required property int row
+
+                        implicitWidth: (root.width - 10) * tableView.columnWidths[valueDelegate.column]
+                        spacing: 0
+
+                        // color: root.color
+
+                        Skin.TextField {
+                            id: valueField
+
+                            Layout.fillWidth: true
+                            color: Theme.textColor
+                            inputMethodHints: Qt.ImhFormattedNumbersOnly
+                            text: valueDelegate.display
+
+                            background: Rectangle {
+                                anchors.fill: parent
+                                color: Theme.embeddedBackgroundColor
+                                radius: 5
+                            }
+                            validator: DoubleValidator {
+                            }
+
+                            onEditingFinished: {
+                                const idx = controlModel.index(valueDelegate.row, valueDelegate.column);
+                                controlModel.setData(idx, parseFloat(text));
+                            }
+                        }
+                        Skin.Button {
+                            text: "Trigger"
+
+                            onPressed: {
+                                const idx = controlModel.index(valueDelegate.row, valueDelegate.column);
+                                controlModel.setData(idx, !parseFloat(valueDelegate.display) ? 1.0 : 0.0);
+                            }
+                        }
+                        Skin.Button {
+                            checkable: true
+                            checked: !!parseFloat(valueDelegate.display)
+                            text: "Toggle"
+
+                            onPressed: {
+                                const idx = controlModel.index(valueDelegate.row, valueDelegate.column);
+                                controlModel.setData(idx, !checked ? 1.0 : 0.0);
+                            }
+                        }
+                    }
+                }
+                DelegateChoice {
+                    column: 3
+
+                    delegate: Rectangle {
+                        id: parameterDelegate
+
+                        required property int column
+                        required property string display
+                        required property int row
+
+                        color: root.color
+                        implicitHeight: 20
+                        implicitWidth: (root.width - 10) * tableView.columnWidths[parameterDelegate.column]
+
+                        Skin.TextField {
+                            id: valueField
+
+                            anchors.fill: parent
+                            color: Theme.textColor
+                            inputMethodHints: Qt.ImhFormattedNumbersOnly
+                            text: parameterDelegate.display
+
+                            background: Rectangle {
+                                anchors.fill: parent
+                                color: Theme.embeddedBackgroundColor
+                                radius: 5
+                            }
+                            validator: DoubleValidator {
+                            }
+
+                            onEditingFinished: {
+                                const idx = controlModel.index(parameterDelegate.row, parameterDelegate.column);
+                                controlModel.setData(idx, parseFloat(text));
+                            }
+                        }
+                    }
+                }
+            }
             model: Mixxx.ControlSortFilterModel {
                 id: controlModel
 
@@ -125,133 +268,7 @@ Window {
                 }
             }
 
-            delegate: DelegateChooser {
-                DelegateChoice {
-                    column: 0
-
-                    delegate: Rectangle {
-                        id: groupDelegate
-
-                        required property int column
-                        required property string display
-
-                        implicitWidth: (root.width - 10) * tableView.columnWidths[groupDelegate.column]
-                        implicitHeight: groupName.contentHeight
-                        color: root.color
-
-                        Text {
-                            id: groupName
-
-                            anchors.fill: parent
-                            text: groupDelegate.display
-                            verticalAlignment: Text.AlignVCenter
-                            elide: Text.ElideRight
-                            color: Theme.deckTextColor
-                        }
-                    }
-                }
-
-                DelegateChoice {
-                    column: 1
-
-                    delegate: Rectangle {
-                        id: keyDelegate
-
-                        required property int column
-                        required property string display
-
-                        implicitWidth: (root.width - 10) * tableView.columnWidths[keyDelegate.column]
-                        implicitHeight: keyName.contentHeight
-                        color: root.color
-
-                        Text {
-                            id: keyName
-
-                            anchors.fill: parent
-                            text: keyDelegate.display
-                            verticalAlignment: Text.AlignVCenter
-                            elide: Text.ElideRight
-                            color: Theme.deckTextColor
-                        }
-                    }
-                }
-
-                DelegateChoice {
-                    column: 2
-
-                    delegate: Rectangle {
-                        id: valueDelegate
-
-                        required property int row
-                        required property int column
-                        required property string display
-
-                        implicitWidth: (root.width - 10) * tableView.columnWidths[valueDelegate.column]
-                        implicitHeight: valueField.implicitHeight
-                        color: root.color
-
-                        Skin.TextField {
-                            id: valueField
-
-                            anchors.fill: parent
-                            text: valueDelegate.display
-                            inputMethodHints: Qt.ImhFormattedNumbersOnly
-                            onEditingFinished: {
-                                const idx = controlModel.index(valueDelegate.row, valueDelegate.column);
-                                controlModel.setData(idx, parseFloat(text));
-                            }
-                            color: Theme.textColor
-
-                            background: Rectangle {
-                                anchors.fill: parent
-                                color: Theme.embeddedBackgroundColor
-                                radius: 5
-                            }
-
-                            validator: DoubleValidator {
-                            }
-                        }
-                    }
-                }
-
-                DelegateChoice {
-                    column: 3
-
-                    delegate: Rectangle {
-                        id: parameterDelegate
-
-                        required property int row
-                        required property int column
-                        required property string display
-
-                        implicitWidth: (root.width - 10) * tableView.columnWidths[parameterDelegate.column]
-                        implicitHeight: valueField.implicitHeight
-                        color: root.color
-
-                        Skin.TextField {
-                            id: valueField
-
-                            anchors.fill: parent
-                            text: parameterDelegate.display
-                            inputMethodHints: Qt.ImhFormattedNumbersOnly
-                            onEditingFinished: {
-                                const idx = controlModel.index(parameterDelegate.row, parameterDelegate.column);
-                                controlModel.setData(idx, parseFloat(text));
-                            }
-                            color: Theme.textColor
-
-                            background: Rectangle {
-                                anchors.fill: parent
-                                color: Theme.embeddedBackgroundColor
-                                radius: 5
-                            }
-
-                            validator: DoubleValidator {
-                            }
-                        }
-                    }
-                }
-            }
+            onWidthChanged: forceLayout()
         }
     }
 }

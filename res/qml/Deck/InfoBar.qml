@@ -28,7 +28,7 @@ Rectangle {
         GradientStop {
             color: {
                 const trackColor = root.currentTrack?.color;
-                if (!trackColor.valid)
+                if (!trackColor?.valid)
                     return Theme.deckInfoBarBackgroundColor;
 
                 return Qt.darker(root.currentTrack?.color, 2);
@@ -48,7 +48,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.top: parent.top
         asynchronous: true
-        source: root.currentTrack?.coverArtUrl
+        source: root.currentTrack?.coverArtUrl || ''
         visible: false
         width: height
     }
@@ -91,15 +91,15 @@ Rectangle {
             roleValue: "Artist"
 
             Cell {
-                item.text: root.currentTrack?.artist
+                item.text: root.currentTrack?.artist || ''
             }
         }
         DelegateChoice {
             roleValue: "Year"
 
             Cell {
-                item.text: root.currentTrack?.year
-                visible: root.width > 500 && root.currentTrack?.year
+                item.text: root.currentTrack?.year || ''
+                visible: root.width > 500 && !!root.currentTrack?.year
             }
         }
         DelegateChoice {

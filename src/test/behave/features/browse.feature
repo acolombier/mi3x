@@ -86,7 +86,7 @@ Feature: Browse
     Then a track is loaded on deck 1
 
   @sub/library
-  Scenario Outline: Track can be loaded via context menu
+  Scenario Outline: Track can be loaded on deck via context menu
     Given no track is loaded on deck <deck>
     When I right-click the track at row <row>
     And I select "Load to" > "Deck" > "Deck <deck>" on the track menu
@@ -97,6 +97,19 @@ Feature: Browse
       | 1    | 1   |
       | 2    | 18  |
       | 1    | 26  |
+
+  @sub/preview
+  Scenario Outline: Track can be loaded on preview deck via context menu
+    Given no track is loaded on preview deck
+    When I right-click the track at row <row>
+    And I select "Load to" > "Preview Deck" on the track menu
+    Then a track is loaded on preview deck
+
+    Examples:
+      | row |
+      | 4  |
+      | 11  |
+      | 36  |
 
   @sub/library
   @category/responsiveness
@@ -799,3 +812,16 @@ Feature: Browse
       And the integrations grid should be below the library source pane
       And the integrations grid should not overlap the library source pane
       When I resize the window's width to 1792px
+
+  # --- Preview deck (library placement, sub feature) ------------------------------
+
+  Rule: Preview deck in the library sidebar
+
+    Background:
+      Given a new library-ready profile
+      And Mixxx is open and ready to operate
+      And the window size is default
+
+  @sub/preview
+  Scenario: The preview deck is visible in the library sidebar
+    Then the preview deck should be visible

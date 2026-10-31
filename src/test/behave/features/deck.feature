@@ -666,3 +666,77 @@ Feature: Deck
     And the "shift grid slider" of the beatgrid popup should be enabled
     And the "snap to playhead button" of the beatgrid popup should be enabled
     And the "current BPM spinbox" of the beatgrid popup should be enabled
+
+  # --- Preview deck (sub feature) ------------------------------------------------
+
+  Rule: Preview playback
+
+    Background:
+      Given a new library-ready profile
+      And Mixxx is open and ready to operate
+      And a track is loaded on preview deck
+
+  @sub/preview
+  Scenario: The play button toggles preview playback
+    When I click the "play" button on the preview deck
+    Then the preview deck's playback state should be playing
+    And the play button on the preview deck should be pressed
+    When I click the "play" button on the preview deck
+    Then the preview deck's playback state should be stopped
+    And the play button on the preview deck should be released
+
+  Rule: Preview deck safety guards
+
+    Background:
+      Given a new library-ready profile
+      And Mixxx is open and ready to operate
+
+  @sub/preview
+  Scenario: An empty preview deck shows a placeholder instead of the player
+    Given no track is loaded on preview deck
+    Then the preview deck player elements should be hidden
+    And the preview deck placeholder should be visible
+
+  Rule: Preview deck reacts to player controls
+
+    # Eject and seek are driven via ControlObject writes because the preview
+    # strip has no controls for them yet. This is the reaction of the standard
+    # deck player machinery to its controls (see src/mixer/basetrackplayer.cpp).
+    Background:
+      Given a new library-ready profile
+      And Mixxx is open and ready to operate
+      And the window size is default
+      And quantize is disabled on preview deck
+
+  # Documents BaseTrackPlayerImpl's eject-while-playing guard: eject is
+  # ignored while a deck is playing.
+  @sub/preview
+  @test/missing-ui-interaction
+  Scenario: Ejecting while playing is rejected
+    Given a track is loaded on preview deck
+    When I click the "play" button on the preview deck
+    And I eject the preview deck
+    Then a track is loaded on preview deck
+    And the preview deck's playback state should be playing
+
+  @sub/preview
+  @test/missing-ui-interaction
+  Scenario: Ejecting a stopped preview deck unloads the track
+    Given a track is loaded on preview deck
+    When I eject the preview deck
+    Then a track is not loaded on preview deck
+
+  @sub/preview
+  @test/missing-ui-interaction
+  Scenario Outline: Seeking changes the playback position of the preview deck
+    Given a track is loaded on preview deck
+    And the preview deck is <state>
+    And the playhead of the preview deck is at 0.25
+    When I seek the playhead of the preview deck to 0.75
+    Then the playhead of the preview deck should be near 0.75
+    And the preview deck's playback state should be <state>
+
+    Examples:
+      | state   |
+      | stopped |
+      | playing |

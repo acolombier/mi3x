@@ -1159,11 +1159,35 @@ After the last attempt the wrapper:
 
 ## How to Add a New Feature
 
-1. Create `features/<name>.feature` with `Feature:` header and
-   `Background:` / `Scenario:` blocks
-2. Add item names in QML as needed (`objectName: "myElement"` when the QML `id`
-   is not addressable; see the naming convention under Path Resolution)
-3. CMake auto-discovers `*.feature` files — no registration needed
+### Where the scenarios go (subfeature vs. top-level feature)
+
+`features/*.feature` files map to top-level domains, not to individual
+widgets or subfeatures of one area. Most new UI features are **subfeatures**
+of an existing area: add a `Rule:` to the parent feature file and tag its
+scenarios `@sub/<name>` (e.g. `@sub/hotcues`, `@sub/preview`), giving the
+Rule its own `Background:` when the profile or setup it needs differs from
+the file's other Rules.
+
+- **A subfeature may span multiple parents.** Each scenario belongs in the
+  file whose domain it exercises — not necessarily all in one file.
+  Example: the preview player's playback/eject/seek scenarios live in
+  `deck.feature` (deck player behavior on `[PreviewDeck1]`), while its
+  strip visibility in the library sidebar and its context-menu loading
+  live in `browse.feature`, next to the library "Preview" column scenarios.
+- **Always ask the user where a new feature lands** (which existing file and
+  Rule, or a new top-level feature file). Do not guess — neither a new
+  `features/<name>.feature` nor a parent file. The file boundaries encode
+  decisions the domain names alone do not reveal.
+
+1. *(new top-level feature only, confirmed with the user)* Create
+   `features/<name>.feature` with `Feature:` header and `Rule:` /
+   `Scenario:` blocks
+2. Steps go to the matching `steps/<feature>_steps.py`; shared machinery
+   stays in `mixxx_steps.py` / `settings_steps.py` (see the placement rule
+   in Step DSL (`steps/`) about alphabetical module discovery)
+3. Add item names in QML as needed (`objectName: "myElement"` when the QML
+   `id` is not addressable; see the naming convention under Path Resolution)
+4. CMake auto-discovers `*.feature` files — no registration needed
 
 ## How to Read a ControlObject from a Test
 

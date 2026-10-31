@@ -80,6 +80,15 @@ Item {
                 enabled: hasCapabilities(Mixxx.LibraryTrackListModel.Capability.LoadToSampler)
                 title: qsTr("Sampler")
             }
+            MenuItem {
+                enabled: hasCapabilities(Mixxx.LibraryTrackListModel.Capability.LoadToPreviewDeck)
+                text: qsTr("Preview Deck")
+
+                onTriggered: {
+                    if (_lazyTrack)
+                        Mixxx.PlayerManager.getPlayer(`[PreviewDeck1]`).loadTrack(_lazyTrack);
+                }
+            }
 
             // Instantiator {
             //     id: recentFilesInstantiator

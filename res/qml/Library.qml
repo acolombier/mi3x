@@ -86,6 +86,8 @@ Item {
                 model: root.activeSidebar
             }
             Skin.PreviewDeck {
+                id: previewDeck
+
                 SplitView.maximumHeight: 200
                 SplitView.minimumHeight: 100
                 SplitView.preferredHeight: 100
