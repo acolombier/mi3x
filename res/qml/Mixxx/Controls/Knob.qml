@@ -184,8 +184,6 @@ Item {
         sourceItem: root
         value: dragArea.active ? dragArea.dragValue : root.value
     }
-
-    // TODO: Replace this with a WheelHandler once we switch to Qt >= 5.14.
     MouseArea {
         id: wheelHandler
 

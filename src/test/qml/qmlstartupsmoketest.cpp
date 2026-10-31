@@ -86,11 +86,6 @@ class QmlStartupSmokeTest : public MixxxTest,
 
 TEST_P(QmlStartupSmokeTest, Starts) {
     const auto& skin = GetParam();
-#if defined(__WINDOWS__)
-    if (skin.useNewUi) {
-        GTEST_SKIP() << "NewUi QML startup smoke test is temporarily disabled on Windows";
-    }
-#endif
     // The text in this block was generated autonomously by an AI agent.
     // The LateNightQML skin follows the pre-merge QML trajectory and relies on
     // component APIs that were dropped in favor of the trusted feat/qml UI, so
