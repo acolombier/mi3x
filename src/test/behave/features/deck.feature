@@ -549,3 +549,120 @@ Feature: Deck
     When I clear the hotcue popup label field
     And I press Enter in the hotcue popup label field
     Then the hotcue popup label should be empty
+
+  Rule: Beatgrid popup
+    Background:
+      Given a new library-ready profile
+      And Mixxx is open and ready to operate
+      And a track is loaded on deck 1
+      And the window size is default
+      And quantize is disabled on deck 1
+
+  @sub/sync
+  Scenario: The quantize button toggles quantize
+    When I click the "quantize" button on deck 1
+    Then the quantize button on deck 1 should be pressed
+    And quantize should be enabled on deck 1
+    When I click the "quantize" button on deck 1
+    Then the quantize button on deck 1 should be released
+    And quantize should be disabled on deck 1
+
+  @sub/sync
+  Scenario: The popup opens on a Beatgrid toolbar click
+    When I click the "beatgrid" button on deck 1
+    Then the beatgrid popup should be open
+    And the "shift grid slider" of the beatgrid popup should be visible
+    And the "bar size spinbox" of the beatgrid popup should be visible
+    And the "current BPM spinbox" of the beatgrid popup should be visible
+    And the "snap to playhead button" of the beatgrid popup should be visible
+
+  @sub/sync
+  Scenario: The popup closes on press outside
+    Given the beatgrid popup is open on deck 1
+    When I click the "spinny" button on deck 1
+    Then the beatgrid popup should be closed
+
+  # spix cannot deliver keyboard events to the overlay popup reliably
+  # (focus routing limitation), so this check is marked as flaky.
+  @xpass
+  @sub/sync
+  Scenario: The popup closes with Escape
+    Given the beatgrid popup is open on deck 1
+    When I press Escape in the beatgrid popup
+    Then the beatgrid popup should be closed
+
+  @sub/sync
+  Scenario: The current BPM spinbox shows the detected file BPM
+    Given the beatgrid popup is open on deck 1
+    Then the beatgrid current BPM spinbox should show the file BPM of deck 1
+
+  # The shift grid slider fires one trigger per 1/100 slider unit (each
+  # moving the grid by 0.01 s), so the resulting first-beat shift is
+  # asserted against the magnitude derived from the slider's final value.
+  @sub/sync
+  Scenario: Dragging the shift grid slider right shifts the grid later
+    Given the beatgrid popup is open on deck 1
+    And the first beat position of deck 1 is remembered
+    When I drag the shift grid slider of deck 1 to the right
+    Then the first beat of deck 1 should have moved later
+
+  @sub/sync
+  Scenario: Dragging the shift grid slider left shifts the grid earlier
+    Given the beatgrid popup is open on deck 1
+    And the first beat position of deck 1 is remembered
+    When I drag the shift grid slider of deck 1 to the left
+    Then the first beat of deck 1 should have moved earlier
+
+  @sub/sync
+  Scenario: Snapping the grid to the current position moves the first beat
+    Given the beatgrid popup is open on deck 1
+    And the playhead of deck 1 is at 0.5
+    And the first beat position of deck 1 is remembered
+    When I click the "snap to playhead button" in the beatgrid popup
+    Then the first beat of deck 1 should have changed
+
+  @sub/sync
+  Scenario: The halve BPM button halves the deck's BPM
+    Given the beatgrid popup is open on deck 1
+    And the BPM of deck 1 is remembered
+    When I click the "halve BPM button" in the beatgrid popup
+    Then the BPM of deck 1 should be half of the remembered BPM
+
+  @sub/sync
+  Scenario: The double BPM button doubles the deck's BPM
+    Given the beatgrid popup is open on deck 1
+    And the BPM of deck 1 is remembered
+    When I click the "double BPM button" in the beatgrid popup
+    Then the BPM of deck 1 should be double the remembered BPM
+
+  @sub/sync
+  Scenario: Locking the BPM disables the grid and BPM editing controls
+    Given the beatgrid popup is open on deck 1
+    And the playhead of deck 1 is at 0.5
+    And the first beat position of deck 1 is remembered
+    And the BPM of deck 1 is remembered
+    When I click the "BPM lock button" in the beatgrid popup
+    Then the BPM lock button of the beatgrid popup should be pressed
+    And the BPM of deck 1 should be locked
+    And the "shift grid slider" of the beatgrid popup should be disabled
+    And the "snap to playhead button" of the beatgrid popup should be disabled
+    And the "current BPM spinbox" of the beatgrid popup should be disabled
+    When I click the "snap to playhead button" in the beatgrid popup
+    And I drag the shift grid slider of deck 1 to the right
+    Then the first beat of deck 1 should not have changed
+    And the BPM of deck 1 should not have changed
+
+  @sub/sync
+  Scenario: Unlocking the BPM re-enables the grid and BPM editing controls
+    Given the BPM of deck 1 is locked
+    And the beatgrid popup is open on deck 1
+    Then the BPM lock button of the beatgrid popup should be pressed
+    And the BPM of deck 1 should be locked
+    And the "shift grid slider" of the beatgrid popup should be disabled
+    And the "snap to playhead button" of the beatgrid popup should be disabled
+    And the "current BPM spinbox" of the beatgrid popup should be disabled
+    When I click the "BPM lock button" in the beatgrid popup
+    Then the BPM lock button of the beatgrid popup should be released
+    And the "shift grid slider" of the beatgrid popup should be enabled
+    And the "snap to playhead button" of the beatgrid popup should be enabled
+    And the "current BPM spinbox" of the beatgrid popup should be enabled

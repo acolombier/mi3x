@@ -22,6 +22,7 @@ from helpers import (
     _deck_button_path,
     _deck_group,
     _deck_hotcue_path,
+    _deck_path,
     _get_bb,
     _get_control_value,
     _get_property,
@@ -844,3 +845,295 @@ def step_start_notch_on_start_edge(context):
 @then("the hotcue popup end notch should be centered on the span filler end edge")
 def step_end_notch_on_end_edge(context):
     _assert_centered_on_edge(context, "end")
+
+
+# --- Beatgrid popup (sub feature) ---
+
+# When opened, the toolbar's beatgrid popup re-parents its content to the
+# window overlay (outside the deck's item tree), so the content item needs
+# the deck uid ("Channel{deck}") to disambiguate the four toolbar instances.
+# The popup is opened with a left click on the toolbar's "Beatgrid" button
+# and closed with a press outside or Escape (the popup has keyboard focus
+# while open).
+BEATGRID_POPUP_CONTENT = "beatgridPopupContent"
+
+# display name -> popup-internal objectName
+BEATGRID_POPUP_ITEMS = {
+    "shift grid slider": "shiftSlider",
+    "bar size spinbox": "barSizeSpinBox",
+    "current BPM spinbox": "currentBpmSpinBox",
+    "snap to playhead button": "curposButton",
+    "halve BPM button": "halfButton",
+    "double BPM button": "doubleButton",
+    "BPM lock button": "lockButton",
+}
+
+
+def _beatgrid_popup_item_path(context, name=None, deck=None):
+    deck = deck or getattr(context, "_popup_deck", 1)
+    path = f"mainWindow/{BEATGRID_POPUP_CONTENT}Channel{deck}"
+    if name:
+        path += f"/{name}"
+    return path
+
+
+def _first_beat_frame(context, deck):
+    frame = context.rpc.invokeMethod(
+        _beatgrid_popup_item_path(context, "shiftSlider", deck),
+        "firstBeatFrame",
+        [],
+    )
+    assert frame is not None and float(frame) >= 0, (
+        f"could not read the first beat frame of deck {deck}")
+    return float(frame)
+
+
+def _shift_slider_value(context, deck):
+    return float(_get_property(
+        context, _beatgrid_popup_item_path(context, "shiftSlider", deck), "value"))
+
+
+def _open_beatgrid_popup(context, deck):
+    context._popup_deck = deck
+    path = _beatgrid_popup_item_path(context)
+    if not _is_visible(context, path):
+        _click(context, _deck_button_path(deck, "beatgrid"))
+        _wait_for_visible(context, path)
+
+
+# Given: popup preconditions
+
+
+@given("the beatgrid popup is open on deck {deck:d}")
+def step_given_beatgrid_popup_open(context, deck):
+    _open_beatgrid_popup(context, deck)
+
+
+# The deck-level preconditions shared with other sub features stay in the
+# hotcue popup section for now (the beatloop size and quantize Given steps);
+# they are deck-scoped and reusable from here.
+
+
+@given("the first beat position of deck {deck:d} is remembered")
+def step_remember_first_beat(context, deck):
+    _remember(context, ("first beat", deck), _first_beat_frame(context, deck))
+
+
+@given("the BPM of deck {deck:d} is remembered")
+def step_remember_bpm(context, deck):
+    _remember(context, "BPM", _get_control_value(context, _deck_group(deck), "bpm"))
+
+
+@given("the BPM of deck {deck:d} is locked")
+def step_give_bpm_locked(context, deck):
+    _set_control_value(context, _deck_group(deck), "bpmlock", 1)
+    time.sleep(0.3)
+
+
+# When: popup interactions
+
+
+@when("I drag the shift grid slider of deck {deck:d} to the {direction}")
+def step_drag_shift_grid_slider(context, deck, direction):
+    assert direction in ("left", "right"), f"Unknown drag direction {direction!r}"
+    slider = _beatgrid_popup_item_path(context, "shiftSlider", deck)
+    current_value = float(_get_property(context, slider, "value"))
+    for _ in range(2):
+        current_value += 0.05 if direction == "right" else -0.05
+        context.rpc.mouseClickWithProportion(slider, current_value, 0.5)
+        time.sleep(1)
+
+
+@when("I press Escape in the beatgrid popup")
+def step_press_escape_beatgrid_popup(context):
+    context.rpc.enterKey(
+        _beatgrid_popup_item_path(context), QT_KEY_ESCAPE, 0)
+
+
+@when("I click the {direction} indicator of the bar size spinbox")
+def step_click_bar_size_indicator(context, direction):
+    assert direction in ("up", "down"), f"Unknown indicator direction {direction!r}"
+    _click(context, _beatgrid_popup_item_path(
+        context, f"barSizeSpinBox/{direction}Button"))
+    time.sleep(0.5)
+
+
+@when('I click the "{item}" in the beatgrid popup')
+def step_click_beatgrid_popup_item(context, item):
+    assert item in BEATGRID_POPUP_ITEMS, f"Unknown popup item {item!r}"
+    _click(context, _beatgrid_popup_item_path(context, BEATGRID_POPUP_ITEMS[item]))
+    time.sleep(0.5)
+
+
+# Then: popup assertions
+
+
+@then("the beatgrid popup should be {state}")
+def step_beatgrid_popup_open(context, state):
+    expected = state == "open"
+    assert _is_visible(context, _beatgrid_popup_item_path(context)) == expected, (
+        "beatgrid popup not open")
+
+
+@then('the "{item}" of the beatgrid popup should be visible')
+def step_beatgrid_popup_item_visible(context, item):
+    assert item in BEATGRID_POPUP_ITEMS, f"Unknown popup item {item!r}"
+    path = _beatgrid_popup_item_path(context, BEATGRID_POPUP_ITEMS[item])
+    assert _is_visible(context, path), f"{item} not visible in the beatgrid popup"
+
+
+@then("the beatgrid bar size spinbox should show {value:d}")
+def step_bar_size_shows(context, value):
+    shown = float(_get_property(
+        context, _beatgrid_popup_item_path(context, "barSizeSpinBox"),
+        "realValue"))
+    assert abs(shown - value) <= 0.01, (
+        f"bar size spinbox shows {shown}, expected {value}")
+
+
+@then("the beatgrid current BPM spinbox should show the file BPM of deck {deck:d}")
+def step_bpm_shows_file_bpm(context, deck):
+    shown = float(_get_property(
+        context, _beatgrid_popup_item_path(context, "currentBpmSpinBox"),
+        "realValue"))
+    file_bpm = _get_control_value(context, _deck_group(deck), "file_bpm")
+    assert shown > 0, f"current BPM spinbox shows {shown}"
+    assert abs(shown - file_bpm) <= 0.005, (
+        f"current BPM spinbox shows {shown}, file BPM is {file_bpm}")
+
+
+@then("the first beat of deck {deck:d} should have changed")
+def step_first_beat_changed(context, deck):
+    before = _remembered_value(context, ("first beat", deck))
+    deadline = time.time() + 2.0
+    while True:
+        after = _first_beat_frame(context, deck)
+        if abs(after - before) > 0.5 or time.time() >= deadline:
+            break
+        time.sleep(0.1)
+    assert abs(after - before) > 0.5, (
+        f"first beat unchanged (stayed at {before:.0f})")
+
+
+@then("the first beat of deck {deck:d} should not have changed")
+def step_first_beat_unchanged(context, deck):
+    time.sleep(0.5)
+    after = _first_beat_frame(context, deck)
+    before = _remembered_value(context, ("first beat", deck))
+    assert abs(after - before) <= 0.5, (
+        f"first beat changed from {before:.0f} to {after:.0f}, "
+        f"expected it to be inhibited")
+
+
+@then("quantize should be {assertion} on deck {deck:d}")
+def step_quantize_enabled(context, assertion, deck):
+    expected = assertion == "enabled"
+    value = _get_control_value(context, _deck_group(deck), "quantize") > 0
+    state = "enabled" if value else "disabled"
+    assert value is expected, (
+        f"quantize is {state} on deck {deck}, expected {assertion}")
+
+
+@then("the quantize button on deck {deck:d} should be {assertion}")
+def step_quantize_button_state(context, assertion, deck):
+    expected = assertion == "pressed"
+    value = _get_property(
+        context, _deck_button_path(deck, "quantize"), "highlight") == "true"
+    state = "pressed" if value else "released"
+    assert value is expected, (
+        f"quantize button is {state} on deck {deck}, expected {assertion}")
+
+
+@then("the first beat of deck {deck:d} should have moved {direction}")
+def step_first_beat_shifted(context, deck, direction):
+    assert direction in ("earlier", "later"), (
+        f"Unknown shift direction {direction!r}")
+    previous = _remembered_value(context, ("first beat", deck))
+    bpm = float(_get_control_value(context, _deck_group(deck), "bpm"))
+    sample_rate = float(_get_control_value(context, _deck_group(deck), "track_samplerate"))
+    beat_size = int(sample_rate * 60 / bpm)
+    actual = _first_beat_frame(context, deck)
+    if direction == "earlier":
+        if previous <= beat_size / 2:
+            previous += beat_size
+        assert previous > actual, (
+            f"first beat moved from {previous} to {actual} frames, expected an earlier shift")
+    else:
+        if previous >= beat_size / 2:
+            previous -= beat_size
+        assert previous < actual, (
+            f"first beat moved from {previous} to {actual} frames, expected a later shift")
+
+
+def _current_deck_bpm(context, deck):
+    return float(_get_control_value(context, _deck_group(deck), "bpm"))
+
+
+def _assert_deck_bpm(context, deck, expected):
+    # The engine worker thread applies the new BPM asynchronously
+    deadline = time.time() + 2.0
+    actual = _current_deck_bpm(context, deck)
+    while abs(actual - expected) > 0.01 and time.time() < deadline:
+        time.sleep(0.1)
+        actual = _current_deck_bpm(context, deck)
+    assert abs(actual - expected) <= 0.01, (
+        f"BPM on deck {deck} settled at {actual}, expected {expected}")
+
+
+@then("the BPM of deck {deck:d} should be half of the remembered BPM")
+def step_bpm_halved(context, deck):
+    _assert_deck_bpm(context, deck, _remembered_value(context, "BPM") / 2)
+
+
+@then("the BPM of deck {deck:d} should be double the remembered BPM")
+def step_bpm_doubled(context, deck):
+    _assert_deck_bpm(context, deck, _remembered_value(context, "BPM") * 2)
+
+
+@then("the BPM of deck {deck:d} should not have changed")
+def step_bpm_unchanged(context, deck):
+    time.sleep(0.5)
+    actual = _current_deck_bpm(context, deck)
+    expected = _remembered_value(context, "BPM")
+    assert abs(actual - expected) <= 0.01, (
+        f"BPM changed from {expected} to {actual}, expected it to be inhibited")
+
+
+@then("the BPM of deck {deck:d} should be {state}")
+def step_bpm_lock_state(context, deck, state):
+    expected = state == "locked"
+    value = bool(_get_control_value(context, _deck_group(deck), "bpmlock"))
+    assert value is expected, (
+        f"BPM on deck {deck} is {'not ' if expected else ''}locked, "
+        f"expected to be {state}")
+
+
+@then("the BPM lock button of the beatgrid popup should be {assertion}")
+def step_bpm_lock_button_state(context, assertion):
+    expected = assertion == "pressed"
+    value = _get_property(
+        context,
+        _beatgrid_popup_item_path(context, BEATGRID_POPUP_ITEMS["BPM lock button"]),
+        "highlight") == "true"
+    assert value is expected, (
+        f"BPM lock button is {'released' if expected else 'pressed'} "
+        f"while expected {assertion}")
+
+
+def _assert_beatgrid_item_enabled(context, item, expected):
+    assert item in BEATGRID_POPUP_ITEMS, f"Unknown popup item {item!r}"
+    path = _beatgrid_popup_item_path(context, BEATGRID_POPUP_ITEMS[item])
+    value = _get_property(context, path, "enabled") == "true"
+    assert value is expected, (
+        f"{item} is {'enabled' if value else 'disabled'} in the beatgrid popup, "
+        f"expected {('enabled' if expected else 'disabled')}")
+
+
+@then('the "{item}" of the beatgrid popup should be enabled')
+def step_beatgrid_popup_item_enabled(context, item):
+    _assert_beatgrid_item_enabled(context, item, True)
+
+
+@then('the "{item}" of the beatgrid popup should be disabled')
+def step_beatgrid_popup_item_disabled(context, item):
+    _assert_beatgrid_item_enabled(context, item, False)

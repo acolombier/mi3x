@@ -91,6 +91,10 @@ QmlTrackProxy::QmlTrackProxy(TrackPointer track, QObject* parent)
             this,
             &QmlTrackProxy::keyTextChanged);
     connect(m_pTrack.get(),
+            &Track::bpmChanged,
+            this,
+            &QmlTrackProxy::bpmChanged);
+    connect(m_pTrack.get(),
             &Track::colorUpdated,
             this,
             &QmlTrackProxy::colorChanged);
@@ -182,6 +186,20 @@ PROPERTY_IMPL(QString, trackNumber, getTrackNumber, setTrackNumber)
 PROPERTY_IMPL(QString, trackTotal, getTrackTotal, setTrackTotal)
 PROPERTY_IMPL(QString, comment, getComment, setComment)
 PROPERTY_IMPL(QString, keyText, getKeyText, setKeyText)
+
+double QmlTrackProxy ::getBpm() const {
+    const TrackPointer pTrack = m_pTrack;
+    if (pTrack == nullptr) {
+        return double();
+    }
+    return pTrack->getBpm();
+}
+void QmlTrackProxy ::trySetBpm(double value) {
+    const TrackPointer pTrack = m_pTrack;
+    if (pTrack != nullptr) {
+        pTrack->trySetBpm(value);
+    }
+}
 
 QColor QmlTrackProxy::getColor() const {
     if (m_pTrack == nullptr) {

@@ -8,9 +8,11 @@ Item {
 
     readonly property int decimalFactor: Math.pow(10, decimals)
     property int decimals: 0
+    property int margins: 7
     property list<double> markers: []
     property double max: markers.length ? markers[markers.length - 1] : 1
     property double min: markers.length ? markers[0] : 0
+    property bool showTextInput: true
     property alias slider: control
     property alias suffix: textInputSection.suffix
     property double value: 0
@@ -79,8 +81,8 @@ Item {
         id: control
 
         anchors.left: root.left
-        anchors.right: textInputSection.left
-        anchors.rightMargin: 10
+        anchors.right: root.showTextInput ? textInputSection.left : root.right
+        anchors.rightMargin: root.showTextInput ? 10 : 0
         anchors.verticalCenter: root.verticalCenter
         from: 0
         objectName: root.objectName ? "Track" : ""
@@ -90,8 +92,8 @@ Item {
             height: control.availableHeight
             implicitHeight: 4
             implicitWidth: 200
-            width: control.availableWidth - 14
-            x: control.leftPadding + 7
+            width: control.availableWidth - 2 * root.margins
+            x: control.leftPadding + root.margins
 
             Rectangle {
                 color: "#181818"
@@ -154,8 +156,9 @@ Item {
                 id: handle
 
                 anchors.fill: parent
-                color: Theme.accentColor
+                color: root.enabled ? Theme.accentColor : Theme.lightGray
                 radius: 7
+
                 border {
                     color: "#0E2A54"
                     width: 1
@@ -164,17 +167,24 @@ Item {
             Rectangle {
                 anchors.fill: parent
                 radius: 7
+
                 gradient: Gradient {
-                    GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.25) }
-                    GradientStop { position: 0.4; color: "transparent" }
+                    GradientStop {
+                        color: Qt.rgba(0, 0, 0, 0.25)
+                        position: 0.0
+                    }
+                    GradientStop {
+                        color: "transparent"
+                        position: 0.4
+                    }
                 }
             }
             MultiEffect {
                 anchors.fill: parent
-                source: handle
-                shadowEnabled: true
-                shadowColor: Qt.alpha(Theme.darkGray, 0.25)
                 shadowBlur: 0.1
+                shadowColor: Qt.alpha(Theme.darkGray, 0.25)
+                shadowEnabled: true
+                source: handle
             }
         }
 
@@ -191,6 +201,7 @@ Item {
         anchors.margins: 4
         anchors.right: root.right
         height: 30
+        visible: root.showTextInput
         width: fontMetrics.advanceWidth + 8
 
         Rectangle {
@@ -200,6 +211,7 @@ Item {
             anchors.margins: 4
             color: Theme.darkGray2
             radius: 4
+
             border {
                 color: "#353535"
                 width: 1
@@ -207,10 +219,10 @@ Item {
         }
         MultiEffect {
             anchors.fill: backgroundInput
-            source: backgroundInput
-            shadowEnabled: true
-            shadowColor: Theme.darkGray
             shadowBlur: 0.15
+            shadowColor: Theme.darkGray
+            shadowEnabled: true
+            source: backgroundInput
         }
         Item {
             anchors.fill: parent
