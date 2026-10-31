@@ -6,6 +6,8 @@
 #include "controllers/controller.h"
 #include "controllers/scripting/colormapperjsproxy.h"
 #include "errordialoghandler.h"
+#include "notification.h"
+#include "notificationmanager.h"
 #ifdef MIXXX_USE_QML
 #include <QQmlEngine>
 #endif
@@ -193,7 +195,11 @@ void ControllerScriptEngineBase::showScriptExceptionDialog(
     qCWarning(m_logger) << "ControllerScriptHandlerBase:" << errorText;
 
     if (!m_bDisplayingExceptionDialog) {
-        scriptErrorDialog(errorText, key, bFatalError);
+        if (mixxx::NotificationManager::isCreated()) {
+            scriptErrorNotification(errorText, key, bFatalError);
+        } else {
+            scriptErrorDialog(errorText, key, bFatalError);
+        }
     }
 }
 
@@ -216,7 +222,11 @@ void ControllerScriptEngineBase::showQMLExceptionDialog(
     qCWarning(m_logger) << "ControllerScriptHandlerBase:" << errorText;
 
     if (!m_bDisplayingExceptionDialog) {
-        scriptErrorDialog(errorText, errorText, bFatalError);
+        if (mixxx::NotificationManager::isCreated()) {
+            scriptErrorNotification(errorText, errorText, bFatalError);
+        } else {
+            scriptErrorDialog(errorText, errorText, bFatalError);
+        }
     }
 }
 #endif
@@ -293,6 +303,104 @@ void ControllerScriptEngineBase::scriptErrorDialog(
                 &ControllerScriptEngineBase::errorDialogButton);
     }
 }
+
+#ifdef MIXXX_USE_QML
+void ControllerScriptEngineBase::scriptErrorNotification(
+        const QString& detailedError, const QString& key, bool bFatalError) {
+    if (m_bTesting) {
+        return;
+    }
+
+    mixxx::NotificationPointer pNotification;
+    bool newNotification = false;
+    auto notifications = mixxx::NotificationManager::instance()->activeNotifications();
+    for (const auto& pActiveNotification :
+            std::as_const(notifications)) {
+        if (pActiveNotification->key() == key) {
+            pNotification = std::move(pActiveNotification);
+            break;
+        }
+    }
+
+    if (!pNotification) {
+        auto flags = mixxx::Notification::Flag::Sticky |
+                mixxx::Notification::Flag::Wrap;
+        if (bFatalError) {
+            flags |= mixxx::Notification::Flag::Error;
+        } else {
+            flags |= mixxx::Notification::Flag::Warn;
+        }
+        pNotification =
+                std::make_shared<mixxx::Notification>(tr("Controller Mapping Error"),
+                        flags,
+                        key);
+        newNotification = true;
+    }
+
+    QString additionalErrorText;
+    if (bFatalError) {
+        additionalErrorText =
+                tr("The functionality provided by this controller mapping will "
+                   "be disabled until the issue has been resolved.");
+    } else {
+        // This happens when an exception is throws in an input handler (e. g.
+        // when pressing a button on the midi controller).  In case you ignore
+        // the issue, the button might not work if there's a bug in the
+        // mapping, but the other buttons probably will.
+        additionalErrorText =
+                tr("You can ignore this error for this session but "
+                   "you may experience erratic behavior.") +
+                QString("<br>") +
+                tr("Try to recover by resetting your controller.");
+    }
+    QString compactDetails = tr("The mapping for your controller \"%1\" is not working properly.")
+                                     .arg(m_pController->getName()) +
+            QStringLiteral("<br>") +
+            tr("The script code needs to be fixed.") + QStringLiteral("<p>") +
+            additionalErrorText + QStringLiteral("</p>");
+    pNotification->setDetails(QStringLiteral("<html>") + compactDetails +
+            QStringLiteral("</html>"));
+    pNotification->addButton("Show errors",
+            this,
+            [compactDetails, error = detailedError, pNotification]() {
+                QString detailsWithError = QStringLiteral("<html>") +
+                        compactDetails +
+                        QStringLiteral(
+                                "<blockquote style=\"background-color: "
+                                "red;\">") +
+                        error + QStringLiteral("</blockquote></html>");
+                qDebug() << compactDetails << error;
+                qDebug() << detailsWithError;
+                pNotification->setDetails(detailsWithError);
+            });
+
+    if (bFatalError) {
+        pNotification->addButton("Close", this, [this, pNotification]() {
+            if (m_pJSEngine) {
+                shutdown();
+            }
+            m_bDisplayingExceptionDialog = false;
+            mixxx::NotificationManager::instance()->closeNotification(pNotification);
+        });
+    } else {
+        pNotification->addButton("Ignore", this, [this, pNotification]() {
+            m_bDisplayingExceptionDialog = false;
+            mixxx::NotificationManager::instance()->closeNotification(pNotification);
+        });
+        pNotification->addButton("Retry", this, [this, pNotification]() {
+            m_bDisplayingExceptionDialog = false;
+            mixxx::NotificationManager::instance()->closeNotification(pNotification);
+            reload();
+        });
+    }
+    m_bDisplayingExceptionDialog = true;
+
+    if (newNotification) {
+        pNotification->moveToThread(mixxx::NotificationManager::instance()->thread());
+        mixxx::NotificationManager::instance()->notify(pNotification);
+    }
+}
+#endif
 
 void ControllerScriptEngineBase::errorDialogButton(
         const QString& key, QMessageBox::StandardButton clickedButton) {

@@ -17,8 +17,14 @@ Popup {
     // FIXME change to `final` when supported
     readonly property real smallScreenWidth: 1200
 
+    function focusSection(section) {
+        // TODO used by notification hook. need to finish when setting highlight is ready
+        print("section passed:", section);
+    }
+
     focus: true
     horizontalPadding: 20
+    // Used by notifications to interact with the setting popup
     objectName: "settingsPopup"
     verticalPadding: 20
 
@@ -40,6 +46,8 @@ Popup {
         anchors.fill: parent
         anchors.margins: 10
         asynchronous: true
+        // Used by notifications to interact with the setting popup
+        objectName: "settingsLoader"
         sourceComponent: content
         visible: item !== null && status == Loader.Ready
 

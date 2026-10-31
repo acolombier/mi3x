@@ -166,6 +166,10 @@ class QmlConfigProxy : public QmlConfigProxyBase {
     // Pixels
     Q_PROPERTY(double libraryRowHeight READ libraryRowHeight WRITE
                     set_libraryRowHeight NOTIFY libraryRowHeightChanged);
+    Q_PROPERTY(bool libraryRescanOnStartup READ libraryRescanOnStartup WRITE
+                    set_libraryRescanOnStartup NOTIFY libraryRescanOnStartupChanged);
+    Q_PROPERTY(bool libraryShowScanSummary READ libraryShowScanSummary WRITE
+                    set_libraryShowScanSummary NOTIFY libraryShowScanSummaryChanged);
     // Controls group
     // [0..activePaletteColorCount-1]
     Q_PROPERTY(int controlHotcueDefaultColorIndex READ
@@ -464,6 +468,8 @@ class QmlConfigProxy : public QmlConfigProxyBase {
     PROPERTY_DECL_ACCESSOR(int, libraryBpmColumnPrecision);
     // Pixels
     PROPERTY_DECL_ACCESSOR(double, libraryRowHeight);
+    PROPERTY_DECL_ACCESSOR(bool, libraryRescanOnStartup);
+    PROPERTY_DECL_ACCESSOR(bool, libraryShowScanSummary);
 
     // Controls group
     // [0..activePaletteColorCount-1]
@@ -608,6 +614,8 @@ class QmlConfigProxy : public QmlConfigProxyBase {
     void libraryEnableSearchHistoryShortcutsChanged();
     void libraryBpmColumnPrecisionChanged();
     void libraryRowHeightChanged();
+    void libraryRescanOnStartupChanged();
+    void libraryShowScanSummaryChanged();
     void controlHotcueDefaultColorIndexChanged();
     void controlLoopDefaultColorIndexChanged();
     void controlCueDefaultChanged();

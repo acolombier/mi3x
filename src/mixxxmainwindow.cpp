@@ -355,6 +355,7 @@ void MixxxMainWindow::initialize() {
     bool retryClicked;
     do {
         retryClicked = false;
+
         SoundDeviceStatus result = m_pCoreServices->getSoundManager()->setupDevices();
         if (result == SoundDeviceStatus::ErrorDeviceCount ||
                 result == SoundDeviceStatus::ErrorExcessiveOutputChannel) {
@@ -437,6 +438,10 @@ void MixxxMainWindow::initialize() {
             &PlayerManager::noVinylControlInputConfigured,
             this,
             &MixxxMainWindow::slotNoVinylControlInputConfigured);
+    connect(pPlayerManager.get(),
+            &PlayerManager::trackLoadFailed,
+            this,
+            &MixxxMainWindow::slotTrackLoadFailed);
 
     connect(&PlayerInfo::instance(),
             &PlayerInfo::currentPlayingTrackChanged,
@@ -1147,6 +1152,17 @@ void MixxxMainWindow::slotNoVinylControlInputConfigured() {
     }
 }
 
+void MixxxMainWindow::slotTrackLoadFailed(
+        TrackPointer pTrack, const QString& reason) {
+    Q_UNUSED(pTrack);
+    QMessageBox::warning(nullptr, tr("Couldn't load track."), reason);
+}
+
+void MixxxMainWindow::slotBroadcastError(
+        const QString& title, const QString& text) {
+    QMessageBox::warning(nullptr, title, text);
+}
+
 void MixxxMainWindow::slotNoDeckPassthroughInputConfigured() {
     if (m_noPassthroughInputDialog && m_noPassthroughInputDialog->isVisible()) {
         // Don't show redundant dialogs.
@@ -1208,7 +1224,6 @@ void MixxxMainWindow::slotNoAuxiliaryInputConfigured() {
         // can lockup the GUI.
         return;
     }
-
     if (!m_noAuxInputDialog) {
         m_noAuxInputDialog = make_parented<QMessageBox>(
                 QMessageBox::Warning,

@@ -29,6 +29,7 @@ namespace mixxx {
 class ControlIndicatorTimer;
 class DbConnectionPool;
 class ScreensaverManager;
+class NotificationManager;
 
 class CoreServices : public QObject {
     Q_OBJECT
@@ -67,6 +68,10 @@ class CoreServices : public QObject {
         return m_pBroadcastManager;
     }
 #endif
+
+    NotificationManager* getNotificationManager() const {
+        return m_pNotificationManager;
+    }
 
     std::shared_ptr<ControllerManager> getControllerManager() const {
         return m_pControllerManager;
@@ -123,6 +128,8 @@ class CoreServices : public QObject {
     /// Tear down CoreServices that were previously initialized by `initialize()`.
     void finalize();
 
+    // Singleton
+    mixxx::NotificationManager* m_pNotificationManager;
     std::shared_ptr<SettingsManager> m_pSettingsManager;
     std::shared_ptr<mixxx::ControlIndicatorTimer> m_pControlIndicatorTimer;
     std::shared_ptr<EffectsManager> m_pEffectsManager;

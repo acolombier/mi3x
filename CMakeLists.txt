@@ -4481,6 +4481,8 @@ if(QML)
       src/control/controlsortfiltermodel.cpp
       # needed for qml/qmlautoreload.cpp
       src/util/autofilereloader.cpp
+      src/notification.cpp
+      src/notificationmanager.cpp
   )
 
   if(STEM)

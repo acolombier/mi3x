@@ -1,0 +1,163 @@
+#pragma once
+#include <qobjectdefs.h>
+
+#include <QDateTime>
+#include <QDialogButtonBox>
+#include <QObject>
+#include <QQmlEngine>
+#include <QString>
+#include <functional>
+#include <memory>
+
+namespace mixxx {
+
+struct NotificationButton {
+    Q_GADGET
+    Q_PROPERTY(QString label MEMBER label)
+  public:
+    QString label;
+    QObject* receiver;
+    std::function<void()> func;
+
+    Q_INVOKABLE void invoke();
+};
+
+class Notification : public QObject {
+    Q_OBJECT
+
+    Q_PROPERTY(Notification::Flags flags MEMBER m_flags NOTIFY flagsChanged);
+    Q_PROPERTY(QString text MEMBER m_text NOTIFY textChanged);
+    Q_PROPERTY(QString key MEMBER m_key CONSTANT);
+    Q_PROPERTY(QString details MEMBER m_details NOTIFY detailsChanged);
+    Q_PROPERTY(int timeoutSecs MEMBER m_timeoutSecs CONSTANT);
+    Q_PROPERTY(QDateTime lastUpdated MEMBER m_lastUpdated CONSTANT);
+    Q_PROPERTY(QVector<NotificationButton> buttons MEMBER m_buttons CONSTANT);
+
+    Q_FLAGS(Flags)
+    QML_NAMED_ELEMENT(Notification)
+
+  public:
+    enum class Flag : int {
+        None = 0,
+        Info,
+        Warn,
+        Error,
+        Critical,
+        Wrap = 1 << 3,
+        Sticky = 1 << 4,
+        Default = None | Info,
+    };
+    Q_DECLARE_FLAGS(Flags, Flag);
+
+    explicit Notification(const QString& text,
+            Flags flags = Flag::Default,
+            const QString& key = {});
+    ~Notification() {};
+
+    Flags flags() const {
+        return m_flags;
+    }
+
+    const QString& text() const {
+        return m_text;
+    }
+
+    // Mutates a notification in place, e.g. progress counters or scan
+    // summaries. Emits textChanged() so QML delegates re-render without
+    // the list model churning (no relisting inside NotificationManager).
+    void setText(const QString& text) {
+        if (m_text == text) {
+            return;
+        }
+        m_text = text;
+        emit textChanged();
+    }
+
+    const QString& details() const {
+        return m_details;
+    }
+
+    void setDetails(const QString& details) {
+        if (m_details == details) {
+            return;
+        }
+        m_details = details;
+        emit detailsChanged();
+    }
+
+    void setTimeoutSecs(int timeout) {
+        m_timeoutSecs = timeout;
+    }
+
+    int timeoutSecs() const {
+        return m_timeoutSecs;
+    }
+
+    const QString& key() const {
+        return m_key;
+    }
+
+    void setLastUpdated(const QDateTime& lastUpdated) {
+        m_lastUpdated = lastUpdated;
+    }
+
+    QDateTime lastUpdated() const {
+        return m_lastUpdated;
+    }
+
+    // Sticky notifications remain until explicitly closed; non-sticky ones
+    // are auto-removed by NotificationManager after timeoutSecs().
+    void setSticky(bool sticky) {
+        if (m_flags.testFlags(Notification::Flag::Sticky) == sticky) {
+            return;
+        }
+        m_flags.setFlag(Notification::Flag::Sticky, sticky);
+        emit flagsChanged();
+    }
+
+    QVector<NotificationButton> buttons() {
+        return m_buttons;
+    }
+
+    void addButton(const QString& buttonLabel,
+            QObject* receiver,
+            const std::function<void()>& func) {
+        NotificationButton button;
+        button.label = buttonLabel;
+        button.receiver = receiver;
+        button.func = func;
+        m_buttons.append(button);
+    }
+
+    // Scaffolding builders for the ticket #51 modal->notification migration.
+    // TODO(#51): complete/harden the factory methods (dedup, i18n of common
+    // button CTAs) once the call sites are migrated.
+    typedef std::shared_ptr<Notification> Pointer;
+
+  signals:
+    void closed();
+    void textChanged();
+    void detailsChanged();
+    void flagsChanged();
+
+  private:
+    // Some members are mutable because notifications may be updated in
+    // place (see setText/setDetails/setSticky): progress notifications are
+    // first created sticky and later demoted to auto-timeout, avoiding
+    // churn in the notification list.
+    Flags m_flags;
+    QString m_text;
+    QString m_details;
+    QString m_key;
+    int m_timeoutSecs;
+    QDateTime m_lastUpdated;
+    QVector<NotificationButton> m_buttons;
+};
+
+typedef std::shared_ptr<Notification> NotificationPointer;
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(mixxx::Notification::Flags)
+
+} // namespace mixxx
+
+Q_DECLARE_METATYPE(mixxx::NotificationPointer)

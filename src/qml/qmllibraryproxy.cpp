@@ -1,24 +1,18 @@
 #include "qml/qmllibraryproxy.h"
 
 #include <QAbstractItemModel>
-#include <QLocale>
 #include <QQmlEngine>
-#include <QSqlDatabase>
-#include <QStringList>
 #include <cmath>
+#include <memory>
 
 #include "control/controlobject.h"
-#include "library/dao/analysisdao.h"
 #include "library/library.h"
-#include "library/library_prefs.h"
 #include "library/librarytablemodel.h"
 #include "library/searchqueries.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
-#ifdef __ENGINEPRIME__
-#include "library/export/libraryexporter.h"
-#endif
 #include "moc_qmllibraryproxy.cpp"
+#include "notificationmanager.h"
 #include "preferences/colorpalettesettings.h"
 #include "qml/qmlconfigproxy.h"
 #include "qml/qmllibrarytracklistmodel.h"
@@ -27,7 +21,6 @@
 #include "track/cue.h"
 #include "track/track.h"
 #include "util/assert.h"
-#include "util/db/dbconnectionpooled.h"
 
 namespace mixxx {
 namespace qml {
@@ -112,25 +105,36 @@ mixxx::audio::FramePos getCurrentPlayPositionWithQuantize(
 }
 } // namespace
 
-QmlLibraryScannerProxy::QmlLibraryScannerProxy(LibraryScanner* libraryScanner,
-        TrackCollectionManager* trackCollectionManager,
-        QObject* parent)
+QmlLibraryProxy::QmlLibraryProxy(
+        std::shared_ptr<Library> pLibrary, QObject* parent)
+        : QObject(parent),
+          m_pLibrary(pLibrary),
+          m_pModelProperty(new QmlLibraryTrackListModel(
+                  QList<QmlLibraryTrackListColumn*>{}, m_pLibrary->trackTableModel(), this)),
+          m_pScanner(new QmlLibraryScannerProxy(
+                  m_pLibrary->trackCollectionManager()->scanner(), this)),
+          m_pSearchSuggestions(new QmlSearchSuggestionModel(
+                  m_pLibrary->dbConnectionPool(), this)),
+          m_pRecentSearches(new QmlRecentSearchModel(this)) {
+}
+
+QmlLibraryScannerProxy::QmlLibraryScannerProxy(LibraryScanner* libraryScanner, QObject* parent)
         : QObject(parent),
           m_pLibraryScanner(libraryScanner),
-          m_running(trackCollectionManager->isLibraryScanActive()),
+          m_running(false),
           m_cancelling(false) {
     connect(libraryScanner,
             &LibraryScanner::progressLoading,
             this,
-            &QmlLibraryScannerProxy::progress);
+            &QmlLibraryScannerProxy::slotProgressLoading);
     connect(libraryScanner,
-            &LibraryScanner::scanStarted,
+            &LibraryScanner::progressHashing,
             this,
-            &QmlLibraryScannerProxy::started);
+            &QmlLibraryScannerProxy::slotProgressLoading);
     connect(libraryScanner,
-            &LibraryScanner::scanFinished,
+            &LibraryScanner::progressCoverArt,
             this,
-            &QmlLibraryScannerProxy::finished);
+            &QmlLibraryScannerProxy::slotProgressLoading);
     connect(this,
             &QmlLibraryScannerProxy::requestCancel,
             libraryScanner,
@@ -140,163 +144,52 @@ QmlLibraryScannerProxy::QmlLibraryScannerProxy(LibraryScanner* libraryScanner,
     connect(libraryScanner,
             &LibraryScanner::scanStarted,
             this,
-            [this]() {
-                m_cancelling = false;
-                m_running = true;
-                emit stateChanged();
-            });
+            &QmlLibraryScannerProxy::slotScanStarted);
     connect(libraryScanner,
             &LibraryScanner::scanFinished,
             this,
-            [this]() {
-                m_cancelling = false;
-                m_running = false;
-                emit stateChanged();
-            });
+            &QmlLibraryScannerProxy::slotScanFinished);
 }
 
-QmlLibraryProxy::QmlLibraryProxy(QObject* parent)
-        : QObject(parent),
-          m_pModelProperty(new QmlLibraryTrackListModel(
-                  QList<QmlLibraryTrackListColumn*>{}, s_pLibrary->trackTableModel(), this)),
-          m_pScanner(new QmlLibraryScannerProxy(
-                  s_pLibrary->trackCollectionManager()->scanner(),
-                  s_pLibrary->trackCollectionManager(),
-                  this)),
-          m_pSearchSuggestions(new QmlSearchSuggestionModel(
-                  s_pLibrary->dbConnectionPool(), this)),
-          m_pRecentSearches(new QmlRecentSearchModel(this)),
-          m_pTrackCollectionManager(s_pLibrary->trackCollectionManager()) {
-    connect(m_pScanner,
-            &QmlLibraryScannerProxy::stateChanged,
-            this,
-            &QmlLibraryProxy::libraryScanActiveChanged);
-    TrackCollectionManager* pTrackCollectionManager =
-            s_pLibrary->trackCollectionManager();
-    VERIFY_OR_DEBUG_ASSERT(pTrackCollectionManager) {
-        return;
+// FIXME: currently, all scanner operation are handled here. We should
+// differentiate the operation, like the scanner dialog
+void QmlLibraryScannerProxy::slotProgressLoading(const QString& path) {
+    emit progress(path);
+
+    if (m_pNotification) {
+        m_pNotification->setDetails(tr("Processing: ") + path);
     }
-    connect(pTrackCollectionManager,
-            &TrackCollectionManager::libraryScanSummary,
-            this,
-            [this](const LibraryScanResultSummary&) {
-                deliverPendingLibraryScanSummary();
-            });
-    deliverPendingLibraryScanSummary();
-#ifdef __ENGINEPRIME__
-    m_pLibraryExporter = s_pLibrary->makeLibraryExporter(nullptr);
-    connect(s_pLibrary.get(),
-            &Library::exportLibrary,
-            m_pLibraryExporter.get(),
-            &mixxx::LibraryExporter::slotRequestExport);
-    connect(s_pLibrary.get(),
-            &Library::exportCrate,
-            m_pLibraryExporter.get(),
-            &mixxx::LibraryExporter::slotRequestExportWithInitialCrate);
-    connect(s_pLibrary.get(),
-            &Library::exportPlaylist,
-            m_pLibraryExporter.get(),
-            &mixxx::LibraryExporter::slotRequestExportWithInitialPlaylist);
-#endif
+}
+
+void QmlLibraryScannerProxy::slotScanStarted() {
+    m_cancelling = false;
+    m_running = true;
+    emit stateChanged();
+    emit started();
+
+    m_pNotification = std::make_shared<mixxx::Notification>(
+            tr("Library Scanner"), mixxx::Notification::Flag::Sticky);
+    m_pNotification->setDetails(
+            tr("It's taking Mixxx a minute to scan your music library, please "
+               "wait..."));
+    m_pNotification->addButton("Cancel", this, [this]() {
+        m_pLibraryScanner->slotCancel();
+    });
+    NotificationManager::instance()->notify(m_pNotification);
+}
+
+void QmlLibraryScannerProxy::slotScanFinished() {
+    m_cancelling = false;
+    m_running = false;
+    emit stateChanged();
+    emit finished();
+    if (m_pNotification) {
+        NotificationManager::instance()->closeNotification(m_pNotification);
+        m_pNotification.reset();
+    }
 }
 
 QmlLibraryProxy::~QmlLibraryProxy() = default;
-
-void QmlLibraryProxy::refreshWaveformCacheDiskUsage() {
-    VERIFY_OR_DEBUG_ASSERT(s_pLibrary && QmlConfigProxy::get()) {
-        return;
-    }
-
-    AnalysisDao analysisDao(QmlConfigProxy::get());
-    const QSqlDatabase dbConnection =
-            mixxx::DbConnectionPooled(s_pLibrary->dbConnectionPool());
-    const size_t byteCount =
-            analysisDao.getDiskUsageInBytes(
-                    dbConnection, AnalysisDao::TYPE_WAVEFORM) +
-            analysisDao.getDiskUsageInBytes(
-                    dbConnection, AnalysisDao::TYPE_WAVESUMMARY);
-    const QString diskUsage =
-            QLocale().formattedDataSize(byteCount, 1, QLocale::DataSizeSIFormat);
-    if (m_waveformCacheDiskUsage == diskUsage) {
-        return;
-    }
-    m_waveformCacheDiskUsage = diskUsage;
-    emit waveformCacheDiskUsageChanged();
-}
-
-bool QmlLibraryProxy::clearCachedWaveforms() {
-    VERIFY_OR_DEBUG_ASSERT(s_pLibrary && QmlConfigProxy::get()) {
-        return false;
-    }
-
-    AnalysisDao analysisDao(QmlConfigProxy::get());
-    const QSqlDatabase dbConnection =
-            mixxx::DbConnectionPooled(s_pLibrary->dbConnectionPool());
-    const bool waveformDeleted = analysisDao.deleteAnalysesByType(
-            dbConnection, AnalysisDao::TYPE_WAVEFORM);
-    const bool summaryDeleted = analysisDao.deleteAnalysesByType(
-            dbConnection, AnalysisDao::TYPE_WAVESUMMARY);
-    refreshWaveformCacheDiskUsage();
-    return waveformDeleted && summaryDeleted;
-}
-
-void QmlLibraryProxy::deliverPendingLibraryScanSummary() {
-    const auto pendingResult = m_pTrackCollectionManager->takePendingLibraryScanSummary();
-    if (!pendingResult) {
-        return;
-    }
-    const auto& result = *pendingResult;
-    const UserSettingsPointer pConfig = QmlConfigProxy::get();
-    if (!pConfig ||
-            !pConfig->getValue<bool>(
-                    mixxx::library::prefs::kShowScanSummaryConfigKey, true)) {
-        return;
-    }
-    if (result.autoscan &&
-            result.numNewTracks == 0 &&
-            result.numNewMissingTracks == 0 &&
-            result.numRediscoveredTracks == 0) {
-        return;
-    }
-
-    const QString title = tr("Library scan finished");
-    if (result.noDirectoriesConfigured) {
-        emit libraryScanSummaryAvailable(title,
-                tr("No music directories configured for scanning."),
-                tr("Add directories in the library preferences."));
-        return;
-    }
-
-    const QString text = tr("Scan took %1").arg(result.durationString);
-    QStringList details;
-    if (result.numNewTracks == 0 &&
-            result.numMovedTracks == 0 &&
-            result.numNewMissingTracks == 0 &&
-            result.numRediscoveredTracks == 0) {
-        details.append(tr("No changes detected."));
-    } else {
-        if (result.numNewTracks != 0) {
-            details.append(tr("%n new track(s) found", nullptr, result.numNewTracks));
-        }
-        if (result.numMovedTracks != 0) {
-            details.append(
-                    tr("%n moved track(s) detected", nullptr, result.numMovedTracks));
-        }
-        if (result.numNewMissingTracks != 0) {
-            details.append(tr("%n track(s) missing (%1 total)",
-                    nullptr,
-                    result.numNewMissingTracks)
-                            .arg(result.numMissingTracks));
-        }
-        if (result.numRediscoveredTracks != 0) {
-            details.append(tr("%n track(s) rediscovered",
-                    nullptr,
-                    result.numRediscoveredTracks));
-        }
-    }
-    details.append(tr("%n track(s) in total", nullptr, result.tracksTotal));
-    emit libraryScanSummaryAvailable(title, text, details.join(QLatin1Char('\n')));
-}
 
 QmlLibraryTrackListModel* QmlLibraryProxy::model() const {
     return make_qml_owned<QmlLibraryTrackListModel>(
@@ -308,73 +201,6 @@ void QmlLibraryProxy::analyze(const QmlTrackProxy* track) const {
         return;
     }
     emit s_pLibrary->analyzeTracks({track->internal()->getId()});
-}
-
-void QmlLibraryProxy::createCrate() {
-    VERIFY_OR_DEBUG_ASSERT(s_pLibrary) {
-        return;
-    }
-    s_pLibrary->slotCreateCrate();
-}
-
-void QmlLibraryProxy::createPlaylist() {
-    VERIFY_OR_DEBUG_ASSERT(s_pLibrary) {
-        return;
-    }
-    s_pLibrary->slotCreatePlaylist();
-}
-
-bool QmlLibraryProxy::enginePrimeExportAvailable() const {
-#ifdef __ENGINEPRIME__
-    return true;
-#else
-    return false;
-#endif
-}
-
-void QmlLibraryProxy::exportLibrary() {
-#ifdef __ENGINEPRIME__
-    VERIFY_OR_DEBUG_ASSERT(s_pLibrary) {
-        return;
-    }
-    emit s_pLibrary->exportLibrary();
-#endif
-}
-
-void QmlLibraryProxy::rescanLibrary() {
-    VERIFY_OR_DEBUG_ASSERT(s_pLibrary) {
-        return;
-    }
-    if (libraryScanActive()) {
-        return;
-    }
-    TrackCollectionManager* pTrackCollectionManager =
-            s_pLibrary->trackCollectionManager();
-    VERIFY_OR_DEBUG_ASSERT(pTrackCollectionManager) {
-        return;
-    }
-    pTrackCollectionManager->startLibraryScan();
-}
-
-void QmlLibraryProxy::searchInCurrentView() {
-    VERIFY_OR_DEBUG_ASSERT(s_pLibrary) {
-        return;
-    }
-    s_pLibrary->slotSearchInCurrentView();
-}
-
-void QmlLibraryProxy::searchInTracksLibrary() {
-    VERIFY_OR_DEBUG_ASSERT(s_pLibrary) {
-        return;
-    }
-    s_pLibrary->slotSearchInAllTracks();
-}
-
-void QmlLibraryProxy::showAutoDJ() {
-    VERIFY_OR_DEBUG_ASSERT(s_pLibrary) {
-        return;
-    }
-    s_pLibrary->showAutoDJ();
 }
 
 QString QmlLibraryProxy::deckHotcueLabel(
@@ -389,7 +215,7 @@ bool QmlLibraryProxy::setDeckHotcueLabel(
         int hotcueNumber,
         const QString& label) {
     const CuePointer pCue = findDeckHotcue(track, hotcueNumber);
-    if (!track || !track->internal() || !pCue) {
+    if (!pCue) {
         return false;
     }
     pCue->setLabel(label);
@@ -402,7 +228,7 @@ bool QmlLibraryProxy::setDeckHotcueType(
         int hotcueNumber,
         const QString& action) {
     const CuePointer pCue = findDeckHotcue(track, hotcueNumber);
-    if (!pCue) {
+    if (!track || !track->internal() || !pCue) {
         return false;
     }
 
@@ -502,36 +328,6 @@ bool QmlLibraryProxy::setDeckHotcueType(
     return false;
 }
 
-QmlLibraryProxy::JumpDirection QmlLibraryProxy::deckHotcueJumpDirection(
-        QmlTrackProxy* track,
-        const QString& group,
-        int hotcueNumber) const {
-    const CuePointer pCue = findDeckHotcue(track, hotcueNumber);
-    if (!pCue) {
-        return JumpDirection::Impossible;
-    }
-
-    if (pCue->getType() == mixxx::CueType::HotCue) {
-        const Cue::StartAndEndPositions cueStartEnd = pCue->getStartAndEndPosition();
-        auto newPosition = cueStartEnd.endPosition;
-        if (!newPosition.isValid()) {
-            newPosition = getCurrentPlayPositionWithQuantize(track->internal(), group);
-        }
-        if (!newPosition.isValid() ||
-                std::abs(newPosition - cueStartEnd.startPosition) <=
-                        kMinimumAudibleLoopSizeFrames) {
-            return JumpDirection::Impossible;
-        }
-        return newPosition < cueStartEnd.startPosition
-                ? JumpDirection::Forward
-                : JumpDirection::Backward;
-    }
-
-    const bool isForward = pCue->getType() != mixxx::CueType::Jump ||
-            pCue->getPosition() > pCue->getEndPosition();
-    return isForward ? JumpDirection::Forward : JumpDirection::Backward;
-}
-
 void QmlLibraryProxy::cleanupDeckHotcuePopup(
         QmlTrackProxy* track,
         int hotcueNumber) {
@@ -555,7 +351,7 @@ QmlLibraryProxy* QmlLibraryProxy::create(QQmlEngine* pQmlEngine, QJSEngine* pJsE
         qWarning() << "Library hasn't been registered yet";
         return nullptr;
     }
-    return new QmlLibraryProxy(pQmlEngine);
+    return new QmlLibraryProxy(s_pLibrary, pQmlEngine);
 }
 
 QString QmlLibraryProxy::serializeSearchQuery(

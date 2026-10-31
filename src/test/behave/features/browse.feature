@@ -556,6 +556,44 @@ Feature: Browse
     Then this track should be visible in the left track list
     And this track should be visible in the right track list
 
+  # --- Library scan & load-failure notifications (@sub/notifications) ------------
+  #
+  # Scan progress and summaries are surfaced as notifications (sticky while
+  # scanning, transient summary, 10 s auto-timeout). The scan is triggered
+  # through the logo context menu ("File > Library > Scan").
+
+  Rule: Library scanner notifications
+
+    Background:
+      Given a new library-ready profile
+      And Mixxx is open and ready to operate
+
+    @sub/notifications
+    Scenario: A library scan raised from the header menu is reported as a notification
+      When I trigger a library scan from the header menu
+      And the scanning overlay is hidden
+      Then the notification "Library scan finished" should be visible
+      And the notification bell should be enabled
+
+    @sub/notifications
+    @xpass
+    Scenario: A transient scan summary auto-dismisses and closes the drawer
+      When I trigger a library scan from the header menu
+      And the scanning overlay is hidden
+      And the notification "Library scan finished" is visible
+      When I wait for 12 second
+      Then the notification "Library scan finished" should not be visible
+      And the notification drawer should not be visible
+
+    @sub/notifications
+    @test/missing-ui-interaction
+    Scenario: Loading a missing track raises an error notification
+      # loadTrack RPC with a nonexistent path (track-load failures produce a
+      # notification, not a modal, deduped per track)
+      When I attempt to load a missing track on deck 1
+      Then the notification "Couldn't load track." should be visible
+      And the notification details should mention the failure reason
+
   Rule: Library settings (fresh profile)
 
     Background:
@@ -661,6 +699,15 @@ Feature: Browse
     # Adding directories is driven through the real UI too: the "Add" button is
     # routed to a test dialog mock (Library.qml testDialog) in test mode, which
     # emulates the native FolderDialog so the test can inject a folder path.
+
+    @sub/notifications
+    Scenario: The scan summary notification can be disabled
+      When I toggle the "show scan summary" setting to "off"
+      And I click the save button
+      And I click the cancel button
+      And I trigger a library scan from the header menu
+      And the scanning overlay is hidden
+      Then no notification should be visible
 
     Scenario: The music directory list is empty on a new profile
       Then the music directory list should be empty

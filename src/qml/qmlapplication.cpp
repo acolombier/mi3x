@@ -8,15 +8,20 @@
 #include <utility>
 
 #include "controllers/controllermanager.h"
+#include "defs_urls.h"
 #include "mixer/playermanager.h"
 #include "moc_qmlapplication.cpp"
+#include "notificationmanager.h"
 #include "preferences/configobject.h"
 #include "qml/asyncimageprovider.h"
 #include "qml/qmlapplicationproxy.h"
 #include "qml/qmlcoreservices.h"
 #include "qml/qmldlgpreferencesproxy.h"
 #include "qml/qmlrecordingproxy.h"
+#include "qmlsettingparameter.h"
 #include "soundio/soundmanager.h"
+#include "util/assert.h"
+#include "util/desktophelper.h"
 #include "util/versionstore.h"
 #include "waveform/guitick.h"
 #include "waveform/visualsmanager.h"
@@ -190,17 +195,16 @@ QmlApplication::QmlApplication(
                 msgBox.addButton(tr("Ok"), QMessageBox::ActionRole);
         msgBox.exec();
         m_pCoreServices.reset();
-        exit(-1);
+        QCoreApplication::exit(-1);
     }
 
-    SoundDeviceStatus result = m_pCoreServices->getSoundManager()->setupDevices();
-    if (result != SoundDeviceStatus::Ok) {
-        const int reInt = static_cast<int>(result);
-        qCritical() << "Error setting up sound devices:" << reInt;
-#ifndef Q_OS_ANDROID
-        exit(reInt);
-#endif
+#ifdef __RPC_SERVER__
+    // Start the automation server if requested. It attaches to this
+    // application instance (no separate Qt application setup needed).
+    if (CmdlineArgs::Instance().getServe()) {
+        m_pRpcServe = std::make_unique<RpcServe>(this, m_pCoreServices);
     }
+#endif
 
     // FIXME: DlgPreferences has some initialization logic that must be executed
     // before the GUI is shown, at least for the effects system.
@@ -243,6 +247,10 @@ QmlApplication::QmlApplication(
             m_pCoreServices->getTrackCollectionManager());
     m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
     QmlCoreServices::instance()->setReady();
+    // TODO(#51): surface the signals raised by low-level services as
+    // notifications; the widget-level subscribers only exist in
+    // MixxxMainWindow, which is not instantiated in the QML application.
+    QmlCoreServices::instance()->connectUserNotifications();
 
     m_pCoreServices->getControllerManager()->setUpDevices();
 
@@ -260,13 +268,205 @@ QmlApplication::QmlApplication(
                 m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
             });
 
-#ifdef __RPC_SERVER__
-    // Start the automation server if requested. It attaches to this
-    // application instance (no separate Qt application setup needed).
-    if (CmdlineArgs::Instance().getServe()) {
-        m_pRpcServe = std::make_unique<RpcServe>(this, m_pCoreServices);
+    // Sound hardware setup
+    // Try to open configured devices. If that fails, display dialogs
+    // that allow to either retry, reconfigure devices or exit.
+    SoundDeviceStatus result = m_pCoreServices->getSoundManager()->setupDevices();
+    if (result == SoundDeviceStatus::ErrorDeviceCount ||
+            result == SoundDeviceStatus::ErrorExcessiveOutputChannel) {
+        auto pNotification =
+                std::make_shared<mixxx::Notification>(tr("Sound Device Busy"),
+                        mixxx::Notification::Flag::Sticky |
+                                mixxx::Notification::Flag::Wrap |
+                                mixxx::Notification::Flag::Error);
+        pNotification->setDetails("<html> <p>" %
+                        tr("Mixxx was unable to open all the configured sound devices.") +
+                "</p> <p>" %
+                        m_pCoreServices->getSoundManager()->getErrorDeviceName() %
+                        " is used by another application or not plugged in."
+                        "</p><ul>"
+                        "<li>" %
+                        tr("<b>Retry</b> after closing the other application "
+                           "or reconnecting a sound device") %
+                        "</li>"
+                        "<li>" %
+                        tr("<b>Reconfigure</b> Mixxx's sound device settings.") %
+                        "</li>"
+                        "<li>" %
+                        tr("Get <b>Help</b> from the Mixxx Wiki.") %
+                        "</li>"
+                        "<li>" %
+                        tr("<b>Exit</b> Mixxx.") %
+                        "</li>"
+                        "</ul></html>");
+        pNotification->addButton("Retry", this, [this, pNotification]() {
+            m_pCoreServices->getSoundManager()->clearAndQueryDevices();
+            auto result = m_pCoreServices->getSoundManager()->setupDevices();
+            if (result != SoundDeviceStatus::ErrorDeviceCount &&
+                    result != SoundDeviceStatus::ErrorExcessiveOutputChannel) {
+                m_pCoreServices->getNotificationManager()->closeNotification(pNotification);
+            }
+        });
+        pNotification->addButton("Help", this, [this, pNotification]() {
+            mixxx::DesktopHelper::openUrl(QUrl(MIXXX_WIKI_TROUBLESHOOTING_SOUND_URL));
+        });
+        pNotification->addButton("Reconfigure", this, [this, pNotification]() {
+            auto windows = QGuiApplication::topLevelWindows();
+            mixxx::qml::QmlSettingGroup* pEngineSection = nullptr;
+            QObject* pSettings = nullptr;
+            for (auto* w : std::as_const(windows)) {
+                pEngineSection = w->findChild<mixxx::qml::QmlSettingGroup*>("engineSection");
+                pSettings = w->findChild<QObject*>("settingsPopup");
+                if (pEngineSection && pSettings) {
+                    break;
+                }
+            }
+            VERIFY_OR_DEBUG_ASSERT(pEngineSection && pSettings) {
+                return;
+            }
+            QMetaObject::invokeMethod(pSettings, "open", Qt::QueuedConnection);
+            QMetaObject::invokeMethod(pSettings,
+                    "focusSection",
+                    Qt::QueuedConnection,
+                    Q_ARG(QVariant, QVariant::fromValue(pEngineSection)));
+            connect(pEngineSection, &QmlSettingGroup::saved, this, [this, pNotification]() {
+                m_pCoreServices->getSoundManager()->clearAndQueryDevices();
+                auto result = m_pCoreServices->getSoundManager()->setupDevices();
+                if (result != SoundDeviceStatus::ErrorDeviceCount &&
+                        result != SoundDeviceStatus::ErrorExcessiveOutputChannel) {
+                    m_pCoreServices->getNotificationManager()->closeNotification(pNotification);
+                    // The user has either reconfigured devices or accepted no outputs,
+                    // so it's now safe to write the new config to disk.
+                    m_pCoreServices->getSoundManager()->getConfig().writeToDisk();
+                }
+            });
+        });
+        pNotification->addButton("Exit", this, [this, pNotification]() {
+            QCoreApplication::exit(0);
+        });
+        m_pCoreServices->getNotificationManager()->notify(pNotification);
+    } else if (result != SoundDeviceStatus::Ok) {
+        auto pNotification =
+                std::make_shared<mixxx::Notification>(tr("Sound Device Error"),
+                        mixxx::Notification::Flag::Sticky |
+                                mixxx::Notification::Flag::Wrap |
+                                mixxx::Notification::Flag::Error);
+        pNotification->setDetails("<html> <p>" %
+                        tr("Mixxx was unable to open all the configured sound "
+                           "devices.") +
+                "</p> <p>" %
+                        m_pCoreServices->getSoundManager()
+                                ->getLastErrorMessage(result)
+                                .replace("\n", "<br/>") %
+                        "</p><ul>"
+                        "<li>" %
+                        tr("<b>Retry</b> after fixing an issue") %
+                        "</li>"
+                        "<li>" %
+                        tr("<b>Reconfigure</b> Mixxx's sound device settings.") %
+                        "</li>"
+                        "<li>" %
+                        tr("Get <b>Help</b> from the Mixxx Wiki.") %
+                        "</li>"
+                        "<li>" %
+                        tr("<b>Exit</b> Mixxx.") %
+                        "</li>"
+                        "</ul></html>");
+        pNotification->addButton("Retry", this, [this, pNotification]() {
+            m_pCoreServices->getSoundManager()->clearAndQueryDevices();
+            auto result = m_pCoreServices->getSoundManager()->setupDevices();
+            if (result != SoundDeviceStatus::ErrorDeviceCount &&
+                    result != SoundDeviceStatus::ErrorExcessiveOutputChannel) {
+                m_pCoreServices->getNotificationManager()->closeNotification(pNotification);
+            }
+        });
+        pNotification->addButton("Exit", this, [this, pNotification]() {
+            QCoreApplication::exit(0);
+        });
+        m_pCoreServices->getNotificationManager()->notify(pNotification);
     }
-#endif
+
+    // Test for at least one output device. If none, display another dialog
+    // that says "mixxx will barely work with no outs".
+    // In case of persisting errors, the user has already received a message
+    // above. So we can just check the output count here.
+    if (m_pCoreServices->getSoundManager()
+                    ->getConfig()
+                    .getOutputs()
+                    .isEmpty() &&
+            !m_pCoreServices->getSoundManager()->pipewireSkipConfig()) {
+        auto pNotification =
+                std::make_shared<mixxx::Notification>(tr("No Output Devices"),
+                        mixxx::Notification::Flag::Sticky |
+                                mixxx::Notification::Flag::Wrap |
+                                mixxx::Notification::Flag::Warn);
+        pNotification->setDetails("<html>" +
+                tr("Mixxx was configured without any output sound devices. "
+                   "Audio processing will be disabled without a configured "
+                   "output device.") +
+                "<ul>"
+                "<li>" +
+                tr("<b>Continue</b> without any outputs.") +
+                "</li>"
+                "<li>" +
+                tr("<b>Reconfigure</b> Mixxx's sound device settings.") +
+                "</li>"
+                "<li>" +
+                tr("<b>Exit</b> Mixxx.") +
+                "</li>"
+                "</ul></html>");
+        pNotification->addButton("Continue", this, [this, pNotification]() {
+            m_pCoreServices->getNotificationManager()->closeNotification(pNotification);
+        });
+        pNotification->addButton("Reconfigure", this, [this, pNotification]() {
+            auto windows = QGuiApplication::topLevelWindows();
+            QObject* pSettingsPopup = nullptr;
+            QObject* pSettingsLoader = nullptr;
+            for (auto* w : std::as_const(windows)) {
+                pSettingsPopup = w->findChild<QObject*>("settingsPopup");
+                pSettingsLoader = w->findChild<QObject*>("settingsLoader");
+                if (pSettingsPopup && pSettingsLoader) {
+                    break;
+                }
+            }
+            VERIFY_OR_DEBUG_ASSERT(pSettingsPopup && pSettingsLoader) {
+                return;
+            }
+
+            QMetaObject::invokeMethod(pSettingsPopup, "open", Qt::QueuedConnection);
+            // TODO: The content of the setting page is lazy loaded so we cannot
+            // interact with the category currently. auto* pEngineSection =
+            // w->findChild<mixxx::qml::QmlSettingGroup*>("engineSection");
+            // QMetaObject::invokeMethod(pSettings,
+            //     "focusSection",
+            //     Qt::QueuedConnection,
+            //     Q_ARG(QVariant, QVariant::fromValue(pEngineSection)));
+            // connect(pEngineSection,
+            //     &mixxx::qml::QmlSettingGroup::saved,
+            //     this,
+            //     [this, pNotification]() {
+            //         if (!m_pCoreServices->getSoundManager()
+            //                         ->getConfig()
+            //                         .getOutputs()
+            //                         .isEmpty() ||
+            //                 m_pCoreServices->getSoundManager()
+            //                         ->pipewireSkipConfig()) {
+            //             m_pCoreServices->getNotificationManager()
+            //                     ->closeNotification(pNotification);
+            //             // The user has either reconfigured devices or
+            //             // accepted no outputs, so it's now safe to write
+            //             // the new config to disk.
+            //             m_pCoreServices->getSoundManager()
+            //                     ->getConfig()
+            //                     .writeToDisk();
+            //         }
+            // });
+        });
+        pNotification->addButton("Exit", this, [this, pNotification]() {
+            QCoreApplication::exit(0);
+        });
+        m_pCoreServices->getNotificationManager()->notify(pNotification);
+    }
 
 #if defined(Q_OS_ANDROID)
     APerformanceHintManager* manager = APerformanceHint_getManager();

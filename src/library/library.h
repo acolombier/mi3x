@@ -17,6 +17,7 @@
 
 class AnalysisFeature;
 class AutoDJFeature;
+class AutoDJProcessor;
 class BrowseFeature;
 class ControlObject;
 class CrateFeature;
@@ -76,6 +77,12 @@ class Library: public QObject {
 
     /// Needed for exposing models to QML
     LibraryTableModel* trackTableModel() const;
+
+    /// The AutoDJ processor used by the AutoDJ feature. Exists from
+    /// construction on, view binding is not required.
+    /// TODO(#51): consumed by QmlCoreServices to surface
+    /// AutoDJProcessor::autoDJError notifications.
+    AutoDJProcessor* getAutoDJProcessor() const;
 
     bool isTrackIdInCurrentLibraryView(const TrackId& trackId);
 

@@ -11,13 +11,6 @@ import "Theme"
 Popup {
     id: root
 
-    onOpened: {
-        Mixxx.Core.addOpenedPopup(this)
-    }
-    onClosed: {
-        Mixxx.Core.removeOpenedPopup(this)
-    }
-
     enum Facing {
         Left,
         Top,
@@ -25,8 +18,9 @@ Popup {
         Bottom
     }
 
+    property alias arrow: arrow
     default property alias children: content.children
-    property variant facing: ActionPopup.Facing.Left
+    property var facing: ActionPopup.Facing.Left
 
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
     leftInset: 0
@@ -36,24 +30,92 @@ Popup {
 
     background: Item {
         Item {
-            id: content3
+            id: background
 
             anchors.fill: parent
+            layer.enabled: true
+
+            layer.effect: MultiEffect {
+                shadowBlur: 0.8
+                shadowColor: '#c0000000'
+                shadowEnabled: true
+            }
 
             Shape {
-                anchors.left: root.facing == ActionPopup.Facing.Left ? parent.left : undefined
-                anchors.right: root.facing == ActionPopup.Facing.Right ? parent.right : undefined
-                anchors.verticalCenter: parent.verticalCenter
+                id: arrow
+
+                readonly property bool isPinned: pinTo.x != 0 || pinTo.y != 0
+                property point pinTo: Qt.point(0, 0)
+
                 implicitHeight: 20
                 rotation: {
                     switch (root.facing) {
                     case ActionPopup.Facing.Right:
                         return 180;
+                    case ActionPopup.Facing.Bottom:
+                        return 270;
+                    case ActionPopup.Facing.Top:
+                        return 90;
                     default:
                         return 0;
                     }
                 }
                 transformOrigin: Item.Center
+
+                states: [
+                    State {
+                        name: "pinned"
+                        when: arrow.isPinned
+
+                        AnchorChanges {
+                            anchors.bottom: undefined
+                            anchors.left: undefined
+                            anchors.right: undefined
+                            anchors.top: undefined
+                            anchors.verticalCenter: undefined
+                            target: arrow
+                        }
+                        PropertyChanges {
+                            target: arrow
+                            x: arrow.pinTo.x
+                            y: arrow.pinTo.y
+                        }
+                    },
+                    State {
+                        when: root.facing == ActionPopup.Facing.Bottom
+
+                        AnchorChanges {
+                            anchors.bottom: arrow.parent.bottom
+                            target: arrow
+                        }
+                    },
+                    State {
+                        when: root.facing == ActionPopup.Facing.Left
+
+                        AnchorChanges {
+                            anchors.left: arrow.parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            target: arrow
+                        }
+                    },
+                    State {
+                        when: root.facing == ActionPopup.Facing.Right
+
+                        AnchorChanges {
+                            anchors.right: arrow.parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            target: arrow
+                        }
+                    },
+                    State {
+                        when: root.facing == ActionPopup.Facing.Top
+
+                        AnchorChanges {
+                            anchors.top: arrow.parent.top
+                            target: arrow
+                        }
+                    }
+                ]
 
                 ShapePath {
                     fillColor: Theme.backgroundColor
@@ -78,30 +140,48 @@ Popup {
                 }
             }
             Rectangle {
+                anchors.bottomMargin: root.facing == ActionPopup.Facing.Bottom ? 20 : 0
                 anchors.fill: parent
                 anchors.leftMargin: root.facing == ActionPopup.Facing.Left ? 20 : 0
                 anchors.rightMargin: root.facing == ActionPopup.Facing.Right ? 20 : 0
+                anchors.topMargin: root.facing == ActionPopup.Facing.Top ? 20 : 0
                 border.width: 0
                 color: Theme.backgroundColor
                 radius: 8
             }
-        }
-        MultiEffect {
-            anchors.fill: parent
-            source: content3
-            shadowEnabled: true
-            shadowColor: "#80000000"
-            shadowBlur: 0.1
         }
     }
     contentItem: Item {
         ColumnLayout {
             id: content
 
+            anchors.bottomMargin: root.facing == ActionPopup.Facing.Bottom ? 20 : 0
             anchors.fill: parent
             anchors.leftMargin: root.facing == ActionPopup.Facing.Left ? 20 : 0
             anchors.rightMargin: root.facing == ActionPopup.Facing.Right ? 20 : 0
+            anchors.topMargin: root.facing == ActionPopup.Facing.Top ? 20 : 0
             spacing: 2
         }
+    }
+    enter: Transition {
+        NumberAnimation {
+            from: 0.0
+            property: "opacity"
+            to: 1.0
+        }
+    }
+    exit: Transition {
+        NumberAnimation {
+            from: 1.0
+            property: "opacity"
+            to: 0.0
+        }
+    }
+
+    onClosed: {
+        Mixxx.Core.removeOpenedPopup(this);
+    }
+    onOpened: {
+        Mixxx.Core.addOpenedPopup(this);
     }
 }

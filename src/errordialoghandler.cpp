@@ -8,7 +8,10 @@
 #include <QtDebug>
 
 #include "moc_errordialoghandler.cpp"
+#include "notification.h"
+#include "notificationmanager.h"
 #include "util/assert.h"
+#include "util/cmdlineargs.h"
 #include "util/compatibility/qmutex.h"
 #include "util/thread_check.h"
 #include "util/versionstore.h"
@@ -149,6 +152,67 @@ void ErrorDialogHandler::errorDialog(ErrorDialogProperties* pProps) {
 
     if (!inMainThread()) {
         qWarning() << "WARNING: errorDialog not called in the main thread. Not showing error dialog.";
+        return;
+    }
+
+    // TODO(#51): In the QML UI, error dialogs are surfaced as notifications
+    // instead of widget popups. The legacy widget code path below is kept
+    // unchanged for the classic UI. The human contributor will complete
+    // this mapping (severity styling, "Ignore" suppression UX, retry CTA)
+    // as hardened follow-up work.
+    if (CmdlineArgs::Instance().isQml()) {
+        auto locker = lockMutex(&m_mutex);
+        // To avoid duplicate dialogs on the same error
+        m_dialogKeys.append(props->m_key);
+        locker.unlock();
+
+        auto pNotification = std::make_shared<mixxx::Notification>(
+                props->m_title, mixxx::Notification::Flag::Sticky);
+        // m_text is the primary message, m_infoText the supporting one.
+        pNotification->setText(props->m_infoText.isEmpty()
+                        ? props->m_text
+                        : props->m_infoText);
+        if (!props->m_details.isEmpty()) {
+            pNotification->setDetails(props->m_details);
+        }
+
+        // Map standard buttons to notification CTAs. Clicking re-emits the
+        // same stdButtonClicked signal subscribers are connected to, and
+        // releases the deduplication key (except for Ignore, which keeps
+        // suppressing further dialogs about this error).
+        for (const QMessageBox::StandardButton button : std::as_const(props->m_buttons)) {
+            if (button == QMessageBox::Ignore) {
+                pNotification->addButton(
+                        tr("Ignore"), nullptr, []() {
+                            // TODO(#51): wire the Ignore suppression path so
+                            // further dialogs about this key stay suppressed.
+                        });
+                continue;
+            }
+            QString buttonLabel;
+            switch (button) {
+            case QMessageBox::Close:
+                buttonLabel = tr("Close");
+                break;
+            case QMessageBox::Retry:
+                buttonLabel = tr("Retry");
+                break;
+            case QMessageBox::Ok:
+            default:
+                buttonLabel = tr("OK");
+                break;
+            }
+            const QMessageBox::StandardButton clickedButton = button;
+            const QString key = props->m_key;
+            pNotification->addButton(buttonLabel, nullptr, [this, key, clickedButton]() {
+                emit stdButtonClicked(key, clickedButton);
+                auto locker2 = lockMutex(&m_mutex);
+                if (m_dialogKeys.contains(key)) {
+                    m_dialogKeys.removeOne(key);
+                }
+            });
+        }
+        mixxx::NotificationManager::instance()->notify(pNotification);
         return;
     }
 

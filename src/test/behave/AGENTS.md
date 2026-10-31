@@ -157,6 +157,11 @@ MIXXX_BEHAVE_RETRY=5 ctest -R mixxx-behave- --output-on-failure
   for the `xvfb` backend, `wf-recorder` (libavcodec) for the `xwayland` backend
   (cage). Chapter metadata is embedded into the video from behave's scenario
   lifecycle hooks (ffmpeg is still used for chapter muxing on both backends).
+  The ffmpeg recorders run with `-use_wallclock_as_timestamps 1`, so captured
+  frame timestamps track wall time even under stalls/dropped frames; see
+  `src/test/behave/artifacts/video-probe.txt` and the
+  [Video t=0 anchor](#video-t0-anchor) section for how the chapter base is
+  derived and diagnosed.
 - **Session reuse**: scenarios sharing the same session key (profile directory +
   sound-device signature) reuse the same `mixxx` process — only the first
   scenario pays startup cost. `a fresh ... profile` opts out: it force-kills the
@@ -464,7 +469,8 @@ Everything lands in `src\test\behave\artifacts\`:
 - **Video is the ground truth** for spix interaction bugs. If a click "did
   nothing", re-run with `-Record` before changing the step. On Windows the
   recorder is ffmpeg `gdigrab` capturing the `desktop` input, hardcoded to
-  `1920x1080` at 30 fps, so the video is letterboxed/scaled on any other
+  `1920x1080` at `RECORD_FPS` (currently 15) fps, so the video is
+  letterboxed/scaled on any other
   resolution — judge timing and cursor position, not pixel geometry.
 - **`-Record` on Windows: the recorder gets its own process group.** The
   ffmpeg child is started with `creationflags=CREATE_NEW_PROCESS_GROUP`, so
@@ -533,6 +539,60 @@ Resolution), rebuild `mixxx`. Specifically:
    *last* entry per `(feature, name)`; that is what
    `tools/generate_gh_e2e_comment.py` does when it builds the CI comment.
    `had_failure` / `fail_early` is only set when all retries are exhausted.
+
+## Video t=0 anchor
+
+The chapter base for the recorded video is measured, not assumed. The ffmpeg
+recorders (`x11grab`, `avfoundation`, `gdigrab`) run with
+`-use_wallclock_as_timestamps 1`, so captured frames carry wall-clock
+timestamps and idle/stall gaps survive as pts jumps instead of a compressed
+duration. Capture runs at `RECORD_FPS` (15 fps) with halved bitrates — the
+encoder's CPU load is what can flake the spix interactions sharing the host.
+At teardown, after the SIGINT stop, `mixxx_test_runner.py` probes
+the finished file once (ffprobe: container/stream duration, stream
+`start_time`, frame-rate fields) and chooses the video's t=0 anchor, most
+trusted first:
+
+1. **wall-clock pts** — when the probed stream `start_time` is an epoch
+   value (> 1e8), it *is* the first frame's wall time. Container muxers
+   normally rebase pts to zero, so this tier rarely fires; it is a safety
+   net for containers/pipelines that preserve the base.
+2. **container duration** — service tier: continuous capture from first
+   frame to the SIGINT stop means `t0 = stop_time − file_duration`, and
+   with the wallclock pts the duration is the true wall span (stalls live
+   in pts jumps). This covers `wf-recorder` too, which cannot take the
+   ffmpeg option.
+3. **spawn time** — fallback when the file cannot be probed (recorder died
+   early, ffprobe failed). Chapters may then be shifted by the recorder
+   init delay.
+
+The chosen anchor, the probed facts, the wall interval, the first/last
+chapter positions relative to the file, and the recorder's stderr tail are
+written to `artifacts/video-probe.txt` every recorded run, and suspect
+signals are echoed to the transcript (`video timing flagged ...`):
+
+- delivered frame pacing below the nominal rate with `start_time ~ 0`
+  (timestamps not tracking wall clock),
+- a wall interval far longer than the recording (large recorder
+  init/slow-start delta, > 30 s unaccounted) — with wallclock pts in the
+  file this is a truthful, aligned measurement; without them it may be a
+  compressed-pts pathology, so verify a chapter seeks correctly, or
+- chapters landing before frame 0 / after the container duration.
+
+When chapters look shifted in a recording, consult `video-probe.txt` first;
+the manual equivalent is:
+
+```bash
+ffprobe -v error -select_streams v:0 \
+  -show_entries "stream=start_time,duration,nb_frames,r_frame_rate,avg_frame_rate" \
+  -show_entries format=duration -of json <video>
+```
+
+Known limitation: the `(M:SS)` step timecodes in the behave transcript are
+anchored at the recorder *spawn* time (`RECORDING_START`), while video
+chapters are anchored at the first frame — they can differ by the recorder
+init delay. Unifying them on the measured anchor is future work (a live
+first-output monitor thread).
 
 ## mixxx --serve Mode
 

@@ -99,6 +99,8 @@ const QString kEnableSearchCompletionsKey = QStringLiteral("EnableSearchCompleti
 const QString kEnableSearchHistoryShortcutsKey = QStringLiteral("EnableSearchHistoryShortcuts");
 const QString kBpmColumnPrecisionKey = QStringLiteral("BpmColumnPrecision");
 const QString kRowHeightKey = QStringLiteral("RowHeight");
+const QString kRescanOnStartupKey = QStringLiteral("RescanOnStartup");
+const QString kShowScanSummaryKey = QStringLiteral("show_library_scan_summary");
 
 // Controls group
 const QString kHotcueDefaultColorIndexKey = QStringLiteral("HotcueDefaultColorIndex");
@@ -866,6 +868,8 @@ PROPERTY_IMPL_CONFIGKEY(mixxx::library::prefs::kBpmColumnPrecisionConfigKey,
         libraryBpmColumnPrecision,
         BaseTrackTableModel::kBpmColumnPrecisionDefault);
 PROPERTY_IMPL(kLibraryGroup, kRowHeightKey, double, libraryRowHeight, Library::kDefaultRowHeightPx);
+PROPERTY_IMPL(kLibraryGroup, kRescanOnStartupKey, bool, libraryRescanOnStartup, false);
+PROPERTY_IMPL(kLibraryGroup, kShowScanSummaryKey, bool, libraryShowScanSummary, true);
 PROPERTY_IMPL(kLibraryGroup, kRhythmboxEnabled, bool, libraryRhythmboxEnabled, false);
 PROPERTY_IMPL(kLibraryGroup, kBansheeEnabled, bool, libraryBansheeEnabled, false);
 PROPERTY_IMPL(kLibraryGroup, kITunesEnabled, bool, libraryITunesEnabled, false);
