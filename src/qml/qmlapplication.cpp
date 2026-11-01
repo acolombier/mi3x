@@ -136,7 +136,7 @@ QmlApplication::QmlApplication(
         return;
     }
 
-    m_pCoreServices->initialize(app);
+    m_pCoreServices->initialize();
     QmlApplicationProxy::registerVinylControlManager(
             m_pCoreServices->getVinylControlManager().get());
 
