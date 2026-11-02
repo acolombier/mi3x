@@ -45,9 +45,12 @@ Item {
 
         TapHandler {
             acceptedButtons: Qt.RightButton
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
 
-            onLongPressed: () => popup.openFrom(root)
             onTapped: (eventPoint, button) => popup.openFrom(root)
+        }
+        TapHandler {
+            onLongPressed: () => popup.openFrom(root)
         }
         TapHandler {
             id: activator
