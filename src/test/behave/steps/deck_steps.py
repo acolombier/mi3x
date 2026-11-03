@@ -927,6 +927,8 @@ def _assert_split_half_position(context, display_path, position):
 def step_split_start_half_position(context):
     hotcue = getattr(context, "_popup_hotcue", 1)
     group = _deck_group(getattr(context, "_popup_deck", 1))
+    # Let it settle
+    time.sleep(0.5)
     _assert_split_half_position(
         context,
         _hotcue_waveform(context, "waveformPreviewFull"),
@@ -938,6 +940,8 @@ def step_split_start_half_position(context):
 def step_split_target_half_position(context):
     hotcue = getattr(context, "_popup_hotcue", 1)
     group = _deck_group(getattr(context, "_popup_deck", 1))
+    # Let it settle
+    time.sleep(0.5)
     _assert_split_half_position(
         context,
         _hotcue_waveform(context, "waveformPreviewPartial"),
