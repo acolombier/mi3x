@@ -75,7 +75,8 @@ ComboBox {
         }
     }
     indicator: Item {
-        height: 24
+        height: root.height
+        visible: width > 0
         width: height
         x: root.mirrored ? root.padding : root.width - width - root.padding
         y: root.topPadding
@@ -187,7 +188,7 @@ ComboBox {
             return contentItem.mapToItem(root.Window.contentItem, 0, 0, 0, 0).y < root.mapToItem(root.Window.contentItem, 0, 0, 0, 0).y;
         }
 
-        height: root.contentItem.height * (Math.min(root.popupMaxItem, Math.max(root.count, 1)) + 1)
+        height: (root.contentItem.height + 5) * Math.min(root.popupMaxItem, Math.max(root.count, 1))
         padding: 0
         width: root.width
         x: root.width - width
