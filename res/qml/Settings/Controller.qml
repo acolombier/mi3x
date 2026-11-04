@@ -60,47 +60,113 @@ Category {
                     id: controllers
 
                     model: {
-                        if (root.selectedController) {
-                            if (root.selectedController?.mapping?.hasSettings)
-                                return [root.selectedController];
-                            else if (manager.knownDevices.indexOf(root.selectedController) == -1)
-                                return [...manager.knownDevices, root.selectedController];
+                        if (root.selectedController && manager.knownDevices.indexOf(root.selectedController) == -1) {
+                            return [...manager.knownDevices, root.selectedController];
                         }
                         return manager.knownDevices;
                     }
 
-                    delegate: ControllerCard {
-                        id: controller
+                    delegate: Item {
+                        id: item
 
-                        focused: knownDevice && root.selectedController == modelData
-                        knownDevice: manager.knownDevices.indexOf(modelData) > -1
-                        opacity: root.selectedController && !knownDevice && root.selectedController != modelData ? 0.2 : 1
+                        required property var modelData
 
-                        onSelect: {
-                            root.selectedController = modelData;
-                        }
-                        onSettingsChanged: {
-                            if (!controller.settings && controller.focused) {
-                                root.selectedController = null;
+                        Layout.alignment: Qt.AlignTop
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 180
+
+                        ControllerCard {
+                            id: controller
+
+                            anchors.fill: controller.parent != focusArea ? parent : undefined
+                            focused: knownDevice && root.selectedController == modelData
+                            knownDevice: manager.knownDevices.indexOf(modelData) > -1
+                            modelData: item.modelData
+                            opacity: root.selectedController && !focused ? 0.2 : 1
+
+                            Behavior on opacity {
+                                PropertyAnimation {
+                                    duration: 2000
+                                }
                             }
-                        }
+                            states: [
+                                State {
+                                    when: controller.focused
 
-                        Connections {
-                            function onEditedChanged() {
-                                if (controller.modelData.edited) {
-                                    root.editedControllers.add(controller.modelData);
-                                    root.dirty = true;
+                                    ParentChange {
+                                        parent: focusArea
+                                        target: controller
+                                    }
+                                },
+                                State {
+                                    ParentChange {
+                                        parent: item
+                                        target: controller
+                                    }
+                                }
+                            ]
+                            transitions: Transition {
+                                PropertyAction {
+                                    property: "width"
+                                    target: controller
+                                    value: root.width / 2
+                                }
+                                PropertyAction {
+                                    property: "height"
+                                    target: controller
+                                    value: 180
+                                }
+                                NumberAnimation {
+                                    duration: 1000
+                                    property: "x"
+                                    target: controller
+                                    to: 10
+                                }
+                                NumberAnimation {
+                                    duration: 1000
+                                    property: "y"
+                                    target: controller
+                                    to: 10
+                                }
+                                NumberAnimation {
+                                    duration: 1000
+                                    property: "width"
+                                    target: controller
+                                    to: focusArea.width - 20
+                                }
+                                NumberAnimation {
+                                    duration: 1000
+                                    property: "height"
+                                    target: controller
+                                    to: focusArea.height - 20
                                 }
                             }
 
-                            target: controller.modelData
+                            onSelect: {
+                                root.selectedController = modelData;
+                            }
+                            onSettingsChanged: {
+                                if (!controller.settings && controller.focused) {
+                                    root.selectedController = null;
+                                }
+                            }
+
+                            Connections {
+                                function onEditedChanged() {
+                                    if (controller.modelData.edited) {
+                                        root.editedControllers.add(controller.modelData);
+                                        root.dirty = true;
+                                    }
+                                }
+
+                                target: controller.modelData
+                            }
                         }
                     }
                 }
                 Item {
                     Layout.fillHeight: true
                     Layout.fillWidth: true
-                    visible: root.selectedController == null || !root.selectedController.mapping?.hasSettings
                 }
             }
             ListView {
@@ -110,7 +176,8 @@ Category {
                 currentIndex: -1
                 implicitHeight: contentHeight
                 model: manager.unknownDevices
-                visible: root.selectedController == null || !root.selectedController.mapping?.hasSettings
+
+                // visible: root.selectedController == null || !root.selectedController.mapping?.hasSettings
 
                 delegate: Rectangle {
                     required property int index
@@ -194,6 +261,35 @@ Category {
                         text: 'Other detected devices'
                     }
                 }
+            }
+        }
+    }
+    MouseArea {
+        id: focusArea
+
+        anchors.fill: scrollView
+        enabled: root.selectedController != null
+        hoverEnabled: true
+        preventStealing: true
+
+        onPressed: {
+            root.selectedController = null;
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            color: '#181818'
+            opacity: parent.enabled ? 0.7 : 0
+
+            Behavior on opacity {
+                PropertyAnimation {
+                    duration: 2000
+                }
+            }
+
+            Skin.InnerShadowMask {
+                rimColor: Theme.darkGray2
+                size: 18
             }
         }
     }
