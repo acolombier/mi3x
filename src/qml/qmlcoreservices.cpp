@@ -116,7 +116,7 @@ void QmlCoreServices::slotTrackLoadFailed(
     // (m_pPrevFailedTrackId, reset in slotTrackLoaded).
     const auto& akey = pTrack->getId().toString();
     const auto pNotifications = NotificationManager::instance()->activeNotifications();
-    for (const auto pNotification : std::as_const(pNotifications)) {
+    for (const auto& pNotification : std::as_const(pNotifications)) {
         if (pNotification->key() == akey) {
             pNotification->setDetails(reason);
             return;
