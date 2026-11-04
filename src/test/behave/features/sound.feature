@@ -180,29 +180,15 @@ Feature: Sound
     Then the router should match the saved configuration
 
   # --- Sound device setup notifications (@sub/notifications) --------------------
-  #
-  # Sound-setup failures are surfaced as sticky notifications at start-up
-  # (QmlApplication) instead of modal dialogs. Both notifications are raised
-  # before the Background steps run, so the settings popup above does not
-  # interfere with the assertions below.
 
   Rule: Sound device setup notifications
 
     @sub/notifications
     Scenario: A startup without output devices is acknowledged in a sticky notification
-      # The feature Background configures no outputs, so the "No Output
-      # Devices" sticky notification is raised during start-up. The fresh
-      # profile forces a deterministic start-up (the notification is only
-      # raised once, while the QML UI loads).
       Given a fresh new empty profile
       And Mixxx is open and ready to operate
       Then the notification "No Output Devices" should be visible
       And the notification "No Output Devices" should be sticky
-
-    # The <kind> dimension selects the seeded mock device's openStatus
-    # (mixxx_profile.py): "busy" fails with ErrorDeviceCount and start-up
-    # raises "Sound Device Busy"; "error" fails with Error and start-up
-    # raises "Sound Device Error" (no Reconfigure CTA, only Retry/Exit).
 
     @sub/notifications
     Scenario Outline: A failing sound device at start-up is acknowledged in a sticky notification
@@ -232,10 +218,6 @@ Feature: Sound
 
     @sub/notifications
     Scenario: The "Reconfigure" action of the no-output notification focuses the sound engine section
-      # The Background already leaves the engine section focused; the CTA
-      # re-focuses it. The notification stays: it only clears once the sound
-      # settings are saved with at least one output
-      # (QmlSettingGroup::saved watcher, QmlApplication).
       Given a fresh new empty profile
       And Mixxx is open and ready to operate
       When I click the "Reconfigure" action of the "No Output Devices" notification
@@ -266,9 +248,6 @@ Feature: Sound
 
     @sub/notifications
     Scenario Outline: The "Exit" action of the failing-device notification stops the process
-      # The Exit CTA is exit(0), shared by all startup notification kinds;
-      # testing it on the failing-device cases keeps the no-output
-      # scenarios process-alive.
       Given a profile with a <kind> sound device configured
       And Mixxx is open and ready to operate
       When I click the "Exit" action of the "<title>" notification

@@ -469,6 +469,8 @@ void CoreServices::initialize() {
 
     ScopedTimer t(QStringLiteral("CoreServices::initialize"));
 
+    m_pNotificationManager = NotificationManager::createInstance();
+
     VERIFY_OR_DEBUG_ASSERT(SoundSourceProxy::registerProviders()) {
         qCritical() << "Failed to register any SoundSource providers";
         return;
@@ -485,8 +487,6 @@ void CoreServices::initialize() {
     emit initializationProgressUpdate(0, tr("fonts"));
 
     FontUtils::initializeFonts(resourcePath); // takes a long time
-
-    m_pNotificationManager = NotificationManager::createInstance();
 
     emit initializationProgressUpdate(10, tr("database"));
     m_pDbConnectionPool = MixxxDb(pConfig).connectionPool();
