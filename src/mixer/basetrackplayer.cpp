@@ -605,9 +605,7 @@ void BaseTrackPlayerImpl::slotLoadFailed(TrackPointer pTrack, const QString& rea
 
     // Alert subscribers about the load failure. The widget UI shows a
     // message box (MixxxMainWindow::slotTrackLoadFailed), the QML UI shows
-    // a notification (QmlCoreServices). Repeated failures for the same
-    // track are suppressed until a different track is loaded
-    // (m_pPrevFailedTrackId, reset in slotTrackLoaded).
+    // a notification (QmlCoreServices).
     if (pTrack && m_pPrevFailedTrackId == pTrack->getId()) {
         return;
     } else if (pTrack) {
