@@ -15,7 +15,7 @@
 
 #define PROPERTY_IMPL_GETTER(GROUP, KEY, TYPE, NAME, DEFAULT) \
     TYPE QmlConfigProxy::NAME() const {                       \
-        return m_pConfig->getValue(                           \
+        return get()->getValue(                               \
                 ConfigKey(GROUP, KEY),                        \
                 DEFAULT);                                     \
     }
@@ -176,10 +176,8 @@ const QString kInitialDefaultBoostKey = QStringLiteral("InitialDefaultBoost");
 namespace mixxx {
 namespace qml {
 
-QmlConfigProxy::QmlConfigProxy(
-        UserSettingsPointer pConfig, QObject* pParent)
-        : QmlConfigProxyBase(pParent),
-          m_pConfig(pConfig) {
+QmlConfigProxy::QmlConfigProxy(QObject* pParent)
+        : QmlConfigProxyBase(pParent) {
     QmlConfigProxyBase::s_pInstance = this;
 
     const ConfigKey overviewStereoKey(kWaveformGroup, kOverviewStereoKey);
@@ -247,58 +245,58 @@ void QmlConfigProxy::notifyWaveformAverageFrameRateChanged() {
 }
 
 QVariantList QmlConfigProxy::hotcueColorPalette() const {
-    ColorPaletteSettings colorPaletteSettings(m_pConfig);
+    ColorPaletteSettings colorPaletteSettings(get());
     return paletteToQColorList(colorPaletteSettings.getHotcueColorPalette());
 }
 
 QVariantList QmlConfigProxy::getHotcueColorPalette(const QString& paletteName) const {
-    ColorPaletteSettings colorPaletteSettings(m_pConfig);
+    ColorPaletteSettings colorPaletteSettings(get());
     return paletteToQColorList(colorPaletteSettings.getHotcueColorPalette(paletteName));
 }
 
 void QmlConfigProxy::setHotcueColorPalette(const QString& paletteName) {
-    ColorPaletteSettings colorPaletteSettings(m_pConfig);
+    ColorPaletteSettings colorPaletteSettings(get());
     colorPaletteSettings.setHotcueColorPalette(colorPaletteSettings.getColorPalette(paletteName,
             colorPaletteSettings.getHotcueColorPalette()));
     emit hotcueColorPaletteChanged();
 }
 
 QVariantList QmlConfigProxy::trackColorPalette() const {
-    ColorPaletteSettings colorPaletteSettings(m_pConfig);
+    ColorPaletteSettings colorPaletteSettings(get());
     return paletteToQColorList(colorPaletteSettings.getTrackColorPalette());
 }
 
 QVariantList QmlConfigProxy::getTrackColorPalette(const QString& paletteName) const {
-    ColorPaletteSettings colorPaletteSettings(m_pConfig);
+    ColorPaletteSettings colorPaletteSettings(get());
     return paletteToQColorList(colorPaletteSettings.getTrackColorPalette(paletteName));
 }
 void QmlConfigProxy::setTrackColorPalette(const QString& paletteName) {
-    ColorPaletteSettings colorPaletteSettings(m_pConfig);
+    ColorPaletteSettings colorPaletteSettings(get());
     colorPaletteSettings.setTrackColorPalette(colorPaletteSettings.getColorPalette(paletteName,
             colorPaletteSettings.getTrackColorPalette()));
     emit trackColorPaletteChanged();
 }
 
 QVariantList QmlConfigProxy::keyColorPalette() const {
-    ColorPaletteSettings colorPaletteSettings(m_pConfig);
+    ColorPaletteSettings colorPaletteSettings(get());
     return paletteToQColorList(colorPaletteSettings.getConfigKeyColorPalette());
 }
 
 QVariantList QmlConfigProxy::getKeyColorPalette(const QString& paletteName) const {
-    ColorPaletteSettings colorPaletteSettings(m_pConfig);
+    ColorPaletteSettings colorPaletteSettings(get());
     return paletteToQColorList(colorPaletteSettings.getColorPalette(paletteName,
             mixxx::PredefinedColorPalettes::kDefaultKeyColorPalette));
 }
 
 void QmlConfigProxy::setKeyColorPalette(const QString& paletteName) {
-    ColorPaletteSettings colorPaletteSettings(m_pConfig);
+    ColorPaletteSettings colorPaletteSettings(get());
     colorPaletteSettings.setKeyColorPalette(colorPaletteSettings.getColorPalette(paletteName,
             colorPaletteSettings.getConfigKeyColorPalette()));
     emit keyColorPaletteChanged();
 }
 
 QVariantList QmlConfigProxy::colorPalette(const QString& paletteName) const {
-    ColorPaletteSettings colorPaletteSettings(m_pConfig);
+    ColorPaletteSettings colorPaletteSettings(get());
     return paletteToQColorList(colorPaletteSettings.getColorPalette(paletteName,
             mixxx::PredefinedColorPalettes::kDefaultKeyColorPalette));
 }
@@ -318,17 +316,17 @@ PROPERTY_IMPL(kPreferencesGroup,
         mixxx::preferences::MultiSamplingMode::Disabled);
 
 bool QmlConfigProxy::useAcceleration() const {
-    if (!m_pConfig->exists(
+    if (!get()->exists(
                 ConfigKey(kPreferencesGroup, k3DHardwareAccelerationKey))) {
         // TODO: detect whether QML currently run with 3D acceleration. QSGRendererInterface?
         return false;
     }
-    return m_pConfig->getValue<bool>(
+    return get()->getValue<bool>(
             ConfigKey(kPreferencesGroup, k3DHardwareAccelerationKey));
 }
 
 void QmlConfigProxy::set_useAcceleration(bool value) {
-    m_pConfig->setValue(
+    get()->setValue(
             ConfigKey(kPreferencesGroup, k3DHardwareAccelerationKey), value);
     emit useAccelerationChanged();
 }
@@ -525,7 +523,7 @@ double QmlConfigProxy::waveformUntilMarkTextHeightLimit() const {
         return WaveformWidgetFactory::instance()->getUntilMarkTextHeightLimit();
     }
     const int index = std::clamp(
-            m_pConfig->getValue<int>(ConfigKey(kWaveformGroup, kUntilMarkTextHeightLimitKey), 0),
+            get()->getValue<int>(ConfigKey(kWaveformGroup, kUntilMarkTextHeightLimitKey), 0),
             0,
             1);
     return WaveformWidgetFactory::toUntilMarkTextHeightLimit(index);
@@ -543,9 +541,9 @@ void QmlConfigProxy::set_waveformUntilMarkTextHeightLimit(double value) {
     }
 
     if (sanitizedValue == 0.333f) {
-        m_pConfig->remove(ConfigKey(kWaveformGroup, kUntilMarkTextHeightLimitKey));
+        get()->remove(ConfigKey(kWaveformGroup, kUntilMarkTextHeightLimitKey));
     } else {
-        m_pConfig->setValue(ConfigKey(kWaveformGroup, kUntilMarkTextHeightLimitKey), 1);
+        get()->setValue(ConfigKey(kWaveformGroup, kUntilMarkTextHeightLimitKey), 1);
     }
     emit waveformUntilMarkTextHeightLimitChanged();
 }
@@ -553,7 +551,7 @@ double QmlConfigProxy::waveformVisualGainAll() const {
     if (WaveformWidgetFactory::isCreated()) {
         return WaveformWidgetFactory::instance()->getVisualGain(BandIndex::AllBand);
     }
-    return m_pConfig->getValue(ConfigKey(kWaveformGroup, kVisualGainAllKey), 2.0);
+    return get()->getValue(ConfigKey(kWaveformGroup, kVisualGainAllKey), 2.0);
 }
 void QmlConfigProxy::set_waveformVisualGainAll(double value) {
     if (WaveformWidgetFactory::isCreated()) {
@@ -572,7 +570,7 @@ double QmlConfigProxy::waveformVisualGainLow() const {
     if (WaveformWidgetFactory::isCreated()) {
         return WaveformWidgetFactory::instance()->getVisualGain(BandIndex::Low);
     }
-    return m_pConfig->getValue(ConfigKey(kWaveformGroup, kVisualGainLowKey), 1.0);
+    return get()->getValue(ConfigKey(kWaveformGroup, kVisualGainLowKey), 1.0);
 }
 void QmlConfigProxy::set_waveformVisualGainLow(double value) {
     if (WaveformWidgetFactory::isCreated()) {
@@ -591,7 +589,7 @@ double QmlConfigProxy::waveformVisualGainMedium() const {
     if (WaveformWidgetFactory::isCreated()) {
         return WaveformWidgetFactory::instance()->getVisualGain(BandIndex::Mid);
     }
-    return m_pConfig->getValue(ConfigKey(kWaveformGroup, kVisualGainMediumKey), 1.0);
+    return get()->getValue(ConfigKey(kWaveformGroup, kVisualGainMediumKey), 1.0);
 }
 void QmlConfigProxy::set_waveformVisualGainMedium(double value) {
     if (WaveformWidgetFactory::isCreated()) {
@@ -610,7 +608,7 @@ double QmlConfigProxy::waveformVisualGainHigh() const {
     if (WaveformWidgetFactory::isCreated()) {
         return WaveformWidgetFactory::instance()->getVisualGain(BandIndex::High);
     }
-    return m_pConfig->getValue(ConfigKey(kWaveformGroup, kVisualGainHighKey), 1.0);
+    return get()->getValue(ConfigKey(kWaveformGroup, kVisualGainHighKey), 1.0);
 }
 void QmlConfigProxy::set_waveformVisualGainHigh(double value) {
     if (WaveformWidgetFactory::isCreated()) {
@@ -661,7 +659,7 @@ void QmlConfigProxy::set_waveformType(QmlWaveformDisplay::Type type) {
 }
 
 bool QmlConfigProxy::waveformEnabled() const {
-    return m_pConfig->getValue<int>(
+    return get()->getValue<int>(
                    ConfigKey(kWaveformGroup, kWaveformTypeKey),
                    static_cast<int>(QmlWaveformDisplay::Type::RGB)) !=
             static_cast<int>(WaveformWidgetType::Empty);
@@ -677,7 +675,7 @@ void QmlConfigProxy::set_waveformEnabled(bool enabled) {
         if (WaveformWidgetFactory::isCreated()) {
             WaveformWidgetFactory::instance()->setWidgetType(WaveformWidgetType::Empty);
         } else {
-            m_pConfig->setValue(
+            get()->setValue(
                     ConfigKey(kWaveformGroup, kWaveformTypeKey),
                     static_cast<int>(WaveformWidgetType::Empty));
         }
@@ -686,7 +684,7 @@ void QmlConfigProxy::set_waveformEnabled(bool enabled) {
     }
 }
 QmlWaveformDisplay::Options QmlConfigProxy::waveformOptions() const {
-    return QmlWaveformDisplay::Options::fromInt(m_pConfig->getValue<int>(
+    return QmlWaveformDisplay::Options::fromInt(get()->getValue<int>(
             ConfigKey(kWaveformGroup,
                     kWaveformOptionsKey),
             static_cast<int>(QmlWaveformDisplay::Option::None)));
@@ -694,9 +692,9 @@ QmlWaveformDisplay::Options QmlConfigProxy::waveformOptions() const {
 
 void QmlConfigProxy::set_waveformOptions(QmlWaveformDisplay::Options value) {
     if (value == QmlWaveformDisplay::Option::None) {
-        m_pConfig->remove(ConfigKey(kWaveformGroup, kWaveformOptionsKey));
+        get()->remove(ConfigKey(kWaveformGroup, kWaveformOptionsKey));
     } else {
-        m_pConfig->setValue(ConfigKey(kWaveformGroup, kWaveformOptionsKey),
+        get()->setValue(ConfigKey(kWaveformGroup, kWaveformOptionsKey),
                 static_cast<int>(value));
     }
     emit waveformOptionsChanged();
@@ -768,7 +766,7 @@ bool QmlConfigProxy::waveformStemSplitTracks() const {
     if (WaveformWidgetFactory::isCreated()) {
         return WaveformWidgetFactory::instance()->isStemSplitTracks();
     }
-    return m_pConfig->getValue<bool>(ConfigKey(kWaveformGroup, kStemSplitTracksKey), false);
+    return get()->getValue<bool>(ConfigKey(kWaveformGroup, kStemSplitTracksKey), false);
 }
 
 void QmlConfigProxy::set_waveformStemSplitTracks(bool value) {
@@ -778,9 +776,9 @@ void QmlConfigProxy::set_waveformStemSplitTracks(bool value) {
         return;
     }
     if (value) {
-        m_pConfig->setValue(ConfigKey(kWaveformGroup, kStemSplitTracksKey), value);
+        get()->setValue(ConfigKey(kWaveformGroup, kStemSplitTracksKey), value);
     } else {
-        m_pConfig->remove(ConfigKey(kWaveformGroup, kStemSplitTracksKey));
+        get()->remove(ConfigKey(kWaveformGroup, kStemSplitTracksKey));
     }
     emit waveformStemSplitTracksChanged();
 }
@@ -1038,21 +1036,6 @@ PROPERTY_IMPL(kReplayGainGroup,
         replayGainTargetLoudnessAdjust,
         0);
 PROPERTY_IMPL(kReplayGainGroup, kInitialDefaultBoostKey, int, replayGainDefaultBoost, -6);
-
-// static
-QmlConfigProxy* QmlConfigProxy::create(QQmlEngine* pQmlEngine, QJSEngine*) {
-    // The implementation of this method is mostly taken from the code example
-    // that shows the replacement for `qmlRegisterSingletonInstance()` when
-    // using `QML_SINGLETON`.
-    // https://doc.qt.io/qt-6/qqmlengine.html#QML_SINGLETON
-
-    // The instance has to exist before it is used. We cannot replace it.
-    VERIFY_OR_DEBUG_ASSERT(s_pUserSettings) {
-        qWarning() << "UserSettings hasn't been registered yet";
-        return nullptr;
-    }
-    return new QmlConfigProxy(s_pUserSettings, pQmlEngine);
-}
 
 } // namespace qml
 } // namespace mixxx

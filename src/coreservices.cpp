@@ -794,7 +794,9 @@ void CoreServices::initialize() {
 
     ControllerScriptEngineBase::registerPlayerManager(getPlayerManager());
 
-#ifdef MIXXX_USE_QML
+#ifndef MIXXX_USE_QML
+    emit initialized();
+#else
     initializeQMLSingletons();
 }
 
@@ -832,6 +834,7 @@ void CoreServices::initializeQMLSingletons() {
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
 #endif
 #endif
+    emit initialized();
 }
 
 void CoreServices::initializeKeyboard() {
