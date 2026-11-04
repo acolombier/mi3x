@@ -110,9 +110,20 @@ void QmlCoreServices::clearOpenedPopup() {
 }
 
 void QmlCoreServices::slotTrackLoadFailed(
-        TrackPointer, const QString& reason) {
+        TrackPointer pTrack, const QString& reason) {
+    // Repeated failures for the same
+    // track are suppressed until a different track is loaded
+    // (m_pPrevFailedTrackId, reset in slotTrackLoaded).
+    const auto& akey = pTrack->getId().toString();
+    const auto pNotifications = NotificationManager::instance()->activeNotifications();
+    for (const auto pNotification : std::as_const(pNotifications)) {
+        if (pNotification->key() == akey) {
+            pNotification->setDetails(reason);
+            return;
+        }
+    }
     auto pNotification = std::make_shared<Notification>(
-            tr("Couldn't load track."), mixxx::Notification::Flag::Error);
+            tr("Couldn't load track."), mixxx::Notification::Flag::Error, akey);
     pNotification->setDetails(reason);
     NotificationManager::instance()->notify(pNotification);
 }
