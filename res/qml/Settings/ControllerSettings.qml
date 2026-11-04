@@ -30,7 +30,6 @@ ColumnLayout {
                 currentIndex: modelData.currentValueIndex
                 font.pixelSize: 10
                 implicitHeight: 32
-                indicator.width: 0
                 model: modelData.options
                 spacing: 2
 
@@ -186,11 +185,11 @@ ColumnLayout {
 
                         anchors.fill: parent
                         color: Theme.accentColor
+
                         border {
                             color: "#0E2A54"
                             width: 1
                         }
-
                         Text {
                             id: textLabel
 
@@ -369,11 +368,11 @@ ColumnLayout {
             anchors.fill: parent
             color: Theme.darkGray2
             radius: 2
+
             border {
                 color: "#40000000"
                 width: 1
             }
-
             Text {
                 anchors.fill: parent
                 color: Theme.white

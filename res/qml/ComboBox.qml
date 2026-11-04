@@ -75,7 +75,8 @@ ComboBox {
         }
     }
     indicator: Item {
-        height: 24
+        height: root.height
+        visible: width > 0
         width: height
         x: root.mirrored ? root.padding : root.width - width - root.padding
         y: root.topPadding
