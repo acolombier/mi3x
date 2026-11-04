@@ -137,7 +137,7 @@ QmlApplication::QmlApplication(
     }
 #endif
 
-    QJSEngine::setObjectOwnership(QmlCoreServices::createInstance(this), QJSEngine::CppOwnership);
+    QmlCoreServices::registerCoreServices(m_pCoreServices.get());
 
     m_loadSucceeded = loadQml(m_mainFilePath);
     if (!m_loadSucceeded && !CmdlineArgs::Instance().getDeveloper()) {
@@ -249,11 +249,6 @@ QmlApplication::QmlApplication(
     QQuickAsyncImageProvider* pImageProvider = new AsyncImageProvider(
             m_pCoreServices->getTrackCollectionManager());
     m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
-    QmlCoreServices::instance()->setReady();
-    // TODO(#51): surface the signals raised by low-level services as
-    // notifications; the widget-level subscribers only exist in
-    // MixxxMainWindow, which is not instantiated in the QML application.
-    QmlCoreServices::instance()->connectUserNotifications();
 
     m_pCoreServices->getControllerManager()->setUpDevices();
 

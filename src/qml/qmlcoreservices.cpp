@@ -1,7 +1,10 @@
 #include "qml/qmlcoreservices.h"
 
+#include <qnamespace.h>
 #include <qobject.h>
 #include <qqmlengine.h>
+
+#include <utility>
 
 #include "broadcast/broadcastmanager.h"
 #include "coreservices.h"
@@ -17,22 +20,26 @@
 namespace mixxx {
 namespace qml {
 
-namespace {
-const QString kAutoDJErrorTitle = QStringLiteral("Auto DJ");
-} // anonymous namespace
-
-// QmlCoreServices::QmlCoreServices(QObject* parent, int): QObject(parent){
-
-// }
-QmlCoreServices::QmlCoreServices(QmlApplication* pApp)
-        : QObject(pApp) {
-    DEBUG_ASSERT(pApp);
-    auto pInternal = pApp->coreServices();
-    DEBUG_ASSERT(pInternal);
-    connect(pInternal.get(),
+QmlCoreServices::QmlCoreServices(QQmlEngine* pQmlEngine)
+        : QObject(pQmlEngine) {
+    DEBUG_ASSERT(s_pCoreServices);
+    connect(s_pCoreServices.get(),
             &mixxx::CoreServices::libraryScanSummary,
             this,
             &QmlCoreServices::slotLibraryScanSummary);
+    connect(s_pCoreServices.get(),
+            &mixxx::CoreServices::initializationProgressUpdate,
+            this,
+            [this](int, const QString&) {
+                slotInitialization();
+            });
+    connect(s_pCoreServices.get(),
+            &mixxx::CoreServices::initialized,
+            this,
+            &QmlCoreServices::slotInitialization);
+    if (s_pCoreServices->isInitialized()) {
+        slotInitialization();
+    }
 }
 
 void QmlCoreServices::setReady() {
@@ -45,7 +52,7 @@ void QmlCoreServices::setReady() {
 
 // static
 QmlCoreServices* QmlCoreServices::create(QQmlEngine* pQmlEngine, QJSEngine*) {
-    return instance();
+    return new QmlCoreServices(pQmlEngine);
 }
 
 QQmlListProperty<mixxx::Notification> QmlCoreServices::notifications() {
@@ -58,58 +65,25 @@ QQmlListProperty<mixxx::Notification> QmlCoreServices::notifications() {
 }
 
 void QmlCoreServices::append_notification(
-        QQmlListProperty<mixxx::Notification>* list,
+        QQmlListProperty<mixxx::Notification>*,
         mixxx::Notification* slice) {
-    auto* pCoreServices = qobject_cast<QmlCoreServices*>(list->object);
-    VERIFY_OR_DEBUG_ASSERT(pCoreServices) {
-        return;
-    };
-    // FIXME what do we do with ownership? Should we take over from or copy?
-    auto* pApp = qobject_cast<QmlApplication*>(pCoreServices->parent());
-    DEBUG_ASSERT(pApp);
-    auto pInternal = pApp->coreServices();
-    DEBUG_ASSERT(pInternal);
-    return pInternal->getNotificationManager()->notify(NotificationPointer(slice));
+    return NotificationManager::instance()->notify(NotificationPointer(slice));
 }
 
-qsizetype QmlCoreServices::count_notification(QQmlListProperty<mixxx::Notification>* list) {
-    auto* pCoreServices = qobject_cast<QmlCoreServices*>(list->object);
-    VERIFY_OR_DEBUG_ASSERT(pCoreServices) {
-        return -1;
-    };
-    auto* pApp = qobject_cast<QmlApplication*>(pCoreServices->parent());
-    DEBUG_ASSERT(pApp);
-    auto pInternal = pApp->coreServices();
-    DEBUG_ASSERT(pInternal);
-    return pInternal->getNotificationManager()->count();
+qsizetype QmlCoreServices::count_notification(QQmlListProperty<mixxx::Notification>*) {
+    return NotificationManager::instance()->count();
 }
 
 mixxx::Notification* QmlCoreServices::at_notification(
-        QQmlListProperty<mixxx::Notification>* list, qsizetype idx) {
-    auto* pCoreServices = qobject_cast<QmlCoreServices*>(list->object);
-    VERIFY_OR_DEBUG_ASSERT(pCoreServices) {
-        return nullptr;
-    };
-    auto* pApp = qobject_cast<QmlApplication*>(pCoreServices->parent());
-    DEBUG_ASSERT(pApp);
-    auto pInternal = pApp->coreServices();
-    DEBUG_ASSERT(pInternal);
-    return pInternal->getNotificationManager()
+        QQmlListProperty<mixxx::Notification>*, qsizetype idx) {
+    return NotificationManager::instance()
             ->activeNotifications()
             .at(idx)
             .get();
 }
 
-void QmlCoreServices::clear_notification(QQmlListProperty<mixxx::Notification>* list) {
-    auto* pCoreServices = qobject_cast<QmlCoreServices*>(list->object);
-    VERIFY_OR_DEBUG_ASSERT(pCoreServices) {
-        return;
-    };
-    auto* pApp = qobject_cast<QmlApplication*>(pCoreServices->parent());
-    DEBUG_ASSERT(pApp);
-    auto pInternal = pApp->coreServices();
-    DEBUG_ASSERT(pInternal);
-    pInternal->getNotificationManager()->clear();
+void QmlCoreServices::clear_notification(QQmlListProperty<mixxx::Notification>*) {
+    NotificationManager::instance()->clear();
 }
 
 void QmlCoreServices::addOpenedPopup(QObject* popup) {
@@ -136,29 +110,15 @@ void QmlCoreServices::clearOpenedPopup() {
 }
 
 void QmlCoreServices::slotTrackLoadFailed(
-        TrackPointer pTrack, const QString& reason) {
-    auto* pApp = qobject_cast<QmlApplication*>(parent());
-    DEBUG_ASSERT(pApp);
-    auto pInternal = pApp->coreServices();
-    DEBUG_ASSERT(pInternal);
-    // TODO(#51): replace with a dedicated slot member; attach a relocate/
-    // reveal CTA once the notification space defines the flow. The dialog
-    // strings are kept identical to the widget UI message
-    // (MixxxMainWindow::slotTrackLoadFailed).
-    Q_UNUSED(pTrack);
+        TrackPointer, const QString& reason) {
     auto pNotification = std::make_shared<Notification>(
             tr("Couldn't load track."), mixxx::Notification::Flag::Error);
     pNotification->setDetails(reason);
-    pInternal->getNotificationManager()->notify(pNotification);
+    NotificationManager::instance()->notify(pNotification);
 }
 
 void QmlCoreServices::slotLibraryScanSummary(const LibraryScanResultSummary& result) {
-    auto* pApp = qobject_cast<QmlApplication*>(parent());
-    DEBUG_ASSERT(pApp);
-    auto pInternal = pApp->coreServices();
-    DEBUG_ASSERT(pInternal);
-
-    if (!pInternal->getSettings()->getValue<bool>(
+    if (!s_pCoreServices->getSettings()->getValue<bool>(
                 ::mixxx::library::prefs::kShowScanSummaryConfigKey, true)) {
         return;
     }
@@ -176,7 +136,7 @@ void QmlCoreServices::slotLibraryScanSummary(const LibraryScanResultSummary& res
         pNotification->setDetails(tr("No music directories configured for scanning.") +
                 QStringLiteral("<br>") +
                 tr("Add directories in the library preferences."));
-        pInternal->getNotificationManager()->notify(pNotification);
+        s_pCoreServices->getNotificationManager()->notify(pNotification);
         return;
     }
 
@@ -217,110 +177,72 @@ void QmlCoreServices::slotLibraryScanSummary(const LibraryScanResultSummary& res
     }
 
     pNotification->setDetails(summary);
-    pInternal->getNotificationManager()->notify(pNotification);
+    s_pCoreServices->getNotificationManager()->notify(pNotification);
 }
 
 void QmlCoreServices::slotBroadcastError(
         const QString& title, const QString& text) {
-    auto* pApp = qobject_cast<QmlApplication*>(parent());
-    DEBUG_ASSERT(pApp);
-    auto pInternal = pApp->coreServices();
-    DEBUG_ASSERT(pInternal);
+    NotificationPointer pNotification;
 
-    // TODO(#51): transient vs permanent handling (sticky + Retry/
-    // Edit-connection CTAs) once opening the broadcast preferences from
-    // the notification space is defined.
-    auto pNotification = std::make_shared<Notification>(title, Notification::Flag::Sticky);
-    pNotification->setDetails(text);
-    pInternal->getNotificationManager()->notify(pNotification);
-}
-
-void QmlCoreServices::slotAutoDJError(
-        AutoDJProcessor::AutoDJError error) {
-    auto* pApp = qobject_cast<QmlApplication*>(parent());
-    DEBUG_ASSERT(pApp);
-    auto pInternal = pApp->coreServices();
-    DEBUG_ASSERT(pInternal);
-
-    // TODO add buttons
-    auto pNotification = std::make_shared<Notification>(
-            kAutoDJErrorTitle, Notification::Flag::Sticky);
-
-    switch (error) {
-    case AutoDJProcessor::ADJ_NOT_TWO_DECKS:
-        pNotification->setDetails(
-                tr("Auto DJ requires two decks assigned to opposite sides of "
-                   "the crossfader."));
-        break;
-    case AutoDJProcessor::ADJ_BOTH_DECKS_PLAYING:
-        pNotification->setDetails(tr("One deck must be stopped to enable Auto DJ mode."));
-        break;
-    case AutoDJProcessor::ADJ_UNUSED_DECK_PLAYING:
-        pNotification->setDetails(
-                tr("Decks not used for Auto DJ must be stopped to enable Auto "
-                   "DJ mode."));
-        break;
-    case AutoDJProcessor::ADJ_OK:
-        return;
-    default:
-        break;
+    const auto pNotifications = mixxx::NotificationManager::instance()->activeNotifications();
+    for (const auto& aNotification : std::as_const(pNotifications)) {
+        if (aNotification->key() == title) {
+            pNotification = std::move(aNotification);
+            break;
+        }
     }
-    pInternal->getNotificationManager()->notify(pNotification);
+
+    if (!pNotification) {
+        pNotification = std::make_shared<Notification>(title, Notification::Flag::Sticky);
+        // TODO add relevant CTAs when broadcast get implemented
+        NotificationManager::instance()->notify(pNotification);
+    }
+
+    pNotification->setDetails(text);
 }
 
-void QmlCoreServices::connectUserNotifications() {
-    auto* pApp = qobject_cast<QmlApplication*>(parent());
-    DEBUG_ASSERT(pApp);
-    auto pInternal = pApp->coreServices();
-    DEBUG_ASSERT(pInternal);
+void QmlCoreServices::slotNotificationAdded(mixxx::NotificationPointer pNotification) {
+    // FIXME risky
+    emit notificationAdded(pNotification.get());
+    emit notificationsChanged();
+}
 
+void QmlCoreServices::slotNotificationClosed(mixxx::NotificationPointer pNotification) {
+    // FIXME need to find a way to exclude from smart pointer gc
+    // auto pUnique = std::make_unique<mixxx::Notification>(std::move(*pNotification));
+    // auto pInner = pUnique.release();
+    // QQmlEngine::setObjectOwnership(pInner, QQmlEngine::JavaScriptOwnership);
+    emit notificationClosed(pNotification.get());
+    emit notificationsChanged();
+}
+
+void QmlCoreServices::slotInitialization() {
     // List binding
-    connect(pInternal->getNotificationManager(),
+    connect(s_pCoreServices->getNotificationManager(),
             &NotificationManager::notificationAdded,
             this,
-            &QmlCoreServices::notificationsChanged);
-    connect(pInternal->getNotificationManager(),
+            &QmlCoreServices::slotNotificationAdded,
+            Qt::UniqueConnection);
+    connect(s_pCoreServices->getNotificationManager(),
             &NotificationManager::notificationClosed,
             this,
-            &QmlCoreServices::notificationsChanged);
-
-    // Direct notification
-    connect(pInternal->getNotificationManager(),
-            &NotificationManager::notificationAdded,
-            this,
-            // &QmlCoreServices::notificationAdded
-            [this](auto pNotification) {
-                // FIXME risky
-                emit notificationAdded(pNotification.get());
-            });
-    // );
-    connect(pInternal->getNotificationManager(),
-            &NotificationManager::notificationClosed,
-            this,
-            // &QmlCoreServices::notificationClosed
-            [this](auto pNotification) {
-                // FIXME need to find a way to exclude from smart pointer gc
-                // auto pUnique = std::make_unique<mixxx::Notification>(std::move(*pNotification));
-                // auto pInner = pUnique.release();
-                // QQmlEngine::setObjectOwnership(pInner, QQmlEngine::JavaScriptOwnership);
-                emit notificationClosed(pNotification.get());
-            });
-    // );
+            &QmlCoreServices::slotNotificationClosed,
+            Qt::UniqueConnection);
 
     // Application event to notification builder slots
-    connect(pInternal->getPlayerManager().get(),
+    connect(s_pCoreServices->getPlayerManager().get(),
             &PlayerManager::trackLoadFailed,
             this,
-            &QmlCoreServices::slotTrackLoadFailed);
-    connect(pInternal->getBroadcastManager().get(),
+            &QmlCoreServices::slotTrackLoadFailed,
+            Qt::UniqueConnection);
+    connect(s_pCoreServices->getBroadcastManager().get(),
             &BroadcastManager::broadcastError,
             this,
-            &QmlCoreServices::slotBroadcastError);
-    if (auto pLibrary = pInternal->getLibrary()) {
-        connect(pLibrary->getAutoDJProcessor(),
-                &AutoDJProcessor::autoDJError,
-                this,
-                &QmlCoreServices::slotAutoDJError);
+            &QmlCoreServices::slotBroadcastError,
+            Qt::UniqueConnection);
+
+    if (s_pCoreServices->isInitialized()) {
+        setReady();
     }
 }
 } // namespace qml

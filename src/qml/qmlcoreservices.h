@@ -19,7 +19,7 @@ namespace mixxx {
 class CoreServices;
 namespace qml {
 
-class QmlCoreServices : public QObject, public Singleton<QmlCoreServices> {
+class QmlCoreServices : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool ready READ ready NOTIFY readyChanged)
     // Workaround for https://qt-project.atlassian.net/browse/QTBUG-87815
@@ -31,15 +31,9 @@ class QmlCoreServices : public QObject, public Singleton<QmlCoreServices> {
     QML_SINGLETON
   public:
     static QmlCoreServices* create(QQmlEngine* pQmlEngine, QJSEngine* pJsEngine);
-
-    // TODO(#51): subscribe user-notification-relevant signals raised by
-    // low-level services (track load failures, broadcast errors, AutoDJ
-    // errors, library scan lifecycle). Must be called after
-    // CoreServices::initialize() so that the owned services exist. The
-    // widget UI handles these signals in MixxxMainWindow instead. This is
-    // setup scaffolding; the human contributor will complete/harden the
-    // notification flows (CTA buttons, dedup, i18n centering).
-    void connectUserNotifications();
+    static void registerCoreServices(CoreServices* pCoreServices) {
+        s_pCoreServices = QPointer(pCoreServices);
+    }
 
     QQmlListProperty<mixxx::Notification> notifications();
 
@@ -63,29 +57,30 @@ class QmlCoreServices : public QObject, public Singleton<QmlCoreServices> {
     // Workaround for https://qt-project.atlassian.net/browse/QTBUG-87815
     // This is necessary to make touchscreen/Android usable
     void hasPopupChanged();
-    // void notificationAdded();
-    // void notificationClosed();
 
     void notificationsChanged();
-    Q_INVOKABLE void notificationAdded(mixxx::Notification*);
-    Q_INVOKABLE void notificationClosed(mixxx::Notification*);
+    void notificationAdded(mixxx::Notification*);
+    void notificationClosed(mixxx::Notification*);
 
   protected:
-    QmlCoreServices(QmlApplication* parent);
+    QmlCoreServices(QQmlEngine* pQmlEngine);
     ~QmlCoreServices() override = default;
 
     friend class Singleton<QmlCoreServices>;
 
   private slots:
-    // Handlers of the user-notification-relevant signals (see
-    // connectUserNotifications()). TODO(#51): scaffolding for the QML
-    // notification space.
     void slotTrackLoadFailed(TrackPointer pTrack, const QString& reason);
     void slotLibraryScanSummary(const LibraryScanResultSummary&);
     void slotBroadcastError(const QString& title, const QString& text);
-    void slotAutoDJError(AutoDJProcessor::AutoDJError error);
+    void slotInitialization();
+    void slotNotificationAdded(mixxx::NotificationPointer);
+    void slotNotificationClosed(mixxx::NotificationPointer);
 
   private:
+    // Unlike other proxy, shared ownership is not possible with the
+    // CoreServices, so we use QPointer has safety guard.
+    static inline QPointer<CoreServices> s_pCoreServices;
+
     bool m_ready{false};
     // Workaround for https://qt-project.atlassian.net/browse/QTBUG-87815
     // This is necessary to make touchscreen/Android usable
