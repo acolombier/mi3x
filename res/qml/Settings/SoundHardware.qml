@@ -263,7 +263,6 @@ Category {
                                     RatioChoice {
                                         id: mainMixEnabled
 
-                                        objectName: "setting_MainMix"
                                         options: ["on", "off"]
                                         selected: options[mainEnabled.value ? 0 : 1]
 
@@ -287,7 +286,6 @@ Category {
                                         id: mainOutputMode
 
                                         maxWidth: tabSection.width * 0.18
-                                        objectName: "setting_MainOutputMode"
                                         options: ["mono", "stereo"]
                                         selected: options[monoMix.value ? 0 : 1]
 
@@ -311,7 +309,6 @@ Category {
                                         id: soundClock
 
                                         maxWidth: tabSection.width * 0.28
-                                        objectName: "setting_SoundClock"
                                         options: ["soundcard", "network"]
 
                                         onSelectedChanged: {
@@ -354,7 +351,6 @@ Category {
 
                                         maxWidth: tabSection.width * 0.4
                                         normalizedWidth: false
-                                        objectName: "setting_KeylockEngine"
                                         options: []
                                         tooltips: []
 
@@ -382,7 +378,6 @@ Category {
                                         id: soundApi
 
                                         maxWidth: tabSection.width * 0.4
-                                        objectName: "setting_SoundAPI"
                                         options: []
 
                                         onSelectedChanged: {
@@ -420,7 +415,6 @@ Category {
 
                                         Layout.minimumWidth: sampleRate.implicitWidth
                                         maxWidth: tabSection.width * 0.34
-                                        objectName: "setting_SampleRate"
                                         options: []
 
                                         onSelectedChanged: {
@@ -638,7 +632,6 @@ Category {
                         id: router
 
                         anchors.fill: parent
-                        objectName: "routerSection"
                     }
                     Rectangle {
                         anchors.fill: parent

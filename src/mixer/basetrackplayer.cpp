@@ -608,8 +608,6 @@ void BaseTrackPlayerImpl::slotLoadFailed(TrackPointer pTrack, const QString& rea
     // a notification (QmlCoreServices). Repeated failures for the same
     // track are suppressed until a different track is loaded
     // (m_pPrevFailedTrackId, reset in slotTrackLoaded).
-    // TODO(#51): add a suggested CTA (e.g. reveal/relocate the missing
-    // file) once available in the notification space.
     if (pTrack && m_pPrevFailedTrackId == pTrack->getId()) {
         return;
     } else if (pTrack) {
@@ -621,8 +619,6 @@ void BaseTrackPlayerImpl::slotLoadFailed(TrackPointer pTrack, const QString& rea
 void BaseTrackPlayerImpl::slotTrackLoaded(TrackPointer pNewTrack,
                                           TrackPointer pOldTrack) {
     // qDebug() << "BaseTrackPlayerImpl::slotTrackLoaded" << pNewTrack.get() << pOldTrack.get();
-    //  Allow a new failure warning for a track that failed before.
-    m_pPrevFailedTrackId = TrackId();
     if (!pNewTrack &&
             pOldTrack &&
             pOldTrack == m_pLoadedTrack) {

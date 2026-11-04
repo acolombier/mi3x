@@ -1091,8 +1091,7 @@ void MixxxMainWindow::slotNoVinylControlInputConfigured() {
 }
 
 void MixxxMainWindow::slotTrackLoadFailed(
-        TrackPointer pTrack, const QString& reason) {
-    Q_UNUSED(pTrack);
+        TrackPointer, const QString& reason) {
     QMessageBox::warning(nullptr, tr("Couldn't load track."), reason);
 }
 

@@ -614,7 +614,6 @@ Category {
                     anchors.topMargin: 10
                     columnSpacing: 20
                     columns: width > 800 ? 4 : 2
-                    objectName: "librarySourcesGrid"
                     width: parent.width
 
                     Mixxx.SettingParameter {

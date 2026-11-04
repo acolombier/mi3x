@@ -130,11 +130,6 @@ class Notification : public QObject {
         m_buttons.append(button);
     }
 
-    // Scaffolding builders for the ticket #51 modal->notification migration.
-    // TODO(#51): complete/harden the factory methods (dedup, i18n of common
-    // button CTAs) once the call sites are migrated.
-    typedef std::shared_ptr<Notification> Pointer;
-
   signals:
     void closed();
     void textChanged();

@@ -204,7 +204,7 @@ void ErrorDialogHandler::errorDialog(ErrorDialogProperties* pProps) {
             }
             const QMessageBox::StandardButton clickedButton = button;
             const QString key = props->m_key;
-            pNotification->addButton(buttonLabel, nullptr, [this, key, clickedButton]() {
+            pNotification->addButton(buttonLabel, this, [this, key, clickedButton]() {
                 emit stdButtonClicked(key, clickedButton);
                 auto locker = QMutexLocker(&m_mutex);
                 if (m_dialogKeys.contains(key)) {

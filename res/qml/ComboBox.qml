@@ -183,7 +183,7 @@ ComboBox {
 
         readonly property bool reversed: {
             // Geometry binding
-            root.Window.contentItem.height + opened;
+            root.Window.contentItem?.height + opened;
             return contentItem.mapToItem(root.Window.contentItem, 0, 0, 0, 0).y < root.mapToItem(root.Window.contentItem, 0, 0, 0, 0).y;
         }
 
