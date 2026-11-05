@@ -1,7 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import "../LateNightTheme"
-import "../../../qml" as Shared
+import ".." as Shared
 import Mixxx 1.0 as Mixxx
 import QtQuick
 import QtQuick.Controls
@@ -1239,6 +1239,22 @@ Rectangle {
                 visible: root.activeAppMenuSection === "Options"
 
                 onHovered: root.clearAppMenuSubmenu()
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.ArrowCursor
+                    onClicked: mouse => {
+                        print("keyboardModifiers", mouse.modifiers)
+                        if (mouse.modifiers & Qt.ControlModifier) {
+                            console.log("Ctrl + click")
+                            settingsPopup.open()
+                        } else {
+                            console.log("Normal click")
+                            root.applicationMenuActions.optionsPreferences.trigger()
+                        }
+                        root.dismissApplicationMenu();
+                    }
+                }
             }
             ToolbarAppMenuAction {
                 action: root.applicationMenuActions.developerReloadSkin

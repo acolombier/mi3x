@@ -81,14 +81,14 @@ Item {
                 colorLow: root.useFilteredOverview ? root.waveformSignalColor : LateNightTheme.overviewRgbLowColor
                 colorMid: root.useFilteredOverview ? root.waveformSignalColor : LateNightTheme.overviewRgbMidColor
                 colorHigh: root.useFilteredOverview ? root.waveformSignalColor : LateNightTheme.overviewRgbHighColor
-                interactive: !root.passthroughEnabled
+                // interactive: !root.passthroughEnabled
                 renderer: root.useFilteredOverview
                         ? Mixxx.WaveformOverview.Renderer.Filtered
                         : root.useHsvOverview
                         ? Mixxx.WaveformOverview.Renderer.HSV
                         : Mixxx.WaveformOverview.Renderer.RGB
-                analyzerStatusColor: root.waveformSignalColor
-                showAnalyzerStatus: true
+                // analyzerStatusColor: root.waveformSignalColor
+                // showAnalyzerStatus: true
             }
 
             Item {

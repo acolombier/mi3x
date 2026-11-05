@@ -3,7 +3,7 @@ pragma ComponentBehavior: Bound
 import "../Controls" as Controls
 import "../Deck" as DeckControls
 import "../LateNightTheme"
-import "../../../qml" as Shared
+import ".." as Shared
 import "../../../qml/Mixxx/Controls" as MixxxControls
 import Mixxx 1.0 as Mixxx
 import QtQuick
@@ -186,11 +186,11 @@ Controls.Panel {
                                         colorHigh: root.useFilteredOverview ? LateNightTheme.samplerWaveformFilteredHighColor : LateNightTheme.overviewRgbLowColor
                                         colorLow: root.useFilteredOverview ? LateNightTheme.samplerWaveformFilteredLowColor : LateNightTheme.overviewRgbHighColor
                                         colorMid: root.useFilteredOverview ? LateNightTheme.samplerWaveformFilteredMidColor : LateNightTheme.overviewRgbMidColor
-                                        cueMarkerColor: LateNightTheme.waveformCueColor
+                                        // cueMarkerColor: LateNightTheme.waveformCueColor
                                         group: root.group
-                                        introOutroMarkerColor: LateNightTheme.waveformIntroOutroColor
-                                        loopMarkerColor: LateNightTheme.waveformLoopColor
-                                        playPositionMarkerColor: LateNightTheme.waveformPlayPositionColor.toString()
+                                        // introOutroMarkerColor: LateNightTheme.waveformIntroOutroColor
+                                        // loopMarkerColor: LateNightTheme.waveformLoopColor
+                                        // playPositionMarkerColor: LateNightTheme.waveformPlayPositionColor.toString()
                                         renderer: root.useFilteredOverview ? Mixxx.WaveformOverview.Renderer.Filtered : root.useHsvOverview ? Mixxx.WaveformOverview.Renderer.HSV : Mixxx.WaveformOverview.Renderer.RGB
                                     }
                                 }

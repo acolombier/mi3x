@@ -1,6 +1,6 @@
 import Mixxx 1.0 as Mixxx
 import QtQuick
-import "../../../qml" as Skin
+import ".." as Skin
 import "../../../qml/Effects" as SharedEffects
 import "../Controls" as LateNightControls
 import "../LateNightTheme"

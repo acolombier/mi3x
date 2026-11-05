@@ -4,7 +4,7 @@ import QtQuick.Controls
 import QtQuick.Dialogs
 import Mixxx 1.0 as Mixxx
 import "." as Setting
-// import "../Deck" as DeckComponents
+import "../Behaviors" as Behaviors
 import "." as SettingComponents
 import ".." as Skin
 import "../Theme"
@@ -48,7 +48,12 @@ Category {
     }
     function loadInterface() {
         // Interface tab
-        // skinInput.value =
+        skinInput.model = []
+        for (let skin of Mixxx.Core.skins){
+            skinInput.model.push(skin.name)
+        }
+        let currentSkin = skinInput.model.indexOf(Mixxx.Config.configSkin)
+        skinInput.currentIndex = currentSkin >= 0 ? currentSkin : 0;
         // colorInput.value =
         // layoutInput.value =
         tooltipsInput.selected = tooltipsInput.options[Mixxx.Config.libraryTooltips];
@@ -167,6 +172,7 @@ Category {
     function saveInterface() {
         // Interface tab
         // skinInput.value =
+        Mixxx.Config.configSkin = skinInput.model[skinInput.currentIndex]
         // colorInput.value =
         // layoutInput.value =
         Mixxx.Config.libraryTooltips = tooltipsInput.options.indexOf(tooltipsInput.selected);
@@ -300,7 +306,7 @@ Category {
                                 Skin.ComboBox {
                                     id: skinInput
 
-                                    model: ["Unnamed"]
+                                    model: []
                                     objectName: "setting_skin"
 
                                     onCurrentIndexChanged: themeColorTab.dirty = true
@@ -2085,7 +2091,7 @@ Category {
                                 id: timeMode
 
                                 Layout.preferredWidth: (deckPane.width - 56) * 0.3
-                                model: [DeckComponents.TrackTime.Mode.Traditional, DeckComponents.TrackTime.Mode.TraditionalCoarse, DeckComponents.TrackTime.Mode.Seconds, DeckComponents.TrackTime.Mode.SecondsLong, DeckComponents.TrackTime.Mode.KiloSeconds, DeckComponents.TrackTime.Mode.HectoSeconds,]
+                                model: [Behaviors.TrackTime.Mode.Traditional, Behaviors.TrackTime.Mode.TraditionalCoarse, Behaviors.TrackTime.Mode.Seconds, Behaviors.TrackTime.Mode.SecondsLong, Behaviors.TrackTime.Mode.KiloSeconds, Behaviors.TrackTime.Mode.HectoSeconds,]
                                 objectName: "setting_timeFormat"
 
                                 contentItem: Content {
@@ -2782,34 +2788,47 @@ Category {
 
         Text {
             Layout.fillWidth: true
-            //     color: Theme.deckTextColor
-            //     elide: Text.ElideRight
-            //     text: {
-            //         switch (parent.mode) {
-            //         case DeckComponents.TrackTime.Mode.TraditionalCoarse:
-            //             return "Traditional (Coarse)";
-            //         case DeckComponents.TrackTime.Mode.Seconds:
-            //             return "Seconds";
-            //         case DeckComponents.TrackTime.Mode.SecondsLong:
-            //             return "Seconds (Long)";
-            //         case DeckComponents.TrackTime.Mode.KiloSeconds:
-            //             return "Kiloseconds";
-            //         case DeckComponents.TrackTime.Mode.HectoSeconds:
-            //             return "Hectoseconds";
-            //         default:
-            //             console.warn(`Unsupported track time mode: ${root.mode}. Defaulting to traditional`);
-            //         case DeckComponents.TrackTime.Mode.Traditional:
-            //             return "Traditional";
-            //         }
-            //     }
-            //     verticalAlignment: Text.AlignVCenter
-            // }
-            // DeckComponents.TrackTime {
-            //     Layout.rightMargin: 17
-            //     display: trackTimeDisplayInput.selected === "elapsed" ? DeckComponents.TrackTime.Display.Elapsed : trackTimeDisplayInput.selected === "remaining" ? DeckComponents.TrackTime.Display.Remaining : DeckComponents.TrackTime.Display.Both
-            //     elapsed: 83.45
-            //     mode: parent.mode
-            //     remaining: 147.23
+            color: Theme.deckTextColor
+            elide: Text.ElideRight
+            text: {
+                switch (parent.mode) {
+                case Behaviors.TrackTime.Mode.TraditionalCoarse:
+                    return "Traditional (Coarse)";
+                case Behaviors.TrackTime.Mode.Seconds:
+                    return "Seconds";
+                case Behaviors.TrackTime.Mode.SecondsLong:
+                    return "Seconds (Long)";
+                case Behaviors.TrackTime.Mode.KiloSeconds:
+                    return "Kiloseconds";
+                case Behaviors.TrackTime.Mode.HectoSeconds:
+                    return "Hectoseconds";
+                default:
+                    console.warn(`Unsupported track time mode: ${root.mode}. Defaulting to traditional`);
+                case Behaviors.TrackTime.Mode.Traditional:
+                    return "Traditional";
+                }
+            }
+            verticalAlignment: Text.AlignVCenter
+        }
+        Behaviors.TrackTime {
+            id: time
+            Layout.rightMargin: 17
+            display: trackTimeDisplayInput.selected === "elapsed" ? Behaviors.TrackTime.Display.Elapsed : trackTimeDisplayInput.selected === "remaining" ? Behaviors.TrackTime.Display.Remaining : Behaviors.TrackTime.Display.Both
+            elapsed: 83.45
+            mode: parent.mode
+            remaining: 147.23
+        }
+        Text {
+            Layout.rightMargin: 17
+            text: time.text
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.buttonFontPixelSize
+            font.bold: true
+            color: Theme.buttonNormalColor
+
         }
     }
     component WaveformMaskComponent: Item {

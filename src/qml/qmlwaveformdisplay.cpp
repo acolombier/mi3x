@@ -111,6 +111,7 @@ void QmlWaveformDisplay::setStaticTrack(QmlTrackProxy* track) {
         return;
     }
     if (!track->internal()->getWaveform()) {
+        DEBUG_ASSERT(QmlLibraryProxy::get());
         emit QmlLibraryProxy::get() -> analyzeTracks({track->internal()->getId()});
     }
     setVisualPlayPosition(m_visualPlayPosition);
