@@ -4,7 +4,7 @@ import QtQuick.Controls
 import QtQuick.Dialogs
 import Mixxx 1.0 as Mixxx
 import "." as Setting
-import "../Deck" as DeckComponents
+// import "../Deck" as DeckComponents
 import "." as SettingComponents
 import ".." as Skin
 import "../Theme"
@@ -2782,34 +2782,34 @@ Category {
 
         Text {
             Layout.fillWidth: true
-            color: Theme.deckTextColor
-            elide: Text.ElideRight
-            text: {
-                switch (parent.mode) {
-                case DeckComponents.TrackTime.Mode.TraditionalCoarse:
-                    return "Traditional (Coarse)";
-                case DeckComponents.TrackTime.Mode.Seconds:
-                    return "Seconds";
-                case DeckComponents.TrackTime.Mode.SecondsLong:
-                    return "Seconds (Long)";
-                case DeckComponents.TrackTime.Mode.KiloSeconds:
-                    return "Kiloseconds";
-                case DeckComponents.TrackTime.Mode.HectoSeconds:
-                    return "Hectoseconds";
-                default:
-                    console.warn(`Unsupported track time mode: ${root.mode}. Defaulting to traditional`);
-                case DeckComponents.TrackTime.Mode.Traditional:
-                    return "Traditional";
-                }
-            }
-            verticalAlignment: Text.AlignVCenter
-        }
-        DeckComponents.TrackTime {
-            Layout.rightMargin: 17
-            display: trackTimeDisplayInput.selected === "elapsed" ? DeckComponents.TrackTime.Display.Elapsed : trackTimeDisplayInput.selected === "remaining" ? DeckComponents.TrackTime.Display.Remaining : DeckComponents.TrackTime.Display.Both
-            elapsed: 83.45
-            mode: parent.mode
-            remaining: 147.23
+            //     color: Theme.deckTextColor
+            //     elide: Text.ElideRight
+            //     text: {
+            //         switch (parent.mode) {
+            //         case DeckComponents.TrackTime.Mode.TraditionalCoarse:
+            //             return "Traditional (Coarse)";
+            //         case DeckComponents.TrackTime.Mode.Seconds:
+            //             return "Seconds";
+            //         case DeckComponents.TrackTime.Mode.SecondsLong:
+            //             return "Seconds (Long)";
+            //         case DeckComponents.TrackTime.Mode.KiloSeconds:
+            //             return "Kiloseconds";
+            //         case DeckComponents.TrackTime.Mode.HectoSeconds:
+            //             return "Hectoseconds";
+            //         default:
+            //             console.warn(`Unsupported track time mode: ${root.mode}. Defaulting to traditional`);
+            //         case DeckComponents.TrackTime.Mode.Traditional:
+            //             return "Traditional";
+            //         }
+            //     }
+            //     verticalAlignment: Text.AlignVCenter
+            // }
+            // DeckComponents.TrackTime {
+            //     Layout.rightMargin: 17
+            //     display: trackTimeDisplayInput.selected === "elapsed" ? DeckComponents.TrackTime.Display.Elapsed : trackTimeDisplayInput.selected === "remaining" ? DeckComponents.TrackTime.Display.Remaining : DeckComponents.TrackTime.Display.Both
+            //     elapsed: 83.45
+            //     mode: parent.mode
+            //     remaining: 147.23
         }
     }
     component WaveformMaskComponent: Item {
