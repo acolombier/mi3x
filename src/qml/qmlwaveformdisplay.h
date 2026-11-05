@@ -115,8 +115,6 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
         return m_audioVisualRatio;
     }
 
-    void componentComplete() override;
-
     QQmlListProperty<mixxx::qml::QmlWaveformRendererFactory> renderers();
     static void renderers_append(
             QQmlListProperty<mixxx::qml::QmlWaveformRendererFactory>* property,

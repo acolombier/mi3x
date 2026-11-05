@@ -640,6 +640,9 @@ REMEMBERED_CO_KEYS = {
     "playback position": "playposition",
 }
 
+CHANNEL_PREVIEW_DECK = "[PreviewDeck1]"
+PREVIEW_DECK_PATH = "mainWindow/libraryContent/previewDeck"
+
 def _deck_button_path(deck, button):
     suffix = DECK_BUTTON_PATHS.get(button, button)
     return f"{_deck_path(deck)}/{suffix}"

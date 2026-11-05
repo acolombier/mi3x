@@ -7,9 +7,12 @@ alphabetically, and the common modules must not be pulled in ahead
 of this file's own (more specific) step registrations."""
 
 from helpers import (
+    DECK_BUTTON_PATHS,
     DECK_PATH_MAP,
     DECK_PROPERTY_MAP,
     LOOP_BUTTONS,
+    CHANNEL_PREVIEW_DECK,
+    PREVIEW_DECK_PATH,
     QT_CONTROL_MODIFIER,
     QT_KEY_A,
     QT_KEY_BACKSPACE,
@@ -18,6 +21,8 @@ from helpers import (
     QT_LEFT_BUTTON,
     QT_RIGHT_BUTTON,
     REMEMBERED_CO_KEYS,
+    remember_track,
+    scenario_rng,
     _click,
     _deck_button_path,
     _deck_group,
@@ -34,9 +39,11 @@ from helpers import (
     _set_hotcue,
     _wait_for_hidden,
     _wait_for_visible,
+    wait_visible,
 )
 from behave import given, when, then
 
+import os
 import time
 
 
@@ -85,15 +92,47 @@ def step_remember(context, prop, deck):
         context, prop,
         _get_control_value(context, _deck_group(deck), REMEMBERED_CO_KEYS[prop]))
 
-@given("no track is loaded on deck {deck:d}")
-def step_no_track_loaded_to_deck(context, deck):
-    group = _deck_group(deck)
+def no_track_loaded_to_deck(context, group):
     if _get_control_value(context, group, "track_loaded"):
         _set_control_value(context, group, "eject", 1.0)
         time.sleep(0.01)
         _set_control_value(context, group, "eject", 0.0)
     time.sleep(0.3)
     assert not _get_control_value(context, group, "track_loaded"), f"Track is still loaded on {group}"
+
+@given("no track is loaded on deck {deck:d}")
+def step_no_track_loaded_to_deck(context, deck=None, group=None):
+    no_track_loaded_to_deck(context, _deck_group(deck))
+
+@given("no track is loaded on preview deck")
+def step_no_track_loaded_on_preview_deck(context):
+    no_track_loaded_to_deck(context, CHANNEL_PREVIEW_DECK)
+
+@given("a track is loaded on preview deck")
+def step_load_track_to_preview_deck(context):
+    tracks_dir = context.config.userdata["tracks_dir"]
+    track_files = sorted(os.listdir(tracks_dir))
+    if not track_files:
+        raise RuntimeError(f"No track files found in {tracks_dir}")
+    index = scenario_rng(context).randint(0, len(track_files) - 1)
+    filepath = os.path.join(tracks_dir, track_files[index])
+    # Remember the loaded track with catalog metadata when the file is known,
+    # so later steps can pin and assert on its tags.
+    catalog = context.config.userdata.get("tracks_catalog") or []
+    entry = next(
+        (e for e in catalog if e.get("location") == filepath), None)
+    if entry is None:
+        entry = {"title": os.path.splitext(track_files[index])[0],
+                 "location": filepath}
+    remember_track(context, entry, name="preview deck")
+    context.rpc.command("loadTrack", f"{CHANNEL_PREVIEW_DECK},{filepath}")
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        if _get_control_value(context, CHANNEL_PREVIEW_DECK, "track_loaded"):
+            break
+        time.sleep(0.1)
+    assert _get_control_value(context, CHANNEL_PREVIEW_DECK, "track_loaded"), (
+        "Track was not loaded on the preview deck")
 
 @given("the {prop} on deck {deck:d} is set to {value:f}")
 def step_deck_set_rate(context, prop, deck, value):
@@ -290,12 +329,111 @@ def step_component_order_after(context, component, cardinality, target, deck):
         f"Component {component} (x={component_bb[0]}) is not {cardinality} {target} (x={target_bb[0]})"
     )
 
-@then("a track {assertion} loaded on deck {deck:d}")
-def step_track_is_loaded_on_deck(context, assertion, deck):
-    group = _deck_group(deck)
+def track_is_loaded_on_group(context, assertion, group):
     expected = assertion == "is"
     reverse = "is not" if expected else "is"
     assert bool(_get_control_value(context, group, "track_loaded")) is expected, f"Track {reverse} loaded on {group}"
+
+@then("a track {assertion} loaded on preview deck")
+def step_track_is_loaded_on_preview_deck(context, assertion):
+    track_is_loaded_on_group(context, assertion, CHANNEL_PREVIEW_DECK)
+
+@then("a track {assertion} loaded on deck {deck:d}")
+def step_track_is_loaded_on_deck(context, assertion, deck):
+    track_is_loaded_on_group(context, assertion, _deck_group(deck))
+
+
+# --- Preview deck (sub feature) ---
+
+@when('I click the "{button}" button on the preview deck')
+def step_click_preview_deck_button(context, button):
+    suffix = DECK_BUTTON_PATHS.get(button, button)
+    _click(context, f"{PREVIEW_DECK_PATH}/{suffix}")
+    time.sleep(1)
+
+@given("the preview deck is {state:w}")
+def step_preview_deck_is_state(context, state):
+    playing = state == "playing"
+    if bool(_get_control_value(context, CHANNEL_PREVIEW_DECK, "play")) == playing:
+        return
+    # Toggling via the button: the play CO bounces back while the track is
+    # still loading (EngineBuffer::slotControlPlayRequest refuses early play).
+    _click(context, f"{PREVIEW_DECK_PATH}/playButton")
+    time.sleep(1)
+    actual = _get_control_value(context, CHANNEL_PREVIEW_DECK, "play")
+    assert bool(actual) is playing, (
+        f"Unable to set the preview deck {state} (play={actual})")
+
+@then("the preview deck's playback state should be {state:w}")
+def step_preview_deck_state(context, state):
+    expected = state == "playing"
+    value = bool(_get_control_value(context, CHANNEL_PREVIEW_DECK, "play"))
+    label = lambda playing: "playing" if playing else "stopped"
+    assert value is expected, (
+        f"The preview deck should be {label(expected)} but is {label(value)}")
+
+@then("the preview deck should be visible")
+def step_track_context_menu_visible(context):
+    assert wait_visible(context.rpc, PREVIEW_DECK_PATH), "Preview deck is not visible"
+
+@then("the preview deck should still be stopped")
+def step_preview_deck_still_stopped(context):
+    value = _get_control_value(context, CHANNEL_PREVIEW_DECK, "play")
+    assert not value, (
+        f"The preview deck should still be stopped but is playing (play={value})")
+
+@then("the play button on the preview deck should be {assertion}")
+def step_preview_deck_play_button(context, assertion):
+    expected = assertion == "pressed"
+    value = _get_property(
+        context, f"{PREVIEW_DECK_PATH}/playButton", "highlight") == "true"
+    label = lambda pressed: "pressed" if pressed else "released"
+    assert value is expected, (
+        f"The play button should be {label(expected)} but is {label(value)}")
+
+@when("I eject the preview deck")
+def step_eject_preview_deck(context):
+    _set_control_value(context, CHANNEL_PREVIEW_DECK, "eject", 1.0)
+    time.sleep(0.01)
+    _set_control_value(context, CHANNEL_PREVIEW_DECK, "eject", 0.0)
+
+@given("quantize is disabled on preview deck")
+def step_quantize_disabled_preview_deck(context):
+    _set_control_value(context, CHANNEL_PREVIEW_DECK, "quantize", 0.0)
+    time.sleep(0.3)
+
+@given("the playhead of the preview deck is at {position:f}")
+def step_given_preview_deck_playhead(context, position):
+    _set_control_value(context, CHANNEL_PREVIEW_DECK, "playposition", position)
+    actual = _get_control_value(context, CHANNEL_PREVIEW_DECK, "playposition")
+    # A playing deck advances the playhead between the write and the read.
+    assert abs(actual - position) < 0.005, (
+        f"Unable to set the preview deck playposition to {position} "
+        f"(actual={actual})")
+
+@when("I seek the playhead of the preview deck to {position:f}")
+def step_seek_preview_deck_playhead(context, position):
+    _set_control_value(context, CHANNEL_PREVIEW_DECK, "playposition", position)
+
+@then("the playhead of the preview deck should be near {position:f}")
+def step_preview_deck_playhead_near(context, position):
+    actual = _get_control_value(context, CHANNEL_PREVIEW_DECK, "playposition")
+    assert abs(actual - position) < 0.02, (
+        f"The playhead should be near {position} but is {actual}")
+
+@then("the preview deck player elements should be hidden")
+def step_preview_deck_player_elements_hidden(context):
+    for element in ("coverArt", "footer"):
+        assert not _is_visible(context, f"{PREVIEW_DECK_PATH}/{element}"), (
+            f"The preview deck {element} should be hidden when no track "
+            "is loaded")
+
+@then("the preview deck placeholder should be visible")
+def step_preview_deck_placeholder_visible(context):
+    assert wait_visible(
+        context.rpc, f"{PREVIEW_DECK_PATH}/placeholder"), (
+        "The preview deck placeholder should be visible when no track "
+        "is loaded")
 
 
 # --- Hotcue popup (sub feature) ---

@@ -201,9 +201,12 @@ RpcServe::RpcServe(
                                    << rest;
                         return;
                     }
-                    int deck = rest.left(comma).toInt();
+                    QString deck = rest.left(comma);
                     QString filePath = rest.mid(comma + 1);
-                    QString group = QString("[Channel%1]").arg(deck);
+                    // Accept a player group token or a deck number
+                    QString group = deck.startsWith('[')
+                            ? deck
+                            : QString("[Channel%1]").arg(deck.toInt());
                     pPlayerManager->slotLoadLocationToPlayer(filePath, group, false);
                     qDebug() << "loadTrack: loaded" << filePath << "into" << group;
                 } else if (command == "library") {
