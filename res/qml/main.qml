@@ -21,6 +21,8 @@ ApplicationWindow {
     // sees presses that nothing else accepted.
     readonly property alias touchHub: touchHubArea
 
+    property var selectedSkin: Mixxx.Core.ready ? Mixxx.Core.skins.find((skin) => skin.name == Mixxx.Config.configSkin) ?? Mixxx.Core.skins[0] : null
+
     color: Theme.backgroundColor
     height: isMobile ? Screen.height : designHeight
     minimumHeight: isMobile ? 0 : 300
@@ -33,9 +35,19 @@ ApplicationWindow {
         Mixxx.Core.clearOpenedPopup();
     }
 
+    Component.onDestruction: {
+        Mixxx.Config.mainWindowGeometry = JSON.stringify({
+            width: root.width,
+            height: root.height,
+            x: root.x,
+            y: root.y,
+        })
+    }
+
     Connections {
         function onReadyChanged() {
-            root.visibility = Mixxx.Config.configStartInFullscreenKey || isMobile ? Window.FullScreen : Window.Windowed;
+            root.selectedSkin = Qt.binding(() => Mixxx.Core.skins.find((skin) => skin.name == Mixxx.Config.configSkin) ?? Mixxx.Core.skins[0]);
+            root.visibility = Qt.binding(() => Mixxx.Config.configStartInFullscreenKey || isMobile ? Window.FullScreen : Window.Windowed);
         }
 
         target: Mixxx.Core
@@ -52,22 +64,42 @@ ApplicationWindow {
         anchors.fill: parent
         z: -1
     }
+    Component {
+        id: fallback
+        Item {
+            Rectangle {
+                color: "red"
+                height: 30
+                width: 80
+                anchors.centerIn: parent
+                Text {
+                anchors.centerIn: parent
+                    text: "Oooops"
+                }
+            }
+        }
+    }
     Loader {
         id: content
 
-        // Implicit biding to skins
+        // Implicit binding to skins
+        property ApplicationWindow applicationWindow: root
         property var devTools: devToolsWindow
         property var settingsPopup: settingsPopupItem
 
         active: Mixxx.Core.ready
         anchors.fill: parent
         asynchronous: true
-        sourceComponent: Mixxx.Core.selectedSkin?.main
+        sourceComponent: root.selectedSkin?.main ?? fallback
+        onSourceComponentChanged:{
+            content.asynchronous = true;
+        }
+
 
         onStatusChanged: {
             if (status === Loader.Error) {
                 console.error("Failed to load the Mixxx main window");
-                Qt.quit();
+                content.sourceComponent = fallback
             } else if (status === Loader.Ready) {
                 // Keep the loader synchronous going forward so all UI operation such as layout
                 // invalidation won't induce weird visual artifacts or delays.

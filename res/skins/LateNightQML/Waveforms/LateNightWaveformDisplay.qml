@@ -93,7 +93,7 @@ Item {
         visible: !root.passthroughEnabled && Mixxx.Config.waveformEnabled
         anchors.fill: parent
         backgroundColor: root.waveformBgColor
-        frameRate: Mixxx.Config.waveformFrameRate
+        // frameRate: Mixxx.Config.waveformFrameRate
         group: root.group
         options: Mixxx.Config.waveformOptions
         zoom: zoomControl.value
@@ -146,7 +146,7 @@ Item {
         }
         Mixxx.WaveformRendererFiltered {
             axesColor: root.beatAxesColor
-            enabled: root.activeWaveformType === Mixxx.WaveformDisplay.Type.Filtered
+            // enabled: root.activeWaveformType === Mixxx.WaveformDisplay.Type.Filtered
             gainAll: Mixxx.Config.waveformVisualGainAll
             gainHigh: Mixxx.Config.waveformVisualGainHigh
             gainLow: Mixxx.Config.waveformVisualGainLow
@@ -155,44 +155,44 @@ Item {
             lowColor: root.waveformSignalColor
             midColor: root.waveformSignalColor
         }
-        Mixxx.WaveformRendererFiltered {
-            axesColor: root.beatAxesColor
-            enabled: root.activeWaveformType === Mixxx.WaveformDisplay.Type.Stacked
-            gainAll: Mixxx.Config.waveformVisualGainAll
-            gainHigh: Mixxx.Config.waveformVisualGainHigh
-            gainLow: Mixxx.Config.waveformVisualGainLow
-            gainMid: Mixxx.Config.waveformVisualGainMedium
-            highColor: LateNightTheme.waveformFilteredHighColor
-            lowColor: LateNightTheme.waveformFilteredLowColor
-            midColor: LateNightTheme.waveformFilteredMidColor
-            stacked: true
-        }
-        Mixxx.WaveformRendererSimple {
-            axesColor: root.beatAxesColor
-            color: LateNightTheme.waveformFilteredHighColor
-            enabled: root.activeWaveformType === Mixxx.WaveformDisplay.Type.Simple
-            gain: Mixxx.Config.waveformVisualGainAll
-        }
-        Mixxx.WaveformRendererHSV {
-            axesColor: root.beatAxesColor
-            color: LateNightTheme.waveformFilteredHighColor
-            enabled: root.activeWaveformType === Mixxx.WaveformDisplay.Type.HSV
-            gainAll: Mixxx.Config.waveformVisualGainAll
-            gainHigh: Mixxx.Config.waveformVisualGainHigh
-            gainLow: Mixxx.Config.waveformVisualGainLow
-            gainMid: Mixxx.Config.waveformVisualGainMedium
-        }
-        Mixxx.WaveformRendererRGB {
-            axesColor: root.beatAxesColor
-            enabled: root.activeWaveformType === Mixxx.WaveformDisplay.Type.RGB
-            gainAll: Mixxx.Config.waveformVisualGainAll
-            gainHigh: Mixxx.Config.waveformVisualGainHigh
-            gainLow: Mixxx.Config.waveformVisualGainLow
-            gainMid: Mixxx.Config.waveformVisualGainMedium
-            highColor: LateNightTheme.overviewRgbHighColor
-            lowColor: LateNightTheme.overviewRgbLowColor
-            midColor: LateNightTheme.overviewRgbMidColor
-        }
+        // Mixxx.WaveformRendererFiltered {
+        //     axesColor: root.beatAxesColor
+        //     enabled: root.activeWaveformType === Mixxx.WaveformDisplay.Type.Stacked
+        //     gainAll: Mixxx.Config.waveformVisualGainAll
+        //     gainHigh: Mixxx.Config.waveformVisualGainHigh
+        //     gainLow: Mixxx.Config.waveformVisualGainLow
+        //     gainMid: Mixxx.Config.waveformVisualGainMedium
+        //     highColor: LateNightTheme.waveformFilteredHighColor
+        //     lowColor: LateNightTheme.waveformFilteredLowColor
+        //     midColor: LateNightTheme.waveformFilteredMidColor
+        //     stacked: true
+        // }
+        // Mixxx.WaveformRendererSimple {
+        //     axesColor: root.beatAxesColor
+        //     color: LateNightTheme.waveformFilteredHighColor
+        //     enabled: root.activeWaveformType === Mixxx.WaveformDisplay.Type.Simple
+        //     gain: Mixxx.Config.waveformVisualGainAll
+        // }
+        // Mixxx.WaveformRendererHSV {
+        //     axesColor: root.beatAxesColor
+        //     color: LateNightTheme.waveformFilteredHighColor
+        //     enabled: root.activeWaveformType === Mixxx.WaveformDisplay.Type.HSV
+        //     gainAll: Mixxx.Config.waveformVisualGainAll
+        //     gainHigh: Mixxx.Config.waveformVisualGainHigh
+        //     gainLow: Mixxx.Config.waveformVisualGainLow
+        //     gainMid: Mixxx.Config.waveformVisualGainMedium
+        // }
+        // Mixxx.WaveformRendererRGB {
+        //     axesColor: root.beatAxesColor
+        //     enabled: root.activeWaveformType === Mixxx.WaveformDisplay.Type.RGB
+        //     gainAll: Mixxx.Config.waveformVisualGainAll
+        //     gainHigh: Mixxx.Config.waveformVisualGainHigh
+        //     gainLow: Mixxx.Config.waveformVisualGainLow
+        //     gainMid: Mixxx.Config.waveformVisualGainMedium
+        //     highColor: LateNightTheme.overviewRgbHighColor
+        //     lowColor: LateNightTheme.overviewRgbLowColor
+        //     midColor: LateNightTheme.overviewRgbMidColor
+        // }
         Mixxx.WaveformRendererStem {
             gainAll: root.splitStemTracks ? 2.0 : 1.0
             opacity: Mixxx.Config.waveformStemOpacity
@@ -213,7 +213,7 @@ Item {
             untilMark.align: Mixxx.Config.waveformUntilMarkAlign === 0 ? Qt.AlignTop : Mixxx.Config.waveformUntilMarkAlign === 2 ? Qt.AlignBottom : Qt.AlignVCenter
             untilMark.showBeats: Mixxx.Config.waveformUntilMarkShowBeats
             untilMark.showTime: Mixxx.Config.waveformUntilMarkShowTime
-            untilMark.textHeightLimit: Mixxx.Config.waveformUntilMarkTextHeightLimit
+            // untilMark.textHeightLimit: Mixxx.Config.waveformUntilMarkTextHeightLimit
             untilMark.textSize: Mixxx.Config.waveformUntilMarkTextPointSize
 
             defaultMark: Mixxx.WaveformMark {

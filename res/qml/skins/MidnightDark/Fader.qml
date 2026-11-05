@@ -1,9 +1,9 @@
-import Mixxx.Controls 1.0 as MixxxControls
+import "Controls" as Controls
 import QtQuick.Effects
 import QtQuick 2.12
 import "Theme"
 
-MixxxControls.Fader {
+Controls.Fader {
     id: root
 
     property alias bg: backgroundImage.source

@@ -1,5 +1,5 @@
 import QtQuick
-import "../../../qml" as Skin
+import ".." as Skin
 import "../LateNightTheme"
 
 // A LateNight-styled button that cycles through N states.
