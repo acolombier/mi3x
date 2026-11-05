@@ -4371,6 +4371,7 @@ if(QML)
       src/qml/qmlconfigproxy.cpp
       src/qml/qmlconfigproxybase.cpp
       src/qml/qmlcontrolproxy.cpp
+      src/qml/qmlcontrollerproxy.cpp
       src/qml/qmlcuesmodel.cpp
       src/qml/qmldlgpreferencesproxy.cpp
       src/qml/qmleffectslotparametersmodel.cpp
