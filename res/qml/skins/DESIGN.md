@@ -6,6 +6,13 @@
 
 A skin is a **pure QML data package**. The core shell (`res/qml/main.qml`) is fixed software — splash, settings popup, dev tools, touch hub — and never changes per skin. Skins are discovered, validated, and switched at runtime; the application logo/theme/layout all live inside the skin package.
 
+## Why
+
+- Pure manifest approach
+- Strongly typed and validated "for free"
+- All fancy OOP from QML, allowing inheritance from "base" theme for example
+- Reactive - allowing dynamic logic (e.g different loader showing near XMas) at the skin level
+
 ## Anatomy of a skin
 
 ```text
