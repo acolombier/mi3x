@@ -29,6 +29,7 @@ namespace mixxx {
 class ControlIndicatorTimer;
 class DbConnectionPool;
 class ScreensaverManager;
+class NotificationManager;
 
 class CoreServices : public QObject {
     Q_OBJECT
@@ -39,6 +40,9 @@ class CoreServices : public QObject {
 
     /// The secondary long run which should be called after displaying the start up screen
     void initialize();
+    bool isInitialized() const {
+        return m_isInitialized;
+    }
 
     std::shared_ptr<KeyboardEventFilter> getKeyboardEventFilter() const {
         return m_pKeyboardEventFilter;
@@ -67,6 +71,10 @@ class CoreServices : public QObject {
         return m_pBroadcastManager;
     }
 #endif
+
+    NotificationManager* getNotificationManager() const {
+        return m_pNotificationManager;
+    }
 
     std::shared_ptr<ControllerManager> getControllerManager() const {
         return m_pControllerManager;
@@ -109,6 +117,7 @@ class CoreServices : public QObject {
   signals:
     void initializationProgressUpdate(int progress, const QString& serviceName);
     void libraryScanSummary(const LibraryScanResultSummary& result);
+    void initialized();
 
   private:
     bool initializeDatabase();
@@ -123,6 +132,8 @@ class CoreServices : public QObject {
     /// Tear down CoreServices that were previously initialized by `initialize()`.
     void finalize();
 
+    // Singleton
+    mixxx::NotificationManager* m_pNotificationManager;
     std::shared_ptr<SettingsManager> m_pSettingsManager;
     std::shared_ptr<mixxx::ControlIndicatorTimer> m_pControlIndicatorTimer;
     std::shared_ptr<EffectsManager> m_pEffectsManager;

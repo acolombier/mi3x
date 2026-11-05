@@ -31,10 +31,6 @@ Item {
         root.modelData.mapping?.saveSettingTree(root.settings);
     }
 
-    Layout.alignment: Qt.AlignTop
-    Layout.fillWidth: true
-    Layout.preferredHeight: root.focused ? settingsAndScreenItem.y + settingsAndScreenItem.height + 40 : 180
-
     Component.onCompleted: {
         loadSettingLayout();
     }
@@ -49,15 +45,11 @@ Item {
     Mixxx.SettingParameter {
         label: modelData.name
     }
+    MouseArea {
+        anchors.fill: parent
+    }
     Rectangle {
         id: content
-
-
-        layer.effect: MultiEffect {
-            shadowEnabled: !root.focused
-            shadowColor: "#000000"
-            shadowBlur: 0.1
-        }
 
         anchors.fill: parent
         anchors.margins: 8
@@ -465,8 +457,8 @@ Item {
                     suffix: "+"
                 }
             ]
-            implicitHeight: 32
-            indicator.width: 0
+            height: 32
+            indicator.width: 24
             model: Mixxx.ControllerManager.mappings(modelData.type)
             popupMaxItem: showAllMappings ? 6 : matchingMappings?.length + 1
             spacing: 2
@@ -478,7 +470,7 @@ Item {
 
                     anchors.left: parent.left
                     anchors.margins: 6
-                    anchors.right: parent.right
+                    anchors.right: infoBubble.left
                     anchors.verticalCenter: parent.verticalCenter
                     color: Theme.deckTextColor
                     font: mappingsCombobox.font
@@ -489,7 +481,7 @@ Item {
 
                     active: mappingInfoPopup.opened
                     anchors.right: parent.right
-                    anchors.rightMargin: 10
+                    anchors.rightMargin: 24
                     anchors.verticalCenter: parent.verticalCenter
                     height: 18
                     visible: mappingsCombobox.currentIndex >= 0
@@ -605,15 +597,11 @@ Item {
                         verticalAlignment: Text.AlignVCenter
                     }
                     Image {
+                        anchors.margins: 4
                         height: 18
                         source: "../images/work@2x.png"
                         visible: modelData.isUserMapping(Mixxx.Config)
                         width: 18
-
-                        anchors {
-                            margins: 4
-                            right: parent.right
-                        }
                     }
                 }
             }
@@ -679,21 +667,58 @@ Item {
             anchors.topMargin: 17
             color: Theme.midGray
             implicitHeight: 1
-            visible: root.focused && root.settings?.length + root.screens?.length > 0
+            visible: root.focused && (root.settings?.length > 0 || root.screens?.length > 0)
+
+            SequentialAnimation on visible {
+                PropertyAction {
+                    property: "opacity"
+                    target: horizontalRow
+                    value: 0
+                }
+                // If the opacity is 1, animate it down to 0
+                NumberAnimation {
+                    duration: 1500
+                    easing.type: Easing.InQuad
+                    property: "opacity"
+                    target: horizontalRow
+                    to: 1
+                }
+            }
         }
-        Item {
+        ScrollView {
             id: settingsAndScreenItem
 
+            anchors.bottom: content.bottom
             anchors.left: content.left
             anchors.leftMargin: 20
             anchors.right: content.right
             anchors.rightMargin: 20
             anchors.top: horizontalRow.bottom
             anchors.topMargin: 10
-            clip: true
-            height: settingColumn.height
-            visible: root.focused && root.settings?.length + root.screens?.length > 0
-            width: settingColumn.width
+            visible: root.focused && (root.settings?.length > 0 || root.screens?.length > 0)
+
+            ScrollBar.vertical: ScrollBar {
+                anchors.bottom: parent.bottom
+                anchors.right: parent.right
+                anchors.top: parent.top
+                objectName: "scrollBar"
+                policy: ScrollBar.Always
+            }
+            SequentialAnimation on visible {
+                PropertyAction {
+                    property: "opacity"
+                    target: settingsAndScreenItem
+                    value: 0
+                }
+                // If the opacity is 1, animate it down to 0
+                NumberAnimation {
+                    duration: 1500
+                    easing.type: Easing.InQuad
+                    property: "opacity"
+                    target: settingsAndScreenItem
+                    to: 1
+                }
+            }
 
             Column {
                 id: settingColumn
@@ -733,6 +758,17 @@ Item {
             }
         }
     }
+    MultiEffect {
+        anchors.fill: parent
+        anchors.margins: 8
+        autoPaddingEnabled: true
+        blurMultiplier: 0.12
+        shadowBlur: 0.84
+        shadowColor: '#98000000'
+        shadowEnabled: true
+        source: content
+    }
+
     component Settings: ControllerSettings {
         settings: root.settings
     }

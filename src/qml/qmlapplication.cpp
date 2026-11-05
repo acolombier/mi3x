@@ -1,22 +1,29 @@
 #include "qmlapplication.h"
 
 #include <QCoreApplication>
+#include <QQmlContext>
 #include <QQmlEngineExtensionPlugin>
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QTextDocument>
+#include <optional>
 #include <utility>
 
 #include "controllers/controllermanager.h"
+#include "defs_urls.h"
 #include "mixer/playermanager.h"
 #include "moc_qmlapplication.cpp"
+#include "notificationmanager.h"
 #include "preferences/configobject.h"
 #include "qml/asyncimageprovider.h"
 #include "qml/qmlapplicationproxy.h"
 #include "qml/qmlcoreservices.h"
 #include "qml/qmldlgpreferencesproxy.h"
 #include "qml/qmlrecordingproxy.h"
+#include "qmlsettingparameter.h"
 #include "soundio/soundmanager.h"
+#include "util/assert.h"
+#include "util/desktophelper.h"
 #include "util/versionstore.h"
 #include "waveform/guitick.h"
 #include "waveform/visualsmanager.h"
@@ -110,6 +117,7 @@ QmlApplication::QmlApplication(
                           : mainQmlFilePath),
           m_pAppEngine(nullptr),
           m_loadSucceeded(false),
+          m_pSettingsPopup(nullptr),
 #if defined(Q_OS_ANDROID)
           m_perfSession(nullptr),
 #endif
@@ -129,7 +137,7 @@ QmlApplication::QmlApplication(
     }
 #endif
 
-    QJSEngine::setObjectOwnership(QmlCoreServices::createInstance(this), QJSEngine::CppOwnership);
+    QmlCoreServices::registerCoreServices(m_pCoreServices.get());
 
     m_loadSucceeded = loadQml(m_mainFilePath);
     if (!m_loadSucceeded && !CmdlineArgs::Instance().getDeveloper()) {
@@ -190,17 +198,16 @@ QmlApplication::QmlApplication(
                 msgBox.addButton(tr("Ok"), QMessageBox::ActionRole);
         msgBox.exec();
         m_pCoreServices.reset();
-        exit(-1);
+        QCoreApplication::exit(-1);
     }
 
-    SoundDeviceStatus result = m_pCoreServices->getSoundManager()->setupDevices();
-    if (result != SoundDeviceStatus::Ok) {
-        const int reInt = static_cast<int>(result);
-        qCritical() << "Error setting up sound devices:" << reInt;
-#ifndef Q_OS_ANDROID
-        exit(reInt);
-#endif
+#ifdef __RPC_SERVER__
+    // Start the automation server if requested. It attaches to this
+    // application instance (no separate Qt application setup needed).
+    if (CmdlineArgs::Instance().getServe()) {
+        m_pRpcServe = std::make_unique<RpcServe>(this, m_pCoreServices);
     }
+#endif
 
     // FIXME: DlgPreferences has some initialization logic that must be executed
     // before the GUI is shown, at least for the effects system.
@@ -242,7 +249,6 @@ QmlApplication::QmlApplication(
     QQuickAsyncImageProvider* pImageProvider = new AsyncImageProvider(
             m_pCoreServices->getTrackCollectionManager());
     m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
-    QmlCoreServices::instance()->setReady();
 
     m_pCoreServices->getControllerManager()->setUpDevices();
 
@@ -260,13 +266,140 @@ QmlApplication::QmlApplication(
                 m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
             });
 
-#ifdef __RPC_SERVER__
-    // Start the automation server if requested. It attaches to this
-    // application instance (no separate Qt application setup needed).
-    if (CmdlineArgs::Instance().getServe()) {
-        m_pRpcServe = std::make_unique<RpcServe>(this, m_pCoreServices);
+    // Sound hardware setup
+    // Try to open configured devices. If that fails, display dialogs
+    // that allow to either retry, reconfigure devices or exit.
+    SoundDeviceStatus result = m_pCoreServices->getSoundManager()->setupDevices();
+    std::optional<std::pair<QString, QString>> titleAndText;
+    mixxx::Notification::Flags notificationFlags;
+    bool showContinue = false, showHelp = false;
+    // Predicate to indicate whether the issue is resolved and the notification can be closed
+    std::function<bool(SoundDeviceStatus)> showRetry = nullptr, showReconfig = nullptr;
+    if (result == SoundDeviceStatus::ErrorDeviceCount ||
+            result == SoundDeviceStatus::ErrorExcessiveOutputChannel) {
+        titleAndText = SoundManager::soundDeviceBusyMessageBuilder(
+                m_pCoreServices->getSoundManager()->getErrorDeviceName());
+        notificationFlags = mixxx::Notification::Flag::Sticky |
+                mixxx::Notification::Flag::Wrap |
+                mixxx::Notification::Flag::Error;
+        showRetry = [](SoundDeviceStatus result) {
+            return !(result == SoundDeviceStatus::ErrorDeviceCount ||
+                    result == SoundDeviceStatus::ErrorExcessiveOutputChannel);
+        };
+        showHelp = true;
+        showReconfig = showRetry;
+    } else if (result != SoundDeviceStatus::Ok) {
+        titleAndText = SoundManager::soundDeviceErrorMessageBuilder(
+                m_pCoreServices->getSoundManager()->getLastErrorMessage(
+                        result));
+        notificationFlags = mixxx::Notification::Flag::Sticky |
+                mixxx::Notification::Flag::Wrap |
+                mixxx::Notification::Flag::Error;
+        showRetry = [](SoundDeviceStatus result) {
+            return result == SoundDeviceStatus::Ok;
+        };
+    } else if (m_pCoreServices->getSoundManager()
+                       ->getConfig()
+                       .getOutputs()
+                       .isEmpty() &&
+            !m_pCoreServices->getSoundManager()->pipewireSkipConfig()) {
+        titleAndText = SoundManager::soundDeviceNoOutputMessageBuilder();
+        notificationFlags = mixxx::Notification::Flag::Sticky |
+                mixxx::Notification::Flag::Wrap |
+                mixxx::Notification::Flag::Warn;
+        showContinue = true;
+        showReconfig = [this](SoundDeviceStatus result) {
+            return result == SoundDeviceStatus::Ok &&
+                    !m_pCoreServices->getSoundManager()
+                             ->getConfig()
+                             .getOutputs()
+                             .isEmpty() &&
+                    !m_pCoreServices->getSoundManager()->pipewireSkipConfig();
+        };
     }
-#endif
+    if (titleAndText) {
+        auto pNotification =
+                std::make_shared<mixxx::Notification>(titleAndText->first, notificationFlags);
+        pNotification->setDetails(titleAndText->second);
+
+        if (showContinue) {
+            pNotification->addButton("Continue", this, [this, pNotification]() {
+                m_pCoreServices->getNotificationManager()->closeNotification(pNotification);
+            });
+        }
+        if (showRetry) {
+            pNotification->addButton("Retry",
+                    this,
+                    [this, pNotification, showRetry = std::move(showRetry)]() {
+                        // FIXME alsa will freeze for 5 second. Plus the setting
+                        // was already applied so this lead to double op
+                        m_pCoreServices->getSoundManager()
+                                ->clearAndQueryDevices();
+                        if (showRetry(m_pCoreServices->getSoundManager()
+                                            ->setupDevices())) {
+                            m_pCoreServices->getNotificationManager()
+                                    ->closeNotification(pNotification);
+                        }
+                    });
+        }
+        if (showHelp) {
+            pNotification->addButton("Help", this, [this, pNotification]() {
+                mixxx::DesktopHelper::openUrl(QUrl(MIXXX_WIKI_TROUBLESHOOTING_SOUND_URL));
+            });
+        }
+        if (showReconfig) {
+            pNotification->addButton("Reconfigure",
+                    this,
+                    [this,
+                            pNotification,
+                            showReconfig = std::move(showReconfig)]() {
+                        VERIFY_OR_DEBUG_ASSERT(m_pSettingsPopup) {
+                            return;
+                        }
+                        QMetaObject::invokeMethod(
+                                m_pSettingsPopup, "open", Qt::QueuedConnection);
+                        QMetaObject::invokeMethod(m_pSettingsPopup,
+                                "focusSection",
+                                Qt::QueuedConnection,
+                                Q_ARG(QVariant,
+                                        QVariant::fromValue(
+                                                QStringList({"soundHardware",
+                                                        "routerGroup"}))));
+                        connect(this,
+                                &QmlApplication::settingSaved,
+                                this,
+                                [this,
+                                        pNotification,
+                                        showReconfig =
+                                                std::move(showReconfig)]() {
+                                    // FIXME alsa will freeze for 5 second. Plus
+                                    // the setting was already applied so this
+                                    // lead to double op
+                                    m_pCoreServices->getSoundManager()
+                                            ->clearAndQueryDevices();
+                                    if (showReconfig(m_pCoreServices
+                                                        ->getSoundManager()
+                                                        ->setupDevices())) {
+                                        m_pCoreServices
+                                                ->getNotificationManager()
+                                                ->closeNotification(
+                                                        pNotification);
+                                        // The user has either reconfigured
+                                        // devices or accepted no outputs, so
+                                        // it's now safe to write the new config
+                                        // to disk.
+                                        m_pCoreServices->getSoundManager()
+                                                ->getConfig()
+                                                .writeToDisk();
+                                    }
+                                });
+                    });
+        }
+        pNotification->addButton("Exit", this, [this, pNotification]() {
+            QCoreApplication::exit(0);
+        });
+        m_pCoreServices->getNotificationManager()->notify(pNotification);
+    }
 
 #if defined(Q_OS_ANDROID)
     APerformanceHintManager* manager = APerformanceHint_getManager();
@@ -332,6 +465,7 @@ bool QmlApplication::loadQml(const QString& path) {
     // QQmlApplicationEngine::load creates a new window but also leaves the old one,
     // so it is necessary to destroy the old QQmlApplicationEngine and create a new one.
     m_pAppEngine = std::make_unique<QQmlApplicationEngine>();
+    m_pSettingsPopup = nullptr;
 
     m_autoReload.clear();
     m_pAppEngine->addUrlInterceptor(&m_autoReload);
@@ -346,16 +480,33 @@ bool QmlApplication::loadQml(const QString& path) {
         }
     }
 
-#if defined(Q_OS_ANDROID)
-    for (auto* item : m_pAppEngine->rootObjects()) {
+    const auto& rootObjects = m_pAppEngine->rootObjects();
+    for (auto* item : std::as_const(rootObjects)) {
         auto* pWindow = qobject_cast<QQuickWindow*>(item);
         if (!pWindow) {
             continue;
         }
+        m_pSettingsPopup = m_pAppEngine->contextForObject(item)->objectForName("settingsPopupItem");
+#if defined(Q_OS_ANDROID)
         slotWindowChanged(pWindow);
+#endif
         break;
     }
-#endif
+    DEBUG_ASSERT(m_pSettingsPopup);
+
+    if (m_pSettingsPopup) {
+        const QMetaObject* meta = m_pSettingsPopup->metaObject();
+        int signalIndex = meta->indexOfSignal(
+                "saved(QVariant)");
+        DEBUG_ASSERT(signalIndex >= 0);
+        if (signalIndex >= 0) {
+            QMetaMethod signalMethod = meta->method(signalIndex);
+            connect(m_pSettingsPopup,
+                    signalMethod,
+                    this,
+                    QMetaMethod::fromSignal(&QmlApplication::settingSaved));
+        }
+    }
 
 #ifdef __RPC_SERVER__
     if (m_pRpcServe) {

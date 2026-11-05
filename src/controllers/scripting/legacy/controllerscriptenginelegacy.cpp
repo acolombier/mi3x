@@ -5,6 +5,9 @@
 #include <QThread>
 #include <memory>
 
+#include "notification.h"
+#include "notificationmanager.h"
+
 #ifdef MIXXX_USE_QML
 #include <QDirIterator>
 #include <QQmlEngine>
@@ -32,6 +35,10 @@ ControllerScriptEngineLegacy::ControllerScriptEngineLegacy(
     connect(&m_fileWatcher,
             &QFileSystemWatcher::fileChanged,
             this,
+            &ControllerScriptEngineLegacy::notify);
+    connect(&m_fileWatcher,
+            &QFileSystemWatcher::fileChanged,
+            this,
             [this](const QString& changedFile) {
                 qCDebug(m_logger) << "File" << changedFile << "has been changed.";
                 // This is to prevent double-reload when a file is updated twice
@@ -46,7 +53,29 @@ ControllerScriptEngineLegacy::ControllerScriptEngineLegacy(
             &QFileSystemWatcher::directoryChanged,
             this,
             &ControllerScriptEngineLegacy::reload);
+    connect(&m_fileWatcher,
+            &QFileSystemWatcher::directoryChanged,
+            this,
+            &ControllerScriptEngineLegacy::notify);
 #endif
+}
+
+void ControllerScriptEngineLegacy::notify() {
+    auto pNotification =
+            std::make_shared<mixxx::Notification>(tr("Controller Mapping"),
+                    mixxx::Notification::Flag::Info);
+
+    pNotification->setTimeoutSecs(4);
+    pNotification->setDetails(
+            tr("Changes were detected for your active mapping used for your "
+               "controller \"%1\". Mapping is being reloaded.")
+                    .arg(m_pController->getName()));
+
+    pNotification->addButton("Close", this, [pNotification]() {
+        mixxx::NotificationManager::instance()->closeNotification(pNotification);
+    });
+    pNotification->moveToThread(mixxx::NotificationManager::instance()->thread());
+    mixxx::NotificationManager::instance()->notify(pNotification);
 }
 
 ControllerScriptEngineLegacy::~ControllerScriptEngineLegacy() {

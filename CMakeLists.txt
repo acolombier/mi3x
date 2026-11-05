@@ -4371,6 +4371,7 @@ if(QML)
       src/qml/qmlconfigproxy.cpp
       src/qml/qmlconfigproxybase.cpp
       src/qml/qmlcontrolproxy.cpp
+      src/qml/qmlcontrollerproxy.cpp
       src/qml/qmlcuesmodel.cpp
       src/qml/qmldlgpreferencesproxy.cpp
       src/qml/qmleffectslotparametersmodel.cpp
@@ -4424,6 +4425,8 @@ if(QML)
       src/control/controlsortfiltermodel.cpp
       # needed for qml/qmlautoreload.cpp
       src/util/autofilereloader.cpp
+      src/notification.cpp
+      src/notificationmanager.cpp
   )
 
   if(STEM)

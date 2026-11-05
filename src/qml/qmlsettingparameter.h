@@ -18,7 +18,8 @@ class QmlSettingGroup : public QQuickItem {
         return m_label;
     }
   signals:
-    Q_INVOKABLE void activated();
+    void activated();
+    void saved();
 
   signals:
     void labelChanged();
@@ -63,6 +64,8 @@ class QmlSettingParameterManager : public QQuickItem {
     QSortFilterProxyModel* model() {
         return &m_model;
     }
+
+    Q_INVOKABLE mixxx::qml::QmlSettingGroup* findSettings(QStringList objectNames);
 
   private:
     QStandardItemModel m_sourceModel;

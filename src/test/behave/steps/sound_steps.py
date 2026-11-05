@@ -11,6 +11,8 @@ from helpers import (
     DELAYS_SECTION,
     ENGINE_SECTION,
     INPUT_COLUMN,
+    NOTIFICATION_ACTION_TEMPLATE,
+    NOTIFICATION_BELL,
     OUTPUT_COLUMN,
     ROUTER_SECTION,
     _MULTI_SOUNDCARD_OPTION_INDEX,
@@ -20,13 +22,13 @@ from helpers import (
     _edge_path,
     _entity_path,
     _find_first_free_output_edge,
+    _find_notification,
     _get_property,
     _get_router_mode,
     _is_visible,
     _set_router_mode,
+    _wait_for_clickable,
     _wait_for_hidden,
-)
-from helpers import (
     wait_hidden,
     wait_visible,
 )
@@ -59,22 +61,23 @@ def step_saved_connection_exists(context, edge, entity):
 def step_set_router_mode(context, mode):
     _set_router_mode(context, mode)
 
-@when('I connect the "{edge}" edge on "{entity}" entity to a free output device with {mean}')
-@when('I connect the "{edge}" edge on "{entity}" entity to a free output device')
-def step_connect_edge_to_output_alt(context, edge, entity, mean="two clicks"):
+@when('I connect the "{edge}" edge on "{entity}" entity to a free output channel with {mean}')
+@when('I connect the "{edge}" edge on "{entity}" entity to a free output channel')
+@when('I connect the "{edge}" edge on "{entity}" entity to a free output channel on device "{device}"')
+def step_connect_edge_to_output_alt(context, edge, entity, mean="two clicks", device=None):
     source_path = _edge_path(entity, edge)
     assert wait_visible(context.rpc, source_path), f"Source edge {edge} on {entity} not visible"
     if mean == "two clicks":
         _click(context, source_path)
         time.sleep(0.5)
-        sink_path = _find_first_free_output_edge(context)
+        sink_path = _find_first_free_output_edge(context, device_name=device)
         assert sink_path and wait_visible(context.rpc, sink_path), "No free output device edge found"
         _click(context, sink_path)
         time.sleep(0.5)
     else:
         # FIXME not correctly working
         source_bb = context.rpc.getBoundingBox(source_path)
-        sink_path = _find_first_free_output_edge(context)
+        sink_path = _find_first_free_output_edge(context, device_name=device)
         assert sink_path and wait_visible(context.rpc, sink_path), "No free output device edge found"
         sink_bb = context.rpc.getBoundingBox(sink_path)
         delta = sink_bb[0] - source_bb[0], sink_bb[1] - source_bb[1]
@@ -92,9 +95,12 @@ def step_hover_edge(context, edge, entity):
         "Cannot simulate hover to set AudioConnection.Flags.AboutToDelete."
     )
 
+@when("the engine section should be visible")
 @then("the engine section should be visible")
 def step_engine_visible(context):
-    assert _is_visible(context, ENGINE_SECTION), "Engine section is not visible"
+    # TODO 15 seconds feels too large. Reduce if confirmed not to be needed on slow runners
+    assert wait_visible(context.rpc, ENGINE_SECTION, timeout=15), (
+        "Engine section is not visible")
 
 @then("the delays section should be visible")
 def step_delays_visible(context):

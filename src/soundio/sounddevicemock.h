@@ -18,7 +18,8 @@ class SoundDeviceMock : public SoundDevice {
             const QString& api,
             const QString& displayName,
             int outputChannels,
-            int inputChannels)
+            int inputChannels,
+            SoundDeviceStatus expectedOpenStatus = SoundDeviceStatus::Ok)
             : SoundDevice(config, sm) {
         m_hostAPI = api;
         m_strDisplayName = displayName;
@@ -27,13 +28,12 @@ class SoundDeviceMock : public SoundDevice {
                 mixxx::audio::ChannelCount::fromInt(outputChannels);
         m_numInputChannels =
                 mixxx::audio::ChannelCount::fromInt(inputChannels);
+        m_expectedOpenStatus = expectedOpenStatus;
     }
 
     SoundDeviceStatus open(
-            bool isClkRefDevice, int syncBuffers) override {
-        Q_UNUSED(isClkRefDevice);
-        Q_UNUSED(syncBuffers);
-        return SoundDeviceStatus::Ok;
+            bool, int) override {
+        return m_expectedOpenStatus;
     };
     bool isOpen() const override {
         return false;
@@ -50,4 +50,7 @@ class SoundDeviceMock : public SoundDevice {
     mixxx::audio::SampleRate getDefaultSampleRate() const override {
         return m_sampleRate;
     }
+
+  private:
+    SoundDeviceStatus m_expectedOpenStatus;
 };
