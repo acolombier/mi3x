@@ -4217,8 +4217,6 @@ endif()
 
 is_static_library(Qt_IS_STATIC Qt${QT_VERSION_MAJOR}::Core)
 if(QML)
-  target_sources(mixxx-lib PRIVATE src/skin/qml/qmlskin.cpp)
-
   if(QT_KNOWN_POLICY_QTP0004)
     # See: https://doc.qt.io/qt-6/qt-cmake-policy-qtp0004.html
     # OLD requires to import qml modules with a folder e.g.:

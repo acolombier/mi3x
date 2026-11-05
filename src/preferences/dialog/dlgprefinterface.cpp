@@ -588,30 +588,11 @@ void DlgPrefInterface::slotApply() {
     if (m_pSkin &&
             (m_pSkin->name() != m_skinNameOnUpdate ||
                     m_colorScheme != m_colorSchemeOnUpdate)) {
-        if (m_pSkin->type() == mixxx::skin::SkinType::QML) {
-            if (m_pSkin->name() != m_skinNameOnUpdate) {
-                notifyExperimentalQmlSkinRestartNecessary();
-                m_skinNameOnUpdate = m_pSkin->name();
-                m_colorSchemeOnUpdate = m_colorScheme;
-                return;
-            } else {
-                if (mixxx::qml::QmlConfigProxyBase::s_pInstance) {
-                    mixxx::qml::QmlConfigProxyBase::s_pInstance->setConfigScheme(m_colorScheme);
-                }
-                m_colorSchemeOnUpdate = m_colorScheme;
-            }
-        } else if (!WaveformWidgetFactory::isCreated()) {
-            notifyExperimentalQmlSkinRestartNecessary();
-            m_skinNameOnUpdate = m_pSkin->name();
-            m_colorSchemeOnUpdate = m_colorScheme;
-            return;
-        } else {
-            // ColorSchemeParser::setupLegacyColorSchemes() reads scheme from config
-            emit reloadUserInterface();
-            // Allow switching skins multiple times without closing the dialog
-            m_skinNameOnUpdate = m_pSkin->name();
-            m_colorSchemeOnUpdate = m_colorScheme;
-        }
+        // ColorSchemeParser::setupLegacyColorSchemes() reads scheme from config
+        emit reloadUserInterface();
+        // Allow switching skins multiple times without closing the dialog
+        m_skinNameOnUpdate = m_pSkin->name();
+        m_colorSchemeOnUpdate = m_colorScheme;
     }
 }
 

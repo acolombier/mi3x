@@ -49,10 +49,6 @@ class Skin {
             UserSettingsPointer pConfig,
             QSet<ControlObject*>* pSkinCreatedControls,
             mixxx::CoreServices* pCoreServices) const = 0;
-
-    virtual QString mainQmlFilePath() const {
-        return QString();
-    }
 };
 
 typedef std::shared_ptr<Skin> SkinPointer;
