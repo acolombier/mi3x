@@ -5,7 +5,7 @@ import QtQuick.Effects
 import QtQuick.Controls
 import QtQuick 2.12
 import ".." as Skin
-import "../Settings" as SettingComponents
+import "../../../Settings" as SettingComponents
 import "../Theme"
 
 Item {

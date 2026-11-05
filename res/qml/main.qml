@@ -41,6 +41,12 @@ ApplicationWindow {
 
         target: Mixxx.Core
     }
+    DeveloperToolsWindow {
+        id: devToolsWindow
+
+        height: 480
+        width: 640
+    }
     MixxxControls.TouchHub {
         id: touchHubArea
 
@@ -50,17 +56,16 @@ ApplicationWindow {
     Loader {
         id: content
 
+        // Implicit biding to skins
+        property var devTools: devToolsWindow
+        property var settingsPopup: settingsPopupItem
+
         active: Mixxx.Core.ready
         anchors.fill: parent
         asynchronous: true
-        focus: true
 
-        sourceComponent: Component {
-            MainWindow {
-                focus: true
-                settingsPopup: root.settings
-            }
-        }
+        focus: true
+        sourceComponent: Mixxx.Core.selectedSkin?.main
 
         onStatusChanged: {
             if (status === Loader.Error) {

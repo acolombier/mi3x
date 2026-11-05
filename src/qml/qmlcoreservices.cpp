@@ -1,7 +1,10 @@
 #include "qml/qmlcoreservices.h"
 
+#include <qdiriterator.h>
 #include <qnamespace.h>
 #include <qobject.h>
+#include <qqml.h>
+#include <qqmlcomponent.h>
 #include <qqmlengine.h>
 
 #include <utility>
@@ -13,11 +16,27 @@
 #include "moc_qmlcoreservices.cpp"
 #include "notification.h"
 #include "notificationmanager.h"
+#include "qml_owned_ptr.h"
 #include "track/track.h"
 #include "util/assert.h"
+#include "util/fileinfo.h"
+#include "util/parented_ptr.h"
 
+namespace {
+
+const QString kSkinFolders = QStringLiteral("qml/skins");
+const QString kSkinExtension = QStringLiteral(".qml");
+} // namespace
 namespace mixxx {
 namespace qml {
+
+QmlSkin::QmlSkin(QObject* parent)
+        : QObject(parent),
+          m_main(),
+          m_loader() {
+}
+
+QmlSkin::~QmlSkin() = default;
 
 QmlCoreServices::QmlCoreServices(QQmlEngine* pQmlEngine)
         : QObject(pQmlEngine) {
@@ -38,6 +57,97 @@ QmlCoreServices::QmlCoreServices(QQmlEngine* pQmlEngine)
     if (s_pCoreServices->isInitialized()) {
         slotInitialization();
     }
+
+    // TODO like for mapping, should also explore user folder
+    const QStringList skinPaths = {
+            s_pCoreServices->getSettings()->getResourcePath() + kSkinFolders};
+    for (const QString& skinPath : std::as_const(skinPaths)) {
+        QDirIterator it(skinPath);
+        while (it.hasNext()) {
+            it.next();
+            const QFileInfo fileInfo = it.fileInfo();
+            const QString path = fileInfo.filePath();
+
+            if (path.endsWith(kSkinExtension, Qt::CaseInsensitive)) {
+                auto uri = QUrl::fromLocalFile(fileInfo.absoluteFilePath());
+                auto* pQmlComponent = new QQmlComponent(
+                        pQmlEngine, uri, QQmlComponent::Asynchronous, this);
+                QFile skin = QFile(fileInfo.absoluteFilePath());
+                if (!skin.open(QIODevice::ReadOnly)) {
+                    qWarning() << "Unable to open QML scene file:"
+                               << fileInfo.absoluteFilePath();
+                    continue;
+                }
+
+                m_skinManifests.insert(uri, pQmlComponent);
+                connect(pQmlComponent,
+                        &QQmlComponent::statusChanged,
+                        this,
+                        [this, uri](QQmlComponent::Status status) {
+                            slotSkinLoaded(uri, status);
+                        });
+
+                pQmlComponent->setData(
+                        skin.readAll(),
+                        // Obfuscate the scene filename to make it appear in the QML folder.
+                        // This allows a smooth integration with QML components.
+                        uri);
+                // skin.close();
+            }
+        }
+    }
+}
+
+void QmlCoreServices::slotSkinLoaded(const QUrl& uri, QQmlComponent::Status status) {
+    VERIFY_OR_DEBUG_ASSERT(m_skinManifests.contains(uri)) {
+        return;
+    }
+    auto* pQmlComponent = m_skinManifests[uri];
+    switch (status) {
+    case QQmlComponent::Status::Loading:
+        qDebug() << "Skin" << uri << "is loading";
+        break;
+    case QQmlComponent::Status::Error: {
+        const QList<QQmlError> errorList = pQmlComponent->errors();
+        for (const QQmlError& error : errorList) {
+            qWarning() << "Unable to load skin" << uri
+                       << "- error at line" << error.line() << ":" << error;
+        }
+        m_skinManifests.take(uri)->deleteLater();
+    } break;
+    case QQmlComponent::Status::Ready: {
+        DEBUG_ASSERT(pQmlComponent->isReady());
+        QObject* pRootObject = pQmlComponent->create();
+        if (pQmlComponent->isError()) {
+            const QList<QQmlError> errorList = pQmlComponent->errors();
+            for (const QQmlError& error : errorList) {
+                qWarning() << "Unable to load skin" << error.url() << error.line() << error;
+            }
+            m_skinManifests.take(uri)->deleteLater();
+        }
+
+        mixxx::qml::QmlSkin* rootItem =
+                qobject_cast<mixxx::qml::QmlSkin*>(pRootObject);
+        if (!rootItem) {
+            qWarning() << "Unable to load skin" << uri << "- Not a Mixxx.Skin!";
+            pRootObject->deleteLater();
+            m_skinManifests.take(uri)->deleteLater();
+            return;
+        }
+        // LEAKING!
+        rootItem->setParent(nullptr);
+        // rootItem->setParent(qmlEngine(this));
+        m_pSkins.insert(uri, rootItem);
+        if (m_pSkins.size() == 1) {
+            emit selectedSkinChanged();
+        }
+
+    } break;
+    case QQmlComponent::Status::Null:
+        DEBUG_ASSERT(!"Unexpected status");
+        break;
+        ;
+    }
 }
 
 void QmlCoreServices::setReady() {
@@ -46,6 +156,10 @@ void QmlCoreServices::setReady() {
     }
     m_ready = true;
     emit readyChanged();
+}
+
+QmlSkin* QmlCoreServices::getSelectedSkin() {
+    return m_pSkins.isEmpty() ? nullptr : m_pSkins.first();
 }
 
 // static

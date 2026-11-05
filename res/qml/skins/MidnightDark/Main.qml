@@ -7,7 +7,7 @@ import QtQuick.Effects
 import QtQuick.Shapes
 import QtQuick.Window 2.12
 import Qt5Compat.GraphicalEffects
-import "Theme"
+import "./Theme"
 
 Item {
     id: root
@@ -39,7 +39,7 @@ Item {
     readonly property int numDecks: 4
     readonly property int numPreviewDecks: 1
     readonly property int numSamplers: 16
-    required property var settingsPopup
+    // property var settingsPopup
     readonly property bool show4decks: show4DecksButton.checked && show4DecksButton.visible
     property alias showEffects: showEffectsButton.checked
     property alias showSamplers: showSamplersButton.checked
@@ -240,21 +240,14 @@ Item {
 
                     activeColor: Theme.white
                     checkable: true
-                    checked: devToolsWindow.visible
+                    checked: devTools.visible
                     text: "Develop"
 
                     onClicked: {
-                        if (devToolsWindow.visible)
-                            devToolsWindow.close();
+                        if (devTools.visible)
+                            devTools.close();
                         else
-                            devToolsWindow.show();
-                    }
-
-                    DeveloperToolsWindow {
-                        id: devToolsWindow
-
-                        height: 480
-                        width: 640
+                            devTools.show();
                     }
                 }
                 Skin.Button {
@@ -332,15 +325,15 @@ Item {
                     id: showPreferencesButton
 
                     activeColor: Theme.white
-                    checked: root.settingsPopup.opened
+                    checked: settingsPopup.opened
                     icon.height: 16
                     icon.source: "images/gear.svg"
                     icon.width: 16
                     implicitWidth: implicitHeight
 
                     onClicked: {
-                        if (!root.settingsPopup.opened) {
-                            root.settingsPopup.open();
+                        if (!settingsPopup.opened) {
+                            settingsPopup.open();
                         }
                     }
                     onPressAndHold: {

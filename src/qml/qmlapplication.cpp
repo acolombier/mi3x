@@ -111,9 +111,7 @@ QmlApplication::QmlApplication(
         : m_pCoreServices(std::move(pCoreServices)),
           m_visualsManager(std::make_unique<VisualsManager>()),
           m_pGuiTick(std::make_unique<GuiTick>()),
-          m_mainFilePath(mainQmlFilePath.isEmpty()
-                          ? m_pCoreServices->getSettings()->getResourcePath() + kMainQmlFileName
-                          : mainQmlFilePath),
+          m_mainFilePath(m_pCoreServices->getSettings()->getResourcePath() + kMainQmlFileName),
           m_pAppEngine(nullptr),
           m_loadSucceeded(false),
           m_pSettingsPopup(nullptr),

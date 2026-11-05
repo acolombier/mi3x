@@ -1,5 +1,7 @@
 #pragma once
 
+#include <qqmlcomponent.h>
+
 #include <QJSEngine>
 #include <QObject>
 #include <QPointer>
@@ -16,6 +18,24 @@ namespace mixxx {
 class CoreServices;
 namespace qml {
 
+class QmlSkin : public QObject {
+    Q_OBJECT
+    QML_NAMED_ELEMENT(Skin)
+
+    Q_PROPERTY(QQmlComponent* main MEMBER m_main NOTIFY mainChanged)
+    Q_PROPERTY(QQmlComponent* loader MEMBER m_loader NOTIFY loaderChanged)
+  public:
+    explicit QmlSkin(QObject* parent = nullptr);
+    ~QmlSkin() override;
+  signals:
+    void mainChanged();
+    void loaderChanged();
+
+  private:
+    QQmlComponent* m_main;
+    QQmlComponent* m_loader;
+};
+
 class QmlCoreServices : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool ready READ ready NOTIFY readyChanged)
@@ -24,6 +44,7 @@ class QmlCoreServices : public QObject {
     Q_PROPERTY(bool hasPopup READ hasPopup NOTIFY hasPopupChanged)
     Q_PROPERTY(QQmlListProperty<mixxx::Notification> notifications READ
                     notifications NOTIFY notificationsChanged)
+    Q_PROPERTY(QmlSkin* selectedSkin READ getSelectedSkin NOTIFY selectedSkinChanged)
     QML_NAMED_ELEMENT(Core)
     QML_SINGLETON
   public:
@@ -39,6 +60,7 @@ class QmlCoreServices : public QObject {
     }
 
     void setReady();
+    QmlSkin* getSelectedSkin();
 
     // Workaround for https://qt-project.atlassian.net/browse/QTBUG-87815
     // This is necessary to make touchscreen/Android usable
@@ -59,9 +81,12 @@ class QmlCoreServices : public QObject {
     void notificationAdded(mixxx::Notification*);
     void notificationClosed(mixxx::Notification*);
 
+    void selectedSkinChanged();
+
   protected:
     QmlCoreServices(QQmlEngine* pQmlEngine);
     ~QmlCoreServices() override = default;
+
   private slots:
     void slotTrackLoadFailed(TrackPointer pTrack, const QString& reason);
     void slotLibraryScanSummary(const LibraryScanResultSummary&);
@@ -69,6 +94,7 @@ class QmlCoreServices : public QObject {
     void slotInitialization();
     void slotNotificationAdded(mixxx::NotificationPointer);
     void slotNotificationClosed(mixxx::NotificationPointer);
+    void slotSkinLoaded(const QUrl& fileInfo, QQmlComponent::Status status);
 
   private:
     // Unlike other proxy, shared ownership is not possible with the
@@ -79,6 +105,9 @@ class QmlCoreServices : public QObject {
     // Workaround for https://qt-project.atlassian.net/browse/QTBUG-87815
     // This is necessary to make touchscreen/Android usable
     QSet<QObject*> m_popups;
+
+    QMap<QUrl, QQmlComponent*> m_skinManifests;
+    QMap<QUrl, QmlSkin*> m_pSkins;
 
     static void append_notification(QQmlListProperty<mixxx::Notification>* list,
             mixxx::Notification* slice);
