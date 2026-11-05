@@ -1,3 +1,4 @@
+// FIXME many actions were wrongly attached to library. THese has been reverted, leading to this component to partially broken
 import Mixxx 1.0 as Mixxx
 import QtQuick
 import QtQuick.Dialogs

@@ -5,6 +5,8 @@ Item {
     id: root
 
     property color color: 'white'
+    property alias endScroll: endScrollPauseAnimation
+    property alias startsScroll: startsScrollPauseAnimation
     property alias text: detailText
     property var wrap: Text.NoWrap
 
@@ -12,8 +14,10 @@ Item {
     implicitHeight: detailText.implicitHeight
 
     onWidthChanged: {
-        if (tickerAnimation.running)
+        if (tickerAnimation.running) {
             tickerAnimation.restart();
+            detailText.x = 0;
+        }
     }
 
     Text {
@@ -34,16 +38,18 @@ Item {
             id: tickerAnimation
 
             loops: Animation.Infinite
-            running: detailText.width > detailText.parent.width && root.wrap == Text.NoWrap
+            running: detailText.width > root.width && root.wrap == Text.NoWrap
 
             // 1. Let the beginning be read
             PauseAnimation {
+                id: startsScrollPauseAnimation
+
                 duration: 1000
             }
 
             // 2. Scroll slowly to reveal the end
             NumberAnimation {
-                duration: Math.max(2500, (detailText.width - root.width) * 25)
+                duration: Math.max(1000, (detailText.width - root.width) * 40)
                 easing.type: Easing.Linear
                 property: "x"
                 target: detailText
@@ -52,6 +58,8 @@ Item {
 
             // 3. Keep the end visible
             PauseAnimation {
+                id: endScrollPauseAnimation
+
                 duration: 1000
             }
 

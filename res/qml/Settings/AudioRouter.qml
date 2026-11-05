@@ -13,6 +13,7 @@ Rectangle {
         Legacy
     }
 
+    readonly property int _ADD_CONNECTIONS_RETRY_COUNT: 3
     readonly property list<var> audioTypeMap: [
         {
             entity: "Mixer",
@@ -75,12 +76,18 @@ Rectangle {
     property var selectedTab: ""
     property var system: new Object()
 
-    function addExistingConnection(node, connections) {
+    function addExistingConnection(node, connections, retryCount = 0) {
         if (!connections)
             return;
         let connectionIdx = 0;
+        let delayedConnections = [];
         for (let connection of connections) {
             let typeDef = audioTypeMap[connection.type];
+            if (!root.system[typeDef.entity]) {
+                // If the gateway hasn't yet registered, we delay building the connection
+                delayedConnections.push(connection);
+                continue;
+            }
             let source = root.system[typeDef.entity].gateways[typeDef.channel][connection.index].edgeItem;
             let availableEdge = node.availableEdge();
             if (!source || availableEdge === null) {
@@ -97,6 +104,13 @@ Rectangle {
             root.connections.add(connectionItem);
             node.channelAssignation[availableEdge] = connection.channelGroup / 2;
         }
+        if (delayedConnections.length) {
+            if (retryCount >= _ADD_CONNECTIONS_RETRY_COUNT) {
+                console.error("addExistingConnection", node, delayedConnections, retryCount);
+            } else {
+                Qt.callLater(() => root.addExistingConnection(node, delayedConnections, retryCount + 1));
+            }
+        }
         root.updateHiddenConnectionCount();
     }
     function entityOnConnect(edge) {
@@ -105,10 +119,10 @@ Rectangle {
                 root.newConnection.flags |= AudioConnection.Flags.CannotConnect;
                 return;
             }
-            root.newConnection.source.connecting = false;
             if (root.newConnection.source == edge) {
                 root.newConnection.destroy();
             } else {
+                root.newConnection.flags &= ~AudioConnection.Flags.CannotConnect;
                 root.newConnection.sink = edge;
                 root.connections.add(root.newConnection);
                 root.hasChanges = true;
@@ -120,7 +134,7 @@ Rectangle {
                 "source": edge,
                 "objectName": "newConnection"
             });
-            root.newConnection.source.connecting = true;
+            root.newConnection.source.connecting = Qt.binding(() => root.newConnection?.source == edge);
         }
     }
     function entityOnDisconnect(connection) {
@@ -142,7 +156,7 @@ Rectangle {
             if (sink.connection !== undefined) {
                 sink.connection = null;
             } else {
-                sink.connections.delete(connection);
+                sink.connections?.delete(connection);
             }
         }
         connection.destroy();
@@ -346,24 +360,40 @@ Rectangle {
         enabled: root.newConnection != null
         hoverEnabled: true
         preventStealing: true
+        scrollGestureEnabled: true
 
+        onEntered: {
+            if (newConnectionTimeout.running)
+                newConnectionTimeout.stop();
+        }
         onExited: {
-            if (root.newConnection) {
-                root.newConnection.destroy();
-                root.newConnection.source.connection = null;
-                root.newConnection = null;
-            }
+            newConnectionTimeout.start();
         }
         onPositionChanged: mouse => {
             if (root.newConnection) {
                 root.newConnection.target = Qt.point(mouse.x, mouse.y);
             }
         }
-        onPressed: {
+        onPressed: event => {
             if (root.newConnection) {
                 root.newConnection.destroy();
                 root.newConnection.source.connection = null;
                 root.newConnection = null;
+            }
+        }
+
+        Timer {
+            id: newConnectionTimeout
+
+            interval: 1000
+            running: false
+
+            onTriggered: {
+                if (root.newConnection) {
+                    root.newConnection.destroy();
+                    root.newConnection.source.connection = null;
+                    root.newConnection = null;
+                }
             }
         }
     }
@@ -633,7 +663,7 @@ Rectangle {
             deckConnections.items.push(item);
         }
         onItemRemoved: (index, item) => {
-            deckConnections.items.slice(deckConnections.items.indexOf(item), 1);
+            deckConnections.items.splice(deckConnections.items.indexOf(item), 1);
         }
 
         AudioEntity {

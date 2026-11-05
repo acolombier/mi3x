@@ -13,6 +13,7 @@ Item {
 
     property bool existing: false
     property int flags: 0
+    property alias hovered: hoverHandler.hovered
     readonly property bool ready: !!source && !!sink
     required property var router
     property var sink: undefined
@@ -22,6 +23,8 @@ Item {
     property bool system: false
     property var target: source.mapToItem(router, source.width / 2, source.height / 2)
     property bool vertical: false
+
+    signal tapped
 
     height: Math.max(2, Math.abs(sourcePosition.y - sinkPosition.y))
     visible: !source || !sink || source.visible && sink.visible
@@ -152,8 +155,10 @@ Item {
         anchors.fill: parent
         // anchors.centerIn: parent
         antialiasing: true
+        containsMode: Shape.FillContains
         layer.enabled: multiSamplingLevel > 1
         layer.samples: multiSamplingLevel
+
         ShapePath {
             id: line
 
@@ -177,6 +182,16 @@ Item {
                 x: root.width
                 y: root.height
             }
+        }
+        HoverHandler {
+            id: hoverHandler
+
+            enabled: root.router.newConnection == null
+        }
+        TapHandler {
+            enabled: root.router.newConnection == null
+
+            onTapped: root.tapped()
         }
     }
 }

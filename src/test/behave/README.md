@@ -194,6 +194,51 @@ making it easy to jump directly to a specific scenario's playback. The
 scenarios complete, the runner muxes this data into the video as chapter markers.
 Videos are uploaded as CI artifacts for review.
 
+**How a chapter's t=0 is derived.** The ffmpeg recorders (`x11grab`,
+`avfoundation`, `gdigrab`) capture with `-use_wallclock_as_timestamps 1`,
+so every frame is stamped with the wall time it arrived: recorder init
+delays, capture stalls and dropped frames leave the file's duration equal
+to the true first-frame-to-stop span instead of silently compressing the
+timeline (which used to shift all chapters - a macOS run once reported a
+"recorder init delay" of ~263 s for exactly this reason). At teardown the
+runner probes the finished file once (ffprobe) and picks the chapter base,
+most trusted first:
+
+1. **wall-clock pts** - the stream's `start_time`, when it is an epoch
+   wall value (rare: container muxers normally rebase pts to ~0);
+2. **container duration** - the working tier, for every backend:
+   `t0 = stop_time - file_duration`;
+3. **spawn time** - fallback when the file cannot be probed at all
+   (chapters may then be shifted by the recorder init delay).
+
+**`artifacts/video-probe.txt`.** Every recorded run writes this one-page
+report (probed duration/start_time/frame rates, the wall interval, the
+chosen anchor, where the first/last chapter landed, and the recorder's
+stderr tail), so a suspect recording can be triaged from artifacts alone.
+Suspect signals are echoed into the transcript as
+`video timing flagged ...` bullets: delivered frame pacing below the
+nominal rate (timestamps not tracking wall clock), a wall interval far
+longer than the recording (> 30 s unaccounted init/slow-start delta), and
+chapters landing before frame 0 or after the container duration. The
+manual equivalent of the probe:
+
+```bash
+ffprobe -v error -select_streams v:0 \
+  -show_entries "stream=start_time,duration,nb_frames,r_frame_rate,avg_frame_rate" \
+  -show_entries format=duration -of json <video>
+```
+
+**Recording settings.** Capture runs at `RECORD_FPS` = 15 fps with
+halved bitrates: the encoder shares the host with the UI under test, and
+halving its CPU load removes one source of flaky spix interactions while
+scenes stay perfectly readable (chapters are ms-offset metadata; only
+frame-level seek precision drops from ~33 ms to ~66 ms). One known
+limitation: the `(M:SS)` step timecodes in the behave transcript are
+anchored at the recorder *spawn* time and can differ from video chapters
+by that init delay - see
+[AGENTS.md "Video t=0 anchor"](AGENTS.md#video-t0-anchor) for the full
+technical detail.
+
 Every `--serve` spawn also writes its complete application output
 (`--log-level debug`) to `mixxx-output.<pid>.log` in the artifacts directory,
 so crashes and restarts can be investigated without re-running. For failed
