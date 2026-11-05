@@ -2,9 +2,7 @@
 
 #include <QApplication>
 #include <QQmlApplicationEngine>
-#include <QString>
 #include <QTimer>
-#include <memory>
 
 #include "coreservices.h"
 #include "qmlautoreload.h"
@@ -27,8 +25,7 @@ class QmlApplication : public QObject {
   public:
     QmlApplication(
             QApplication* app,
-            std::shared_ptr<CoreServices> pCoreServices,
-            const QString& mainQmlFilePath = QString());
+            const CmdlineArgs& args);
     ~QmlApplication() override;
 
     bool isReady() const {
@@ -55,7 +52,7 @@ class QmlApplication : public QObject {
     void settingSaved();
 
   private:
-    std::shared_ptr<CoreServices> m_pCoreServices;
+    std::unique_ptr<CoreServices> m_pCoreServices;
     std::unique_ptr<::VisualsManager> m_visualsManager;
     std::unique_ptr<GuiTick> m_pGuiTick;
     QTimer m_guiTickTimer;
