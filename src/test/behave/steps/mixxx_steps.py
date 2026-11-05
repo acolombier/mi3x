@@ -262,9 +262,7 @@ def _ensure_profile(context, profile_type, force=False):
         # spawn time out and cascade through the rest of the run.
         _stop_mixxx(context)
     profile_dir = profile.make_temp_profile(
-        profile_type,
-        container=profile.macos_sandbox_container(
-            context.config.userdata.get("binary")),
+        profile_type
     )
     context.profile_dir = profile_dir
     context.active_profile_type = profile_type
