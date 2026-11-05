@@ -1,4 +1,5 @@
 import "." as Skin
+import "../../Behaviors" as Behaviors
 
 Skin.Button {
     id: root
@@ -19,7 +20,7 @@ Skin.Button {
         controlBehavior.releasePrimary();
     }
 
-    ControlProxyButtonBehavior {
+    Behaviors.ControlProxyButton {
         id: controlBehavior
 
         group: root.group

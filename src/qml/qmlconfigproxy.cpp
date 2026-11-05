@@ -17,6 +17,7 @@
 
 #define PROPERTY_IMPL_GETTER(GROUP, KEY, TYPE, NAME, DEFAULT) \
     TYPE QmlConfigProxy::NAME() const {                       \
+        DEBUG_ASSERT(get());                                  \
         return get()->getValue(                               \
                 ConfigKey(GROUP, KEY),                        \
                 DEFAULT);                                     \
@@ -81,6 +82,7 @@ const QString kBpmGroup = QStringLiteral("[BPM]");
 const QString kMixerProfileGroup = QStringLiteral("[Mixer Profile]");
 const QString kEffectsGroup = QStringLiteral("[Effects]");
 const QString kMasterGroup = QStringLiteral("[Master]");
+const QString kMainWindowGroup = QStringLiteral("[MainWindow]");
 
 const QString kEnableEqsKey = QStringLiteral("EnableEQs");
 const QString kEqsOnlyKey = QStringLiteral("EQsOnly");
@@ -200,6 +202,10 @@ const QString kBPMReanalyzeWhenSettingsChangeKey =
         QStringLiteral("ReanalyzeWhenSettingsChange");
 const QString kBPMReanalyzeImportedKey = QStringLiteral("ReanalyzeImported");
 const QString kBPMFastAnalysisEnabledKey = QStringLiteral("FastAnalysisEnabled");
+
+// MainWindow group
+const QString kMainWindowGeometryKey = QStringLiteral("geometry");
+const QString kMainWindowStateKey = QStringLiteral("state");
 
 // Key group
 const QString kKeyGroup = QStringLiteral("[Key]");
@@ -1048,6 +1054,10 @@ PROPERTY_IMPL(kVampGroup,
         QString,
         bpmAnalyserPluginId,
         QStringLiteral("qm-tempotracker:0"));
+
+// MainWindow group
+PROPERTY_IMPL(kMainWindowGroup, kMainWindowGeometryKey, QString, mainWindowGeometry, "");
+PROPERTY_IMPL(kMainWindowGroup, kMainWindowStateKey, QString, mainWindowState, "");
 
 // Key group
 PROPERTY_IMPL(kKeyGroup, kKeyDetectionEnabledKey, bool, keyDetectionEnabled, true);

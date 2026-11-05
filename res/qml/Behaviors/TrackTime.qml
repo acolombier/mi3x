@@ -1,8 +1,7 @@
-import ".." as Skin
 import Mixxx 1.0 as Mixxx
-import QtQuick 2.12
+import QtQuick 2.15
 
-Skin.EmbeddedText {
+Item {
     id: root
 
     enum Display {
@@ -63,7 +62,7 @@ Skin.EmbeddedText {
         }
     }
 
-    text: {
+    readonly property string text: {
         switch (root.display) {
         case TrackTime.Display.Remaining:
             return `-${toTime(root.remaining)}`;

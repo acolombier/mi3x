@@ -74,7 +74,7 @@ QmlCoreServices::QmlCoreServices(QQmlEngine* pQmlEngine)
                         pQmlEngine, uri, QQmlComponent::Asynchronous, this);
                 QFile skin = QFile(fileInfo.absoluteFilePath());
                 if (!skin.open(QIODevice::ReadOnly)) {
-                    qWarning() << "Unable to open QML scene file:"
+                    qWarning() << "Unable to open skin manifest:"
                                << fileInfo.absoluteFilePath();
                     continue;
                 }
@@ -110,37 +110,25 @@ void QmlCoreServices::slotSkinLoaded(const QUrl& uri, QQmlComponent::Status stat
     case QQmlComponent::Status::Error: {
         const QList<QQmlError> errorList = pQmlComponent->errors();
         for (const QQmlError& error : errorList) {
-            qWarning() << "Unable to load skin" << uri
-                       << "- error at line" << error.line() << ":" << error;
+            qWarning() << "Unable to load skin manifest -" << error;
         }
         m_skinManifests.take(uri)->deleteLater();
     } break;
     case QQmlComponent::Status::Ready: {
-        DEBUG_ASSERT(pQmlComponent->isReady());
+        DEBUG_ASSERT(pQmlComponent->isReady() && !pQmlComponent->isError());
         QObject* pRootObject = pQmlComponent->create();
-        if (pQmlComponent->isError()) {
-            const QList<QQmlError> errorList = pQmlComponent->errors();
-            for (const QQmlError& error : errorList) {
-                qWarning() << "Unable to load skin" << error.url() << error.line() << error;
-            }
-            m_skinManifests.take(uri)->deleteLater();
-        }
-
         mixxx::qml::QmlSkin* rootItem =
                 qobject_cast<mixxx::qml::QmlSkin*>(pRootObject);
         if (!rootItem) {
-            qWarning() << "Unable to load skin" << uri << "- Not a Mixxx.Skin!";
+            qWarning() << "Unable to load skin manifest" << uri << "- Not a Mixxx.Skin!";
             pRootObject->deleteLater();
             m_skinManifests.take(uri)->deleteLater();
             return;
         }
-        // LEAKING!
-        rootItem->setParent(nullptr);
-        // rootItem->setParent(qmlEngine(this));
+        rootItem->setParent(this);
         m_pSkins.insert(uri, rootItem);
-        if (m_pSkins.size() == 1) {
-            emit selectedSkinChanged();
-        }
+        m_skinManifests.take(uri)->deleteLater();
+        emit skinsChanged();
 
     } break;
     case QQmlComponent::Status::Null:

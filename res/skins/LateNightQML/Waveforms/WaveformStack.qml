@@ -2,7 +2,7 @@ pragma ComponentBehavior: Bound
 
 import ".." as LateNight
 import "../LateNightTheme"
-import "../../../qml" as Shared
+import ".." as Shared
 import QtQuick
 import Mixxx 1.0 as Mixxx
 import "../Deck"

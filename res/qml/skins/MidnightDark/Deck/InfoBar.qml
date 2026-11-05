@@ -7,6 +7,7 @@ import QtQuick.Layouts
 import QtQml.Models // DelegateChoice for Qt >= 6.9
 import Qt.labs.qmlmodels // DelegateChooser
 import "../Theme"
+import "../../../Behaviors" as Behaviors
 
 Rectangle {
     id: root
@@ -204,7 +205,18 @@ Rectangle {
             roleValue: "Time"
 
             Cell {
-                item.text: time.text
+                item.text: {
+                    switch (time.display) {
+                    case Behaviors.TrackTime.Display.Remaining:
+                        return `-${time.toTime(time.remaining)}`;
+                    case Behaviors.TrackTime.Display.Both:
+                        return `${time.toTime(time.elapsed)} -${time.toTime(time.remaining)}`;
+                    default:
+                        console.warn(`Unsupported track time display: ${time.display}. Defaulting to elapsed`);
+                    case Behaviors.TrackTime.Display.Elapsed:
+                        return time.toTime(time.elapsed);
+                    }
+                }
                 visible: root.width > 450
 
                 Mixxx.ControlProxy {
@@ -219,14 +231,13 @@ Rectangle {
                     group: root.group
                     key: "playposition"
                 }
-                TrackTime {
+                Behaviors.TrackTime {
                     id: time
 
                     display: Mixxx.Config.controlPositionDisplay
                     elapsed: durationControl.value * playPositionControl.value
                     mode: Mixxx.Config.controlTimeFormat
                     remaining: durationControl.value * (1 - playPositionControl.value)
-                    visible: false
                 }
             }
         }

@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Mixxx 1.0 as Mixxx
-import "../../../qml" as Skin
+import ".." as Skin
 import "../LateNightTheme"
 
 Item {
@@ -316,11 +316,11 @@ Item {
                     y: 2
                     width: 40
                     height: 119
-                    bar.enabled: true
-                    bar.color: "#888888"
-                    bar.margin: 7
-                    bar.start: 0.5
-                    showDefaultHandle: false
+                    // bar.enabled: true
+                    // bar.color: "#888888"
+                    // bar.margin: 7
+                    // bar.start: 0.5
+                    // showDefaultHandle: false
                     group: root.group
                     key: "rate"
 

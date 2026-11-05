@@ -11,7 +11,7 @@ import Qt5Compat.GraphicalEffects
 import Mixxx 1.0 as Mixxx
 import Mixxx.Controls 1.0 as MixxxControls
 
-import "." as Skin
+import "skins/MidnightDark" as Skin
 import "Theme"
 
 Mixxx.ControllerScreen {
