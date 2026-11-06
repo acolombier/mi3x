@@ -154,6 +154,14 @@ jobs:
           sudo cp -R "$app_dir" /Applications/
           hdiutil detach "$mountpoint"
           echo "MIXXX_TEST_BINARY=/Applications/$(basename "$app_dir")/Contents/MacOS/mixxx" >> "$GITHUB_ENV"
+
+          APP=/Applications/$(basename "$app_dir")
+          ENT="mixxx-entitlements.plist"
+          codesign -d --entitlements :- "$APP" 2>/dev/null > "$ENT"
+          cat $ENT
+          /usr/libexec/PlistBuddy   -c 'Delete :com.apple.security.app-sandbox'   "$ENT"
+          sudo codesign --force --deep --sign -   --entitlements "$ENT" "$APP"
+          codesign -d --entitlements :- "$APP" 2>&1
         shell: bash
 
       - name: "[macOS] Ensure ffmpeg for recording"

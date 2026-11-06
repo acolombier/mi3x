@@ -1018,14 +1018,7 @@ def main():
     # Set up global tracks cache (shared across all feature tests)
     tracks_cache = os.environ.get("MIXXX_TEST_TRACKS_DIR")
     if not tracks_cache:
-        container = profile.macos_sandbox_container(args.binary)
-        if container:
-            # A sandboxed macOS app bundle cannot read the harness temp
-            # directory, so the track files handed to the loadTrack RPC
-            # command must live inside the App Sandbox container.
-            tracks_cache = os.path.join(container, "tmp", "mixxx-test-tracks")
-        else:
-            tracks_cache = os.path.join(tempfile.gettempdir(), "mixxx-test-tracks")
+        tracks_cache = os.path.join(tempfile.gettempdir(), "mixxx-test-tracks")
     os.makedirs(tracks_cache, exist_ok=True)
 
     # Download tracks (if not already cached) and build the catalog:
