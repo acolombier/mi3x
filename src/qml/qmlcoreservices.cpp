@@ -1,13 +1,27 @@
 #include "qml/qmlcoreservices.h"
 
+#include <qnamespace.h>
+#include <qobject.h>
+#include <qqmlengine.h>
+
+#include <utility>
+
+#include "coreservices.h"
 #include "moc_qmlcoreservices.cpp"
 
 namespace mixxx {
 namespace qml {
 
-// QmlCoreServices::QmlCoreServices(QObject* parent, int): QObject(parent){
-
-// }
+QmlCoreServices::QmlCoreServices(QQmlEngine* pQmlEngine)
+        : QObject(pQmlEngine) {
+    connect(s_pCoreServices.get(),
+            &mixxx::CoreServices::initialized,
+            this,
+            &QmlCoreServices::slotInitialization);
+    if (s_pCoreServices->isInitialized()) {
+        slotInitialization();
+    }
+}
 
 void QmlCoreServices::setReady() {
     if (m_ready) {
@@ -19,7 +33,7 @@ void QmlCoreServices::setReady() {
 
 // static
 QmlCoreServices* QmlCoreServices::create(QQmlEngine* pQmlEngine, QJSEngine*) {
-    return instance();
+    return new QmlCoreServices(pQmlEngine);
 }
 
 void QmlCoreServices::addOpenedPopup(QObject* popup) {
@@ -43,6 +57,12 @@ void QmlCoreServices::clearOpenedPopup() {
     }
     m_popups.clear();
     emit hasPopupChanged();
+}
+
+void QmlCoreServices::slotInitialization() {
+    if (s_pCoreServices->isInitialized()) {
+        setReady();
+    }
 }
 } // namespace qml
 } // namespace mixxx
