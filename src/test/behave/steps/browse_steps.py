@@ -49,6 +49,7 @@ from helpers import (
     _is_visible,
     _last_track_row,
     _library_command,
+    _load_track,
     _perform_track_action,
     _recent_row_path,
     _remember_catalog_track,
@@ -83,6 +84,7 @@ from behave import given, when, then
 import glob
 import json
 import shutil
+import tempfile
 from pathlib import Path
 import os
 import re
@@ -1040,6 +1042,17 @@ def step_trigger_library_scan_from_header_menu(context):
     assert _is_visible(context, GLOBAL_CONTEXT_MENU_PATH), (
         "The header context menu did not open")
     _select_menu_items(context, GLOBAL_CONTEXT_MENU_PATH, ["Library", "Scan"])
+
+@when("I attempt to load a missing track on deck {deck:d}")
+def step_attempt_load_missing_track(context, deck):
+    # loadTrack RPC with a nonexistent path (the scenario is tagged
+    # @test/missing-ui-interaction): track-load failures surface as a
+    # notification, not a modal, deduped per track. The path is remembered
+    # so the details assertion can check that the failure reason mentions
+    # it.
+    context._missing_track_path = MISSING_TRACK_PATH
+    _load_track(context, deck, MISSING_TRACK_PATH)
+
 @when("I click the remove button for the music directory at row {row:d}")
 def step_click_remove_music_directory(context, row):
     path = SOURCE_REMOVE_BUTTON % row
