@@ -7,8 +7,9 @@
 #include <QString>
 
 #include "coreservices.h"
+#include "track/track_decl.h"
 
-class RecordingManager;
+class LibraryScanResultSummary;
 
 namespace mixxx {
 namespace qml {
@@ -51,8 +52,9 @@ class QmlCoreServices : public QObject {
   protected:
     QmlCoreServices(QQmlEngine* pQmlEngine);
     ~QmlCoreServices() override = default;
-
   private slots:
+    void slotTrackLoadFailed(TrackPointer pTrack, const QString& reason);
+    void slotLibraryScanSummary(const LibraryScanResultSummary&);
     void slotInitialization();
 
   private:
