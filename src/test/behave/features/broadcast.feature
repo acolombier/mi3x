@@ -48,3 +48,18 @@ Feature: Broadcast Settings (connection profiles as tiles)
     # And I click the "broadcastSaveButton" button
     # Then the "broadcastProfileSettings_Broadcast profile 1" settings should not be visible
     # And the "broadcastSaveButton" button should be disabled
+
+  Rule: Livestreaming error notifications
+
+    @xfail(gh_issue=94)
+    @sub/notifications
+    Scenario: Enabling livestreaming without a connection surfaces a sticky error notification
+      When I enable live broadcasting without a configured connection
+      Then the notification "Action failed" should be visible
+      And the notification "Action failed" should be sticky
+
+    @xfail(gh_issue=94)
+    @sub/notifications
+    Scenario: The livestreaming error notification explains the action failure
+      When I enable live broadcasting without a configured connection
+      Then the notification details should mention "at least one connection"
