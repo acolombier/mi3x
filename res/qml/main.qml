@@ -56,8 +56,8 @@ ApplicationWindow {
 
         sourceComponent: Component {
             MainWindow {
-                enableDiagnosticClick: root.enableDiagnosticClick
                 focus: true
+                settingsPopup: settingsPopupItem
             }
         }
 
@@ -197,6 +197,26 @@ ApplicationWindow {
             click.y = Qt.binding(() => mouse.y - click.height / 2);
             clicked = true;
             mouse.accepted = false;
+        }
+    }
+    Skin.Settings {
+        id: settingsPopup
+
+        enableDiagnosticClick: parent.enableDiagnosticClick
+        focus: true
+        height: Math.min(840, parent.height)
+        modal: true
+        width: Math.min(1400, parent.width)
+        x: Math.round((parent.width - width) / 2)
+        y: Math.round((parent.height - height) / 2)
+
+        Overlay.modal: Rectangle {
+            id: overlayModal
+
+            property real radius: 12
+
+            anchors.fill: parent
+            color: Qt.alpha('#000000', 0.6)
         }
     }
 }
