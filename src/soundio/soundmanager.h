@@ -161,6 +161,10 @@ class SoundManager : public QObject {
     void registerMockDevices(const QJsonArray& devices);
     void clearMockDevices();
 #endif
+
+    static std::pair<QString, QString> soundDeviceBusyMessageBuilder(const QString& device);
+    static std::pair<QString, QString> soundDeviceErrorMessageBuilder(QString error);
+    static std::pair<QString, QString> soundDeviceNoOutputMessageBuilder();
   signals:
     void deviceAdded(SoundDevicePointer pDevice);
     void deviceRemoved(SoundDevicePointer pDevice);
