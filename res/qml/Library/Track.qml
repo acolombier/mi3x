@@ -23,6 +23,8 @@ Item {
         id: tapHandler
 
         acceptedButtons: Qt.LeftButton | Qt.RightButton
+        // FIXME: this is a workaround on Qt bug. See core proxy for details
+        enabled: !Mixxx.Core.hasPopup
 
         onDoubleTapped: (eventPoint, button) => {
             if (button != Qt.LeftButton)
@@ -43,18 +45,19 @@ Item {
             }
         }
     }
-    TestableMenu {
+    Skin.TestableMenu {
         id: contextMenu
 
+        menuName: "trackContextMenu"
         title: qsTr("File")
 
-        TestableMenu {
+        Skin.TestableMenu {
             enabled: {
                 hasCapabilities(Mixxx.LibraryTrackListModel.Capability.LoadToDeck) || hasCapabilities(Mixxx.LibraryTrackListModel.Capability.LoadToSampler) || hasCapabilities(Mixxx.LibraryTrackListModel.Capability.LoadToPreviewDeck);
             }
             title: qsTr("Load to")
 
-            TestableMenu {
+            Skin.TestableMenu {
                 id: loadToDeckMenu
 
                 enabled: hasCapabilities(Mixxx.LibraryTrackListModel.Capability.LoadToDeck)
@@ -76,7 +79,7 @@ Item {
                     onObjectRemoved: (index, object) => loadToDeckMenu.removeItem(object)
                 }
             }
-            TestableMenu {
+            Skin.TestableMenu {
                 enabled: hasCapabilities(Mixxx.LibraryTrackListModel.Capability.LoadToSampler)
                 title: qsTr("Sampler")
             }
@@ -102,7 +105,7 @@ Item {
             //     onObjectRemoved: (index, object) => recentFilesMenu.removeItem(object)
             // }
         }
-        TestableMenu {
+        Skin.TestableMenu {
             id: addToPlaylistMenu
 
             property var model: playlists.list()
@@ -138,7 +141,7 @@ Item {
                 }
             }
         }
-        TestableMenu {
+        Skin.TestableMenu {
             id: addToCrateMenu
 
             property var model: root._lazyTrack ? crates.list([root._lazyTrack]) : 0
@@ -182,7 +185,7 @@ Item {
                 }
             }
         }
-        TestableMenu {
+        Skin.TestableMenu {
             id: analyzeMenu
 
             enabled: {
@@ -283,55 +286,5 @@ Item {
         }
         Keys.onReturnPressed: event => startKeyHandler(event)
         Keys.onSpacePressed: event => startKeyHandler(event)
-    }
-    component TestableMenu: Menu {
-        id: control
-
-        readonly property int depth: {
-            return parent instanceof MenuItem ? parent.menu.depth + 1 : 0;
-        }
-
-        function dumpTree(recursive) {
-            let d = {
-                count: this.contentItem.count,
-                currentIndex: this.contentItem.currentIndex,
-                items: Array(this.contentItem.count).fill().map((_, i) => {
-                    let item = this.contentItem.itemAtIndex(i);
-                    let m = recursive ? menuAt(i) : null;
-                    return Object.assign({
-                        objectName: item?.objectName,
-                        text: item?.text
-                    }, m ? {
-                        menu: m.dumpTree()
-                    } : {});
-                })
-            };
-            return d;
-        }
-
-        contentItem: ListView {
-            function serialisedDump() {
-                return JSON.stringify(control.dumpTree(false));
-            }
-            function setMenuIndex(i) {
-                control.currentIndex = i;
-            }
-
-            clip: true
-            currentIndex: control.currentIndex
-            implicitHeight: contentHeight
-            interactive: Window.window ? contentHeight + control.topPadding + control.bottomPadding > control.height : false
-            model: control.contentModel
-            objectName: (activeFocus || !depth) && opened ? !depth ? "trackContextMenu" : `trackContextMenu_Sub${depth}` : null
-
-            ScrollIndicator.vertical: ScrollIndicator {
-            }
-        }
-
-        onOpenedChanged: {
-            for (let i = 0; i < contentItem.count; i++) {
-                contentItem.itemAtIndex(i).objectName = "menuItem" + i;
-            }
-        }
     }
 }

@@ -344,6 +344,62 @@ def _library_command(context, action=None, path=None, scan=False, payload=None):
         _wait_for_library_scan(context, scan_generation)
 
 
+# --- Menu navigation (spix-addressable TestableMenu popups) ------------------
+
+def _select_menu_items(context, root_path, items, timeout=5):
+    """Keyboard-navigate an open spix-addressable menu tree (TestableMenu).
+
+    ``items`` are the entry texts to walk ("Library", "Scan"), navigating
+    submenu by submenu. ``root_path`` is the spix path of the root menu's
+    content item ("mainWindow/trackContextMenu"); submenus are addressed as
+    "<root>_Sub<depth>". The menu must already be open.
+    """
+    time.sleep(1)
+
+    def activate(items, depth=0):
+        menu_path = root_path if not depth else f"{root_path}_Sub{depth}"
+        assert wait_visible(context.rpc, menu_path, timeout=timeout), (
+            f"Context {'menu' if not depth else 'submenu'} is not visible")
+        step = items.pop(0)
+        menu = json.loads(context.rpc.invokeMethod(menu_path, "serialisedDump", []))
+        entry = [(i, item) for i, item in enumerate(menu["items"]) if item.get("text") == step]
+        if not entry:
+            print("Content menu content was:", menu)
+        assert entry, f"Unable to find the item {repr(step)} in context menu"
+        target_index, item = entry[0]
+        path = menu_path + "/" + item["objectName"]
+
+        context.rpc.invokeMethod(menu_path, "forceActiveFocus", [])
+        current_index = menu["currentIndex"]
+        while current_index != target_index and current_index < menu["count"] - 1:
+            if context.rpc.existsAndVisible(f"{root_path}_Sub{depth+1}"):
+                context.rpc.enterKey(f"{root_path}_Sub{depth+1}", QT_KEY_LEFT, 0)
+                time.sleep(0.5)
+            # Later, we could extend the DSL to request a click on the item. This may be useful to assert granularly the context menu behaviour
+            # _click(context, path)
+            # time.sleep(0.3)
+            # new_index = int(_get_property(context, menu_path, "currentIndex"))
+            context.rpc.enterKey(menu_path, QT_KEY_DOWN if current_index < target_index else QT_KEY_UP, 0)
+            time.sleep(0.5)
+            new_index = int(_get_property(context, menu_path, "currentIndex"))
+            # Some platform may struggle with dispatching the emulated keyboard input, so we use the direct setter as fallback
+            if new_index == current_index:
+                context.rpc.invokeMethod(menu_path, "setMenuIndex", [target_index])
+                new_index = int(_get_property(context, menu_path, "currentIndex"))
+            assert new_index != current_index, "Unable to change the context menu index"
+            current_index = new_index
+        assert target_index == current_index, "Unable to reach the target context menu item"
+        context.rpc.enterKey(menu_path, QT_KEY_ENTER, 0)
+        time.sleep(0.5)
+        if items:
+            activate(items, depth+1)
+        else:
+            # Not all menu actions will hide the menu, so we don't assert here
+            wait_hidden(context.rpc, menu_path, timeout=3)
+
+    activate(items)
+
+
 # --- Library settings paths/expectations (shared by settings_steps and browse_steps) ---
 
 MUSIC_DIRECTORY_LIST = "mainWindow/librarySourceList"
