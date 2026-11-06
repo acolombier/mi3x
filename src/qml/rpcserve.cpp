@@ -23,6 +23,7 @@
 #include "library/trackset/crate/cratesummary.h"
 #include "mixer/basetrackplayer.h"
 #include "mixer/playermanager.h"
+#include "notificationmanager.h"
 #include "qml/qmlapplication.h"
 #include "soundio/soundmanager.h"
 #include "track/cue.h"
@@ -390,6 +391,41 @@ RpcServe::RpcServe(
                     state["scanGeneration"] = pCompletedScanCount->load();
 
                     persistLibraryJsonState(state);
+                } else if (command == "getNotifications") {
+                    // Two-step pattern like getLibraryState: store a JSON
+                    // snapshot of the active notifications as a window
+                    // property that a subsequent getStringProperty() reads
+                    // back (spix processes commands sequentially, so this
+                    // is race-free).
+                    const auto notifications =
+                            NotificationManager::instance()
+                                    ->activeNotifications();
+                    QJsonArray notificationArray;
+                    for (const auto& pNotification : notifications) {
+                        QJsonObject notification;
+                        notification["text"] = pNotification->text();
+                        notification["details"] = pNotification->details();
+                        notification["flags"] =
+                                static_cast<int>(pNotification->flags());
+                        QJsonArray buttonArray;
+                        const auto buttons = pNotification->buttons();
+                        for (const auto& button : buttons) {
+                            buttonArray.append(button.label);
+                        }
+                        notification["buttons"] = buttonArray;
+                        notificationArray.append(notification);
+                    }
+                    QJsonObject state;
+                    state["notifications"] = notificationArray;
+                    QString json = QString::fromUtf8(
+                            QJsonDocument(state).toJson(
+                                    QJsonDocument::Compact));
+                    qDebug() << "getNotifications:" << json;
+
+                    auto windows = QGuiApplication::topLevelWindows();
+                    for (auto* w : std::as_const(windows)) {
+                        w->setProperty("lastNotifications", json);
+                    }
                 } else if (command == "registerMockDevices") {
                     QJsonDocument doc =
                             QJsonDocument::fromJson(

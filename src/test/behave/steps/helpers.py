@@ -106,6 +106,9 @@ _WAIT_INITIAL_DELAY = 0.3
 
 ROUTER_MODE = "mainWindow/routerMode"
 
+_WAIT_INITIAL_DELAY = 0.3
+_WAIT_BACKOFF_FACTOR = 2
+
 
 # --- RPC primitives (rpc-based, value-returning) -----------------------------
 
@@ -361,6 +364,71 @@ def _library_command(context, action=None, path=None, scan=False, payload=None):
     context.rpc.command("library", payload)
     if scan:
         _wait_for_library_scan(context, scan_generation)
+
+
+# --- Notifications (Mixxx.Core / NotificationManager) ------------------------
+
+# Spix paths of the notification drawer (NotificationDrawer.qml content
+# loader, rendered in the window Overlay like other popups) and the toolbar
+# bell button (MainWindow.qml).
+NOTIFICATION_DRAWER = "mainWindow/notificationDrawer"
+NOTIFICATION_BELL = "mainWindow/notificationButton"
+NOTIFICATION_ACTION_TEMPLATE = NOTIFICATION_DRAWER + "/notificationAction_%s"
+
+# Bit mask of mixxx::Notification::Flag::Sticky (notification.h); the
+# getNotifications RPC command reports `flags` as the raw QFlags int.
+NOTIFICATION_FLAG_STICKY = 1 << 4
+
+def _get_notifications(context, timeout=5):
+    """Read the active notifications via the command/property pair.
+
+    Same two-step pattern as _get_library_state: the getNotifications
+    command stores a JSON snapshot ({notifications: [{text, details,
+    flags}]}) in the window property lastNotifications, which a second RPC
+    call reads back.
+    """
+    deadline = time.time() + timeout
+    rpc = context.rpc
+    delay = _WAIT_INITIAL_DELAY
+    while True:
+        rpc.command("getNotifications", "")
+        raw = rpc.getStringProperty("mainWindow", "lastNotifications")
+        try:
+            return json.loads(raw).get("notifications", [])
+        except json.JSONDecodeError:
+            if time.time() >= deadline:
+                raise AssertionError(
+                    f"The notification state did not become readable "
+                    f"(got {raw!r})"
+                )
+            time.sleep(min(delay, max(0, deadline - time.time())))
+            delay *= _WAIT_BACKOFF_FACTOR
+
+
+def _find_notification(context, text, timeout=5):
+    """The active notification entry with the given title text, or None."""
+    deadline = time.time() + timeout
+    delay = _WAIT_INITIAL_DELAY
+    while True:
+        for notification in _get_notifications(context):
+            if notification.get("text") == text:
+                return notification
+        if time.time() >= deadline:
+            return None
+        time.sleep(min(delay, max(0, deadline - time.time())))
+        delay *= _WAIT_BACKOFF_FACTOR
+
+
+def _remember_notifications(context, timeout=5):
+    """Multiset (Counter) of the titles of the currently active notifications.
+
+    The multiset form lets a later delta assertion tolerate remembered
+    notifications disappearing (transient auto-timeout) while still
+    catching a new title or an extra copy of a remembered one.
+    """
+    return collections.Counter(
+        notification.get("text", "")
+        for notification in _get_notifications(context, timeout))
 
 
 # --- Menu navigation (spix-addressable TestableMenu popups) ------------------
