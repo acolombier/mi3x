@@ -28,6 +28,8 @@
 
 #ifdef __RPC_SERVER__
 #include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include "soundio/sounddevicemock.h"
 #endif
@@ -93,6 +95,26 @@ SoundManager::SoundManager(
     if (!m_config.readFromDisk()) {
         m_config.loadDefaults(this, SoundManagerConfig::API | SoundManagerConfig::OTHER);
     }
+
+#ifdef __RPC_SERVER__
+    // E2E testing: register mock devices from the profile's saved sound
+    // configuration before the config is validated, so start-up scenarios
+    // (e.g. unopenable configured devices raising the "Sound Device Busy"
+    // notification) run against a deterministic device set.
+    const QString mockDevicesJson = m_pConfig->getValueString(
+            ConfigKey("[Soundcard Config]",
+                    QStringLiteral("mockDevices")));
+    if (!mockDevicesJson.isEmpty()) {
+        const QJsonDocument doc =
+                QJsonDocument::fromJson(mockDevicesJson.toUtf8());
+        if (doc.isArray()) {
+            registerMockDevices(doc.array());
+        } else {
+            qWarning() << "SoundManager: invalid mockDevices config value:"
+                       << mockDevicesJson;
+        }
+    }
+#endif
 
     if (!isPipewireSelected()) {
         devicesEnumerated();
@@ -201,13 +223,14 @@ QList<QString> SoundManager::getHostAPIList() const {
 void SoundManager::registerMockDevices(const QJsonArray& devices) {
     for (const auto& entry : devices) {
         QJsonObject obj = entry.toObject();
-        auto pDevice = QSharedPointer<SoundDeviceMock>::create(
-                m_pConfig,
+        auto pDevice = QSharedPointer<SoundDeviceMock>::create(m_pConfig,
                 this,
                 obj["api"].toString(),
                 obj["name"].toString(),
                 obj["outputChannels"].toInt(0),
-                obj["inputChannels"].toInt(0));
+                obj["inputChannels"].toInt(0),
+                static_cast<SoundDeviceStatus>(obj["openStatus"].toInt(
+                        static_cast<int>(SoundDeviceStatus::Ok))));
         m_devices.push_back(pDevice);
         addDevice(pDevice);
     }
