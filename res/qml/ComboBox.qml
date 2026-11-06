@@ -157,6 +157,8 @@ ComboBox {
             width: 12
 
             onPaint: {
+                if (!context)
+                    return;
                 context.reset();
                 roundTriangle(context, width, height, radius);
                 context.fillStyle = Qt.alpha(Theme.midGray3, root.enabled ? 1 : 0.3);
@@ -181,7 +183,7 @@ ComboBox {
 
         readonly property bool reversed: {
             // Geometry binding
-            root.Window.contentItem.height + opened;
+            root.Window.contentItem?.height + opened;
             return contentItem.mapToItem(root.Window.contentItem, 0, 0, 0, 0).y < root.mapToItem(root.Window.contentItem, 0, 0, 0, 0).y;
         }
 
