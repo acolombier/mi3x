@@ -468,6 +468,8 @@ void CoreServices::initialize() {
 
     ScopedTimer t(QStringLiteral("CoreServices::initialize"));
 
+    NotificationManager::createInstance();
+
     VERIFY_OR_DEBUG_ASSERT(SoundSourceProxy::registerProviders()) {
         qCritical() << "Failed to register any SoundSource providers";
         return;
@@ -484,8 +486,6 @@ void CoreServices::initialize() {
     emit initializationProgressUpdate(0, tr("fonts"));
 
     FontUtils::initializeFonts(resourcePath); // takes a long time
-
-    m_pNotificationManager = std::make_shared<NotificationManager>();
 
     emit initializationProgressUpdate(10, tr("database"));
     m_pDbConnectionPool = MixxxDb(pConfig).connectionPool();
@@ -702,9 +702,9 @@ void CoreServices::initialize() {
             musicDirAdded = true;
         } else {
             // prompt the use to add their directory
-            mixxx::Notification* pNotification =
-                    new mixxx::Notification("No music directory configured!",
-                            mixxx::NotificationFlag::Sticky);
+            auto pNotification =
+                    std::make_shared<mixxx::Notification>(tr("No music directory configured!"),
+                            mixxx::Notification::Flag::Sticky);
             pNotification->addButton(tr("Choose Directory"), this, [this, pNotification]() {
                 QString fd = QFileDialog::getExistingDirectory(nullptr,
                         tr("Choose music library directory"),
@@ -717,7 +717,7 @@ void CoreServices::initialize() {
                     NotificationManager::instance()->closeNotification(pNotification);
                 }
             });
-            m_pNotificationManager->notify(pNotification);
+            NotificationManager::instance()->notify(pNotification);
         }
 #ifndef Q_OS_ANDROID
         }
@@ -1006,7 +1006,7 @@ void CoreServices::finalize() {
     CLEAR_AND_CHECK_DELETED(m_pTrackCollectionManager);
 
     qDebug() << t.elapsed(false).debugMillisWithUnit() << "deleting NotificationManager";
-    CLEAR_AND_CHECK_DELETED(m_pNotificationManager);
+    NotificationManager::destroy();
 
     qDebug() << t.elapsed(false).debugMillisWithUnit() << "closing database connection(s)";
     m_pDbConnectionPool->destroyThreadLocalConnection();

@@ -20,7 +20,9 @@ NotificationManager::NotificationManager()
     connect(&m_timer, &QTimer::timeout, this, &NotificationManager::slotUpdateNotifications);
 };
 
-void NotificationManager::notify(NotificationPointer pNotification) {
+NotificationManager::~NotificationManager() = default;
+
+void NotificationManager::notify(const NotificationPointer& pNotification) {
     VERIFY_OR_DEBUG_ASSERT(pNotification) {
         return;
     }
