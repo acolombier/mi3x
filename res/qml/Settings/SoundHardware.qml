@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import QtQuick.Effects
 import Mixxx 1.0 as Mixxx
 import ".." as Skin
 import "../Theme"
@@ -227,9 +228,10 @@ Category {
                     Layout.preferredHeight: root.selectedIndex == 0 ? engine.height : delays.height
 
                     Mixxx.SettingGroup {
+                        id: engineSection
+
                         anchors.fill: parent
                         label: "Engine"
-                        objectName: "engineSection"
                         visible: root.selectedIndex == 0
 
                         onActivated: {
@@ -618,6 +620,8 @@ Category {
                     }
                 }
                 Mixxx.SettingGroup {
+                    id: routerGroup
+
                     Layout.fillHeight: true
                     Layout.fillWidth: true
                     Layout.minimumHeight: Math.max(router.mode == AudioRouter.Mode.Advanced ? 450 : 250, scrollView.height - tabSection.height - buttons.height - 15)
@@ -644,6 +648,11 @@ Category {
                                 mouse.accepted = true;
                             }
                         }
+                    }
+                    SettingHighlighter {
+                        anchors.fill: parent
+                        radius: router.radius
+                        target: routerGroup
                     }
                 }
             }
@@ -701,6 +710,9 @@ Category {
                 errorMessage.text = error;
             }
             root.load();
+            if (!error) {
+                root.saved();
+            }
         }
 
         target: Mixxx.SoundManager
