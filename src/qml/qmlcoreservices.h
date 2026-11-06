@@ -7,11 +7,13 @@
 #include <QString>
 
 #include "coreservices.h"
+#include "notification.h"
 #include "track/track_decl.h"
 
 class LibraryScanResultSummary;
 
 namespace mixxx {
+class CoreServices;
 namespace qml {
 
 class QmlCoreServices : public QObject {
@@ -20,6 +22,8 @@ class QmlCoreServices : public QObject {
     // Workaround for https://qt-project.atlassian.net/browse/QTBUG-87815
     // This is necessary to make touchscreen/Android usable
     Q_PROPERTY(bool hasPopup READ hasPopup NOTIFY hasPopupChanged)
+    Q_PROPERTY(QQmlListProperty<mixxx::Notification> notifications READ
+                    notifications NOTIFY notificationsChanged)
     QML_NAMED_ELEMENT(Core)
     QML_SINGLETON
   public:
@@ -27,6 +31,8 @@ class QmlCoreServices : public QObject {
     static void registerCoreServices(CoreServices* pCoreServices) {
         s_pCoreServices = QPointer(pCoreServices);
     }
+
+    QQmlListProperty<mixxx::Notification> notifications();
 
     bool ready() const {
         return m_ready;
@@ -49,6 +55,10 @@ class QmlCoreServices : public QObject {
     // This is necessary to make touchscreen/Android usable
     void hasPopupChanged();
 
+    void notificationsChanged();
+    void notificationAdded(mixxx::Notification*);
+    void notificationClosed(mixxx::Notification*);
+
   protected:
     QmlCoreServices(QQmlEngine* pQmlEngine);
     ~QmlCoreServices() override = default;
@@ -56,6 +66,8 @@ class QmlCoreServices : public QObject {
     void slotTrackLoadFailed(TrackPointer pTrack, const QString& reason);
     void slotLibraryScanSummary(const LibraryScanResultSummary&);
     void slotInitialization();
+    void slotNotificationAdded(mixxx::NotificationPointer);
+    void slotNotificationClosed(mixxx::NotificationPointer);
 
   private:
     // Unlike other proxy, shared ownership is not possible with the
@@ -66,6 +78,13 @@ class QmlCoreServices : public QObject {
     // Workaround for https://qt-project.atlassian.net/browse/QTBUG-87815
     // This is necessary to make touchscreen/Android usable
     QSet<QObject*> m_popups;
+
+    static void append_notification(QQmlListProperty<mixxx::Notification>* list,
+            mixxx::Notification* slice);
+    static qsizetype count_notification(QQmlListProperty<mixxx::Notification>* p);
+    static mixxx::Notification* at_notification(
+            QQmlListProperty<mixxx::Notification>* p, qsizetype idx);
+    static void clear_notification(QQmlListProperty<mixxx::Notification>* p);
 };
 
 } // namespace qml
