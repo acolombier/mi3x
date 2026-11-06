@@ -65,6 +65,7 @@ class QmlCoreServices : public QObject {
   private slots:
     void slotTrackLoadFailed(TrackPointer pTrack, const QString& reason);
     void slotLibraryScanSummary(const LibraryScanResultSummary&);
+    void slotBroadcastError(const QString& title, const QString& text);
     void slotInitialization();
     void slotNotificationAdded(mixxx::NotificationPointer);
     void slotNotificationClosed(mixxx::NotificationPointer);
