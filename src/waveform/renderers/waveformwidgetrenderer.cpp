@@ -115,14 +115,13 @@ bool WaveformWidgetRenderer::init() {
                 m_group, QStringLiteral("track_samples"));
 
         m_visualPlayPosition = VisualPlayPosition::getVisualPlayPosition(m_group);
+        VERIFY_OR_DEBUG_ASSERT(m_visualPlayPosition) {
+            return false;
+        }
     } else {
         m_pRateRatioCO.reset();
         m_pGainControlObject.reset();
         m_pTrackSamplesControlObject.reset();
-    }
-
-    VERIFY_OR_DEBUG_ASSERT(m_visualPlayPosition) {
-        return false;
     }
 
     for (auto* pRendered : std::as_const(m_rendererStack)) {
