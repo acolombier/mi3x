@@ -427,6 +427,10 @@ void MixxxMainWindow::initialize() {
             &PlayerManager::noVinylControlInputConfigured,
             this,
             &MixxxMainWindow::slotNoVinylControlInputConfigured);
+    connect(pPlayerManager.get(),
+            &PlayerManager::trackLoadFailed,
+            this,
+            &MixxxMainWindow::slotTrackLoadFailed);
 
     connect(&PlayerInfo::instance(),
             &PlayerInfo::currentPlayingTrackChanged,
@@ -1135,6 +1139,16 @@ void MixxxMainWindow::slotNoVinylControlInputConfigured() {
         m_pPrefDlg->show();
         m_pPrefDlg->showSoundHardwarePage(mixxx::preferences::SoundHardwareTab::Input);
     }
+}
+
+void MixxxMainWindow::slotTrackLoadFailed(
+        TrackPointer, const QString& reason) {
+    QMessageBox::warning(this, tr("Couldn't load track."), reason);
+}
+
+void MixxxMainWindow::slotBroadcastError(
+        const QString& title, const QString& text) {
+    QMessageBox::warning(this, title, text);
 }
 
 void MixxxMainWindow::slotNoDeckPassthroughInputConfigured() {
