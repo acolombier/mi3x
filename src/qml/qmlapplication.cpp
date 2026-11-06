@@ -1,10 +1,12 @@
 #include "qmlapplication.h"
 
 #include <QCoreApplication>
+#include <QQmlContext>
 #include <QQmlEngineExtensionPlugin>
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QTextDocument>
+#include <optional>
 #include <utility>
 
 #include "controllers/controllermanager.h"
@@ -110,6 +112,7 @@ QmlApplication::QmlApplication(
                           : mainQmlFilePath),
           m_pAppEngine(nullptr),
           m_loadSucceeded(false),
+          m_pSettingsPopup(nullptr),
 #if defined(Q_OS_ANDROID)
           m_perfSession(nullptr),
 #endif
@@ -331,6 +334,7 @@ bool QmlApplication::loadQml(const QString& path) {
     // QQmlApplicationEngine::load creates a new window but also leaves the old one,
     // so it is necessary to destroy the old QQmlApplicationEngine and create a new one.
     m_pAppEngine = std::make_unique<QQmlApplicationEngine>();
+    m_pSettingsPopup = nullptr;
 
     m_autoReload.clear();
     m_pAppEngine->addUrlInterceptor(&m_autoReload);
@@ -345,16 +349,33 @@ bool QmlApplication::loadQml(const QString& path) {
         }
     }
 
-#if defined(Q_OS_ANDROID)
-    for (auto* item : m_pAppEngine->rootObjects()) {
+    const auto& rootObjects = m_pAppEngine->rootObjects();
+    for (auto* item : std::as_const(rootObjects)) {
         auto* pWindow = qobject_cast<QQuickWindow*>(item);
         if (!pWindow) {
             continue;
         }
+        m_pSettingsPopup = m_pAppEngine->contextForObject(item)->objectForName("settingsPopup");
+#if defined(Q_OS_ANDROID)
         slotWindowChanged(pWindow);
+#endif
         break;
     }
-#endif
+    DEBUG_ASSERT(m_pSettingsPopup);
+
+    if (m_pSettingsPopup) {
+        const QMetaObject* meta = m_pSettingsPopup->metaObject();
+        int signalIndex = meta->indexOfSignal(
+                "saved(QVariant)");
+        DEBUG_ASSERT(signalIndex >= 0);
+        if (signalIndex >= 0) {
+            QMetaMethod signalMethod = meta->method(signalIndex);
+            connect(m_pSettingsPopup,
+                    signalMethod,
+                    this,
+                    QMetaMethod::fromSignal(&QmlApplication::settingSaved));
+        }
+    }
 
 #ifdef __RPC_SERVER__
     if (m_pRpcServe) {
