@@ -9,17 +9,15 @@
 #include <memory>
 
 #include "notification.h"
+#include "util/singleton.h"
 
 namespace mixxx {
 
-class NotificationManager : public QObject {
+class NotificationManager : public QObject, public Singleton<NotificationManager> {
     Q_OBJECT
 
   public:
-    NotificationManager();
-    ~NotificationManager();
-
-    void notify(NotificationPointer pNotification);
+    void notify(const NotificationPointer& pNotification);
 
     QList<NotificationPointer> activeNotifications() {
         return m_notifications;
@@ -46,8 +44,12 @@ class NotificationManager : public QObject {
     void closeNotification(NotificationPointer pNotification);
 
   signals:
-    void notificationAdded();
-    void notificationClosed();
+
+  protected:
+    NotificationManager();
+    ~NotificationManager();
+
+    friend class Singleton<NotificationManager>;
 
   private slots:
     void slotUpdateNotifications();
