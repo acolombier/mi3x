@@ -12,7 +12,6 @@
 #include "util/singleton.h"
 
 namespace mixxx {
-
 class NotificationManager : public QObject, public Singleton<NotificationManager> {
     Q_OBJECT
 
@@ -20,30 +19,22 @@ class NotificationManager : public QObject, public Singleton<NotificationManager
     void notify(const NotificationPointer& pNotification);
 
     QList<NotificationPointer> activeNotifications() {
+        QMutexLocker lock(&m_mutex);
         return m_notifications;
     }
 
-    void setInhibitNotifications(bool value) {
-        if (m_inhibitNotifications == value) {
-            return;
-        }
-        m_inhibitNotifications = value;
-        if (m_inhibitNotifications) {
-            m_notificationsAddedWhileInhibited = false;
-            m_notificationsClosedWhileInhibited = false;
-        } else {
-            if (m_notificationsClosedWhileInhibited) {
-                emit notificationClosed();
-            }
-            if (m_notificationsAddedWhileInhibited) {
-                emit notificationAdded();
-            }
-        }
+    qsizetype count() {
+        QMutexLocker lock(&m_mutex);
+        return m_notifications.count();
     }
 
-    void closeNotification(NotificationPointer pNotification);
+    void clear();
+
+    void closeNotification(const NotificationPointer& pNotification);
 
   signals:
+    void notificationAdded(mixxx::NotificationPointer pNotification);
+    void notificationClosed(mixxx::NotificationPointer pNotification);
 
   protected:
     NotificationManager();
@@ -58,10 +49,6 @@ class NotificationManager : public QObject, public Singleton<NotificationManager
     QTimer m_timer;
     QList<NotificationPointer> m_notifications;
     QMutex m_mutex;
-
-    bool m_inhibitNotifications;
-    bool m_notificationsAddedWhileInhibited;
-    bool m_notificationsClosedWhileInhibited;
 };
 
 } // namespace mixxx
