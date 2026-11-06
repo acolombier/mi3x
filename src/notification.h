@@ -1,40 +1,86 @@
 #pragma once
+#include <qobjectdefs.h>
+
 #include <QDateTime>
 #include <QDialogButtonBox>
 #include <QObject>
+#include <QQmlEngine>
 #include <QString>
 #include <functional>
 #include <memory>
 
 namespace mixxx {
 
-enum class NotificationFlag {
-    None = 0,
-    Sticky = 1,
-    Default = None,
+struct NotificationButton {
+    Q_GADGET
+    Q_PROPERTY(QString label MEMBER label)
+  public:
+    QString label;
+    QPointer<QObject> receiver;
+    std::function<void()> func;
+
+    Q_INVOKABLE void invoke();
 };
-Q_DECLARE_FLAGS(NotificationFlags, NotificationFlag);
-Q_DECLARE_OPERATORS_FOR_FLAGS(NotificationFlags);
 
 class Notification : public QObject {
     Q_OBJECT
 
-  public:
-    struct NotificationButton {
-        QString label;
-        QObject* receiver;
-        std::function<void()> func;
-    };
+    Q_PROPERTY(Notification::Flags flags MEMBER m_flags NOTIFY flagsChanged);
+    Q_PROPERTY(QString text MEMBER m_text NOTIFY textChanged);
+    Q_PROPERTY(QString key MEMBER m_key CONSTANT);
+    Q_PROPERTY(QString details MEMBER m_details NOTIFY detailsChanged);
+    Q_PROPERTY(int timeoutSecs MEMBER m_timeoutSecs CONSTANT);
+    Q_PROPERTY(QDateTime lastUpdated MEMBER m_lastUpdated CONSTANT);
+    Q_PROPERTY(QVector<NotificationButton> buttons MEMBER m_buttons CONSTANT);
 
-    explicit Notification(const QString& text, NotificationFlags flags = NotificationFlag::Default);
+    Q_FLAGS(Flags)
+    QML_NAMED_ELEMENT(Notification)
+    QML_UNCREATABLE("Only accessible via Mixxx.Core.notifications")
+
+  public:
+    enum class Flag : int {
+        None = 0,
+        Info,
+        Warn,
+        Error,
+        Critical,
+        Wrap = 1 << 3,
+        Sticky = 1 << 4,
+        Default = None | Info,
+    };
+    Q_DECLARE_FLAGS(Flags, Flag);
+
+    explicit Notification(const QString& text,
+            Flags flags = Flag::Default,
+            const QString& key = {});
     ~Notification() {};
 
-    NotificationFlags flags() const {
+    Flags flags() const {
         return m_flags;
     }
 
     const QString& text() const {
         return m_text;
+    }
+
+    void setText(const QString& text) {
+        if (m_text == text) {
+            return;
+        }
+        m_text = text;
+        emit textChanged();
+    }
+
+    const QString& details() const {
+        return m_details;
+    }
+
+    void setDetails(const QString& details) {
+        if (m_details == details) {
+            return;
+        }
+        m_details = details;
+        emit detailsChanged();
     }
 
     void setTimeoutSecs(int timeout) {
@@ -45,6 +91,10 @@ class Notification : public QObject {
         return m_timeoutSecs;
     }
 
+    const QString& key() const {
+        return m_key;
+    }
+
     void setLastUpdated(const QDateTime& lastUpdated) {
         m_lastUpdated = lastUpdated;
     }
@@ -53,11 +103,21 @@ class Notification : public QObject {
         return m_lastUpdated;
     }
 
+    void setSticky(bool sticky) {
+        if (m_flags.testFlags(Notification::Flag::Sticky) == sticky) {
+            return;
+        }
+        m_flags.setFlag(Notification::Flag::Sticky, sticky);
+        emit flagsChanged();
+    }
+
     QVector<NotificationButton> buttons() {
         return m_buttons;
     }
 
-    void addButton(const QString& buttonLabel, QObject* receiver, std::function<void()> func) {
+    void addButton(const QString& buttonLabel,
+            QObject* receiver,
+            const std::function<void()>& func) {
         NotificationButton button;
         button.label = buttonLabel;
         button.receiver = receiver;
@@ -67,15 +127,24 @@ class Notification : public QObject {
 
   signals:
     void closed();
+    void textChanged();
+    void detailsChanged();
+    void flagsChanged();
 
   private:
-    const NotificationFlags m_flags;
-    const QString m_text;
+    Flags m_flags;
+    QString m_text;
+    QString m_details;
+    const QString m_key;
     int m_timeoutSecs;
     QDateTime m_lastUpdated;
     QVector<NotificationButton> m_buttons;
 };
 
-typedef Notification* NotificationPointer;
+typedef std::shared_ptr<Notification> NotificationPointer;
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(mixxx::Notification::Flags)
 
 } // namespace mixxx
+
+Q_DECLARE_METATYPE(mixxx::NotificationPointer)
