@@ -43,30 +43,6 @@ def mixxx_cfg_path():
     return os.path.join(profile_dir(), SETTINGS_FILE)
 
 
-# Bundle ID of the installed Mixxx.app, used to locate the App Sandbox
-# container when testing the packaged macOS bundle.
-MACOS_SANDBOX_BUNDLE_ID = "org.mixxx.mixxx"
-
-
-def macos_sandbox_container(binary):
-    """Return the App Sandbox container of a macOS .app bundle binary.
-
-    The installed Mixxx.app is signed with the App Sandbox entitlement
-    (packaging/macos/Mixxx.entitlements), so the spawned process can only
-    write inside its own container — not in the harness's temp directory,
-    where profiles and the track cache would otherwise be created. Returns
-    None when the binary is not the main executable of an .app bundle
-    (build-tree binaries are not sandboxed) or not running on macOS.
-    """
-    if sys.platform != "darwin" or not binary:
-        return None
-    parts = os.path.abspath(binary).split(os.sep)
-    if not any(part.endswith(".app") for part in parts[:-1]):
-        return None
-    container_home = f"~/Library/Containers/{MACOS_SANDBOX_BUNDLE_ID}/Data"
-    return os.path.expanduser(container_home)
-
-
 def load_track_manifest():
     with open(TRACK_MANIFEST) as f:
         return json.load(f)
@@ -618,21 +594,9 @@ def setup_profile(base_dir, profile_type):
     return base_dir
 
 
-def make_temp_profile(profile_type="empty", container=None):
-    """Create a temporary profile directory and return its path.
-
-    When ``container`` is set (sandboxed macOS .app bundles, see
-    ``macos_sandbox_container``), the profile is created inside the App
-    Sandbox container instead of the harness temp directory: the sandboxed
-    Mixxx process cannot write outside of it.
-    """
-    if container:
-        container_tmp = os.path.join(container, "tmp")
-        os.makedirs(container_tmp, exist_ok=True)
-        base = tempfile.mkdtemp(prefix="mixxx-test-profile-", dir=container_tmp)
-    else:
-        base = tempfile.mkdtemp(prefix="mixxx-test-profile-")
-    return setup_profile(base, profile_type)
+def make_temp_profile(profile_type="empty"):
+    """Create a temporary profile directory and return its path."""
+    return setup_profile(tempfile.mkdtemp(prefix="mixxx-test-profile-"), profile_type)
 
 
 def cleanup_profile(profile_dir):
