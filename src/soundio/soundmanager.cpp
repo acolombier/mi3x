@@ -830,3 +830,72 @@ void SoundManager::invalidateConfig() {
     qDebug() << "SoundManager::invalidateConfig";
     emit configInvalidated();
 }
+
+std::pair<QString, QString> SoundManager::soundDeviceBusyMessageBuilder(const QString& device) {
+    return {
+            tr("Sound Device Busy"),
+            "<html> <p>" %
+                            tr("Mixxx was unable to open all the configured sound devices.") +
+                    "</p> <p>" %
+                            tr("%1 is used by another application or not "
+                               "plugged in.")
+                                    .arg(device) %
+                            "</p><ul>"
+                            "<li>" %
+                            tr("<b>Retry</b> after closing the other application "
+                               "or reconnecting a sound device") %
+                            "</li>"
+                            "<li>" %
+                            tr("<b>Reconfigure</b> Mixxx's sound device settings.") %
+                            "</li>"
+                            "<li>" %
+                            tr("Get <b>Help</b> from the Mixxx Wiki.") %
+                            "</li>"
+                            "<li>" %
+                            tr("<b>Exit</b> Mixxx.") %
+                            "</li>"
+                            "</ul></html>"};
+}
+
+std::pair<QString, QString> SoundManager::soundDeviceErrorMessageBuilder(const QString& error) {
+    return {
+            tr("Sound Device Error"),
+            "<html> <p>" %
+                            tr("Mixxx was unable to open all the configured sound "
+                               "devices.") +
+                    "</p> <p>" %
+                            error.replace("\n", "<br/>") %
+                            "</p><ul>"
+                            "<li>" %
+                            tr("<b>Retry</b> after fixing an issue") %
+                            "</li>"
+                            "<li>" %
+                            tr("<b>Reconfigure</b> Mixxx's sound device settings.") %
+                            "</li>"
+                            "<li>" %
+                            tr("Get <b>Help</b> from the Mixxx Wiki.") %
+                            "</li>"
+                            "<li>" %
+                            tr("<b>Exit</b> Mixxx.") %
+                            "</li>"
+                            "</ul></html>"};
+}
+
+std::pair<QString, QString> SoundManager::soundDeviceNoOutputMessageBuilder() {
+    return {
+            tr("No Output Devices"),
+
+            "<html>" + tr("Mixxx was configured without any output sound devices. "
+                          "Audio processing will be disabled without a configured output device.") +
+                    "<ul>"
+                    "<li>" +
+                    tr("<b>Continue</b> without any outputs.") +
+                    "</li>"
+                    "<li>" +
+                    tr("<b>Reconfigure</b> Mixxx's sound device settings.") +
+                    "</li>"
+                    "<li>" +
+                    tr("<b>Exit</b> Mixxx.") +
+                    "</li>"
+                    "</ul></html>"};
+}
