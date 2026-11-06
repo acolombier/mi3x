@@ -764,6 +764,11 @@ result = context.rpc.getStringProperty("mainWindow", "myResult")
 ### Profile types
 
 - `empty`: schema-only database, no tracks (the only type currently implemented)
+- `busy-sound-devices`: seeds the saved sound configuration with a mock device
+  whose `openStatus` is `ErrorDeviceCount` (`seed_failing_sound_devices`), so
+  start-up raises the "Sound Device Busy" notification
+- `error-sound-devices`: same with `Error`, raising the "Sound Device Error"
+  notification (no Reconfigure CTA, only Retry/Exit)
 
 ### `MixxxProcess` class
 

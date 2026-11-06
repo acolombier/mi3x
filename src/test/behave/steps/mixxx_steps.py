@@ -137,13 +137,6 @@ BUTTON_PATHS = {
 }
 
 
-# --- View helpers ---
-
-
-def _load_track(context, deck, filepath):
-    context.rpc.command("loadTrack", f"{deck},{filepath}")
-
-
 # --- Path resolution ---
 
 def _button_path(name):
@@ -278,6 +271,22 @@ def step_new_empty_profile(context, profile_type):
         force=profile_type.startswith("fresh"),
     )
 
+
+# <kind> → profile type seeded with a mock device whose openStatus makes
+# SoundManager::setupDevices() fail at start-up (mixxx_profile.py); the
+# status decides which notification the start-up flow raises.
+FAILING_SOUND_DEVICE_PROFILES = {
+    "busy": "busy-sound-devices",    # ErrorDeviceCount -> "Sound Device Busy"
+    "error": "error-sound-devices",  # Error           -> "Sound Device Error"
+}
+
+
+@given("a profile with a {kind} sound device configured")
+def step_profile_with_failing_sound_device(context, kind):
+    profile_type = FAILING_SOUND_DEVICE_PROFILES.get(kind)
+    assert profile_type is not None, f"Unknown sound device failure kind: {kind}"
+    # A forced fresh profile instance gives a deterministic start-up.
+    _ensure_profile(context, profile_type, force=True)
 
 @given("Mixxx is open and ready to operate")
 def step_open_and_ready(context):

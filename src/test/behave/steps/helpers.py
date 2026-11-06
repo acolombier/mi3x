@@ -24,6 +24,7 @@ want a custom failure message use the non-raising primitive on
 """
 
 
+import collections
 import random
 import re
 from typing import Optional
@@ -267,6 +268,11 @@ def _set_hotcue(context, group, hotcue, label=None, hotcue_type="cue"):
     context.rpc.command(
         "setHotcue",
         json.dumps(payload))
+
+
+def _load_track(context, deck, filepath):
+    """Load a track file onto a deck via the custom loadTrack command."""
+    context.rpc.command("loadTrack", f"{deck},{filepath}")
 
 
 # --- Remember store ---
@@ -555,8 +561,8 @@ def _set_router_mode(context, mode):
     _click(context, path)
     time.sleep(0.5)
 
-def _find_first_free_output_edge(context):
-    return _find_first_output_edge(context, only_not_connected=True)
+def _find_first_free_output_edge(context, device_name=None):
+    return _find_first_output_edge(context, only_not_connected=True, device_name=device_name)
 
 
 # --- from mixxx_steps.py (used by multiple feature modules) ---
@@ -1072,17 +1078,17 @@ TRACK_ACTIONS = {
 
 _ROW_HEIGHT = 30
 
-def _find_first_output_edge(context, only_not_connected=False):
+def _find_first_output_edge(context, only_not_connected=False, device_name=None):
     # FIXME: This function is fragile. It depends on:
     #   1. System audio hardware being present (no devices = empty outputList = returns None)
     #   2. The ListView item_0, item_1... naming convention matching spix's ListView traversal
     #   3. Edge addresses being "Default" or "Output" (actual addresses are device-specific)
-    # All scenarios using "to an output device" will fail without real audio hardware.
-    # Consider adding a custom C++ command to register a fake output device for testing.
     output_count = int(_get_property(context, f"{OUTPUT_COLUMN}/outputList", "count"))
     for i in range(output_count):
         item_path = f"{OUTPUT_COLUMN}/outputList/output{i}"
         name = _get_property(context, item_path, "name")
+        if device_name and device_name != name:
+            continue
         assert name, f"Cannot find {item_path}"
         channels = int(_get_property(context, f"{item_path}/node", "count"))
         for channel in range(channels):

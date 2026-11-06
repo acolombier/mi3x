@@ -56,6 +56,7 @@ Feature: Sound
   # completes instantly (no real audio device configured).
   @xpass
   Scenario: Save shows committing overlay while processing
+    Given the "Main Mix" setting is "on"
     When I toggle the "Main Mix" setting to "off"
     And I click the save button
     Then the committing overlay should be visible
@@ -106,7 +107,7 @@ Feature: Sound
     # verification that "Output" on Deck 1 and "Auxiliary" on Mixer are both
     # visible in advanced mode and that their types (source/sink) are compatible.
     Given the router mode is "advanced"
-    When I connect the "Output" edge on "Deck 1" entity to a free output device
+    When I connect the "Output" edge on "Deck 1" entity to a free output channel
     And I click the save button
     And I set the router mode to "simple"
     Then the "advanced (!)" option should be visible
@@ -123,27 +124,26 @@ Feature: Sound
     Then the "PFL" edge on "Mixer" entity should show idle state
 
   Scenario: Edge shows setting state after new connection
-    And the router mode is "advanced"
-    When I connect the "Main" edge on "Mixer" entity to a free output device
+    Given the router mode is "advanced"
+    When I connect the "Main" edge on "Mixer" entity to a free output channel
     Then the "Main" edge on "Mixer" entity should show setting state
 
   Scenario: Edge shows existing state for saved connection
-    And the router mode is "advanced"
+    Given the router mode is "advanced"
     And a saved connection exists from "Main" on "Mixer" to an output device
     Then the "Main" edge on "Mixer" entity should show existing state
 
   Scenario: Connection line shows correct state colors
-    And the router mode is "advanced"
+    Given the router mode is "advanced"
     And a saved connection exists from "Main" on "Mixer" to an output device
     Then the connection from "Main" on "Mixer" should show existing state
-    When I connect the "PFL" edge on "Mixer" entity to a free output device
+    When I connect the "PFL" edge on "Mixer" entity to a free output channel
     Then the connection from "PFL" on "Mixer" should show set state
 
   # TODO: investigate
   @xfail
   Scenario: Disconnecting an existing connection marks it for deletion
-    # FIXME: Two blockers:
-    #   1. _find_first_output_edge is fragile without mock devices.
+    # FIXME: one blockers:
     #   2. spix has no mouseHover/mouseMoveTo API. The edge MouseArea uses
     #      onEntered to set AudioConnection.Flags.AboutToDelete, but spix
     #      only triggers onPressed (via mouseClick). Need spix hover support
@@ -157,25 +157,25 @@ Feature: Sound
 
   Scenario: Creating a connection enables save button
     And the router mode is "advanced"
-    When I connect the "Main" edge on "Mixer" entity to a free output device
+    When I connect the "Main" edge on "Mixer" entity to a free output channel
     Then the save button should be enabled
 
   Scenario: Saving persists the connection
     And the router mode is "advanced"
-    When I connect the "Main" edge on "Mixer" entity to a free output device
+    When I connect the "Main" edge on "Mixer" entity to a free output channel
     And I click the save button
     And the committing overlay is not visible
     Then the "Main" edge on "Mixer" entity should show existing state
 
   Scenario: Cancel discards unsaved connection
     And the router mode is "advanced"
-    When I connect the "Main" edge on "Mixer" entity to a free output device
+    When I connect the "Main" edge on "Mixer" entity to a free output channel
     And I click the cancel button
     Then the "Main" edge on "Mixer" entity should show warning state
 
   Scenario: Reset after connection restores original state
     And the router mode is "advanced"
-    When I connect the "Main" edge on "Mixer" entity to a free output device
+    When I connect the "Main" edge on "Mixer" entity to a free output channel
     And I click the cancel button
     Then the router should match the saved configuration
 
