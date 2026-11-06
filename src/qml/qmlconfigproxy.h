@@ -383,7 +383,6 @@ class QmlConfigProxy : public QmlConfigProxyBase {
                                              // achieve property binding
   public:
     explicit QmlConfigProxy(
-            UserSettingsPointer pConfig,
             QObject* pParent = nullptr);
     ~QmlConfigProxy() override;
 
@@ -555,7 +554,6 @@ class QmlConfigProxy : public QmlConfigProxyBase {
     PROPERTY_DECL_ACCESSOR(bool, libraryRekordboxEnabled);
     PROPERTY_DECL_ACCESSOR(bool, librarySeratoEnabled);
 
-    static QmlConfigProxy* create(QQmlEngine* pQmlEngine, QJSEngine* pJsEngine);
     static inline void registerUserSettings(UserSettingsPointer pConfig) {
         s_pUserSettings = std::move(pConfig);
     }
@@ -677,17 +675,16 @@ class QmlConfigProxy : public QmlConfigProxyBase {
             const Type& defaultValue,
             Signal signal) {
         if (value == defaultValue) {
-            m_pConfig->remove(ConfigKey(group, key));
+            get()->remove(ConfigKey(group, key));
             emit(this->*signal)();
-        } else if (m_pConfig->getValue(ConfigKey(group, key), defaultValue) != value) {
-            m_pConfig->setValue(ConfigKey(group, key), value);
+        } else if (get()->getValue(ConfigKey(group, key), defaultValue) != value) {
+            get()->setValue(ConfigKey(group, key), value);
             emit(this->*signal)();
         }
     }
 
     static inline UserSettingsPointer s_pUserSettings = nullptr;
 
-    const UserSettingsPointer m_pConfig;
     std::unique_ptr<ControlObject> m_pOverviewStereoControl;
     std::unique_ptr<ControlObject> m_pOverviewMinuteMarkersControl;
 };

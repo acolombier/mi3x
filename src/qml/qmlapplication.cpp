@@ -129,7 +129,7 @@ QmlApplication::QmlApplication(
     }
 #endif
 
-    QJSEngine::setObjectOwnership(QmlCoreServices::createInstance(this), QJSEngine::CppOwnership);
+    QmlCoreServices::registerCoreServices(m_pCoreServices.get());
 
     m_loadSucceeded = loadQml(m_mainFilePath);
     if (!m_loadSucceeded && !CmdlineArgs::Instance().getDeveloper()) {
@@ -242,7 +242,6 @@ QmlApplication::QmlApplication(
     QQuickAsyncImageProvider* pImageProvider = new AsyncImageProvider(
             m_pCoreServices->getTrackCollectionManager());
     m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
-    QmlCoreServices::instance()->setReady();
 
     m_pCoreServices->getControllerManager()->setUpDevices();
 

@@ -40,6 +40,9 @@ class CoreServices : public QObject {
 
     /// The secondary long run which should be called after displaying the start up screen
     void initialize();
+    bool isInitialized() const {
+        return m_isInitialized;
+    }
 
     std::shared_ptr<KeyboardEventFilter> getKeyboardEventFilter() const {
         return m_pKeyboardEventFilter;
@@ -114,6 +117,7 @@ class CoreServices : public QObject {
   signals:
     void initializationProgressUpdate(int progress, const QString& serviceName);
     void libraryScanSummary(const LibraryScanResultSummary& result);
+    void initialized();
 
   private:
     bool initializeDatabase();
