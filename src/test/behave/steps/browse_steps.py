@@ -1000,6 +1000,30 @@ def step_scanning_overlay_hidden(context):
     # Rescanning library may be slow
     assert wait_hidden(context.rpc, LIBRARY_SCAN_OVERLAY, timeout=10), "Library scanning overlay is still visible"
 
+# --- Library scanner & load-failure notifications (@sub/notifications) -------
+
+HEADER_LOGO_PATH = "mainWindow/logo"
+GLOBAL_CONTEXT_MENU_PATH = "mainWindow/globalContextMenu"
+MISSING_TRACK_PATH = os.path.join(
+    tempfile.gettempdir(), "mixxx-test-missing-track.mp3")
+
+@when("I trigger a library scan from the header menu")
+def step_trigger_library_scan_from_header_menu(context):
+    # The header logo opens the global context menu through a TapHandler,
+    # which swallows some spix synthetic taps (AGENTS.md exception): every
+    # tap retry is verified against the menu's visibility. The notification
+    # drawer auto-opens at start-up on top of the header; its
+    # CloseOnPressOutsidePolicy consumes a first outside tap, which the
+    # retry also covers.
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        if _is_visible(context, GLOBAL_CONTEXT_MENU_PATH):
+            break
+        _click(context, HEADER_LOGO_PATH)
+        time.sleep(0.3)
+    assert _is_visible(context, GLOBAL_CONTEXT_MENU_PATH), (
+        "The header context menu did not open")
+    _select_menu_items(context, GLOBAL_CONTEXT_MENU_PATH, ["Library", "Scan"])
 @when("I click the remove button for the music directory at row {row:d}")
 def step_click_remove_music_directory(context, row):
     path = SOURCE_REMOVE_BUTTON % row
