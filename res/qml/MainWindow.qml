@@ -15,9 +15,6 @@ Item {
     readonly property int designHeight: 1008
     readonly property int designWidth: 1792
     property alias editDeck: editDeckButton.checked
-
-    // Used to show click interaction on the Window. Mainly relevant on automated testing
-    property bool enableDiagnosticClick: false
     property var focusedDeck: null
     readonly property Item imeFocusItem: Window.activeFocusItem
     // Pull-to-top IME shift: while the soft keyboard is up, lift the
@@ -41,6 +38,7 @@ Item {
     readonly property int numDecks: 4
     readonly property int numPreviewDecks: 1
     readonly property int numSamplers: 16
+    required property var settingsPopup
     readonly property bool show4decks: show4DecksButton.checked && show4DecksButton.visible
     property alias showEffects: showEffectsButton.checked
     property alias showSamplers: showSamplersButton.checked
@@ -202,15 +200,15 @@ Item {
                     id: showPreferencesButton
 
                     activeColor: Theme.white
-                    checked: settingsPopup.opened
+                    checked: root.settingsPopup.opened
                     icon.height: 16
                     icon.source: "images/gear.svg"
                     icon.width: 16
                     implicitWidth: implicitHeight
 
                     onClicked: {
-                        if (!settingsPopup.opened) {
-                            settingsPopup.open();
+                        if (!root.settingsPopup.opened) {
+                            root.settingsPopup.open();
                         }
                     }
                     onPressAndHold: {
@@ -691,38 +689,6 @@ Item {
                         bottom: parent.bottom
                         top: mixer.bottom
                     }
-                }
-            }
-        }
-    }
-    Skin.Settings {
-        id: settingsPopup
-
-        enableDiagnosticClick: parent.enableDiagnosticClick
-        height: Math.min(840, parent.height)
-        modal: true
-        width: Math.min(1400, parent.width)
-        x: Math.round((parent.width - width) / 2)
-        y: Math.round((parent.height - height) / 2)
-
-        Overlay.modal: Rectangle {
-            id: overlayModal
-
-            readonly property bool hasHardwareAcceleration: Mixxx.Config.useAcceleration
-            property real radius: 12
-
-            anchors.fill: parent
-            color: Qt.alpha('#00000010', hasHardwareAcceleration ? 1.0 : 0.6)
-
-            Repeater {
-                model: hasHardwareAcceleration ? 1 : 0
-
-                GaussianBlur {
-                    anchors.fill: overlayModal
-                    deviation: 4
-                    radius: Math.max(0, overlayModal.radius)
-                    samples: 16
-                    source: content
                 }
             }
         }
