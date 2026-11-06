@@ -6,6 +6,7 @@
 
 #include <utility>
 
+#include "broadcast/broadcastmanager.h"
 #include "library/library.h"
 #include "library/library_prefs.h"
 #include "mixer/playermanager.h"
@@ -186,6 +187,28 @@ void QmlCoreServices::slotLibraryScanSummary(const LibraryScanResultSummary& res
     pNotification->setDetails(summary);
     NotificationManager::instance()->notify(pNotification);
 }
+
+void QmlCoreServices::slotBroadcastError(
+        const QString& title, const QString& text) {
+    NotificationPointer pNotification;
+
+    const auto pNotifications = mixxx::NotificationManager::instance()->activeNotifications();
+    for (const auto& aNotification : std::as_const(pNotifications)) {
+        if (aNotification->key() == title) {
+            pNotification = std::move(aNotification);
+            break;
+        }
+    }
+
+    if (!pNotification) {
+        pNotification = std::make_shared<Notification>(title, Notification::Flag::Sticky, title);
+        // TODO add relevant CTAs when broadcast get implemented
+        NotificationManager::instance()->notify(pNotification);
+    }
+
+    pNotification->setDetails(text);
+}
+
 void QmlCoreServices::slotNotificationAdded(mixxx::NotificationPointer pNotification) {
     // FIXME risky
     emit notificationAdded(pNotification.get());
@@ -220,6 +243,12 @@ void QmlCoreServices::slotInitialization() {
             this,
             &QmlCoreServices::slotTrackLoadFailed,
             Qt::UniqueConnection);
+    connect(s_pCoreServices->getBroadcastManager().get(),
+            &BroadcastManager::broadcastError,
+            this,
+            &QmlCoreServices::slotBroadcastError,
+            Qt::UniqueConnection);
+
     if (s_pCoreServices->isInitialized()) {
         setReady();
     }
