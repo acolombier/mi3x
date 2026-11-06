@@ -25,6 +25,12 @@ QmlCoreServices::QmlCoreServices(QQmlEngine* pQmlEngine)
             this,
             &QmlCoreServices::slotLibraryScanSummary);
     connect(s_pCoreServices.get(),
+            &mixxx::CoreServices::initializationProgressUpdate,
+            this,
+            [this](int, const QString&) {
+                slotInitialization();
+            });
+    connect(s_pCoreServices.get(),
             &mixxx::CoreServices::initialized,
             this,
             &QmlCoreServices::slotInitialization);
@@ -44,6 +50,37 @@ void QmlCoreServices::setReady() {
 // static
 QmlCoreServices* QmlCoreServices::create(QQmlEngine* pQmlEngine, QJSEngine*) {
     return new QmlCoreServices(pQmlEngine);
+}
+
+QQmlListProperty<mixxx::Notification> QmlCoreServices::notifications() {
+    return {this,
+            nullptr,
+            &QmlCoreServices::append_notification,
+            &QmlCoreServices::count_notification,
+            &QmlCoreServices::at_notification,
+            &QmlCoreServices::clear_notification};
+}
+
+void QmlCoreServices::append_notification(
+        QQmlListProperty<mixxx::Notification>*,
+        mixxx::Notification* slice) {
+    return NotificationManager::instance()->notify(NotificationPointer(slice));
+}
+
+qsizetype QmlCoreServices::count_notification(QQmlListProperty<mixxx::Notification>*) {
+    return NotificationManager::instance()->count();
+}
+
+mixxx::Notification* QmlCoreServices::at_notification(
+        QQmlListProperty<mixxx::Notification>*, qsizetype idx) {
+    return NotificationManager::instance()
+            ->activeNotifications()
+            .at(idx)
+            .get();
+}
+
+void QmlCoreServices::clear_notification(QQmlListProperty<mixxx::Notification>*) {
+    NotificationManager::instance()->clear();
 }
 
 void QmlCoreServices::addOpenedPopup(QObject* popup) {
@@ -149,8 +186,34 @@ void QmlCoreServices::slotLibraryScanSummary(const LibraryScanResultSummary& res
     pNotification->setDetails(summary);
     NotificationManager::instance()->notify(pNotification);
 }
+void QmlCoreServices::slotNotificationAdded(mixxx::NotificationPointer pNotification) {
+    // FIXME risky
+    emit notificationAdded(pNotification.get());
+    emit notificationsChanged();
+}
+
+void QmlCoreServices::slotNotificationClosed(mixxx::NotificationPointer pNotification) {
+    // FIXME need to find a way to exclude from smart pointer gc
+    // auto pUnique = std::make_unique<mixxx::Notification>(std::move(*pNotification));
+    // auto pInner = pUnique.release();
+    // QQmlEngine::setObjectOwnership(pInner, QQmlEngine::JavaScriptOwnership);
+    emit notificationClosed(pNotification.get());
+    emit notificationsChanged();
+}
 
 void QmlCoreServices::slotInitialization() {
+    // List binding
+    connect(NotificationManager::instance(),
+            &NotificationManager::notificationAdded,
+            this,
+            &QmlCoreServices::slotNotificationAdded,
+            Qt::UniqueConnection);
+    connect(NotificationManager::instance(),
+            &NotificationManager::notificationClosed,
+            this,
+            &QmlCoreServices::slotNotificationClosed,
+            Qt::UniqueConnection);
+
     // Application event to notification builder slots
     connect(s_pCoreServices->getPlayerManager().get(),
             &PlayerManager::trackLoadFailed,
