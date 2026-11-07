@@ -141,6 +141,7 @@ jobs:
       artifact_slug: "flatpak-x86_64"
       target: ${{ matrix.target }}
       features: ${{ matrix.features }}
+      fail_early: ${{ github.event.pull_request.draft == true && '1' || '0' }}
       os: ubuntu-26.04
       headless: "1"
       display_backend: "xwayland"

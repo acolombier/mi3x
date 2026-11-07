@@ -422,9 +422,9 @@ def _failure_blocks(attempts, log_url=None):
         if grp["latest"].get("outcome", "") in FAILURE_OUTCOMES:
             footer = ""
             pids = [
-                pid
+                a["mixxx_pid"]
                 for a in grp["attempts"]
-                for pid in (a.get("mixxx_pids") or [])
+                if a.get("mixxx_pid") is not None
             ]
             if pids:
                 footer += "Mixxx process PID was " + ", ".join(
