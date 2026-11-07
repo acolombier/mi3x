@@ -13,11 +13,43 @@ Item {
         Scratching
     }
 
+    property var axesColor: '#a1a1a1a1'
+    property double globalGain: Mixxx.Config.waveformVisualGainAll
     required property string group
+    // TODO add support for color
+    property color highColor: '#D5C2A2'
+    property double highGain: Mixxx.Config.waveformVisualGainHigh
+    property color lowColor: '#2154D7'
+    property double lowGain: Mixxx.Config.waveformVisualGainLow
+    property color midColor: '#97632D'
+    property double middleGain: Mixxx.Config.waveformVisualGainMedium
     property bool splitStemTracks: false
     readonly property string zoomGroup: Mixxx.Config.waveformZoomSynchronization ? "[Channel1]" : group
 
+    function onRenderAdded(object) {
+        if (display.renderers[0] === null) {
+            display.renderers[0] = object;
+        } else {
+            display.renderers.splice(0, 0, object);
+        }
+    }
+    function onRenderRemoved(object) {
+        let index = display.renderers.indexOf(object);
+        if (index < 0) {
+            console.error("Unable to find the stale rendered in the stack! Prepare for use after free crash.", object);
+        }
+        display.renderers[index] = null;
+    }
+
+    // Used by E2E tests - format <Renderer Debug string> + <stackedPropertyValue>
+    function renderType() {
+        print("Called renderType", display.renderers[0]);
+        return "" + (display.renderers[0] ?? "") + " " + display.renderers[0]?.stacked;
+    }
+
     MixxxControls.WaveformDisplay {
+        id: display
+
         anchors.fill: parent
         backgroundColor: "transparent"
         group: root.group
@@ -32,7 +64,7 @@ Item {
 
         Mixxx.WaveformRendererEndOfTrack {
             color: '#ff8872'
-            endOfTrackWarningTime: 30
+            endOfTrackWarningTime: Mixxx.Config.waveformEndOfTrackWarningTime
         }
         Mixxx.WaveformRendererPreroll {
             color: '#ff8872'
@@ -67,30 +99,32 @@ Item {
                 startControl: "outro_start_position"
             }
         }
-        Mixxx.WaveformRendererFiltered {
-            axesColor: '#a1a1a1a1'
-            gainAll: 1.0
-            gainHigh: 1.0
-            gainLow: 1.0
-            gainMid: 1.0
-            highColor: '#D5C2A2'
-            lowColor: '#2154D7'
-            midColor: '#97632D'
-        }
         Mixxx.WaveformRendererStem {
             gainAll: root.splitStemTracks ? 2.0 : 1.0
             splitStemTracks: root.splitStemTracks
         }
         Mixxx.WaveformRendererBeat {
-            color: '#a1a1a1a1'
+            color: Qt.alpha('#a1a1a1', Mixxx.Config.waveformBeatGridAlpha / 100)
         }
         Mixxx.WaveformRendererMark {
             playMarkerBackground: '#D9D9D9'
             playMarkerColor: '#D9D9D9'
-            untilMark.align: Qt.AlignBottom
-            untilMark.showBeats: true
-            untilMark.showTime: true
-            untilMark.textSize: 11
+            playMarkerPosition: Mixxx.Config.waveformPlayMarkerPosition
+            untilMark.align: {
+                switch (Mixxx.Config.waveformUntilMarkAlign) {
+                case 0:
+                    return Qt.AlignTop;
+                case 2:
+                    return Qt.AlignBottom;
+                case 1:
+                    return Qt.AlignVCenter;
+                }
+                console.warn("unknown value for waveformUntilMarkAlign. Defaulting to center");
+                return Qt.AlignVCenter;
+            }
+            untilMark.showBeats: Mixxx.Config.waveformUntilMarkShowBeats
+            untilMark.showTime: Mixxx.Config.waveformUntilMarkShowTime
+            untilMark.textSize: Mixxx.Config.waveformUntilMarkTextPointSize
 
             defaultMark: Mixxx.WaveformMark {
                 align: "bottom|right"
@@ -184,6 +218,71 @@ Item {
             if (group == root.group) {
                 value = Mixxx.Config.waveformDefaultZoom;
             }
+        }
+    }
+    Instantiator {
+        active: Mixxx.Config.waveformType == Mixxx.WaveformDisplay.Filtered || Mixxx.Config.waveformType == Mixxx.WaveformDisplay.Stacked
+
+        onObjectAdded: (_index, object) => root.onRenderAdded(object)
+        onObjectRemoved: (_index, object) => root.onRenderRemoved(object)
+
+        Mixxx.WaveformRendererFiltered {
+            axesColor: root.axesColor
+            gainAll: root.globalGain
+            gainHigh: root.highGain
+            gainLow: root.lowGain
+            gainMid: root.middleGain
+            highColor: root.highColor
+            lowColor: root.lowColor
+            midColor: root.midColor
+            stacked: Mixxx.Config.waveformType == Mixxx.WaveformDisplay.Stacked
+        }
+    }
+    Instantiator {
+        active: Mixxx.Config.waveformType == Mixxx.WaveformDisplay.HSV
+
+        onObjectAdded: (_index, object) => root.onRenderAdded(object)
+        onObjectRemoved: (_index, object) => root.onRenderRemoved(object)
+
+        Mixxx.WaveformRendererHSV {
+            axesColor: root.axesColor
+            color: root.lowColor
+            gainAll: root.globalGain
+            gainHigh: root.highGain
+            gainLow: root.lowGain
+            gainMid: root.middleGain
+            ignoreStem: true
+        }
+    }
+    Instantiator {
+        active: Mixxx.Config.waveformType == Mixxx.WaveformDisplay.RGB
+
+        onObjectAdded: (_index, object) => root.onRenderAdded(object)
+        onObjectRemoved: (_index, object) => root.onRenderRemoved(object)
+
+        Mixxx.WaveformRendererRGB {
+            axesColor: root.axesColor
+            gainAll: root.globalGain
+            gainHigh: root.highGain
+            gainLow: root.lowGain
+            gainMid: root.middleGain
+            highColor: root.highColor
+            ignoreStem: true
+            lowColor: root.lowColor
+            midColor: root.midColor
+        }
+    }
+    Instantiator {
+        active: Mixxx.Config.waveformType == Mixxx.WaveformDisplay.Simple
+
+        onObjectAdded: (_index, object) => root.onRenderAdded(object)
+        onObjectRemoved: (_index, object) => root.onRenderRemoved(object)
+
+        Mixxx.WaveformRendererSimple {
+            axesColor: root.axesColor
+            color: root.lowColor
+            gain: root.globalGain
+            ignoreStem: true
         }
     }
     MouseArea {
