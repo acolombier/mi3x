@@ -29,19 +29,26 @@ Item {
 
     Skin.Button {
         id: button
-        text: "Range"
+
+        property bool skipAction: true
 
         anchors.fill: parent
+        text: "Range"
 
-        onReleased: {
-            if (popup.opened) {
-                popup.close()
-            } else {
-                nextRange()
-            }
-        }
         onPressAndHold: {
-            popup.open()
+            skipAction = true;
+            popup.open();
+        }
+        onPressed: {
+            skipAction = false;
+        }
+        onReleased: {
+            if (skipAction) {
+                popup.close();
+            } else {
+                nextRange();
+                popup.open();
+            }
         }
 
         Mixxx.ControlProxy {
@@ -51,6 +58,16 @@ Item {
             key: "rateRange"
         }
     }
+    Timer {
+        id: close
+
+        interval: 1500
+        running: popup.opened
+
+        onTriggered: {
+            popup.close();
+        }
+    }
     Popup {
         id: popup
 
@@ -58,8 +75,8 @@ Item {
         height: button.implicitHeight + 20
         padding: 0
         width: Math.max(button.implicitWidth * 1.5, 50)
-        x: button.width / 2 - popup.width / 2;
-        y: -height-10
+        x: button.width / 2 - popup.width / 2
+        y: -height - 10
 
         background: Item {
         }
@@ -71,10 +88,10 @@ Item {
 
                 layer.effect: MultiEffect {
                     autoPaddingEnabled: true
-                    shadowEnabled: true
-                    shadowColor: "#B0000000"
-                    shadowBlur: 0.24
                     blurMultiplier: 0.24
+                    shadowBlur: 0.24
+                    shadowColor: "#B0000000"
+                    shadowEnabled: true
                 }
 
                 Shape {
@@ -118,7 +135,7 @@ Item {
                     Text {
                         anchors.centerIn: parent
                         color: Theme.white
-                        text: `${parseInt(rangeControl.value*100)}%`
+                        text: `${parseInt(rangeControl.value * 100)}%`
                     }
                 }
             }
