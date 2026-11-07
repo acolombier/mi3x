@@ -241,8 +241,9 @@ technical detail.
 
 Every `--serve` spawn also writes its complete application output
 (`--log-level debug`) to `mixxx-output.<pid>.log` in the artifacts directory,
-so crashes and restarts can be investigated without re-running. For failed
-scenarios, the CI report lists the PID(s) of the `mixxx` instance(s) each
-attempt ran against (also recorded as `mixxx_pids` in
-`artifacts/results-*.json`), matching those log files, and links to the
-process logs archive on the job summary.
+so crashes and restarts can be investigated without re-running; the
+`rpc-ready after X.Xs` banner in that log reports how long the spawn took to
+reach the test RPC port. For failed scenarios, the CI report lists the PID of
+the `mixxx` instance each attempt ran against (also recorded as `mixxx_pid`
+in `artifacts/results-*.json`), matching those log files, and
+links to the process logs archive on the job summary.

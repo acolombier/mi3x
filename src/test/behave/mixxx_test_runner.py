@@ -966,6 +966,12 @@ def main():
              "when --record is set)",
     )
     parser.add_argument(
+        "--rpc-trace",
+        action="store_true",
+        default=_env_flag("MIXXX_TEST_TRACE_RPC"),
+        help="Enable RPC debug trace output)",
+    )
+    parser.add_argument(
         "--artifacts-dir",
         default=os.environ.get("MIXXX_TEST_ARTIFACTS"),
         help="Directory for screenshots and video output",
@@ -1189,6 +1195,7 @@ def main():
                 artifacts, f"behave-output-{args.label or 'default'}.txt"
             ),
             mixxx_output_dir=artifacts,
+            rpc_trace=args.rpc_trace,
         )
 
         if args.no_capture:

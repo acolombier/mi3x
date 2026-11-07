@@ -690,6 +690,7 @@ jobs:
       artifact_slug: ${{ fromJSON(inputs.platform).artifacts_slug }}
       target: ${{ matrix.target }}
       features: ${{ matrix.features }}
+      fail_early: ${{ github.event.pull_request.draft == true && '1' || '0' }}
       # Linux builds pin ubuntu-22.04 for the glibc baseline, but its apt
       # inventory is too old to host the E2E: the jammy cage (0.1.4,
       # wlroots 0.15) exits at startup in the runner's headless xwayland
