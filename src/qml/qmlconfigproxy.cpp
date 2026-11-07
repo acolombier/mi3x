@@ -1050,5 +1050,17 @@ QmlConfigProxy* QmlConfigProxy::create(QQmlEngine* pQmlEngine, QJSEngine*) {
     return new QmlConfigProxy(s_pUserSettings, pQmlEngine);
 }
 
+QString QmlConfigProxy::getDeckLayout(uint deck) const {
+    qDebug() << "QmlConfigProxy::getDeckLayout" << deck
+             << m_pConfig->getValue(ConfigKey(kPreferencesGroup,
+                        QString("deck_layout_%1").arg(deck)));
+    return m_pConfig->getValue(ConfigKey(kPreferencesGroup, QString("deck_layout_%1").arg(deck)));
+}
+
+void QmlConfigProxy::setDeckLayout(uint deck, const QString& layout) {
+    qDebug() << "QmlConfigProxy::setDeckLayout" << deck << layout;
+    m_pConfig->setValue(ConfigKey(kPreferencesGroup, QString("deck_layout_%1").arg(deck)), layout);
+}
+
 } // namespace qml
 } // namespace mixxx
