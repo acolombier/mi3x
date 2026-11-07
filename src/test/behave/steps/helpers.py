@@ -124,6 +124,17 @@ def wait_visible(rpc, path, timeout=5):
         time.sleep(0.3)
     return False
 
+def wait_property(rpc, path, prop, value, timeout=5):
+    """Poll ``value`` until the return value is the one expected or ``timeout`` seconds elapse."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        current = rpc.getStringProperty(path, prop)
+        if current == str(value):
+            return True
+        print("current equal to", path, prop, current, value)
+        time.sleep(0.3)
+    return False
+
 
 def wait_hidden(rpc, path, timeout=5):
     """Poll ``existsAndVisible`` until false or ``timeout`` seconds elapse."""
@@ -451,7 +462,7 @@ def _setting_spec(setting):
     return spec
 
 def _deck_waveform_path(deck):
-    return f"mainWindow/waveformDisplay_Channel{deck}"
+    return f"mainWindow/deck{deck}waveform"
 
 def _read_float_property(context, path, prop):
     value = _get_property(context, path, prop)
@@ -881,6 +892,7 @@ DECK_BUTTON_PATHS = {
     "beatjump_backward": "jumpBackButton",
     "beatgrid": "beatgridButton",
     "hotcue": "hotcueAndStem",
+    "loop": "loop",
     "loop_in": "loopIn",
     "loop_out": "loopOut",
     "quantize": "quantizeButton",
@@ -892,6 +904,7 @@ DECK_BUTTON_PATHS = {
     "loop_halve": "loopSizeHalfButton",
     "loop_double": "loopSizeDoubleButton",
     "tempo": "rateSlider",
+    "toolbar": "toolbar",
 }
 
 

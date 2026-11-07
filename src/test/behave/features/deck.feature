@@ -112,25 +112,29 @@ Feature: Deck
     Then the rate of deck 1 should be near 0.05
     And the rate ratio of deck 1 should be near 1.004
 
-  Scenario: Edit mode can be toggled
+  @sub/layout
+  Scenario: Deck layout editor can be toggled
     When I click the "EDIT" button
     Then edit mode should be enabled
-    When I click the "EDIT" button
+    When I click the "Cancel" button on the edit overlay
     Then edit mode should not be enabled
 
-  Scenario: Edit mode overlays are visible on deck components
+  @sub/layout
+  Scenario: Deck layout editor overlays are visible on deck components
     When I click the "EDIT" button
-    Then the edit overlay should be visible on the "play" component in deck 1
-    When I click the "EDIT" button
-    Then the edit overlay should not be visible on the "play" component in deck 1
+    Then the edit overlay should be visible
+    When I click the "Cancel" button on the edit overlay
+    Then the edit overlay should not be visible
 
-  Scenario: Edit mode: single component can be repositioned
+  @sub/layout
+  Scenario: Deck layout editor single component can be repositioned
     When I click the "EDIT" button
     And I move the "play" component in deck 1 under the "cue" component
-    And I click the "EDIT" button
+    And I click the "Save" button on the edit overlay
     Then the "play" component should appear under the "cue" component in deck 1
 
-  Scenario: Edit mode: component group can be moved
+  @sub/layout
+  Scenario: Deck layout editor component group can be moved
     When I click the "EDIT" button
     And I select the group containing "play" in deck 1 with a ctrl+click
     # Select the parent's parent
@@ -138,37 +142,69 @@ Feature: Deck
     # Select the parent's parent's parent
     And I select the group containing "play" in deck 1 with a ctrl+click
     And I move the selected group in deck 1 after the "rateSlider" component
-    And I click the "EDIT" button
+    And I click the "Save" button on the edit overlay
     Then the "play" component should appear after the "rateSlider" component in deck 1
 
-  @category/responsiveness
-  Scenario: The spinny is hidden when the deck gets too narrow
-    When I resize the window's width to 1792px
-    Then the "spinny" component should be visible in deck 1
-    When I resize the window's width to 1500px
-    Then the "spinny" component should not be visible in deck 1
+  @sub/layout
+  Scenario: Deck layout editor component layout can be reset
+    When I click the "EDIT" button
+    And I select the group containing "play" in deck 1 with a ctrl+click
+    # Select the parent's parent
+    And I select the group containing "play" in deck 1 with a long press
+    # Select the parent's parent's parent
+    And I select the group containing "play" in deck 1 with a ctrl+click
+    And I move the selected group in deck 1 after the "rateSlider" component
+    And I click the "Save" button on the edit overlay
+    Then the edit overlay should not be visible
+    And the "play" component should appear after the "rateSlider" component in deck 1
+    When I click the "EDIT" button
+    And I click the "Reset" button on the edit overlay
+    Then the "rateSlider" component should appear after the "play" component in deck 1
 
   @category/responsiveness
-  Scenario: The beatjump is hidden when the deck gets too narrow
+  Scenario: The spinny is collapsed when the deck gets too narrow
     When I resize the window's width to 1792px
-    Then the "beatjump" component should be visible in deck 1
+    When I resize the window's width to 1600px
+    Then the "spinny" component should not be expanded in deck 1
+
+  @category/responsiveness
+  Scenario: The beatjump is collapsed when the deck gets too narrow
+    When I resize the window's width to 1792px
+    Then the "beatjump" component should be expanded in deck 1
     When I resize the window's width to 1400px
-    Then the "beatjump" component should not be visible in deck 1
+    Then the "beatjump" component should not be expanded in deck 1
+    When I click the "beatjump" button on deck 1
+    Then the "beatjump" component should be expanded in deck 1
 
   @category/responsiveness
-  Scenario: The hotcue is hidden when the deck gets too narrow
+  Scenario: The hotcue is collapsed when the deck gets too narrow
     When I resize the window's width to 1792px
-    Then the "hotcue" component should be visible in deck 1
+    Then the "hotcue" component should be expanded in deck 1
     When I resize the window's width to 1200px
-    Then the "hotcue" component should not be visible in deck 1
+    Then the "hotcue" component should not be expanded in deck 1
+    When I click the "hotcue" button on deck 1
+    Then the "hotcue" component should be expanded in deck 1
 
   @category/responsiveness
-  Scenario: The tempo is hidden when the deck gets too narrow
-    When I resize the window's width to 1792px
-    Then the "tempo" component should be visible in deck 1
-    When I resize the window's width to 700px
-    Then the "tempo" component should not be visible in deck 1
-    And the "play" component should be visible in deck 1
+  Scenario: All components can be expanded sequentially when the deck gets too narrow
+    When I resize the window's width to 800px
+    Then the "loop" component should not be expanded in deck 1
+    And the "cue" component should be expanded in deck 1
+    And the "play" component should be expanded in deck 1
+    And the "overview" component should be expanded in deck 1
+    And the "toolbar" component should be expanded in deck 1
+    When I click the "loop" button on deck 1
+    Then the "loop" component should be expanded in deck 1
+    And the "beatjump" component should not be expanded in deck 1
+    When I click the "beatjump" button on deck 1
+    Then the "beatjump" component should be expanded in deck 1
+    And the "hotcue" component should not be expanded in deck 1
+    When I click the "hotcue" button on deck 1
+    Then the "hotcue" component should be expanded in deck 1
+    And the "cue" component should be expanded in deck 1
+    And the "play" component should be expanded in deck 1
+    And the "overview" component should be expanded in deck 1
+    And the "toolbar" component should be expanded in deck 1
 
   @category/responsiveness
   Scenario: 4 decks button hides when the window is too short

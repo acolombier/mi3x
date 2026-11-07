@@ -404,6 +404,10 @@ class QmlConfigProxy : public QmlConfigProxyBase {
     Q_INVOKABLE QVariantList colorPalette(const QString& paletteName) const;
 
     Q_INVOKABLE QStringList paletteNames() const;
+
+    // Deck customization, JSON serialized
+    Q_INVOKABLE QString getDeckLayout(uint deck) const;
+    Q_INVOKABLE void setDeckLayout(uint deck, const QString& layout);
   signals:
     void hotcueColorPaletteChanged();
     void trackColorPaletteChanged();

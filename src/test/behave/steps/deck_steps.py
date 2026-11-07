@@ -39,13 +39,17 @@ from helpers import (
     _set_hotcue,
     _wait_for_hidden,
     _wait_for_visible,
+    wait_clickable,
+    wait_hidden,
     wait_visible,
+    wait_property
 )
 from behave import given, when, then
 
 import os
 import time
 
+EDIT_DECK_LAYOUT_POPUP = "mainWindow/editDeckPopupItem"
 
 @when('I click the "{button}" button on deck {deck:d}')
 def step_click_deck_button(context, button, deck):
@@ -189,13 +193,13 @@ def step_deck_visible(context, group, assertion):
     else:
         _wait_for_hidden(context, DECK_PATH_MAP[group])
 
-@then('the "{component}" component should {assertion} visible in deck {deck:d}')
+@then('the "{component}" component should {assertion} expanded in deck {deck:d}')
 def step_deck_component_visible(context, component, assertion, deck):
     path = _deck_button_path(deck, component)
     if assertion == "be":
-        _wait_for_visible(context, path)
+        assert wait_property(context.rpc, path, "collapsed", "false", timeout=2) and wait_visible(context.rpc, path, timeout=2), "The component is not expanded"
     else:
-        _wait_for_hidden(context, path)
+        assert wait_property(context.rpc, path, "collapsed", "true", timeout=2) or wait_hidden(context.rpc, path, timeout=2), "The component is expanded"
 
 @then("the deck {deck:d} should be {assertion}")
 def step_deck_playing(context, deck, assertion):
@@ -222,7 +226,7 @@ def step_deck_property_equal(context, deck_a, prop, deck_b):
 def step_play_pressed(context, deck, assertion):
     group = _deck_group(deck)
     expected = assertion == "pressed"
-    value = _get_property(context, _deck_button_path(deck, "play"), "highlight") == "true"
+    value = _get_property(context, f'{_deck_button_path(deck, "play")}/item', "highlight") == "true"
     label = lambda x: 'pressed' if x else 'released'
     assert value is expected, (
         f"Play button on deck {deck} ({group}) is {label(value)} but expected {label(expected)}"
@@ -306,13 +310,19 @@ def step_edit_mode_assertion(context, assertion):
         f"Edit mode {'not enabled' if expected else 'still enabled'} (checked={checked})"
     )
 
-@then('the edit overlay should {action} visible on the "{component}" component in deck {deck:d}')
-def step_edit_overlay_visible(context, action, component, deck):
-    path = f"{_deck_button_path(deck, component)}Item/overlayItem"
+@then('the edit overlay should {action} visible')
+def step_edit_overlay_visible(context, action):
     if action == "be":
-        assert _is_visible(context, path), f"Component '{component}' is not visible"
+        assert wait_visible(context.rpc, EDIT_DECK_LAYOUT_POPUP), "Edit overlay is not visible"
     else:
-        assert not _is_visible(context, path), f"Component '{component}' is visible"
+        assert wait_hidden(context.rpc, EDIT_DECK_LAYOUT_POPUP), "Edit overlay is visible"
+
+@when("I click the \"{button}\" button on the edit overlay")
+def step_click_action(context, button):
+    path = f"{EDIT_DECK_LAYOUT_POPUP}/actionButton{button.title()}"
+    assert wait_clickable(context.rpc, path), f"{button.title()} ({path}) button not visible on edit overlay"
+    time.sleep(0.5)
+    _click(context, path)
 
 @then('the "{component}" component should appear {cardinality} the "{target}" component in deck {deck:d}')
 def step_component_order_after(context, component, cardinality, target, deck):
