@@ -113,32 +113,37 @@ def is_visible(rpc, path):
     x, y, width, height = rpc.getBoundingBox(path)
     return rpc.existsAndVisible(path) and width * height > 0
 
+def __waiter(predicate, timeout):
+    """Internal waiter logic that implements deadline and backoff retry"""
+    deadline = time.time() + timeout
+    delay = _WAIT_INITIAL_DELAY
+    while True:
+        if predicate():
+            return True
+        if time.time() >= deadline:
+            return False
+        time.sleep(min(delay, max(0, deadline - time.time())))
+        delay *= _WAIT_BACKOFF_FACTOR
 
 def wait_visible(rpc, path, timeout=5):
     """Poll ``existsAndVisible`` until true or ``timeout`` seconds elapse."""
-    deadline = time.time() + timeout
-    delay = _WAIT_INITIAL_DELAY
-    while True:
-        if rpc.existsAndVisible(path):
-            return True
-        if time.time() >= deadline:
-            return False
-        time.sleep(min(delay, max(0, deadline - time.time())))
-        delay *= _WAIT_BACKOFF_FACTOR
+    return __waiter(lambda: rpc.existsAndVisible(path), timeout)
 
+def wait_property(rpc, path, prop, value_or_predicate, timeout=5):
+    """Poll ``prop`` until the return value is either the one expected or the predicate evaluates to true, or ``timeout`` seconds elapse."""
+    if callable(value_or_predicate):
+        return __waiter(lambda: value_or_predicate(rpc.getStringProperty(path, prop)), timeout)
+    return __waiter(lambda: rpc.getStringProperty(path, prop) == str(value_or_predicate), timeout)
+
+def wait_method(rpc, path, method, value_or_predicate, args=None, timeout=5):
+    """Invoke ``method`` until the return value is either the one expected or the predicate evaluates to true, or ``timeout`` seconds elapse."""
+    if callable(value_or_predicate):
+        return __waiter(lambda: value_or_predicate(rpc.invokeMethod(path, method, args or [])), timeout)
+    return __waiter(lambda: rpc.invokeMethod(path, method, args or []) == str(value_or_predicate), timeout)
 
 def wait_hidden(rpc, path, timeout=5):
     """Poll ``existsAndVisible`` until false or ``timeout`` seconds elapse."""
-    deadline = time.time() + timeout
-    delay = _WAIT_INITIAL_DELAY
-    while True:
-        if not rpc.existsAndVisible(path):
-            return True
-        if time.time() >= deadline:
-            return False
-        time.sleep(min(delay, max(0, deadline - time.time())))
-        delay *= _WAIT_BACKOFF_FACTOR
-
+    return __waiter(lambda: not rpc.existsAndVisible(path), timeout)
 
 def wait_clickable(rpc, path, timeout=5):
     """Wait until an item is visible with a non-degenerate bounding box.
@@ -150,9 +155,7 @@ def wait_clickable(rpc, path, timeout=5):
     raising; see ``getErrors``). Only return true once the item has a real
     on-screen box.
     """
-    deadline = time.time() + timeout
-    delay = _WAIT_INITIAL_DELAY
-    while True:
+    def predicate():
         try:
             if rpc.existsAndVisible(path):
                 x, y, width, height = rpc.getBoundingBox(path)
@@ -160,10 +163,7 @@ def wait_clickable(rpc, path, timeout=5):
                     return True
         except Exception:
             pass
-        if time.time() >= deadline:
-            return False
-        time.sleep(min(delay, max(0, deadline - time.time())))
-        delay *= _WAIT_BACKOFF_FACTOR
+    return __waiter(predicate, timeout)
 
 
 def click(rpc, path):
