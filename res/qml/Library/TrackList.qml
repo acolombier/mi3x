@@ -79,26 +79,6 @@ Rectangle {
         view.cachedColumnWidth = Object();
     }
 
-    LibraryComponent.Control {
-        id: libraryControl
-
-        onFocusWidgetChanged: {
-            switch (focusWidget) {
-            case Skin.FocusedWidgetControl.WidgetKind.LibraryView:
-                view.forceActiveFocus();
-                break;
-            }
-        }
-        onLoadSelectedTrack: (group, play) => {
-            view.loadSelectedTrack(group, play);
-        }
-        onLoadSelectedTrackIntoNextAvailableDeck: play => {
-            view.loadSelectedTrackIntoNextAvailableDeck(play);
-        }
-        onMoveVertical: offset => {
-            view.selectionModel.moveSelectionVertical(offset);
-        }
-    }
     Menu {
         id: columnSelectionMenu
 
@@ -456,6 +436,13 @@ Rectangle {
                 const oldRow = (selected.length == 0) ? 0 : selected[0].row;
                 this.selectRow(oldRow + value);
             }
+            function scrollSelectionVertical(value) {
+                if (value == 0)
+                    return;
+
+                const nb_row_per_page = parseInt(view.height / view.rowHeightProvider());
+                this.moveSelectionVertical(nb_row_per_page * value);
+            }
             function selectRow(row) {
                 const rowCount = this.model.rowCount();
                 if (rowCount == 0) {
@@ -480,6 +467,16 @@ Rectangle {
 
         Keys.onDownPressed: this.selectionModel.moveSelectionVertical(1)
         Keys.onEnterPressed: this.loadSelectedTrackIntoNextAvailableDeck(false)
+        Keys.onPressed: event => {
+            switch (event.key) {
+            case Qt.Key_PageUp:
+                this.selectionModel.scrollSelectionVertical(-1);
+                break;
+            case Qt.Key_PageDown:
+                this.selectionModel.scrollSelectionVertical(1);
+                break;
+            }
+        }
         Keys.onReturnPressed: this.loadSelectedTrackIntoNextAvailableDeck(false)
         Keys.onUpPressed: this.selectionModel.moveSelectionVertical(-1)
         onColumnMoved: (logicalIndex, oldVisualIndex, newVisualIndex) => {
@@ -488,6 +485,12 @@ Rectangle {
                 return;
             }
             root.movedColumn[newVisualIndex] = logicalIndex;
+        }
+
+        TapHandler {
+            onTapped: {
+                view.forceActiveFocus();
+            }
         }
     }
 }

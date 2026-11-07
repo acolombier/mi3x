@@ -25,8 +25,6 @@ Item {
         acceptedButtons: Qt.LeftButton | Qt.RightButton
 
         onDoubleTapped: (eventPoint, button) => {
-            if (button != Qt.LeftButton)
-                return;
             view.selectionModel.selectRow(row);
             view.loadSelectedTrackIntoNextAvailableDeck(false);
         }

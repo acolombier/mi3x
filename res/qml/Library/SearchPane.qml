@@ -63,8 +63,6 @@ Rectangle {
     readonly property int criteriaCount: selectedCriteria.count
     readonly property string criteriaFields: jsonFieldList(selectedCriteria, "name", selectedCriteria.count)
     readonly property real criteriaMaxContentX: Math.max(0, criteriaRow.childrenRect.width - criteriaViewport.width)
-    // Seam: the item that receives focus back when the pane deactivates.
-    property Item focusOutTarget
     property string freeSearchText: ""
 
     // Room kept free right of the token strip for the free
@@ -195,7 +193,6 @@ Rectangle {
         activeRecentIndex = -1;
         highlightedRecentIndex = -1;
         clearAllCriteria();
-        deactivatePane();
     }
     function commitCurrentEditor() {
         if (activeTokenIndex >= 0) {
@@ -206,8 +203,6 @@ Rectangle {
         activated = false;
         activeTokenIndex = -1;
         highlightedIndex = -1;
-        focusedWidgetControl.value = Skin.FocusedWidgetControl.WidgetKind.LibraryView;
-        focusOutTarget.forceActiveFocus();
     }
     function deactivateSearch() {
         Qt.inputMethod.hide();
@@ -347,7 +342,6 @@ Rectangle {
     function syncSearchUI() {
         activated = true;
         activeTokenIndex = -1;
-        focusedWidgetControl.value = Skin.FocusedWidgetControl.WidgetKind.Searchbar;
         refreshSuggestions();
         searchField.forceActiveFocus();
     }
@@ -460,6 +454,15 @@ Rectangle {
         }
     }
 
+    Keys.onPressed: event => {
+        if (event.key == Qt.Key_Escape) {
+            // Deactivate first so the persist sees the committed
+            // editor state instead of the chip being edited.
+            searchPane.deactivateSearch();
+            searchPane.persistSearch();
+            event.accepted = true;
+        }
+    }
     onActivatedChanged: {
         if (activated) {
             Mixxx.Core.addOpenedPopup(searchPane);
@@ -472,10 +475,20 @@ Rectangle {
         refreshSuggestions();
     }
 
+    Mixxx.ControlProxy {
+        group: "[Library]"
+        key: "clear_search"
+
+        onValueChanged: {
+            if (value == 1) {
+                searchPane.clearSearch();
+            }
+        }
+    }
     Connections {
         function onVisibleChanged() {
             if (!Qt.inputMethod.visible) {
-                searchPane.activated = false;
+                searchPane.deactivateSearch();
             }
         }
 
@@ -489,10 +502,6 @@ Rectangle {
         sequence: "Ctrl+F"
 
         onActivated: searchPane.activateSearch()
-    }
-    Skin.FocusedWidgetControl {
-        id: focusedWidgetControl
-
     }
     // =========================================================================
 
@@ -558,658 +567,688 @@ Rectangle {
         id: selectedCriteria
 
     }
-    FocusScope {
-        anchors.fill: parent
-        focus: true
+    MouseArea {
+        anchors.fill: searchPane
+        preventStealing: true
 
-        Keys.onPressed: event => {
-            if (event.key == Qt.Key_Escape) {
-                // Deactivate first so the persist sees the committed
-                // editor state instead of the chip being edited.
-                searchPane.deactivateSearch();
-                searchPane.persistSearch();
-                event.accepted = true;
-            }
+        onPressed: {
+            searchPane.activateSearch();
         }
+    }
+    Item {
+        id: collapsedContent
 
-        Item {
-            id: collapsedContent
+        anchors.fill: parent
+        visible: !searchPane.activated
 
-            anchors.fill: parent
-            visible: !searchPane.activated
+        // TapHandler {
+        //     onTapped: {
+        //         searchPane.activateSearch();
+        //     }
+        // }
+        Text {
+            id: collapsedPlaceholder
 
-            TapHandler {
-                onTapped: {
-                    searchPane.activateSearch();
+            anchors.left: parent.left
+            anchors.leftMargin: 11
+            anchors.verticalCenter: parent.verticalCenter
+            color: '#808080'
+            font.italic: true
+            text: "Search..."
+            visible: !searchPane.hasSearch
+        }
+        Row {
+            anchors.left: parent.left
+            anchors.leftMargin: 11
+            anchors.right: parent.right
+            anchors.rightMargin: 58
+            anchors.verticalCenter: parent.verticalCenter
+            clip: true
+            spacing: 5
+            visible: searchPane.hasSearch
+
+            Repeater {
+                model: selectedCriteria
+
+                Skin.SearchFieldCriteria {
+                    active: false
+                    field: model.name
+                    interactive: false
+                    value: model.value
                 }
             }
             Text {
-                id: collapsedPlaceholder
+                anchors.verticalCenter: parent.verticalCenter
+                color: '#404040'
+                font.pixelSize: 14
+                text: searchPane.freeSearchText
+                visible: searchPane.freeSearchText.length > 0
+            }
+        }
+        SearchIcon {
+            anchors.right: parent.right
+            anchors.rightMargin: 11
+            anchors.verticalCenter: parent.verticalCenter
+            visible: !searchPane.hasSearch
+        }
+    }
+    Item {
+        id: expandedContent
+
+        anchors.fill: parent
+        visible: searchPane.activated
+
+        Rectangle {
+            id: inputRowBackground
+
+            anchors.left: parent.left
+            anchors.leftMargin: 1
+            anchors.right: parent.right
+            anchors.rightMargin: 1
+            anchors.top: parent.top
+            anchors.topMargin: 1
+            color: '#E0E0E0'
+            height: 31
+            topLeftRadius: 15
+
+            Item {
+                id: criteriaViewport
+
+                property int contentX: {
+                    if (searchPane.activeTokenIndex < 0) {
+                        return searchPane.criteriaMaxContentX;
+                    }
+                    const item = criteriaInput.itemAt(searchPane.activeTokenIndex);
+                    if (!item) {
+                        return 0;
+                    }
+                    const gradientWidth = criteriaGradient.width;
+                    let x = 0;
+                    if (item.x < x + gradientWidth) {
+                        // Hidden behind the left gradient: scroll to the
+                        // right, but keep the right edge of the token in
+                        // view.
+                        x = Math.max(item.x - gradientWidth, item.x + item.width - width);
+                    } else if (item.x + item.width > x + width) {
+                        // Hidden at the right edge: scroll to the left.
+                        x = item.x + item.width - width;
+                    }
+                    return Math.min(Math.max(x, 0), searchPane.criteriaMaxContentX);
+                }
 
                 anchors.left: parent.left
-                anchors.leftMargin: 11
-                anchors.verticalCenter: parent.verticalCenter
-                color: '#808080'
-                font.italic: true
-                text: "Search..."
-                visible: !searchPane.hasSearch
-            }
-            Row {
-                anchors.left: parent.left
-                anchors.leftMargin: 11
-                anchors.right: parent.right
-                anchors.rightMargin: 58
+                anchors.leftMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
                 clip: true
-                spacing: 5
-                visible: searchPane.hasSearch
+                height: parent.height
+                width: Math.min(criteriaRow.childrenRect.width + (criteriaRow.childrenRect.width > 0 ? criteriaRow.spacing : 0), parent.width - 22 - searchPane.freeTextReserveWidth)
 
-                Repeater {
-                    model: selectedCriteria
+                Row {
+                    id: criteriaRow
 
-                    Skin.SearchFieldCriteria {
-                        active: false
-                        field: model.name
-                        interactive: false
-                        value: model.value
+                    height: parent.height
+                    spacing: 5
+                    x: -criteriaViewport.contentX
+
+                    Repeater {
+                        id: criteriaInput
+
+                        model: selectedCriteria
+
+                        Skin.SearchFieldCriteria {
+                            active: searchPane.activeTokenIndex === index
+                            anchors.verticalCenter: parent.verticalCenter
+                            field: model.name
+                            value: model.value
+
+                            onActivated: searchPane.setActiveToken(index)
+                            onDeleted: searchPane.removeToken(index)
+                        }
                     }
                 }
+
+                // Opaque gradient that hints at tokens
+                // scrolled out of view on the left.
+                Rectangle {
+                    id: criteriaGradient
+
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
+                    visible: criteriaViewport.contentX > 0
+                    width: 24
+
+                    gradient: Gradient {
+                        orientation: Gradient.Horizontal
+
+                        GradientStop {
+                            color: '#E0E0E0'
+                            position: 0.0
+                        }
+                        GradientStop {
+                            color: '#00E0E0E0'
+                            position: 1.0
+                        }
+                    }
+                }
+            }
+            Row {
+                id: freeZone
+
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 5
+                x: criteriaViewport.x + criteriaViewport.width
+
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     color: '#404040'
                     font.pixelSize: 14
                     text: searchPane.freeSearchText
-                    visible: searchPane.freeSearchText.length > 0
+                    visible: searchPane.activeTokenIndex >= 0 && searchPane.freeSearchText.length > 0
+                }
+                Item {
+                    id: freeTextHost
+
+                    height: 32
+                    width: searchPane.activeTokenIndex < 0 ? searchPane.freeTextReserveWidth : 0
                 }
             }
             SearchIcon {
+                id: expandedSearchIcon
+
                 anchors.right: parent.right
-                anchors.rightMargin: 11
+                anchors.rightMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
-                visible: !searchPane.hasSearch
             }
         }
-        Item {
-            id: expandedContent
-
+        Column {
             anchors.fill: parent
-            visible: searchPane.activated
+            anchors.topMargin: 32
 
-            TapHandler {
-                onTapped: {
-                    searchField.forceActiveFocus();
+            Rectangle {
+                color: '#757575'
+                height: 1
+                width: searchPane.width
+            }
+            ListView {
+                id: suggestionFieldList
+
+                anchors.margins: 5
+                clip: true
+                height: Math.min(count, 2) * 28
+                interactive: false
+                model: searchPane.matchingFields
+                visible: count > 0 && !searchPane.recentShown
+                width: searchPane.width - 10
+
+                delegate: Item {
+                    required property string display
+                    required property int index
+                    required property string name
+                    required property string query
+
+                    height: 28
+                    objectName: "suggestion_" + index
+                    width: suggestionFieldList.width
+
+                    HoverHandler {
+                        id: fieldSuggestionHover
+
+                    }
+                    Rectangle {
+                        anchors.fill: parent
+                        color: searchPane.highlightedIndex === parent.index ? Theme.lightGray2 : (fieldSuggestionHover.hovered ? '#C6C6C6' : 'transparent')
+                    }
+                    TapHandler {
+                        onTapped: {
+                            searchPane.highlightedIndex = parent.index;
+                            searchPane.acceptHighlightedSuggestion();
+                        }
+                    }
+                    Skin.SearchFieldCriteria {
+                        active: false
+                        anchors.left: parent.left
+                        anchors.leftMargin: 5
+                        anchors.verticalCenter: parent.verticalCenter
+                        field: parent.name
+                        interactive: false
+                    }
                 }
             }
-            Rectangle {
-                id: inputRowBackground
+            ListView {
+                id: suggestionList
 
-                anchors.left: parent.left
-                anchors.leftMargin: 1
-                anchors.right: parent.right
-                anchors.rightMargin: 1
-                anchors.top: parent.top
-                anchors.topMargin: 1
-                color: '#E0E0E0'
-                height: 31
-                topLeftRadius: 15
+                anchors.margins: 5
+                clip: true
+                height: Math.min(count, 6) * 24
+                interactive: false
+                model: Mixxx.Library.searchSuggestions
+                visible: count > 0 && !searchPane.recentShown
+                width: searchPane.width - 10
 
-                Item {
-                    id: criteriaViewport
+                delegate: Item {
+                    id: suggestionDelegate
 
-                    property int contentX: {
-                        if (searchPane.activeTokenIndex < 0) {
-                            return searchPane.criteriaMaxContentX;
-                        }
-                        const item = criteriaInput.itemAt(searchPane.activeTokenIndex);
-                        if (!item) {
-                            return 0;
-                        }
-                        const gradientWidth = criteriaGradient.width;
-                        let x = 0;
-                        if (item.x < x + gradientWidth) {
-                            // Hidden behind the left gradient: scroll to the
-                            // right, but keep the right edge of the token in
-                            // view.
-                            x = Math.max(item.x - gradientWidth, item.x + item.width - width);
-                        } else if (item.x + item.width > x + width) {
-                            // Hidden at the right edge: scroll to the left.
-                            x = item.x + item.width - width;
-                        }
-                        return Math.min(Math.max(x, 0), searchPane.criteriaMaxContentX);
+                    required property int index
+                    required property color keyColor
+                    required property int keyId
+                    required property string label
+                    required property string value
+
+                    height: 24
+                    objectName: "suggestion_" + suggestionDelegate.index
+                    width: suggestionList.width
+
+                    HoverHandler {
+                        id: suggestionHover
+
                     }
-
-                    anchors.left: parent.left
-                    anchors.leftMargin: 10
-                    anchors.verticalCenter: parent.verticalCenter
-                    clip: true
-                    height: parent.height
-                    width: Math.min(criteriaRow.childrenRect.width + (criteriaRow.childrenRect.width > 0 ? criteriaRow.spacing : 0), parent.width - 22 - searchPane.freeTextReserveWidth)
-
-                    Row {
-                        id: criteriaRow
-
-                        height: parent.height
-                        spacing: 5
-                        x: -criteriaViewport.contentX
-
-                        Repeater {
-                            id: criteriaInput
-
-                            model: selectedCriteria
-
-                            Skin.SearchFieldCriteria {
-                                active: searchPane.activeTokenIndex === index
-                                anchors.verticalCenter: parent.verticalCenter
-                                field: model.name
-                                value: model.value
-
-                                onActivated: searchPane.setActiveToken(index)
-                                onDeleted: searchPane.removeToken(index)
-                            }
-                        }
-                    }
-
-                    // Opaque gradient that hints at tokens
-                    // scrolled out of view on the left.
                     Rectangle {
-                        id: criteriaGradient
-
-                        anchors.left: parent.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        height: parent.height
-                        visible: criteriaViewport.contentX > 0
-                        width: 24
-
-                        gradient: Gradient {
-                            orientation: Gradient.Horizontal
-
-                            GradientStop {
-                                color: '#E0E0E0'
-                                position: 0.0
-                            }
-                            GradientStop {
-                                color: '#00E0E0E0'
-                                position: 1.0
-                            }
+                        anchors.fill: parent
+                        color: searchPane.highlightedIndex - suggestionFieldList.count === suggestionDelegate.index ? Theme.lightGray2 : (suggestionHover.hovered ? '#C6C6C6' : 'transparent')
+                    }
+                    TapHandler {
+                        onTapped: {
+                            searchPane.highlightedIndex = suggestionDelegate.index + suggestionFieldList.count;
+                            searchPane.acceptHighlightedSuggestion();
                         }
                     }
-                }
-                Row {
-                    id: freeZone
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.leftMargin: 5
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: suggestionDelegate.keyColor
+                        height: 18
+                        radius: 5
+                        visible: suggestionDelegate.label.length > 0
+                        width: keyPillText.implicitWidth + 12
 
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 5
-                    x: criteriaViewport.x + criteriaViewport.width
+                        Text {
+                            id: keyPillText
 
+                            anchors.centerIn: parent
+                            color: '#FFFFFF'
+                            font.pixelSize: 11
+                            text: suggestionDelegate.value
+                        }
+                    }
                     Text {
+                        anchors.left: parent.left
+                        anchors.leftMargin: 5
+                        anchors.right: metaLabel.left
+                        anchors.rightMargin: 5
                         anchors.verticalCenter: parent.verticalCenter
                         color: '#404040'
-                        font.pixelSize: 14
-                        text: searchPane.freeSearchText
-                        visible: searchPane.activeTokenIndex >= 0 && searchPane.freeSearchText.length > 0
+                        elide: Text.ElideRight
+                        text: searchPane.highlightMatches(suggestionDelegate.value, searchField.text)
+                        textFormat: Text.StyledText
+                        visible: suggestionDelegate.label.length === 0
                     }
-                    Item {
-                        id: freeTextHost
+                    Text {
+                        id: metaLabel
 
-                        height: 32
-                        width: searchPane.activeTokenIndex < 0 ? searchPane.freeTextReserveWidth : 0
+                        anchors.right: parent.right
+                        anchors.rightMargin: 5
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: '#808080'
+                        font.pixelSize: 11
+                        horizontalAlignment: Text.AlignRight
+                        text: suggestionDelegate.label
                     }
-                }
-                SearchIcon {
-                    id: expandedSearchIcon
-
-                    anchors.right: parent.right
-                    anchors.rightMargin: 10
-                    anchors.verticalCenter: parent.verticalCenter
                 }
             }
             Column {
-                anchors.fill: parent
-                anchors.topMargin: 32
+                anchors.margins: 5
+                spacing: 2
+                visible: searchPane.recentShown
+                width: searchPane.width - 10
 
-                Rectangle {
-                    color: '#757575'
-                    height: 1
-                    width: searchPane.width
+                Text {
+                    color: '#808080'
+                    font.weight: Font.DemiBold
+                    height: 16
+                    text: "Recent searches"
                 }
                 ListView {
-                    id: suggestionFieldList
+                    id: recentList
 
-                    anchors.margins: 5
-                    clip: true
-                    height: Math.min(count, 2) * 28
-                    interactive: false
-                    model: searchPane.matchingFields
-                    visible: count > 0 && !searchPane.recentShown
-                    width: searchPane.width - 10
-
-                    delegate: Item {
-                        required property string display
-                        required property int index
-                        required property string name
-                        required property string query
-
-                        height: 28
-                        objectName: "suggestion_" + index
-                        width: suggestionFieldList.width
-
-                        HoverHandler {
-                            id: fieldSuggestionHover
-
-                        }
-                        Rectangle {
-                            anchors.fill: parent
-                            color: searchPane.highlightedIndex === parent.index ? Theme.lightGray2 : (fieldSuggestionHover.hovered ? '#C6C6C6' : 'transparent')
-                        }
-                        TapHandler {
-                            onTapped: {
-                                searchPane.highlightedIndex = parent.index;
-                                searchPane.acceptHighlightedSuggestion();
-                            }
-                        }
-                        Skin.SearchFieldCriteria {
-                            active: false
-                            anchors.left: parent.left
-                            anchors.leftMargin: 5
-                            anchors.verticalCenter: parent.verticalCenter
-                            field: parent.name
-                            interactive: false
-                        }
+                    function selectRow(row) {
+                        searchPane.highlightedRecentIndex = Mixxx.MathUtils.positiveModulo(searchPane.highlightedRecentIndex + row, searchPane.recentSearches.rowCount());
+                        recentList.positionViewAtIndex(searchPane.highlightedRecentIndex, ListView.Contain);
                     }
-                }
-                ListView {
-                    id: suggestionList
 
-                    anchors.margins: 5
                     clip: true
-                    height: Math.min(count, 6) * 24
-                    interactive: false
-                    model: Mixxx.Library.searchSuggestions
-                    visible: count > 0 && !searchPane.recentShown
+                    height: 110
+                    interactive: true
+                    model: searchPane.recentSearches
+                    spacing: 4
                     width: searchPane.width - 10
 
                     delegate: Item {
-                        id: suggestionDelegate
+                        id: recentDelegate
 
+                        required property string freeText
                         required property int index
-                        required property color keyColor
-                        required property int keyId
-                        required property string label
-                        required property string value
+                        required property string queryString
+
+                        // E2E: see "test harness surface" on searchPane above.
+                        readonly property string tokenFieldNames: searchPane.jsonFieldList(recentDelegate.tokens, "name")
+                        required property var tokens
 
                         height: 24
-                        objectName: "suggestion_" + suggestionDelegate.index
-                        width: suggestionList.width
+                        objectName: "recent_" + recentDelegate.index
+                        width: recentList.width
 
                         HoverHandler {
-                            id: suggestionHover
+                            id: recentHover
 
                         }
                         Rectangle {
                             anchors.fill: parent
-                            color: searchPane.highlightedIndex - suggestionFieldList.count === suggestionDelegate.index ? Theme.lightGray2 : (suggestionHover.hovered ? '#C6C6C6' : 'transparent')
+                            color: searchPane.highlightedRecentIndex === recentDelegate.index ? Theme.lightGray2 : (recentHover.hovered ? '#C6C6C6' : 'transparent')
                         }
                         TapHandler {
-                            onTapped: {
-                                searchPane.highlightedIndex = suggestionDelegate.index + suggestionFieldList.count;
-                                searchPane.acceptHighlightedSuggestion();
-                            }
-                        }
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.leftMargin: 5
-                            anchors.verticalCenter: parent.verticalCenter
-                            color: suggestionDelegate.keyColor
-                            height: 18
-                            radius: 5
-                            visible: suggestionDelegate.label.length > 0
-                            width: keyPillText.implicitWidth + 12
+                            gesturePolicy: TapHandler.WithinBounds
 
+                            onTapped: searchPane.applyRecentSearch(recentDelegate.index)
+                        }
+                        Row {
+                            anchors.fill: parent
+                            anchors.leftMargin: 5
+                            anchors.rightMargin: 5
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 5
+
+                            Repeater {
+                                model: recentDelegate.tokens
+
+                                Skin.SearchFieldCriteria {
+                                    active: false
+                                    field: modelData.name
+                                    interactive: false
+                                    objectName: "recentToken_" + index + "_" + modelData.name
+                                    value: modelData.value
+                                }
+                            }
                             Text {
-                                id: keyPillText
-
-                                anchors.centerIn: parent
-                                color: '#FFFFFF'
-                                font.pixelSize: 11
-                                text: suggestionDelegate.value
-                            }
-                        }
-                        Text {
-                            anchors.left: parent.left
-                            anchors.leftMargin: 5
-                            anchors.right: metaLabel.left
-                            anchors.rightMargin: 5
-                            anchors.verticalCenter: parent.verticalCenter
-                            color: '#404040'
-                            elide: Text.ElideRight
-                            text: searchPane.highlightMatches(suggestionDelegate.value, searchField.text)
-                            textFormat: Text.StyledText
-                            visible: suggestionDelegate.label.length === 0
-                        }
-                        Text {
-                            id: metaLabel
-
-                            anchors.right: parent.right
-                            anchors.rightMargin: 5
-                            anchors.verticalCenter: parent.verticalCenter
-                            color: '#808080'
-                            font.pixelSize: 11
-                            horizontalAlignment: Text.AlignRight
-                            text: suggestionDelegate.label
-                        }
-                    }
-                }
-                Column {
-                    anchors.margins: 5
-                    spacing: 2
-                    visible: searchPane.recentShown
-                    width: searchPane.width - 10
-
-                    Text {
-                        color: '#808080'
-                        font.weight: Font.DemiBold
-                        height: 16
-                        text: "Recent searches"
-                    }
-                    ListView {
-                        id: recentList
-
-                        clip: true
-                        height: 110
-                        interactive: true
-                        model: searchPane.recentSearches
-                        spacing: 4
-                        width: searchPane.width - 10
-
-                        delegate: Item {
-                            id: recentDelegate
-
-                            required property string freeText
-                            required property int index
-                            required property string queryString
-
-                            // E2E: see "test harness surface" on searchPane above.
-                            readonly property string tokenFieldNames: searchPane.jsonFieldList(recentDelegate.tokens, "name")
-                            required property var tokens
-
-                            height: 24
-                            objectName: "recent_" + recentDelegate.index
-                            width: recentList.width
-
-                            HoverHandler {
-                                id: recentHover
-
-                            }
-                            Rectangle {
-                                anchors.fill: parent
-                                color: searchPane.highlightedRecentIndex === recentDelegate.index ? Theme.lightGray2 : (recentHover.hovered ? '#C6C6C6' : 'transparent')
-                            }
-                            TapHandler {
-                                onTapped: searchPane.applyRecentSearch(recentDelegate.index)
-                            }
-                            Row {
-                                anchors.fill: parent
-                                anchors.leftMargin: 5
-                                anchors.rightMargin: 5
                                 anchors.verticalCenter: parent.verticalCenter
-                                spacing: 5
+                                color: '#404040'
+                                font.pixelSize: 14
+                                text: recentDelegate.freeText ?? ""
+                                visible: recentDelegate.freeText?.length > 0
+                            }
+                        }
+                    }
 
-                                Repeater {
-                                    model: recentDelegate.tokens
+                    Mixxx.ControlProxy {
+                        group: "[Library]"
+                        key: "search_history_next"
 
-                                    Skin.SearchFieldCriteria {
-                                        active: false
-                                        field: modelData.name
-                                        interactive: false
-                                        objectName: "recentToken_" + index + "_" + modelData.name
-                                        value: modelData.value
-                                    }
-                                }
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    color: '#404040'
-                                    font.pixelSize: 14
-                                    text: recentDelegate.freeText ?? ""
-                                    visible: recentDelegate.freeText?.length > 0
-                                }
+                        onValueChanged: {
+                            if (value == 1) {
+                                recentList.selectRow(1);
+                            }
+                        }
+                    }
+                    Mixxx.ControlProxy {
+                        group: "[Library]"
+                        key: "search_history_prev"
+
+                        onValueChanged: {
+                            if (value == 1) {
+                                recentList.selectRow(-1);
+                            }
+                        }
+                    }
+                    Mixxx.ControlProxy {
+                        group: "[Library]"
+                        key: "search_history_selector"
+
+                        onValueChanged: {
+                            if (value != 0) {
+                                recentList.selectRow(value);
                             }
                         }
                     }
                 }
             }
         }
-        Text {
-            id: clearButton
+    }
+    TextInput {
+        id: searchField
 
-            anchors.right: parent.right
-            anchors.rightMargin: searchPane.activated ? 36 : 13
+        // The discarded geometric arithmetic registers
+        // geometry changes as binding dependencies.
+        readonly property var geometryWatchdog: {
+            let activeEditorHost = searchPane.activeEditorHost;
+            criteriaViewport.x + criteriaViewport.width + activeEditorHost.x + activeEditorHost.width;
+            return searchPane.activeEditorHost.mapToItem(parent, 0, 0);
+        }
+
+        // Property consumed by the MainWindow's ime shift handler to bind invalidation and recompute when updated
+        readonly property var imeLayoutSideEffect: searchPane.height
+
+        // Note: this is explicitly needed to trigger the Java patch that prevent the extract UI mode (mode where the keyboard renders its own input and fully hide the app below)
+        EnterKey.type: Qt.EnterKeySearch
+        clip: true
+        color: '#404040'
+        font.pixelSize: 14
+        height: 31
+        horizontalAlignment: TextInput.AlignLeft
+        inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText | Qt.ImhNoFullscreen | Qt.ImhUrlCharactersOnly
+        selectByMouse: true
+        verticalAlignment: TextInput.AlignVCenter
+        visible: searchPane.activated
+        width: searchPane.activeEditorHost.width
+        x: geometryWatchdog.x
+
+        Keys.onBacktabPressed: event => {
+            searchPane.navigateBackward();
+            event.accepted = true;
+        }
+        Keys.onPressed: event => {
+            switch (event.key) {
+            case Qt.Key_Enter:
+            case Qt.Key_Return:
+                if (searchPane.suggestionTotal > 0) {
+                    searchPane.acceptHighlightedSuggestion();
+                } else if (searchPane.recentShown && searchPane.highlightedRecentIndex >= 0) {
+                    searchPane.applyRecentSearch(searchPane.highlightedRecentIndex);
+                }
+                searchPane.persistSearch();
+                event.accepted = true;
+                break;
+            case Qt.Key_Down:
+                if (searchPane.suggestionTotal > 0) {
+                    searchPane.highlightedIndex = Mixxx.MathUtils.positiveModulo(searchPane.highlightedIndex + 1, searchPane.suggestionTotal);
+                } else if (searchPane.recentShown && searchPane.recentSearches.rowCount() > 0) {
+                    searchPane.highlightedRecentIndex = Mixxx.MathUtils.positiveModulo(searchPane.highlightedRecentIndex + 1, searchPane.recentSearches.rowCount());
+                    recentList.positionViewAtIndex(searchPane.highlightedRecentIndex, ListView.Contain);
+                }
+                event.accepted = true;
+                break;
+            case Qt.Key_Up:
+                if (searchPane.suggestionTotal > 0) {
+                    searchPane.highlightedIndex = Mixxx.MathUtils.positiveModulo(searchPane.highlightedIndex - 1 + searchPane.suggestionTotal, searchPane.suggestionTotal);
+                } else if (searchPane.recentShown && searchPane.recentSearches.rowCount() > 0) {
+                    searchPane.highlightedRecentIndex = Mixxx.MathUtils.positiveModulo(searchPane.highlightedRecentIndex - 1 + searchPane.recentSearches.rowCount(), searchPane.recentSearches.rowCount());
+                    recentList.positionViewAtIndex(searchPane.highlightedRecentIndex, ListView.Contain);
+                }
+                event.accepted = true;
+                break;
+            case Qt.Key_Left:
+                // Leaving the "wipe everything" armed state by
+                // moving the cursor must not displace it onto the
+                // next keystroke.
+                searchPane.selectingAll = false;
+                if (searchField.cursorPosition === 0 && searchPane.activeTokenIndex !== 0) {
+                    searchPane.navigateBackward();
+                    searchField.cursorPosition = searchField.text.length;
+                    event.accepted = true;
+                }
+                break;
+            case Qt.Key_Right:
+                searchPane.selectingAll = false;
+                if (searchField.cursorPosition === searchField.text.length && searchPane.activeTokenIndex !== -1) {
+                    searchPane.navigateForward();
+                    searchField.cursorPosition = 0;
+                    event.accepted = true;
+                }
+                break;
+            case Qt.Key_A:
+                if (event.modifiers & Qt.ControlModifier) {
+                    searchField.selectAll();
+                    if (searchPane.activeTokenIndex < 0) {
+                        searchPane.selectingAll = true;
+                    }
+                    event.accepted = true;
+                }
+                break;
+            case Qt.Key_Backspace:
+                if (searchPane.selectingAll) {
+                    searchPane.clearAllCriteria();
+                    event.accepted = true;
+                    break;
+                }
+                if (searchField.text.length === 0) {
+                    if (searchPane.activeTokenIndex >= 0) {
+                        searchPane.removeToken(searchPane.activeTokenIndex);
+                    } else if (selectedCriteria.count > 0) {
+                        searchPane.removeToken(selectedCriteria.count - 1);
+                    }
+                    event.accepted = true;
+                }
+                break;
+            case Qt.Key_Delete:
+                if (searchPane.selectingAll) {
+                    searchPane.clearAllCriteria();
+                    event.accepted = true;
+                    break;
+                }
+                if (searchPane.activeTokenIndex >= 0) {
+                    searchPane.removeToken(searchPane.activeTokenIndex);
+                    event.accepted = true;
+                }
+                break;
+            }
+        }
+        Keys.onTabPressed: event => {
+            if (searchPane.activeTokenIndex < 0) {
+                searchPane.acceptFieldSuggestion();
+            } else {
+                searchPane.setActiveToken(-1);
+            }
+            event.accepted = true;
+        }
+        onTextEdited: {
+            if (searchPane.selectingAll) {
+                searchPane.clearAllCriteria();
+                return;
+            }
+            if (searchPane.activeTokenIndex >= 0) {
+                selectedCriteria.setProperty(searchPane.activeTokenIndex, "value", searchField.text);
+                selectedCriteria.setProperty(searchPane.activeTokenIndex, "keyId", 0);
+            } else if (searchPane.tryConvertToFieldToken()) {
+                return;
+            } else {
+                searchPane.freeSearchText = searchField.text;
+            }
+            suggestionDebounce.restart();
+            searchPane.highlightedIndex = -1;
+        }
+
+        // A click that lands inside the field moves the cursor
+        // and must leave the "wipe everything" armed state.
+        TapHandler {
+            onTapped: searchPane.selectingAll = false
+        }
+    }
+    Text {
+        id: searchPlaceholder
+
+        color: '#808080'
+        elide: Text.ElideRight
+        font.italic: true
+        height: searchField.height
+        text: {
+            if (searchPane.activeTokenIndex < 0) {
+                return "Start typing to get suggestion";
+            }
+            return 'Type "=" for an exact match';
+        }
+        verticalAlignment: Text.AlignVCenter
+        visible: searchPane.activated && searchField.text.length === 0
+        width: searchField.width
+        x: searchField.x
+        y: searchField.y
+    }
+    FontMetrics {
+        id: editorFontMetrics
+
+        font: searchField.font
+    }
+    Text {
+        id: typingTip
+
+        readonly property string tip: {
+            if (!searchPane.activated || searchField.text.length === 0) {
+                return "";
+            }
+            if (searchPane.activeTokenIndex < 0) {
+                // Field matches are rebuilt first, so the
+                // head of the list is the top field match.
+                if (suggestionFieldList.count > 0) {
+                    const name = suggestionFieldList.model[0].name;
+                    const pronoun = /^[aeiou]/i.test(name) ? "an" : "a";
+                    return 'Press "Tab" to search for ' + pronoun + ' ' + name;
+                }
+                return "";
+            }
+            return 'Press "Tab" to add more criteria';
+        }
+
+        color: '#808080'
+        elide: Text.ElideRight
+        font.italic: true
+        height: searchField.height
+        text: tip
+        verticalAlignment: Text.AlignVCenter
+        visible: tip.length > 0
+        // Never overlap the search icon on the right; the tip
+        // stays within the free text area.
+        width: Math.max(0, expandedSearchIcon.mapToItem(searchField.parent, 0, 0).x - x - 6)
+        x: {
+            freeZone.x;
+            if (searchPane.activeTokenIndex < 0) {
+                return searchField.x + editorFontMetrics.advanceWidth(searchField.text) + 6;
+            }
+            let p = freeTextHost.mapToItem(searchField.parent, 0, 0);
+            return p.x + 6;
+        }
+        y: 0
+    }
+    MouseArea {
+        id: clearButton
+
+        anchors.right: parent.right
+        anchors.rightMargin: searchPane.activated ? 23 : 0
+        anchors.top: parent.top
+        anchors.topMargin: searchPane.activated ? 1 : 3
+        height: 31
+        preventStealing: true
+        visible: searchPane.hasSearch
+        width: 31
+
+        onPressed: mouse => {
+            mouse.accepted = true;
+            searchPane.clearSearch();
+        }
+
+        Text {
+            anchors.centerIn: parent
             color: '#808080'
             font.pixelSize: 16
             text: "✕"
-            visible: searchPane.hasSearch
-            y: 7
-
-            TapHandler {
-                onTapped: searchPane.clearSearch()
-            }
-        }
-        TextInput {
-            id: searchField
-
-            // The discarded geometric arithmetic registers
-            // geometry changes as binding dependencies.
-            readonly property var geometryWatchdog: {
-                let activeEditorHost = searchPane.activeEditorHost;
-                criteriaViewport.x + criteriaViewport.width + activeEditorHost.x + activeEditorHost.width;
-                return searchPane.activeEditorHost.mapToItem(parent, 0, 0);
-            }
-
-            // Property consumed by the MainWindow's ime shift handler to bind invalidation and recompute when updated
-            readonly property var imeLayoutSideEffect: searchPane.height
-
-            // Note: this is explicitly needed to trigger the Java patch that prevent the extract UI mode (mode where the keyboard renders its own input and fully hide the app below)
-            EnterKey.type: Qt.EnterKeySearch
-            clip: true
-            color: '#404040'
-            font.pixelSize: 14
-            height: 31
-            horizontalAlignment: TextInput.AlignLeft
-            inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText | Qt.ImhNoFullscreen | Qt.ImhUrlCharactersOnly
-            selectByMouse: true
-            verticalAlignment: TextInput.AlignVCenter
-            visible: searchPane.activated
-            width: searchPane.activeEditorHost.width
-            x: geometryWatchdog.x
-
-            Keys.onBacktabPressed: event => {
-                searchPane.navigateBackward();
-                event.accepted = true;
-            }
-            Keys.onPressed: event => {
-                switch (event.key) {
-                case Qt.Key_Enter:
-                case Qt.Key_Return:
-                    if (searchPane.suggestionTotal > 0) {
-                        searchPane.acceptHighlightedSuggestion();
-                    } else if (searchPane.recentShown && searchPane.highlightedRecentIndex >= 0) {
-                        searchPane.applyRecentSearch(searchPane.highlightedRecentIndex);
-                    }
-                    searchPane.persistSearch();
-                    event.accepted = true;
-                    break;
-                case Qt.Key_Down:
-                    if (searchPane.suggestionTotal > 0) {
-                        searchPane.highlightedIndex = (searchPane.highlightedIndex + 1) % searchPane.suggestionTotal;
-                    } else if (searchPane.recentShown && searchPane.recentSearches.rowCount() > 0) {
-                        searchPane.highlightedRecentIndex = (searchPane.highlightedRecentIndex + 1) % searchPane.recentSearches.rowCount();
-                        recentList.positionViewAtIndex(searchPane.highlightedRecentIndex, ListView.Contain);
-                    }
-                    event.accepted = true;
-                    break;
-                case Qt.Key_Up:
-                    if (searchPane.suggestionTotal > 0) {
-                        searchPane.highlightedIndex = (searchPane.highlightedIndex - 1 + searchPane.suggestionTotal) % searchPane.suggestionTotal;
-                    } else if (searchPane.recentShown && searchPane.recentSearches.rowCount() > 0) {
-                        searchPane.highlightedRecentIndex = (searchPane.highlightedRecentIndex - 1 + searchPane.recentSearches.rowCount()) % searchPane.recentSearches.rowCount();
-                        recentList.positionViewAtIndex(searchPane.highlightedRecentIndex, ListView.Contain);
-                    }
-                    event.accepted = true;
-                    break;
-                case Qt.Key_Left:
-                    // Leaving the "wipe everything" armed state by
-                    // moving the cursor must not displace it onto the
-                    // next keystroke.
-                    searchPane.selectingAll = false;
-                    if (searchField.cursorPosition === 0 && searchPane.activeTokenIndex !== 0) {
-                        searchPane.navigateBackward();
-                        searchField.cursorPosition = searchField.text.length;
-                        event.accepted = true;
-                    }
-                    break;
-                case Qt.Key_Right:
-                    searchPane.selectingAll = false;
-                    if (searchField.cursorPosition === searchField.text.length && searchPane.activeTokenIndex !== -1) {
-                        searchPane.navigateForward();
-                        searchField.cursorPosition = 0;
-                        event.accepted = true;
-                    }
-                    break;
-                case Qt.Key_A:
-                    if (event.modifiers & Qt.ControlModifier) {
-                        searchField.selectAll();
-                        if (searchPane.activeTokenIndex < 0) {
-                            searchPane.selectingAll = true;
-                        }
-                        event.accepted = true;
-                    }
-                    break;
-                case Qt.Key_Backspace:
-                    if (searchPane.selectingAll) {
-                        searchPane.clearAllCriteria();
-                        event.accepted = true;
-                        break;
-                    }
-                    if (searchField.text.length === 0) {
-                        if (searchPane.activeTokenIndex >= 0) {
-                            searchPane.removeToken(searchPane.activeTokenIndex);
-                        } else if (selectedCriteria.count > 0) {
-                            searchPane.removeToken(selectedCriteria.count - 1);
-                        }
-                        event.accepted = true;
-                    }
-                    break;
-                case Qt.Key_Delete:
-                    if (searchPane.selectingAll) {
-                        searchPane.clearAllCriteria();
-                        event.accepted = true;
-                        break;
-                    }
-                    if (searchPane.activeTokenIndex >= 0) {
-                        searchPane.removeToken(searchPane.activeTokenIndex);
-                        event.accepted = true;
-                    }
-                    break;
-                }
-            }
-            Keys.onTabPressed: event => {
-                if (searchPane.activeTokenIndex < 0) {
-                    searchPane.acceptFieldSuggestion();
-                } else {
-                    searchPane.setActiveToken(-1);
-                }
-                event.accepted = true;
-            }
-            onActiveFocusChanged: {
-                if (!activeFocus) {
-                    searchPane.deactivateSearch();
-                }
-            }
-            onTextEdited: {
-                if (searchPane.selectingAll) {
-                    searchPane.clearAllCriteria();
-                    return;
-                }
-                if (searchPane.activeTokenIndex >= 0) {
-                    selectedCriteria.setProperty(searchPane.activeTokenIndex, "value", searchField.text);
-                    selectedCriteria.setProperty(searchPane.activeTokenIndex, "keyId", 0);
-                } else if (searchPane.tryConvertToFieldToken()) {
-                    return;
-                } else {
-                    searchPane.freeSearchText = searchField.text;
-                }
-                suggestionDebounce.restart();
-                searchPane.highlightedIndex = -1;
-            }
-
-            // A click that lands inside the field moves the cursor
-            // and must leave the "wipe everything" armed state.
-            TapHandler {
-                onTapped: searchPane.selectingAll = false
-            }
-        }
-        Text {
-            id: searchPlaceholder
-
-            color: '#808080'
-            elide: Text.ElideRight
-            font.italic: true
-            height: searchField.height
-            text: {
-                if (searchPane.activeTokenIndex < 0) {
-                    return "Start typing to get suggestion";
-                }
-                return 'Type "=" for an exact match';
-            }
-            verticalAlignment: Text.AlignVCenter
-            visible: searchPane.activated && searchField.text.length === 0
-            width: searchField.width
-            x: searchField.x
-            y: searchField.y
-        }
-        FontMetrics {
-            id: editorFontMetrics
-
-            font: searchField.font
-        }
-        Text {
-            id: typingTip
-
-            readonly property string tip: {
-                if (!searchPane.activated || searchField.text.length === 0) {
-                    return "";
-                }
-                if (searchPane.activeTokenIndex < 0) {
-                    // Field matches are rebuilt first, so the
-                    // head of the list is the top field match.
-                    if (suggestionFieldList.count > 0) {
-                        const name = suggestionFieldList.model[0].name;
-                        const pronoun = /^[aeiou]/i.test(name) ? "an" : "a";
-                        return 'Press "Tab" to search for ' + pronoun + ' ' + name;
-                    }
-                    return "";
-                }
-                return 'Press "Tab" to add more criteria';
-            }
-
-            color: '#808080'
-            elide: Text.ElideRight
-            font.italic: true
-            height: searchField.height
-            text: tip
-            verticalAlignment: Text.AlignVCenter
-            visible: tip.length > 0
-            // Never overlap the search icon on the right; the tip
-            // stays within the free text area.
-            width: Math.max(0, expandedSearchIcon.mapToItem(searchField.parent, 0, 0).x - x - 6)
-            x: {
-                freeZone.x;
-                if (searchPane.activeTokenIndex < 0) {
-                    return searchField.x + editorFontMetrics.advanceWidth(searchField.text) + 6;
-                }
-                let p = freeTextHost.mapToItem(searchField.parent, 0, 0);
-                return p.x + 6;
-            }
-            y: 0
         }
     }
 

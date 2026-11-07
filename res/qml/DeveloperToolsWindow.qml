@@ -22,6 +22,7 @@ Window {
             id: searchField
 
             Layout.fillWidth: true
+            focus: true
             placeholderText: "Search Term..."
 
             onTextChanged: controlModel.setFilterFixedString(text)
