@@ -128,8 +128,8 @@ Controls.Panel {
                         : root.overviewType === 1
                         ? Mixxx.WaveformOverview.Renderer.HSV
                         : Mixxx.WaveformOverview.Renderer.RGB
-                analyzerStatusColor: root.waveformColor
-                showAnalyzerStatus: true
+                // analyzerStatusColor: root.waveformColor
+                // showAnalyzerStatus: true
             }
         }
         SpinnyCoverSlot {

@@ -1,7 +1,7 @@
 // Reference snapshot of res/qml/ControlMiniKnob.qml taken before the
 // signal-parameter and library-drag fixes. Kept dormant for LateNightQML
 // evolution; not imported anywhere.
-import "../../../qml" as Skin
+import ".." as Skin
 import Mixxx 1.0 as Mixxx
 import QtQuick 2.12
 

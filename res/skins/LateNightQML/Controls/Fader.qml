@@ -1,5 +1,5 @@
 import QtQuick
-import "../../../qml" as Skin
+import ".." as Skin
 import "../LateNightTheme"
 
 Skin.ControlFader {

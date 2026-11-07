@@ -4,7 +4,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Mixxx 1.0 as Mixxx
-import "../../../qml" as LibraryComponent
+import ".." as LibraryComponent
 import "../../../qml/Theme"
 
 Rectangle {

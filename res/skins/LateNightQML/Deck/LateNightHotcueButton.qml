@@ -1,5 +1,5 @@
 import QtQuick
-import "../../../qml" as Shared
+import ".." as Shared
 import "../LateNightTheme"
 
 LateNightIconButton {
