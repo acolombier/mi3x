@@ -8,152 +8,191 @@ Item {
 
     property alias focusWidget: focusedWidgetControl.value
 
-    signal moveVertical(int offset)
+    signal libraryMoveVertical(int offset)
+    signal libraryScrollVertical(int offset)
     signal loadSelectedTrack(string group, bool play)
     signal loadSelectedTrackIntoNextAvailableDeck(bool play)
+    signal sidebarActivate
+    signal sidebarMoveVertical(int offset)
+    signal sidebarScrollVertical(int offset)
 
     Skin.FocusedWidgetControl {
         id: focusedWidgetControl
 
         Component.onCompleted: this.value = Skin.FocusedWidgetControl.WidgetKind.LibraryView
     }
-
     Mixxx.ControlProxy {
         group: "[Library]"
         key: "GoToItem"
-        onValueChanged: (value) => {
+
+        onValueChanged: value => {
             if (value != 0 && root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.LibraryView)
                 root.loadSelectedTrackIntoNextAvailableDeck(false);
+            if (value != 0 && root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.Sidebar)
+                root.sidebarActivate();
         }
     }
-
     Mixxx.ControlProxy {
         group: "[Playlist]"
         key: "LoadSelectedIntoFirstStopped"
-        onValueChanged: (value) => {
+
+        onValueChanged: value => {
             if (value != 0 && root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.LibraryView)
                 root.loadSelectedTrackIntoNextAvailableDeck(false);
         }
     }
-
     Mixxx.ControlProxy {
         group: "[Playlist]"
         key: "SelectTrackKnob"
-        onValueChanged: (value) => {
+
+        onValueChanged: value => {
             if (value != 0) {
-                root.focusWidget = Skin.FocusedWidgetControl.WidgetKind.LibraryView;
-                root.moveVertical(value);
+                root.libraryMoveVertical(value);
             }
         }
     }
-
     Mixxx.ControlProxy {
         group: "[Playlist]"
         key: "SelectPrevTrack"
-        onValueChanged: (value) => {
+
+        onValueChanged: value => {
             if (value != 0) {
-                root.focusWidget = Skin.FocusedWidgetControl.WidgetKind.LibraryView;
-                root.moveVertical(-1);
+                root.libraryMoveVertical(-1);
             }
         }
     }
-
     Mixxx.ControlProxy {
         group: "[Playlist]"
         key: "SelectNextTrack"
-        onValueChanged: (value) => {
+
+        onValueChanged: value => {
             if (value != 0) {
-                root.focusWidget = Skin.FocusedWidgetControl.WidgetKind.LibraryView;
-                root.moveVertical(1);
+                root.libraryMoveVertical(1);
             }
         }
     }
-
     Mixxx.ControlProxy {
         group: "[Library]"
         key: "MoveVertical"
-        onValueChanged: (value) => {
+
+        onValueChanged: value => {
             if (value != 0 && root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.LibraryView)
-                root.moveVertical(value);
+                root.libraryMoveVertical(value);
+            else if (value != 0 && root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.Sidebar)
+                root.sidebarMoveVertical(value);
         }
     }
-
     Mixxx.ControlProxy {
         group: "[Library]"
         key: "MoveUp"
-        onValueChanged: (value) => {
+
+        onValueChanged: value => {
             if (value != 0 && root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.LibraryView)
-                root.moveVertical(-1);
+                root.libraryMoveVertical(-1);
+            else if (value != 0 && root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.Sidebar)
+                root.sidebarMoveVertical(-1);
         }
     }
-
     Mixxx.ControlProxy {
         group: "[Library]"
         key: "MoveDown"
-        onValueChanged: (value) => {
+
+        onValueChanged: value => {
             if (value != 0 && root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.LibraryView)
-                root.moveVertical(1);
+                root.libraryMoveVertical(1);
+            else if (value != 0 && root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.Sidebar)
+                root.sidebarMoveVertical(1);
         }
     }
+    Mixxx.ControlProxy {
+        group: "[Library]"
+        key: "ScrollVertical"
 
+        onValueChanged: value => {
+            if (value != 0 && root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.LibraryView)
+                root.libraryScrollVertical(value);
+            else if (value != 0 && root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.Sidebar)
+                root.sidebarScrollVertical(value);
+        }
+    }
+    Mixxx.ControlProxy {
+        group: "[Library]"
+        key: "ScrollUp"
+
+        onValueChanged: value => {
+            if (value != 0 && root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.LibraryView)
+                root.libraryScrollVertical(-1);
+            else if (value != 0 && root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.Sidebar)
+                root.sidebarScrollVertical(-1);
+        }
+    }
+    Mixxx.ControlProxy {
+        group: "[Library]"
+        key: "ScrollDown"
+
+        onValueChanged: value => {
+            if (value != 0 && root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.LibraryView)
+                root.libraryScrollVertical(1);
+            else if (value != 0 && root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.Sidebar)
+                root.sidebarScrollVertical(1);
+        }
+    }
     Mixxx.ControlProxy {
         id: numDecksControl
 
         group: "[App]"
         key: "num_decks"
     }
-
     Instantiator {
         model: numDecksControl.value
 
         delegate: LibraryComponent.ControlLoadSelectedTrackHandler {
             required property int index
 
-            group: "[Channel" + (index + 1) + "]"
             enabled: root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.LibraryView
-            onLoadTrackRequested: (play) => {
+            group: "[Channel" + (index + 1) + "]"
+
+            onLoadTrackRequested: play => {
                 root.loadSelectedTrack(this.group, play);
             }
         }
     }
-
     Mixxx.ControlProxy {
         id: numPreviewDecksControl
 
         group: "[App]"
         key: "num_preview_decks"
     }
-
     Instantiator {
         model: numPreviewDecksControl.value
 
         delegate: LibraryComponent.ControlLoadSelectedTrackHandler {
             required property int index
 
-            group: "[PreviewDeck" + (index + 1) + "]"
             enabled: root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.LibraryView
-            onLoadTrackRequested: (play) => {
+            group: "[PreviewDeck" + (index + 1) + "]"
+
+            onLoadTrackRequested: play => {
                 root.loadSelectedTrack(this.group, play);
             }
         }
     }
-
     Mixxx.ControlProxy {
         id: numSamplersControl
 
         group: "[App]"
         key: "num_samplers"
     }
-
     Instantiator {
         model: numSamplersControl.value
 
         delegate: LibraryComponent.ControlLoadSelectedTrackHandler {
             required property int index
 
-            group: "[Sampler" + (index + 1) + "]"
             enabled: root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.LibraryView
-            onLoadTrackRequested: (play) => {
+            group: "[Sampler" + (index + 1) + "]"
+
+            onLoadTrackRequested: play => {
                 root.loadSelectedTrack(this.group, play);
             }
         }

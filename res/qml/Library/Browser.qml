@@ -15,6 +15,31 @@ Rectangle {
     readonly property var featureSelection: ItemSelectionModel {
     }
     required property var model
+    property alias view: featureView
+
+    function activate() {
+        featureView.model.activate(featureSelection.currentIndex);
+        featureView.toggleExpanded(featureSelection.currentIndex.row);
+    }
+    function moveSelectionVertical(value) {
+        if (value == 0)
+            return;
+
+        this.selectRow(featureSelection.currentIndex.row + value);
+    }
+    function scrollSelectionVertical(value) {
+        if (value == 0)
+            return;
+    // FIXME is this relevant in the sidebar context? Need to compare with legacy
+    }
+    function selectRow(row) {
+        const rowCount = root.model.rowCount();
+        const newRow = Mixxx.MathUtils.positiveModulo(row, rowCount);
+        featureView.selectionModel.setCurrentIndex(this.model.index(newRow, 0), ItemSelectionModel.NoUpdate);
+        if (!featureView.isRowLoaded(newRow)) {
+            featureView.positionViewAtRow(newRow, TableView.Visible | TableView.AlignVCenter);
+        }
+    }
 
     color: Theme.backgroundColor
 
@@ -47,7 +72,7 @@ Rectangle {
             ScrollBar.vertical: ScrollBar {
                 policy: featureView.contentHeight > featureView.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
             }
-            delegate: FocusScope {
+            delegate: Item {
                 id: treeItem
 
                 readonly property bool canAddTrack: capabilities & Mixxx.LibraryAbstractSource.Capability.AddTrack
@@ -103,6 +128,7 @@ Rectangle {
                         hoverEnabled: true
 
                         onClicked: event => {
+                            treeView.forceActiveFocus();
                             let index = treeView.index(row, column);
                             treeView.model.activate(index);
                             if (isTreeNode && hasChildren && (!expanded || current)) {
@@ -267,7 +293,6 @@ Rectangle {
                                     }
 
                                     contentItem.objectName: "createFeaturePopup"
-                                    focus: true
                                     padding: 6
 
                                     SequentialAnimation on x {
@@ -337,6 +362,11 @@ Rectangle {
                         }
                     }
                 }
+            }
+        }
+        TapHandler {
+            onTapped: {
+                featureView.forceActiveFocus();
             }
         }
     }

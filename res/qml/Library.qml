@@ -14,6 +14,7 @@ Item {
     id: root
 
     property var activeSidebar: libraryLeftSources.sidebar
+    property var activeTracklist: libraryMainView
 
     onActiveSidebarChanged: {
         if (!root.activeSidebar?.tracklist)
@@ -40,6 +41,74 @@ Item {
     LibraryComponent.SourceTree {
         id: libraryRightSources
 
+    }
+    LibraryComponent.Control {
+        id: libraryControl
+
+        onFocusWidgetChanged: {
+            if (focusWidget && focusWidget != Skin.FocusedWidgetControl.WidgetKind.Searchbar && searchPane.activated) {
+                searchPane.deactivateSearch();
+            }
+
+            switch (focusWidget) {
+            case Skin.FocusedWidgetControl.WidgetKind.LibraryView:
+                root.activeTracklist.view.forceActiveFocus();
+                break;
+            case Skin.FocusedWidgetControl.WidgetKind.Sidebar:
+                sidebarTree.view.forceActiveFocus();
+                break;
+            case Skin.FocusedWidgetControl.WidgetKind.Searchbar:
+                searchPane.activateSearch();
+                break;
+            }
+        }
+        onLibraryMoveVertical: offset => {
+            root.activeTracklist.view.selectionModel.moveSelectionVertical(offset);
+        }
+        onLibraryScrollVertical: offset => {
+            root.activeTracklist.view.selectionModel.scrollSelectionVertical(offset);
+        }
+        onLoadSelectedTrack: (group, play) => {
+            root.activeTracklist.view.loadSelectedTrack(group, play);
+        }
+        onLoadSelectedTrackIntoNextAvailableDeck: play => {
+            root.activeTracklist.view.loadSelectedTrackIntoNextAvailableDeck(play);
+        }
+        onSidebarActivate: offset => {
+            sidebarTree.activate(offset);
+        }
+        onSidebarMoveVertical: offset => {
+            sidebarTree.moveSelectionVertical(offset);
+        }
+        onSidebarScrollVertical: offset => {
+            sidebarTree.scrollSelectionVertical(offset);
+        }
+
+        Connections {
+            function containsFocusedItem(item) {
+                let focused = root.Window.activeFocusItem;
+                while (focused) {
+                    if (focused == item)
+                        return true;
+                    focused = focused.parent;
+                }
+                return false;
+            }
+            function onActiveFocusItemChanged() {
+                if (!root.Window.activeFocusItem)
+                    return;
+
+                if (containsFocusedItem(root.activeTracklist)) {
+                    libraryControl.focusWidget = Skin.FocusedWidgetControl.WidgetKind.LibraryView;
+                } else if (containsFocusedItem(sidebarTree)) {
+                    libraryControl.focusWidget = Skin.FocusedWidgetControl.WidgetKind.Sidebar;
+                } else if (containsFocusedItem(searchPane)) {
+                    libraryControl.focusWidget = Skin.FocusedWidgetControl.WidgetKind.Searchbar;
+                }
+            }
+
+            target: root.Window.window
+        }
     }
     SplitView {
         id: librarySplitView
@@ -107,6 +176,7 @@ Item {
                 anchors.left: parent.left
                 anchors.right: tracklistMenu.left
                 anchors.top: parent.top
+                focus: true
                 orientation: root.width < 800 ? Qt.Vertical : Qt.Horizontal
 
                 handle: Skin.SplitViewHandle {
@@ -126,6 +196,7 @@ Item {
 
                     SplitView.fillHeight: true
                     SplitView.fillWidth: true
+                    focus: true
                     model: libraryLeftSources
                 }
                 Item {
@@ -273,7 +344,11 @@ Item {
                 id: searchPane
 
                 activeSidebar: root.activeSidebar
-                focusOutTarget: browsingView
+
+                onActivatedChanged: {
+                    if (!activated)
+                        activeTracklist.view.forceActiveFocus();
+                }
             }
         }
     }
@@ -281,7 +356,6 @@ Item {
     // One side of the split track list: tapping it makes it the active
     // sidebar, the inactive side dims.
     component ActiveTrackList: LibraryComponent.TrackList {
-        focus: true
         opacity: root.activeSidebar == sidebar ? 1 : 0.6
 
         TapHandler {
