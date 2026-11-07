@@ -24,7 +24,7 @@ ApplicationWindow {
     color: Theme.backgroundColor
     height: isMobile ? Screen.height : designHeight
     minimumHeight: isMobile ? 0 : 300
-    minimumWidth: isMobile ? 0 : 680
+    minimumWidth: isMobile ? 0 : 850
     objectName: "mainWindow"
     visible: true
     width: isMobile ? Screen.width : designWidth
