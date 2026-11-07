@@ -41,7 +41,8 @@ from helpers import (
     _wait_for_visible,
     wait_hidden,
     wait_visible,
-    wait_method
+    wait_method,
+    wait_property
 )
 from behave import given, when, then
 
@@ -941,25 +942,19 @@ def step_swap_is_visible(context):
 
 def _assert_split_half_position(context, display_path, position):
     group = _deck_group(getattr(context, "_popup_deck", 1))
-    track_samples = _get_control_value(context, group, "track_samples")
-    expected = position / track_samples
-    deadline = time.time() + 2.0
-    while True:
-        value = float(_get_property(context, display_path, "position"))
-        if abs(value - expected) <= 0.005 or time.time() >= deadline:
-            break
-        time.sleep(0.1)
-    assert abs(value - expected) <= 0.005, (
-        f"{display_path} position {value!r} does not display the expected "
-        f"track ratio {expected!r}")
+    expected = position / _get_control_value(context, group, "track_samples")
+    assert wait_property(
+        context.rpc, display_path, "position",
+        lambda value: abs(float(value) - expected) <= 0.005), (
+        f"{display_path} position "
+        f"{float(_get_property(context, display_path, 'position'))!r} does "
+        f"not display the expected track ratio {expected!r}")
 
 
 @then("the split view start half should display the span start position")
 def step_split_start_half_position(context):
     hotcue = getattr(context, "_popup_hotcue", 1)
     group = _deck_group(getattr(context, "_popup_deck", 1))
-    # Let it settle
-    time.sleep(0.5)
     _assert_split_half_position(
         context,
         _hotcue_waveform(context, "waveformPreviewFull"),
@@ -971,8 +966,6 @@ def step_split_start_half_position(context):
 def step_split_target_half_position(context):
     hotcue = getattr(context, "_popup_hotcue", 1)
     group = _deck_group(getattr(context, "_popup_deck", 1))
-    # Let it settle
-    time.sleep(0.5)
     _assert_split_half_position(
         context,
         _hotcue_waveform(context, "waveformPreviewPartial"),
