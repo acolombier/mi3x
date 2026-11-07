@@ -52,10 +52,12 @@ ApplicationWindow {
         active: Mixxx.Core.ready
         anchors.fill: parent
         asynchronous: true
+        focus: true
 
         sourceComponent: Component {
             MainWindow {
                 enableDiagnosticClick: root.enableDiagnosticClick
+                focus: true
             }
         }
 

@@ -657,6 +657,7 @@ Item {
                     sourceComponent: Component {
                         Skin.Library {
                             anchors.fill: parent
+                            focus: true
                             objectName: "libraryContent"
                         }
                     }
@@ -699,6 +700,7 @@ Item {
         id: settingsPopup
 
         enableDiagnosticClick: parent.enableDiagnosticClick
+        focus: true
         height: Math.min(840, parent.height)
         modal: true
         width: Math.min(1400, parent.width)
