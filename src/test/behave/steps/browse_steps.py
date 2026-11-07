@@ -546,6 +546,22 @@ def step_library_maximized(context):
     _wait_for_visible(context, LIBRARY_CONTENT)
 
 
+@given('the source "{feature}" is selected in the library sidebar')
+def step_given_source_selected(context, feature):
+    path = _sidebar_feature_row_path(context, feature)
+    assert path, f"Could not find the feature \"{feature}\" in the library sidebar"
+    _wait_for_visible(context, path)
+    # A leftover popup (context menu, item creation...) swallows the first
+    # click, which only closes it; retry once, verified on the current state.
+    for _ in range(2):
+        if _get_property(context, path, "current") == "true":
+            return
+        _click(context, path)
+        time.sleep(1)
+    assert _get_property(context, path, "current") == "true", (
+        f"Could not select the feature \"{feature}\" in the library sidebar")
+
+
 # --- Library search --------------------------------------------------------
 @when("I activate the library search")
 def step_activate_library_search(context):

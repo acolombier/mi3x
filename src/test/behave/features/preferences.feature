@@ -44,6 +44,7 @@ Feature: Preferences
     And the cancel button should not be visible
 
   Scenario: Save and cancel enable when a setting changes
+    Given the "Sound hardware" category is selected
     And I have the following sound devices
       | name           | api  | outputChannels | inputChannels |
       | Built-in Audio | Mock | 4              | 4             |
@@ -53,6 +54,7 @@ Feature: Preferences
     And the cancel button should be visible
 
   Scenario: Cancel reverts changes
+    Given the "Sound hardware" category is selected
     And I have the following sound devices
       | name           | api  | outputChannels | inputChannels |
       | Built-in Audio | Mock | 4              | 4             |
@@ -63,6 +65,7 @@ Feature: Preferences
     And the save button should be disabled
 
   Scenario: Save applies changes
+    Given the "Sound hardware" category is selected
     And I have the following sound devices
       | name           | api  | outputChannels | inputChannels |
       | Built-in Audio | Mock | 4              | 4             |

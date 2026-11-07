@@ -5,6 +5,7 @@ Feature: Sound
       Given a new empty profile
       And Mixxx is open and ready to operate
       And the settings popup is open
+      And the "Sound hardware" category is selected
 
   # --- Tab Navigation ---
 
@@ -122,23 +123,6 @@ Feature: Sound
     Given the router mode is "advanced"
     Then the "PFL" edge on "Mixer" entity should show idle state
 
-  Scenario: Edge shows setting state after new connection
-    And the router mode is "advanced"
-    When I connect the "Main" edge on "Mixer" entity to a free output device
-    Then the "Main" edge on "Mixer" entity should show setting state
-
-  Scenario: Edge shows existing state for saved connection
-    And the router mode is "advanced"
-    And a saved connection exists from "Main" on "Mixer" to an output device
-    Then the "Main" edge on "Mixer" entity should show existing state
-
-  Scenario: Connection line shows correct state colors
-    And the router mode is "advanced"
-    And a saved connection exists from "Main" on "Mixer" to an output device
-    Then the connection from "Main" on "Mixer" should show existing state
-    When I connect the "PFL" edge on "Mixer" entity to a free output device
-    Then the connection from "PFL" on "Mixer" should show set state
-
   # TODO: investigate
   @xfail
   Scenario: Disconnecting an existing connection marks it for deletion
@@ -148,33 +132,63 @@ Feature: Sound
     #      onEntered to set AudioConnection.Flags.AboutToDelete, but spix
     #      only triggers onPressed (via mouseClick). Need spix hover support
     #      or a custom C++ command to set the flag directly.
-    And the router mode is "advanced"
+    Given the router mode is "advanced"
     And a saved connection exists from "Main" on "Mixer" to an output device
     When I hover over the "Main" edge on "Mixer" entity
     Then the connection from "Main" on "Mixer" should show warning state
 
+  # --- Audio Router: connection state changes ---------------------------------
+
+  Rule: Audio router connection state changes
+    Background:
+      Given a fresh new empty profile
+      And I have the following sound devices
+        | name            | api  | outputChannels | inputChannels |
+        | Built-in Audio  | Mock | 4              | 4             |
+      And Mixxx is open and ready to operate
+      And the settings popup is open
+      And the "Sound hardware" category is selected
+      And the "Sound API" setting is "Mock"
+
+  Scenario: Edge shows setting state after new connection
+    Given the router mode is "advanced"
+    When I connect the "Main" edge on "Mixer" entity to a free output device
+    Then the "Main" edge on "Mixer" entity should show setting state
+
+  Scenario: Edge shows existing state for saved connection
+    Given the router mode is "advanced"
+    And a saved connection exists from "Main" on "Mixer" to an output device
+    Then the "Main" edge on "Mixer" entity should show existing state
+
+  Scenario: Connection line shows correct state colors
+    Given the router mode is "advanced"
+    And a saved connection exists from "Main" on "Mixer" to an output device
+    Then the connection from "Main" on "Mixer" should show existing state
+    When I connect the "PFL" edge on "Mixer" entity to a free output device
+    Then the connection from "PFL" on "Mixer" should show set state
+
   # --- Audio Router: Connect and Save ---
 
   Scenario: Creating a connection enables save button
-    And the router mode is "advanced"
+    Given the router mode is "advanced"
     When I connect the "Main" edge on "Mixer" entity to a free output device
     Then the save button should be enabled
 
   Scenario: Saving persists the connection
-    And the router mode is "advanced"
+    Given the router mode is "advanced"
     When I connect the "Main" edge on "Mixer" entity to a free output device
     And I click the save button
     And the committing overlay is not visible
     Then the "Main" edge on "Mixer" entity should show existing state
 
   Scenario: Cancel discards unsaved connection
-    And the router mode is "advanced"
+    Given the router mode is "advanced"
     When I connect the "Main" edge on "Mixer" entity to a free output device
     And I click the cancel button
     Then the "Main" edge on "Mixer" entity should show warning state
 
   Scenario: Reset after connection restores original state
-    And the router mode is "advanced"
+    Given the router mode is "advanced"
     When I connect the "Main" edge on "Mixer" entity to a free output device
     And I click the cancel button
     Then the router should match the saved configuration
