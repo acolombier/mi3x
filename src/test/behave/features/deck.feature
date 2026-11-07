@@ -5,6 +5,8 @@ Feature: Deck
     Background:
       Given a new empty profile
       And Mixxx is open and ready to operate
+      And the window size is default
+      And the deck layout is in its default state
 
   Scenario: Show or hide all 4 decks
     When I click the "4DECKS" button
@@ -370,6 +372,7 @@ Feature: Deck
       And a track is loaded on deck 1
       And hotcue 1 is set on deck 1
       And hotcue 1 on deck 1 is of type "CUE"
+      And the hotcue popup is closed
 
   @sub/hotcues
   Scenario: The popup opens on hotcue right-click

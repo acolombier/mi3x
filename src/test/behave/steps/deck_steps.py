@@ -39,6 +39,7 @@ from helpers import (
     _set_hotcue,
     _wait_for_hidden,
     _wait_for_visible,
+    wait_hidden,
     wait_visible,
 )
 from behave import given, when, then
@@ -544,6 +545,24 @@ def step_given_popup_open(context, hotcue, deck):
     _open_hotcue_popup(context, deck, hotcue)
 
 
+@given("the hotcue popup is closed")
+def step_given_hotcue_popup_closed(context):
+    """Close a hotcue popup if it was left open by the previous scenario."""
+    deck = getattr(context, "_popup_deck", 1)
+    hotcue = getattr(context, "_popup_hotcue", 1)
+    if not _is_open(context, hotcue, deck):
+        return
+    content = _hotcue_popup(context, "hotcuePopupContent", hotcue, deck)
+    _click(context, _deck_button_path(deck, "spinny"))
+    if not wait_hidden(context.rpc, content, 2):
+        context.rpc.enterKey(content, QT_KEY_ESCAPE, 0)
+        wait_hidden(context.rpc, content, 2)
+    time.sleep(0.3)
+    assert not _is_open(context, hotcue, deck), (
+        "the hotcue popup left open by the previous scenario could not be "
+        "closed")
+
+
 @given("hotcue {hotcue:d} is set on deck {deck:d}")
 def step_given_hotcue_is_set(context, hotcue, deck):
     group = _deck_group(deck)
@@ -634,6 +653,17 @@ def step_given_beatloop_size(context, beats, deck=1):
 @given("quantize is disabled on deck {deck:d}")
 def step_given_quantize_disabled(context, deck):
     _set_control_value(context, _deck_group(deck), "quantize", 0)
+
+
+@given("the deck layout is in its default state")
+def step_given_deck_layout_default(context):
+    """Restore the deck component (edit-mode) layout to the default order."""
+    for deck in range(1, 5):
+        path = _deck_path(deck)
+        if not _is_visible(context, path):
+            continue
+        context.rpc.invokeMethod(path, "resetLayout", [])
+    time.sleep(0.5)
 
 
 # When: popup interactions
