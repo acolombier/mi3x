@@ -36,6 +36,7 @@ class BroadcastManager : public QObject {
 
   signals:
     void broadcastEnabled(bool);
+    void broadcastError(const QString& title, const QString& text);
 
   private slots:
     void slotControlEnabled(double v);

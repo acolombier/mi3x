@@ -81,6 +81,8 @@ class MixxxMainWindow : public QMainWindow {
     void slotNoAuxiliaryInputConfigured();
     void slotNoDeckPassthroughInputConfigured();
     void slotNoVinylControlInputConfigured();
+    void slotTrackLoadFailed(TrackPointer pTrack, const QString& reason);
+    void slotBroadcastError(const QString& title, const QString& text);
 #ifndef __APPLE__
     /// Update whether the menubar is toggled pressing the Alt key and show/hide
     /// it accordingly

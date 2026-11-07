@@ -13,13 +13,24 @@ Popup {
 
     // Used to show click interaction on the Window. Mainly relevant on automated testing
     property bool enableDiagnosticClick: false
+    property var requestFocusSection: null
 
     // FIXME change to `final` when supported
     readonly property real smallScreenWidth: 1200
 
+    signal saved(var group)
+
+    function focusSection(section) {
+        popup.requestFocusSection = section;
+        if (loader.item) {
+            const group = loader.item.manager.findSettings(popup.requestFocusSection);
+            group?.activated();
+            popup.requestFocusSection = null;
+        }
+    }
+
     focus: true
     horizontalPadding: 20
-    objectName: "settingsPopup"
     verticalPadding: 20
 
     background: Rectangle {
@@ -40,8 +51,18 @@ Popup {
         anchors.fill: parent
         anchors.margins: 10
         asynchronous: true
+        // Used by notifications to interact with the setting popup
+        objectName: "settingsLoader"
         sourceComponent: content
         visible: item !== null && status == Loader.Ready
+
+        onLoaded: {
+            if (!popup.requestFocusSection)
+                return;
+            const group = loader.item.manager.findSettings(popup.requestFocusSection);
+            group?.activated();
+            popup.requestFocusSection = null;
+        }
 
         // Accelerate the load of the setting popup after a specific delay
         Timer {
@@ -351,6 +372,9 @@ Popup {
                             let activateBuilder = index => function () {
                                     categoryList.currentIndex = index;
                                 };
+                            let savedBuilder = child => function () {
+                                    popup.saved(child);
+                                };
                             let visibleBuilder = index => function () {
                                     return categoryList.currentIndex == index;
                                 };
@@ -363,6 +387,7 @@ Popup {
                                 });
                                 child.visible = Qt.binding(visibleBuilder(index));
                                 child.activated.connect(activateBuilder(index));
+                                child.saved.connect(savedBuilder(child));
                                 child.anchors.fill = this;
                             }
                             // This is needed to ensure the right category is displayed.

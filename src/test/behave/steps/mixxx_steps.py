@@ -5,15 +5,27 @@ import time
 import socket
 import xmlrpc.client
 from helpers import (
+    NOTIFICATION_BELL,
+    NOTIFICATION_DRAWER,
+    NOTIFICATION_FLAG_STICKY,
+    NOTIFICATION_ACTION_TEMPLATE,
     _click,
+    _find_notification,
+    _get_notifications,
     _get_property,
     _is_visible,
     _library_command,
+    _load_track,
+    _remember,
+    _remember_notifications,
+    _remembered_value,
     _set_property,
     _wait_for_hidden,
     _wait_for_visible,
+    _wait_for_clickable,
     remember_track,
     scenario_rng,
+    wait_visible,
 )
 from behave import given, when, then
 import mixxx_profile as profile
@@ -137,13 +149,6 @@ BUTTON_PATHS = {
 }
 
 
-# --- View helpers ---
-
-
-def _load_track(context, deck, filepath):
-    context.rpc.command("loadTrack", f"{deck},{filepath}")
-
-
 # --- Path resolution ---
 
 def _button_path(name):
@@ -257,9 +262,7 @@ def _ensure_profile(context, profile_type, force=False):
         # spawn time out and cascade through the rest of the run.
         _stop_mixxx(context)
     profile_dir = profile.make_temp_profile(
-        profile_type,
-        container=profile.macos_sandbox_container(
-            context.config.userdata.get("binary")),
+        profile_type
     )
     context.profile_dir = profile_dir
     context.active_profile_type = profile_type
@@ -279,6 +282,39 @@ def step_new_empty_profile(context, profile_type):
         profile_type.split(" ")[-1],
         force=profile_type.startswith("fresh"),
     )
+
+
+# <kind> → profile type seeded with a mock device whose openStatus makes
+# SoundManager::setupDevices() fail at start-up (mixxx_profile.py); the
+# status decides which notification the start-up flow raises.
+FAILING_SOUND_DEVICE_PROFILES = {
+    "busy": "busy-sound-devices",    # ErrorDeviceCount -> "Sound Device Busy"
+    "error": "error-sound-devices",  # Error           -> "Sound Device Error"
+}
+
+
+@given("a profile with a {kind} sound device configured")
+def step_profile_with_failing_sound_device(context, kind):
+    profile_type = FAILING_SOUND_DEVICE_PROFILES.get(kind)
+    assert profile_type is not None, f"Unknown sound device failure kind: {kind}"
+    # A forced fresh profile instance gives a deterministic start-up.
+    _ensure_profile(context, profile_type, force=True)
+
+
+@then("Mixxx should have quit")
+def step_mixxx_should_have_quit(context):
+    mixxx = getattr(context, "mixxx", None)
+    assert mixxx is not None and mixxx.process is not None, (
+        "No Mixxx process was started")
+    deadline = time.time() + 10
+    while mixxx.process.poll() is None:
+        if time.time() >= deadline:
+            raise AssertionError(
+                "Mixxx is still running 10s after its Exit action was clicked")
+        time.sleep(0.3)
+    exit_code = mixxx.process.returncode
+    assert exit_code == 0, f"Mixxx exited with code {exit_code} (expected 0)"
+    _stop_mixxx(context)
 
 
 @given("Mixxx is open and ready to operate")
@@ -425,3 +461,153 @@ def step_toolbar_button_visible(context, button, assertion):
         _wait_for_visible(context, path)
     else:
         _wait_for_hidden(context, path)
+
+
+# --- Notification space (browse/sound/broadcast @sub/notifications) ---------
+#
+# Content assertions read the getNotifications RPC command (helpers.py);
+# drawer/bell steps address mainWindow/notificationDrawer and
+# mainWindow/notificationButton via spix. Steps that pick a notification
+# remember it as context._last_notification so a following "the notification
+# details ..." step knows which one is meant.
+
+
+@when('the notification "{text}" is visible')
+def step_notification_visible_now(context, text):
+    notification = _find_notification(context, text)
+    assert notification is not None, f'No active notification "{text}"'
+    context._last_notification = notification
+
+@when('I click the "{label}" action of the "{title}" notification')
+def step_click_notification_action(context, label, title):
+    # Resolve the notification by title first, so a missing notification
+    # fails the step instead of clicking a stale button of whatever the
+    # drawer currently shows.
+    notification = _find_notification(context, title)
+    assert notification is not None, f'No active notification "{title}"'
+    context._last_notification = notification
+    path = NOTIFICATION_ACTION_TEMPLATE % label
+    if not wait_visible(context.rpc, path, timeout=5):
+        # The drawer may have been closed in the meantime; the bell button
+        # re-opens it (real user flow).
+        _click(context, NOTIFICATION_BELL)
+    _wait_for_clickable(context, path, timeout=10)
+    _click(context, path)
+    time.sleep(0.5)
+
+@then('the notification "{text}" should be visible')
+def step_notification_visible(context, text):
+    notification = _find_notification(context, text)
+    assert notification is not None, f'No active notification "{text}"'
+    context._last_notification = notification
+
+
+@then('the notification "{text}" should not be visible')
+def step_notification_hidden(context, text):
+    notification = _find_notification(context, text)
+    assert notification is None, f'The notification "{text}" is still active'
+
+
+@then('the notification "{text}" should be sticky')
+def step_notification_sticky(context, text):
+    notification = _find_notification(context, text)
+    assert notification is not None, f'No active notification "{text}"'
+    context._last_notification = notification
+    assert int(notification.get("flags", 0)) & NOTIFICATION_FLAG_STICKY, (
+        f'The notification "{text}" is not sticky (flags: '
+        f'{notification.get("flags")})')
+
+
+@then('no notification should be visible')
+def step_no_notifications(context):
+    deadline = time.time() + 5
+    while True:
+        notifications = _get_notifications(context)
+        if not notifications:
+            return
+        if time.time() >= deadline:
+            texts = [n.get("text") for n in notifications]
+            raise AssertionError(
+                f"Notifications are still active: {texts}")
+        time.sleep(0.3)
+
+
+@then('the notification drawer should not be visible')
+def step_drawer_hidden(context):
+    _wait_for_hidden(context, NOTIFICATION_DRAWER)
+
+
+@then('the notification bell should be enabled')
+def step_bell_enabled(context):
+    enabled = _get_property(context, NOTIFICATION_BELL, "enabled")
+    assert enabled == "true", (
+        f"The notification bell is not enabled (enabled={enabled!r})")
+
+
+@then('the notification details should mention the failure reason')
+def step_details_mention_failure_reason(context):
+    notification = getattr(context, "_last_notification", None)
+    assert notification is not None, (
+        "No notification was made current by a preceding visible/sticky step")
+    missing_path = getattr(context, "_missing_track_path", None)
+    assert missing_path, (
+        "No missing track path was remembered by the load attempt")
+    details = notification.get("details", "")
+    assert missing_path in details, (
+        f"The notification details do not mention the missing track "
+        f"(details: {details!r})")
+
+
+@then('the notification details should mention "{text}"')
+def step_details_mention(context, text):
+    notification = getattr(context, "_last_notification", None)
+    assert notification is not None, (
+        "No notification was made current by a preceding visible/sticky step")
+    details = notification.get("details", "")
+    assert text in details, (
+        f'The notification details do not mention "{text}" '
+        f"(details: {details!r})")
+
+
+@then('the notification "{text}" should offer the actions "{actions}"')
+def step_notification_actions(context, text, actions):
+    notification = _find_notification(context, text)
+    assert notification is not None, f'No active notification "{text}"'
+    context._last_notification = notification
+    offered = [str(label) for label in notification.get("buttons", [])]
+    expected = [action.strip() for action in actions.split(",")]
+    assert offered == expected, (
+        f'The notification "{text}" offers {offered} '
+        f"(expected: {expected})")
+
+
+@when("I check the notifications")
+def step_check_notifications(context):
+    # Expand the notification drawer via the bell and remember the listed
+    # notifications, so a later "no new notification should be visible"
+    # assertion compares against what was actually shown. The bell is a
+    # toggle (checked == the drawer being open in list mode): clicking it
+    # opens a closed drawer or switches a focused notification to the
+    # list; an already-expanded drawer is left alone.
+    if _get_property(context, NOTIFICATION_BELL, "checked") != "true":
+        _click(context, NOTIFICATION_BELL)
+    _wait_for_visible(context, NOTIFICATION_DRAWER)
+    _remember(context, "notifications", _remember_notifications(context))
+
+
+@then("no new notification should be visible")
+def step_no_new_notifications(context):
+    # Delta check against the notifications remembered by
+    # "I check the notifications": multiset containment, so remembered
+    # notifications disappearing (transient auto-timeout) is tolerated
+    # while a new title - or an extra copy of a remembered one - fails.
+    remembered = _remembered_value(context, "notifications")
+    deadline = time.time() + 5
+    while True:
+        unexpected = _remember_notifications(context) - remembered
+        if not unexpected:
+            return
+        if time.time() >= deadline:
+            raise AssertionError(
+                f"New notifications appeared: {list(unexpected.elements())}")
+        time.sleep(0.3)

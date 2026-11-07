@@ -24,6 +24,7 @@ want a custom failure message use the non-raising primitive on
 """
 
 
+import collections
 import random
 import re
 from typing import Optional
@@ -105,6 +106,9 @@ QT_KEY_LEFT = 0x01000012
 QT_KEY_RIGHT = 0x01000014
 
 ROUTER_MODE = "mainWindow/routerMode"
+
+_WAIT_INITIAL_DELAY = 0.3
+_WAIT_BACKOFF_FACTOR = 2
 
 
 # --- RPC primitives (rpc-based, value-returning) -----------------------------
@@ -269,6 +273,11 @@ def _set_hotcue(context, group, hotcue, label=None, hotcue_type="cue"):
         json.dumps(payload))
 
 
+def _load_track(context, deck, filepath):
+    """Load a track file onto a deck via the custom loadTrack command."""
+    context.rpc.command("loadTrack", f"{deck},{filepath}")
+
+
 # --- Remember store ---
 
 def _remember(context, key, value):
@@ -342,6 +351,127 @@ def _library_command(context, action=None, path=None, scan=False, payload=None):
     context.rpc.command("library", payload)
     if scan:
         _wait_for_library_scan(context, scan_generation)
+
+
+# --- Notifications (Mixxx.Core / NotificationManager) ------------------------
+
+# Spix paths of the notification drawer (NotificationDrawer.qml content
+# loader, rendered in the window Overlay like other popups) and the toolbar
+# bell button (MainWindow.qml).
+NOTIFICATION_DRAWER = "mainWindow/notificationDrawer"
+NOTIFICATION_BELL = "mainWindow/notificationButton"
+NOTIFICATION_ACTION_TEMPLATE = NOTIFICATION_DRAWER + "/notificationAction_%s"
+
+# Bit mask of mixxx::Notification::Flag::Sticky (notification.h); the
+# getNotifications RPC command reports `flags` as the raw QFlags int.
+NOTIFICATION_FLAG_STICKY = 1 << 4
+
+def _get_notifications(context, timeout=5):
+    """Read the active notifications via the command/property pair.
+
+    Same two-step pattern as _get_library_state: the getNotifications
+    command stores a JSON snapshot ({notifications: [{text, details,
+    flags}]}) in the window property lastNotifications, which a second RPC
+    call reads back.
+    """
+    deadline = time.time() + timeout
+    rpc = context.rpc
+    delay = _WAIT_INITIAL_DELAY
+    while True:
+        rpc.command("getNotifications", "")
+        raw = rpc.getStringProperty("mainWindow", "lastNotifications")
+        try:
+            return json.loads(raw).get("notifications", [])
+        except json.JSONDecodeError:
+            if time.time() >= deadline:
+                raise AssertionError(
+                    f"The notification state did not become readable "
+                    f"(got {raw!r})"
+                )
+            time.sleep(min(delay, max(0, deadline - time.time())))
+            delay *= _WAIT_BACKOFF_FACTOR
+
+
+def _find_notification(context, text, timeout=5):
+    """The active notification entry with the given title text, or None."""
+    deadline = time.time() + timeout
+    delay = _WAIT_INITIAL_DELAY
+    while True:
+        for notification in _get_notifications(context):
+            if notification.get("text") == text:
+                return notification
+        if time.time() >= deadline:
+            return None
+        time.sleep(min(delay, max(0, deadline - time.time())))
+        delay *= _WAIT_BACKOFF_FACTOR
+
+
+def _remember_notifications(context, timeout=5):
+    """Multiset (Counter) of the titles of the currently active notifications.
+
+    The multiset form lets a later delta assertion tolerate remembered
+    notifications disappearing (transient auto-timeout) while still
+    catching a new title or an extra copy of a remembered one.
+    """
+    return collections.Counter(
+        notification.get("text", "")
+        for notification in _get_notifications(context, timeout))
+
+
+# --- Menu navigation (spix-addressable TestableMenu popups) ------------------
+
+def _select_menu_items(context, root_path, items, timeout=5):
+    """Keyboard-navigate an open spix-addressable menu tree (TestableMenu).
+
+    ``items`` are the entry texts to walk ("Library", "Scan"), navigating
+    submenu by submenu. ``root_path`` is the spix path of the root menu's
+    content item ("mainWindow/trackContextMenu"); submenus are addressed as
+    "<root>_Sub<depth>". The menu must already be open.
+    """
+    time.sleep(1)
+
+    def activate(items, depth=0):
+        menu_path = root_path if not depth else f"{root_path}_Sub{depth}"
+        assert wait_visible(context.rpc, menu_path, timeout=timeout), (
+            f"Context {'menu' if not depth else 'submenu'} is not visible")
+        step = items.pop(0)
+        menu = json.loads(context.rpc.invokeMethod(menu_path, "serialisedDump", []))
+        entry = [(i, item) for i, item in enumerate(menu["items"]) if item.get("text") == step]
+        if not entry:
+            print("Content menu content was:", menu)
+        assert entry, f"Unable to find the item {repr(step)} in context menu"
+        target_index, item = entry[0]
+        path = menu_path + "/" + item["objectName"]
+
+        context.rpc.invokeMethod(menu_path, "forceActiveFocus", [])
+        current_index = menu["currentIndex"]
+        while current_index != target_index and current_index < menu["count"] - 1:
+            if context.rpc.existsAndVisible(f"{root_path}_Sub{depth+1}"):
+                context.rpc.enterKey(f"{root_path}_Sub{depth+1}", QT_KEY_LEFT, 0)
+                time.sleep(0.5)
+            # Later, we could extend the DSL to request a click on the item. This may be useful to assert granularly the context menu behaviour
+            # _click(context, path)
+            # time.sleep(0.3)
+            # new_index = int(_get_property(context, menu_path, "currentIndex"))
+            context.rpc.enterKey(menu_path, QT_KEY_DOWN if current_index < target_index else QT_KEY_UP, 0)
+            time.sleep(0.5)
+            new_index = int(_get_property(context, menu_path, "currentIndex"))
+            # Some platform may struggle with dispatching the emulated keyboard input, so we use the direct setter as fallback
+            if new_index == current_index:
+                context.rpc.invokeMethod(menu_path, "setMenuIndex", [target_index])
+                new_index = int(_get_property(context, menu_path, "currentIndex"))
+            assert new_index != current_index, "Unable to change the context menu index"
+            current_index = new_index
+        assert target_index == current_index, "Unable to reach the target context menu item"
+        context.rpc.enterKey(menu_path, QT_KEY_ENTER, 0)
+        time.sleep(0.5)
+        if items:
+            activate(items, depth+1)
+        else:
+            # Not all menu actions will hide the menu, so we don't assert here
+            wait_hidden(context.rpc, menu_path, timeout=3)
+
+    activate(items)
 
 
 # --- Library settings paths/expectations (shared by settings_steps and browse_steps) ---
@@ -499,8 +629,8 @@ def _set_router_mode(context, mode):
     _click(context, path)
     time.sleep(0.5)
 
-def _find_first_free_output_edge(context):
-    return _find_first_output_edge(context, only_not_connected=True)
+def _find_first_free_output_edge(context, device_name=None):
+    return _find_first_output_edge(context, only_not_connected=True, device_name=device_name)
 
 
 # --- from mixxx_steps.py (used by multiple feature modules) ---
@@ -965,6 +1095,8 @@ SETTING_MAP = {
     "low visual gain": {"path": "mainWindow/setting_visualGainLow", "kind": "slider", "min": 50, "max": 500, "markers": [50, 100, 150, 300, 500]},
     "medium visual gain": {"path": "mainWindow/setting_visualGainMedium", "kind": "slider", "min": 50, "max": 500, "markers": [50, 100, 150, 300, 500]},
     "high visual gain": {"path": "mainWindow/setting_visualGainHigh", "kind": "slider", "min": 50, "max": 500, "markers": [50, 100, 150, 300, 500]},
+    # Library category — scan summary
+    "show scan summary": {"path": "mainWindow/settingsPopupItem/library/notifyOnScan", "kind": "ratio", "options": ["on", "off"]},
     # Library category — sources & integrations
     "Rhythmbox integration": {"path": "mainWindow/setting_integration0", "kind": "ratio", "options": ["on", "off"]},
     "Banshee integration": {"path": "mainWindow/setting_integration1", "kind": "ratio", "options": ["on", "off"]},
@@ -1016,17 +1148,17 @@ TRACK_ACTIONS = {
 
 _ROW_HEIGHT = 30
 
-def _find_first_output_edge(context, only_not_connected=False):
+def _find_first_output_edge(context, only_not_connected=False, device_name=None):
     # FIXME: This function is fragile. It depends on:
     #   1. System audio hardware being present (no devices = empty outputList = returns None)
     #   2. The ListView item_0, item_1... naming convention matching spix's ListView traversal
     #   3. Edge addresses being "Default" or "Output" (actual addresses are device-specific)
-    # All scenarios using "to an output device" will fail without real audio hardware.
-    # Consider adding a custom C++ command to register a fake output device for testing.
     output_count = int(_get_property(context, f"{OUTPUT_COLUMN}/outputList", "count"))
     for i in range(output_count):
         item_path = f"{OUTPUT_COLUMN}/outputList/output{i}"
         name = _get_property(context, item_path, "name")
+        if device_name and device_name != name:
+            continue
         assert name, f"Cannot find {item_path}"
         channels = int(_get_property(context, f"{item_path}/node", "count"))
         for channel in range(channels):

@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 49ab11f..68b3541 100644
+index db6bba6..4766a2e 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -1,5 +1,6 @@
@@ -129,18 +129,21 @@ index 6916697..cc118d1 100644
  
  AnyRpcServer::~AnyRpcServer()
 diff --git a/libs/Core/src/Commands/ClickOnItem.cpp b/libs/Core/src/Commands/ClickOnItem.cpp
-index 26810ea..b8f26b7 100644
+index 26810ea..dd08e16 100644
 --- a/libs/Core/src/Commands/ClickOnItem.cpp
 +++ b/libs/Core/src/Commands/ClickOnItem.cpp
-@@ -7,14 +7,22 @@
+@@ -7,14 +7,25 @@
  #include "ClickOnItem.h"
  
  #include <Spix/Scene/Scene.h>
-+#include <QTime>
 +#include <QEventLoop>
++#include <QGuiApplication>
++#include <QKeyEvent>
++#include <QTimer>
++#include <QWindow>
 +#include <QCoreApplication>
 +
-+#include <future>
++#include <memory>
 +#include <thread>         // std::this_thread::sleep_for
 +#include <chrono>         // std::chrono::seconds
  
@@ -156,32 +159,63 @@ index 26810ea..b8f26b7 100644
  {
  }
  
-@@ -30,8 +38,26 @@ void ClickOnItem::execute(CommandEnvironment& env)
+@@ -30,8 +41,57 @@ void ClickOnItem::execute(CommandEnvironment& env)
  
      auto size = item->size();
      auto mousePoint = m_position.positionForItemSize(size);
 -    env.scene().events().mouseDown(item.get(), mousePoint, m_mouseButton, m_keyModifier);
 -    env.scene().events().mouseUp(item.get(), mousePoint, m_mouseButton, m_keyModifier);
 +
-+    const auto hold = std::chrono::milliseconds(m_holdTime);
-+    const auto deadline = std::chrono::steady_clock::now() + hold;
-+
 +    env.scene().events().mouseDown(
 +        item.get(), mousePoint, m_mouseButton, m_keyModifier);
 +
-+    while (std::chrono::steady_clock::now() < deadline) {
++    // The press can activate a QML DragHandler whose onActiveChanged writes
++    // Drag.active, starting a native drag (QDrag::exec) that parks the main
++    // thread in a nested event loop. Inline code past the event processing
++    // would then never run and the drag would wait forever for a release
++    // that never comes. The release is therefore scheduled in the event
++    // stream instead: queued timers keep firing inside the drag's nested
++    // loop, the release terminates the drag, and the down->up spacing stays
++    // deterministic (both events are posted from the main thread, in
++    // order).
++    auto released = std::make_shared<bool>(false);
++    QTimer::singleShot(std::chrono::milliseconds(m_holdTime), [&env, path, mousePoint, released, this]() {
++        auto item = env.scene().itemAtPath(path);
++
++        if (item) {
++            env.scene().events().mouseUp(
++                item.get(), mousePoint, m_mouseButton, m_keyModifier);
++        }
++        *released = true;
++    });
++
++    // Safety net: if the drag survives its own release, queue an Escape
++    // key press; the drag machinery consumes it to cancel the stuck drag
++    // and unwind the nested event loop. The timer is stopped below in the
++    // normal case, so the key never reaches the application.
++    QTimer escapeTimer;
++    escapeTimer.setSingleShot(true);
++    escapeTimer.setInterval(std::chrono::seconds(5));
++    QObject::connect(&escapeTimer, &QTimer::timeout, [&env]() {
++        auto* window = QGuiApplication::focusWindow();
++        if (!window) {
++            return;
++        }
++        qWarning() << "ClickOnItem: cancelling a stuck native drag with Escape";
++        QGuiApplication::postEvent(window,
++            new QKeyEvent(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier));
++        QGuiApplication::postEvent(window,
++            new QKeyEvent(QEvent::KeyRelease, Qt::Key_Escape, Qt::NoModifier));
++    });
++    escapeTimer.start();
++
++    while (!*released) {
 +        QCoreApplication::processEvents(QEventLoop::AllEvents);
 +        std::this_thread::sleep_for(std::chrono::milliseconds(1));
 +    }
++    escapeTimer.stop();
 +
-+    item = env.scene().itemAtPath(path);
-+
-+    if (item) {
-+        env.scene().events().mouseUp(
-+            item.get(), mousePoint, m_mouseButton, m_keyModifier);
-+    }
-+
-+    qWarning() << "ClickOnItem::ClickOnItem: finished";     
++    qWarning() << "ClickOnItem::ClickOnItem: finished";
  }
  
  } // namespace cmd
