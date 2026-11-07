@@ -115,6 +115,8 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
         return m_audioVisualRatio;
     }
 
+    void componentComplete() override;
+
     QQmlListProperty<mixxx::qml::QmlWaveformRendererFactory> renderers();
     static void renderers_append(
             QQmlListProperty<mixxx::qml::QmlWaveformRendererFactory>* property,
@@ -124,6 +126,12 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
     static mixxx::qml::QmlWaveformRendererFactory* renderers_at(
             QQmlListProperty<mixxx::qml::QmlWaveformRendererFactory>* property, qsizetype index);
     static void renderers_clear(
+            QQmlListProperty<mixxx::qml::QmlWaveformRendererFactory>* property);
+    static void renderers_replace(
+            QQmlListProperty<mixxx::qml::QmlWaveformRendererFactory>* property,
+            qsizetype,
+            mixxx::qml::QmlWaveformRendererFactory*);
+    static void renderers_remove_last(
             QQmlListProperty<mixxx::qml::QmlWaveformRendererFactory>* property);
 
     WaveformRendererSignalBaseOptions options() const {

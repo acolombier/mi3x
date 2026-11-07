@@ -953,7 +953,7 @@ Category {
                 id: waveformTab
 
                 readonly property real beatgridOpacity: beatGridAlphaInput.value / 100
-                readonly property color colorCode: waveformDropdown.colorCode.toString()
+                readonly property color colorCode: waveformDropdown.colorCode?.toString()
                 readonly property real defaultZoom: defaultZoomInput.value / 10
                 property bool dirty: false
                 readonly property double globalGain: visualGainAllInput.value / 100
@@ -1197,7 +1197,6 @@ Category {
                                     color: Qt.alpha('#a1a1a1', waveformTab.beatgridOpacity)
                                 }
                                 readonly property var currentSignalRender: (currentIndex == 0 ? filteredRenderer : currentIndex == 1 ? hsvRenderer : currentIndex == 2 ? rgbRenderer : currentIndex == 3 ? simpleRenderer : stackedRenderer)
-                                readonly property var currentType: indices[currentIndex]
                                 property var filteredRenderer: Mixxx.WaveformRendererFiltered {
                                     axesColor: waveformDropdown.axesColor
                                     gainAll: waveformTab.globalGain
@@ -1303,7 +1302,7 @@ Category {
                                                 // renders, read back through the
                                                 // renderers bound into it.
                                                 readonly property real beatGridOpacity: waveformDropdown.beatsRenderer.color.a
-                                                readonly property color colorCode: waveformDropdown.currentSignalRender.color
+                                                readonly property color colorCode: waveformDropdown.currentSignalRender?.color
                                                 // The Simple renderer folds every
                                                 // band into a single gain and has
                                                 // no per-band colors.
@@ -1315,6 +1314,8 @@ Category {
                                                 readonly property color lowColorCode: waveformDropdown.currentSignalRender.lowColor
                                                 readonly property color midColorCode: waveformDropdown.currentSignalRender.midColor
                                                 readonly property real playMarkerPosition: parent.markRenderer.playMarkerPosition
+
+                                                // The following property are used for E2E props
                                                 readonly property string untilMarkAlignName: parent.markRenderer.untilMark.align === Qt.AlignTop ? "top" : parent.markRenderer.untilMark.align === Qt.AlignBottom ? "bottom" : "center"
                                                 readonly property bool untilMarkShowBeats: parent.markRenderer.untilMark.showBeats
                                                 readonly property bool untilMarkShowTime: parent.markRenderer.untilMark.showTime

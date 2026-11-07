@@ -227,3 +227,13 @@ def step_deck_waveform_zoom_equal(context, deck_a, deck_b):
         f"The zoom of the waveform on deck {deck_a} ({a}) differs from the "
         f"zoom on deck {deck_b} ({b}); zoom synchronization did not couple them"
     )
+
+@then('the waveform on deck {deck:d} should show the "{name}" waveform')
+def step_deck_waveform_type(context, deck, name):
+    path = _deck_waveform_path(deck)
+    render_type = context.rpc.invokeMethod(path, "renderType", [])
+    expected = f"mixxx::qml::QmlWaveformRenderer{name}"
+    if name == "Stacked":
+        expected = "mixxx::qml::QmlWaveformRendererFiltered"
+    assert render_type.startswith(expected), f"The current waveform is not {repr(expected)}, but {repr(render_type)}"
+    assert name != "Stacked" or render_type.endswith(" true"), f"The current render is not in Stacked mode"
