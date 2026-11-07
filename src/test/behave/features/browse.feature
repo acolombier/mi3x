@@ -823,31 +823,26 @@ Feature: Browse
       Then the "library row height" setting should be "50"
 
     # --- Responsiveness -------------------------------------------------------------
-    #
-    # The sources grid switches between 2 and 1 columns at 800px of content
-    # width (integrations stack below the music directory pane), and the
-    # metadata / history grids collapse their columns on narrow rows. On a
-    # short window the category overflows its ScrollView and below-the-fold
-    # settings must be reachable by scrolling.
 
+    @sub/library
     @category/responsiveness
     Scenario: Sources and integrations stack on a narrow window
       Given the window's width is 1792px
       Then the Library sources grid should be displayed in 2 columns
-      When I resize the window's width to 700px
+      When I resize the window's width to 850px
       Then the Library sources grid should be displayed in 1 column
-      When I resize the window's width to 1792px
 
     @sub/library
     @category/responsiveness
-    Scenario: Metadata and history settings rearrange on a narrow window
+    Scenario: Metadata, history and search settings rearrange on a narrow window
       Given the window's width is 1792px
       Then the Library metadata grid should be displayed in 2 columns
+      And the Library search grid should be displayed in 2 columns
       And the Library history grid should be displayed in 2 columns
-      When I resize the window's width to 700px
+      When I resize the window's width to 850px
       Then the Library metadata grid should be displayed in 1 column
       And the Library history grid should be displayed in 1 column
-      When I resize the window's width to 1792px
+      And the Library search grid should be displayed in 1 columns
 
     @sub/library
     @category/responsiveness
@@ -861,15 +856,15 @@ Feature: Browse
       Then the "pitch slider for fuzz BPM search" setting should be "50"
       When I resize the window's height to 1008px
 
+    @sub/library
     @category/responsiveness
     Scenario: Integration options compact when the row is narrow
       Given the window's width is 1792px
       Then the Library integrations grid should be displayed in 1 column
-      When I resize the window's width to 700px
+      When I resize the window's width to 850px
       Then the Library integrations grid should be displayed in 2 columns
       And the integrations grid should be below the library source pane
       And the integrations grid should not overlap the library source pane
-      When I resize the window's width to 1792px
 
   # --- Preview deck (library placement, sub feature) ------------------------------
 
