@@ -155,7 +155,7 @@ Category {
     }
 
     label: qsTr("Library")
-    objectName: "library"
+    objectName: "libraryPage"
 
     Component.onCompleted: {
         root.load();
@@ -226,15 +226,15 @@ Category {
             }
             Mixxx.SettingGroup {
                 Layout.bottomMargin: 6
-                implicitHeight: librarySourcesGrid.implicitHeight + settings.implicitHeight
+                implicitHeight: sourcesGrid.implicitHeight + settings.implicitHeight
                 implicitWidth: scrollView.width
                 label: qsTr("Sources")
 
                 GridLayout {
-                    id: librarySourcesGrid
+                    id: sourcesGrid
 
                     columnSpacing: 20
-                    columns: width > 800 ? 2 : 1
+                    columns: width > 850 ? 2 : 1
                     width: parent.width
 
                     Rectangle {
@@ -534,19 +534,20 @@ Category {
                     }
                     ColumnLayout {
                         Rectangle {
-                            Layout.preferredWidth: root.width * (librarySourcesGrid.columns == 2 ? 0.35 : 1)
+                            Layout.preferredWidth: root.width * (sourcesGrid.columns == 2 ? 0.35 : 1)
                             color: Theme.darkGray2
-                            implicitHeight: libraryIntegrationsGrid.implicitHeight + 20
+                            implicitHeight: integrationsGrid.implicitHeight + 20
 
                             GridLayout {
-                                id: libraryIntegrationsGrid
+                                id: integrationsGrid
 
                                 anchors.bottomMargin: 10
                                 anchors.fill: parent
                                 anchors.leftMargin: 17
                                 anchors.rightMargin: 17
                                 anchors.topMargin: 10
-                                columns: librarySourcesGrid.columns == 2 ? 1 : 2
+                                columnSpacing: 40
+                                columns: sourcesGrid.columns == 2 ? 1 : 2
 
                                 Repeater {
                                     id: integrationRepeater
@@ -696,10 +697,10 @@ Category {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         color: Theme.darkGray2
-                        implicitHeight: libraryMetadataGrid.implicitHeight + 20
+                        implicitHeight: metadataGrid.implicitHeight + 20
 
                         GridLayout {
-                            id: libraryMetadataGrid
+                            id: metadataGrid
 
                             anchors.bottomMargin: 10
                             anchors.fill: parent
@@ -711,7 +712,7 @@ Category {
                             rowSpacing: 15
 
                             RowLayout {
-                                Layout.preferredWidth: libraryMetadataGrid.width / libraryMetadataGrid.columns
+                                Layout.preferredWidth: metadataGrid.width / metadataGrid.columns
 
                                 Mixxx.SettingParameter {
                                     Layout.fillWidth: true
@@ -741,7 +742,7 @@ Category {
                                 }
                             }
                             RowLayout {
-                                Layout.preferredWidth: libraryMetadataGrid.width / libraryMetadataGrid.columns
+                                Layout.preferredWidth: metadataGrid.width / metadataGrid.columns
 
                                 Mixxx.SettingParameter {
                                     Layout.fillWidth: true
@@ -771,7 +772,7 @@ Category {
                                 }
                             }
                             RowLayout {
-                                Layout.preferredWidth: libraryMetadataGrid.width / libraryMetadataGrid.columns
+                                Layout.preferredWidth: metadataGrid.width / metadataGrid.columns
 
                                 Mixxx.SettingParameter {
                                     Layout.fillWidth: true
@@ -832,10 +833,10 @@ Category {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         color: Theme.darkGray2
-                        implicitHeight: libraryHistoryGrid.implicitHeight + 20
+                        implicitHeight: historyGrid.implicitHeight + 20
 
                         GridLayout {
-                            id: libraryHistoryGrid
+                            id: historyGrid
 
                             anchors.bottomMargin: 10
                             anchors.fill: parent
@@ -843,11 +844,11 @@ Category {
                             anchors.rightMargin: 17
                             anchors.topMargin: 10
                             columnSpacing: 20
-                            columns: historyColumn.width < 800 ? 1 : 2
+                            columns: historyColumn.width < 850 ? 1 : 2
                             rowSpacing: 15
 
                             RowLayout {
-                                Layout.preferredWidth: libraryHistoryGrid.width / libraryHistoryGrid.columns
+                                Layout.preferredWidth: historyGrid.width / historyGrid.columns
 
                                 Mixxx.SettingParameter {
                                     Layout.fillWidth: true
@@ -880,7 +881,7 @@ Category {
                                 }
                             }
                             RowLayout {
-                                Layout.preferredWidth: libraryHistoryGrid.width / libraryHistoryGrid.columns
+                                Layout.preferredWidth: historyGrid.width / historyGrid.columns
 
                                 Mixxx.SettingParameter {
                                     Layout.fillWidth: true
@@ -944,10 +945,10 @@ Category {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         color: Theme.darkGray2
-                        implicitHeight: searchPane.implicitHeight + 20
+                        implicitHeight: searchGrid.implicitHeight + 20
 
                         GridLayout {
-                            id: searchPane
+                            id: searchGrid
 
                             anchors.bottomMargin: 10
                             anchors.fill: parent
@@ -955,11 +956,11 @@ Category {
                             anchors.rightMargin: 17
                             anchors.topMargin: 10
                             columnSpacing: 20
-                            columns: 2
+                            columns: searchColumn.width < 850 ? 1 : 2
                             rowSpacing: 15
 
                             RowLayout {
-                                Layout.preferredWidth: searchPane.width * 0.5
+                                Layout.preferredWidth: searchGrid.width / searchGrid.columns
 
                                 Mixxx.SettingParameter {
                                     Layout.fillWidth: true
@@ -989,7 +990,7 @@ Category {
                                 }
                             }
                             RowLayout {
-                                Layout.preferredWidth: searchPane.width * 0.5
+                                Layout.preferredWidth: searchGrid.width / searchGrid.columns
 
                                 Mixxx.SettingParameter {
                                     Layout.fillWidth: true
@@ -1019,7 +1020,7 @@ Category {
                                 }
                             }
                             RowLayout {
-                                Layout.preferredWidth: searchPane.width * 0.5
+                                Layout.preferredWidth: searchGrid.width / searchGrid.columns
 
                                 Mixxx.SettingParameter {
                                     Layout.fillWidth: true
@@ -1051,7 +1052,7 @@ Category {
                                 }
                             }
                             RowLayout {
-                                Layout.preferredWidth: searchPane.width * 0.5
+                                Layout.preferredWidth: searchGrid.width / searchGrid.columns
 
                                 Mixxx.SettingParameter {
                                     Layout.fillWidth: true

@@ -1080,7 +1080,7 @@ Category {
                                     id: endOfTrackWarningInput
 
                                     Layout.fillWidth: parent.columns === 1
-                                    Layout.preferredWidth: parent.columns === 1 ? undefined : waveformTab.width * 0.35
+                                    Layout.preferredWidth: parent.columns === 1 ? -1 : waveformTab.width * 0.35
                                     markers: [0, 10, 30, 60, 120]
                                     max: 120
                                     objectName: "setting_endOfTrackWarning"
@@ -1104,7 +1104,7 @@ Category {
                                     id: beatGridAlphaInput
 
                                     Layout.fillWidth: parent.columns === 1
-                                    Layout.preferredWidth: parent.columns === 1 ? undefined : waveformTab.width * 0.35
+                                    Layout.preferredWidth: parent.columns === 1 ? -1 : waveformTab.width * 0.35
                                     markers: [0, 50, 100]
                                     objectName: "setting_beatGridAlpha"
                                     suffix: "%"
@@ -1127,7 +1127,7 @@ Category {
                                     id: defaultZoomInput
 
                                     Layout.fillWidth: parent.columns === 1
-                                    Layout.preferredWidth: parent.columns === 1 ? undefined : waveformTab.width * 0.35
+                                    Layout.preferredWidth: parent.columns === 1 ? -1 : waveformTab.width * 0.35
                                     markers: [10, 30, 50, 100]
                                     objectName: "setting_defaultZoom"
                                     suffix: "%"
@@ -1863,7 +1863,7 @@ Category {
                                         Mixxx.SettingParameter {
                                             Layout.column: 0
                                             Layout.fillWidth: waveformTab.width >= 1000
-                                            Layout.preferredWidth: waveformTab.width < 1000 ? 100 : undefined
+                                            Layout.preferredWidth: waveformTab.width < 1000 ? 100 : -1
                                             Layout.row: 0
                                             label: "Low"
 
@@ -1895,7 +1895,7 @@ Category {
                                         Mixxx.SettingParameter {
                                             Layout.column: waveformTab.width < 1000 ? 0 : 1
                                             Layout.fillWidth: waveformTab.width >= 1000
-                                            Layout.preferredWidth: waveformTab.width < 1000 ? 100 : undefined
+                                            Layout.preferredWidth: waveformTab.width < 1000 ? 100 : -1
                                             Layout.row: waveformTab.width < 1000 ? 1 : 0
                                             label: "Middle"
 
@@ -1927,7 +1927,7 @@ Category {
                                         Mixxx.SettingParameter {
                                             Layout.column: waveformTab.width < 1000 ? 0 : 2
                                             Layout.fillWidth: waveformTab.width >= 1000
-                                            Layout.preferredWidth: waveformTab.width < 1000 ? 100 : undefined
+                                            Layout.preferredWidth: waveformTab.width < 1000 ? 100 : -1
                                             Layout.row: waveformTab.width < 1000 ? 2 : 0
                                             label: "High"
 

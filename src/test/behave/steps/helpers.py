@@ -1128,7 +1128,7 @@ SETTING_MAP = {
     "medium visual gain": {"path": "mainWindow/setting_visualGainMedium", "kind": "slider", "min": 50, "max": 500, "markers": [50, 100, 150, 300, 500]},
     "high visual gain": {"path": "mainWindow/setting_visualGainHigh", "kind": "slider", "min": 50, "max": 500, "markers": [50, 100, 150, 300, 500]},
     # Library category — scan summary
-    "show scan summary": {"path": "mainWindow/settingsPopupItem/library/notifyOnScan", "kind": "ratio", "options": ["on", "off"]},
+    "show scan summary": {"path": "mainWindow/settingsPopupItem/libraryPage/notifyOnScan", "kind": "ratio", "options": ["on", "off"]},
     # Library category — sources & integrations
     "Rhythmbox integration": {"path": "mainWindow/setting_integration0", "kind": "ratio", "options": ["on", "off"]},
     "Banshee integration": {"path": "mainWindow/setting_integration1", "kind": "ratio", "options": ["on", "off"]},
