@@ -6,13 +6,10 @@
 
 #include "control/controlobject.h"
 #include "moc_wcuemenupopup.cpp"
+#include "track/cueconversion.h"
 #include "track/track.h"
 
 namespace {
-const ConfigKey kHotcueDefaultColorIndexConfigKey("[Controls]", "HotcueDefaultColorIndex");
-const ConfigKey kLoopDefaultColorIndexConfigKey("[Controls]", "LoopDefaultColorIndex");
-const ConfigKey kJumpDefaultColorIndexConfigKey("[Controls]", "jump_default_color_index");
-
 constexpr mixxx::audio::FrameDiff_t kMinimumAudibleLoopSizeFrames = 150;
 } // namespace
 
@@ -25,44 +22,10 @@ void CueMenuPushButton::mousePressEvent(QMouseEvent* e) {
 }
 
 void WCueMenuPopup::updateTypeAndColorIfDefault(mixxx::CueType newType) {
-    auto hotcueColorPalette =
-            m_colorPaletteSettings.getHotcueColorPalette();
-    int colorIndex;
-    switch (m_pCue->getType()) {
-    default:
-        colorIndex = m_pConfig->getValue(kHotcueDefaultColorIndexConfigKey, -1);
-        break;
-    case mixxx::CueType::Loop:
-        colorIndex = m_pConfig->getValue(kLoopDefaultColorIndexConfigKey, -1);
-        break;
-    case mixxx::CueType::Jump:
-        colorIndex = m_pConfig->getValue(kJumpDefaultColorIndexConfigKey, -1);
-        break;
-    }
-    auto defaultColor =
-            (colorIndex < 0 || colorIndex >= hotcueColorPalette.size())
-            ? hotcueColorPalette.defaultColor()
-            : hotcueColorPalette.at(colorIndex);
-    m_pCue->setType(newType);
-    if (m_pCue->getColor() != defaultColor) {
+    VERIFY_OR_DEBUG_ASSERT(m_pCue != nullptr) {
         return;
     }
-    switch (newType) {
-    default:
-        colorIndex = m_pConfig->getValue(kHotcueDefaultColorIndexConfigKey, -1);
-        break;
-    case mixxx::CueType::Loop:
-        colorIndex = m_pConfig->getValue(kLoopDefaultColorIndexConfigKey, -1);
-        break;
-    case mixxx::CueType::Jump:
-        colorIndex = m_pConfig->getValue(kJumpDefaultColorIndexConfigKey, -1);
-        break;
-    }
-    if (colorIndex < 0 || colorIndex >= hotcueColorPalette.size()) {
-        m_pCue->setColor(hotcueColorPalette.defaultColor());
-    } else {
-        m_pCue->setColor(hotcueColorPalette.at(colorIndex));
-    }
+    mixxx::cueconversion::updateTypeAndColorIfDefault(m_pConfig, m_pCue.get(), newType);
 }
 
 WCueMenuPopup::WCueMenuPopup(UserSettingsPointer pConfig, QWidget* parent)

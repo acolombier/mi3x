@@ -229,6 +229,7 @@ void BasePlaylistFeature::activateChild(const QModelIndex& index) {
     m_lastRightClickedIndex = QModelIndex();
     emit saveModelState();
     m_pPlaylistTableModel->selectPlaylist(playlistId);
+    m_pPlaylistTableModel->setObjectName("playlist_" + QString::number(playlistId));
     emit showTrackModel(m_pPlaylistTableModel);
     emit enableCoverArtDisplay(true);
 }

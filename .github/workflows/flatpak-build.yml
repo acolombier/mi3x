@@ -1,0 +1,148 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow
+
+name: Flatpak build & E2E
+
+# Reusable workflow: builds the Flatpak bundles for all archs, then runs the
+# E2E tests against an installed Flatpak bundle (x86_64).
+
+on:
+  workflow_call:
+    inputs:
+      publish:
+        type: boolean
+        default: false
+      branch:
+        type: string
+        required: false
+      ref:
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  build-flatpak:
+    name: "Flatpak"
+    outputs:
+      # Static keys: only the matrix cell matching the arch sets the value
+      # via GITHUB_OUTPUT; the empty mappings of the other cells are
+      # discarded, which makes the merge of matrix outputs deterministic
+      # (https://github.com/orgs/community/discussions/17245).
+      bundle-artifact-id-x86_64: ${{ steps.bundle_outputs.outputs.bundle-artifact-id-x86_64 }}
+      bundle-artifact-id-aarch64: ${{ steps.bundle_outputs.outputs.bundle-artifact-id-aarch64 }}
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.10
+      options: --privileged
+      volumes:
+        - /usr:/host/usr
+        - /opt:/host/opt
+    strategy:
+      matrix:
+        variant:
+          - arch: x86_64
+            runner: ubuntu-26.04
+          - arch: aarch64
+            runner: ubuntu-26.04-arm
+    runs-on: ${{ matrix.variant.runner }}
+    steps:
+      - name: "Recover host disk space"
+        run: |
+          rm -rf /host/opt/hostedtoolcache/CodeQL
+          rm -rf /host/opt/hostedtoolcache/go
+          rm -rf /host/usr/local/lib/android
+          rm -rf /host/usr/local/.ghcup
+          rm -rf /host/usr/local/share/powershell
+          rm -rf /host/usr/share/swift
+          rm -rf /host/usr/share/dotnet
+
+      - name: "Check out repository"
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: "Store Git version"
+        run: |
+          git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+          GIT_DESC=$(git describe --always --first-parent --dirty=-modified)
+          if [ -z "$GIT_DESC" ]; then
+            GIT_DESC="unknown"
+          fi
+          echo "GIT_DESC=$GIT_DESC" >> $GITHUB_ENV
+
+      - name: "Build Flatpak"
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: packaging/flatpak/org.mixxx.Mixxx.yaml
+          arch: ${{ matrix.variant.arch }}
+          build-bundle: false
+          upload-artifact: false
+          # The Flatpak caches (~1.4 GB per arch) are only saved by branch pushes
+          # (main and the release branches) to stay within the 10 GB quota.
+          # Pull requests can still restore the cache of their base branch.
+          save-cache: ${{ github.event_name == 'push' && github.ref_type == 'branch' }}
+
+      - name: "Create Flatpak bundle"
+        run: |
+          flatpak build-bundle repo \
+            --arch=${{ matrix.variant.arch }} \
+            --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
+            Mixxx-${GIT_DESC}-${{ matrix.variant.arch }}.flatpak org.mixxx.Mixxx
+
+      - name: "Create Debug extension"
+        run: |
+          flatpak build-bundle repo \
+            --arch=${{ matrix.variant.arch }} \
+            --runtime Mixxx-${GIT_DESC}-${{ matrix.variant.arch }}.Debug.flatpak org.mixxx.Mixxx.Debug
+
+      - name: "Upload Flatpak bundle"
+        uses: actions/upload-artifact@v7.0.1
+        id: flatpak_bundle_upload
+        with:
+          archive: "false"
+          path: Mixxx-${{ env.GIT_DESC }}-${{ matrix.variant.arch }}.flatpak
+
+      - name: "Register bundle artifact ID"
+        # job outputs must use static keys, so the matrix-dependent output
+        # name is composed inside the step via GITHUB_OUTPUT.
+        id: bundle_outputs
+        env:
+          ARCH: ${{ matrix.variant.arch }}
+          ARTIFACT_ID: ${{ steps.flatpak_bundle_upload.outputs.artifact-id }}
+        run: echo "bundle-artifact-id-${ARCH}=${ARTIFACT_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: "Upload Debug extension"
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          archive: "false"
+          path: Mixxx-${{ env.GIT_DESC }}-${{ matrix.variant.arch }}.Debug.flatpak
+
+  e2e-flatpak:
+    name: "Test ${{ matrix.target }} (Flatpak Linux x86_64)"
+    needs: build-flatpak
+    strategy:
+      fail-fast: false
+      matrix:
+        # Static E2E matrix mirrors the platform workflow's batch split (see
+        # .github/workflows/e2e.yml inputs). A future `test-matrix` input
+        # can dynamise this.
+        include:
+          - target: e2e-batch-1
+            features: "browse"
+          - target: e2e-batch-2
+            features: "deck waveform"
+          - target: e2e-batch-3
+            features: "preferences sound analyzer broadcast recording"
+    uses: ./.github/workflows/e2e.yml
+    with:
+      installer_artifact_id: ${{ needs.build-flatpak.outputs.bundle-artifact-id-x86_64 }}
+      platform_name: "Flatpak Linux x86_64"
+      artifact_slug: "flatpak-x86_64"
+      target: ${{ matrix.target }}
+      features: ${{ matrix.features }}
+      os: ubuntu-26.04
+      headless: "1"
+      display_backend: "xwayland"
+      record: "1"
+    secrets: inherit

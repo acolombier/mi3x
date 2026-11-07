@@ -79,8 +79,11 @@ ENDLOCAL & SET "MIXXX_VCPKG_ROOT=%MIXXX_VCPKG_ROOT%" & SET "VCPKG_DEFAULT_TRIPLE
 EXIT /B 0
 
 :COMMAND_name
+    REM Write with redirect first: spaces around ">>" would append a trailing
+    REM space to the value, and a single-digit suffix directly before ">>"
+    REM would be parsed as a file descriptor instead of literal text
     IF DEFINED GITHUB_ENV (
-        ECHO BUILDENV_NAME=%BUILDENV_NAME% >> !GITHUB_ENV!
+        >>!GITHUB_ENV! ECHO BUILDENV_NAME=!BUILDENV_NAME!
     )
     GOTO :EOF
 

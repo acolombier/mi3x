@@ -77,6 +77,9 @@ void QmlControlProxy::setValue(double newValue) {
         emit valueChanged(kDefaultValue);
         return;
     }
+    if (newValue == m_pControlProxy->get()) {
+        return;
+    }
     m_pControlProxy->set(newValue);
     slotControlProxyValueChanged(newValue);
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QAbstractItemModel>
+#include <QJSValue>
 #include <QObject>
 #include <QQmlEngine>
 #include <QQmlListProperty>
@@ -15,8 +16,10 @@
 #include "library/trackset/crate/cratefeature.h"
 #include "library/trackset/playlistfeature.h"
 #include "library/treeitem.h"
-#include "qmlconfigproxy.h"
-#include "qmllibrarytracklistmodel.h"
+#include "qml_owned_ptr.h"
+#include "qmlcrateproxy.h"
+#include "qmllibraryproxy.h"
+#include "qmlplaylistproxy.h"
 #include "util/parented_ptr.h"
 
 class LibraryTableModel;
@@ -59,15 +62,37 @@ namespace qml {
 
 class QmlLibraryTrackListColumn;
 
+typedef QList<mixxx::qml::QmlTrackProxy*> TrackProxyList;
+typedef QList<mixxx::qml::QmlPlaylistProxy*> PlaylistProxyList;
+typedef QList<mixxx::qml::QmlCrateProxy*> CrateProxyList;
+
 class QmlLibraryAbstractSource : public QObject {
     Q_OBJECT
-    Q_PROPERTY(QString label MEMBER m_label)
-    Q_PROPERTY(QString icon MEMBER m_icon)
+    Q_PROPERTY(QString label MEMBER m_label NOTIFY labelChanged)
+    Q_PROPERTY(QString itemName MEMBER m_itemName NOTIFY itemNameChanged)
+    Q_PROPERTY(QString icon MEMBER m_icon NOTIFY iconChanged)
+    Q_PROPERTY(uint capabilities MEMBER m_capabilities NOTIFY capabilitiesChanged)
     Q_PROPERTY(QQmlListProperty<mixxx::qml::QmlLibraryTrackListColumn> columns READ columnsQml)
     Q_CLASSINFO("DefaultProperty", "columns")
     QML_NAMED_ELEMENT(LibraryAbstractSource)
     QML_UNCREATABLE("Only accessible via its specialization")
   public:
+    enum class Capability {
+        None = 0u,
+        Create = 1u << 0u,
+        Rename = 1u << 1u,
+        AddTrack = 1u << 2u,
+        AddTrackSet = 1u << 3u,
+    };
+    Q_ENUM(Capability)
+
+    enum class ItemCreateResult {
+        Ok,
+        InvalidName,
+        ConflictName,
+        Unknown
+    };
+    Q_ENUM(ItemCreateResult);
     explicit QmlLibraryAbstractSource(QObject* parent = nullptr,
             const QList<QmlLibraryTrackListColumn*>& columns = {});
 
@@ -78,19 +103,64 @@ class QmlLibraryAbstractSource : public QObject {
     const QList<QmlLibraryTrackListColumn*>& columns() const {
         return m_columns;
     }
+
+    const QString& label() const {
+        return m_label;
+    }
+
+    const QString& icon() const {
+        return m_icon;
+    }
+
+    const QString& itemName() const {
+        return m_itemName;
+    }
+
+    uint capabilities() const {
+        return m_capabilities;
+    }
     virtual LibraryFeature* internal() = 0;
+
+    Q_INVOKABLE virtual mixxx::qml::QmlLibraryAbstractSource::ItemCreateResult
+    create(const QString&) const {
+        return mixxx::qml::QmlLibraryAbstractSource::ItemCreateResult::Unknown;
+    }
   public slots:
     void slotShowTrackModel(QAbstractItemModel* pModel);
 
   signals:
     void requestTrackModel(std::shared_ptr<mixxx::qml::QmlLibraryTrackListModel> pModel);
+    void labelChanged();
+    void itemNameChanged();
+    void iconChanged();
+    void capabilitiesChanged();
 
   protected:
     QString m_label;
+    QString m_itemName;
     QString m_icon;
+    uint m_capabilities;
     QList<QmlLibraryTrackListColumn*> m_columns;
 };
 
+class QmlLibraryPlaylistSource : public QmlLibraryAbstractSource {
+    Q_OBJECT
+    QML_NAMED_ELEMENT(LibraryPlaylistSource)
+  public:
+    explicit QmlLibraryPlaylistSource(QObject* parent = nullptr,
+            const QList<QmlLibraryTrackListColumn*>& columns = {});
+
+    LibraryFeature* internal() override {
+        return m_pLibraryFeature.get();
+    }
+    Q_INVOKABLE mixxx::qml::QmlLibraryAbstractSource::ItemCreateResult
+    create(const QString& name) const override;
+    Q_INVOKABLE mixxx::qml::QmlPlaylistProxy* get(const QString& name);
+    Q_INVOKABLE mixxx::qml::PlaylistProxyList list();
+
+  private:
+    std::unique_ptr<PlaylistFeature> m_pLibraryFeature;
+};
 class QmlLibraryAllTrackSource : public QmlLibraryAbstractSource {
     Q_OBJECT
     QML_NAMED_ELEMENT(LibraryAllTrackSource)
@@ -104,6 +174,40 @@ class QmlLibraryAllTrackSource : public QmlLibraryAbstractSource {
 
   private:
     std::unique_ptr<AllTrackLibraryFeature> m_pLibraryFeature;
+};
+
+class QmlLibraryCrateSource : public QmlLibraryAbstractSource {
+    Q_OBJECT
+    QML_NAMED_ELEMENT(LibraryCrateSource)
+  public:
+    explicit QmlLibraryCrateSource(QObject* parent = nullptr,
+            const QList<QmlLibraryTrackListColumn*>& columns = {});
+
+    LibraryFeature* internal() override {
+        return m_pLibraryFeature.get();
+    }
+    Q_INVOKABLE mixxx::qml::QmlLibraryAbstractSource::ItemCreateResult create(
+            const QString& name) const override;
+    Q_INVOKABLE mixxx::qml::CrateProxyList list(
+            const mixxx::qml::TrackProxyList& tracks);
+
+  private:
+    std::unique_ptr<CrateFeature> m_pLibraryFeature;
+};
+
+class QmlLibraryExplorerSource : public QmlLibraryAbstractSource {
+    Q_OBJECT
+    QML_NAMED_ELEMENT(LibraryExplorerSource)
+  public:
+    explicit QmlLibraryExplorerSource(QObject* parent = nullptr,
+            const QList<QmlLibraryTrackListColumn*>& columns = {});
+
+    LibraryFeature* internal() override {
+        return m_pLibraryFeature.get();
+    }
+
+  private:
+    std::unique_ptr<BrowseFeature> m_pLibraryFeature;
 };
 
 } // namespace qml

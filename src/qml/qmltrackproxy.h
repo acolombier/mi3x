@@ -35,6 +35,7 @@ class QmlTrackProxy : public QObject {
     Q_PROPERTY(QString trackTotal READ getTrackTotal WRITE setTrackTotal NOTIFY trackTotalChanged)
     Q_PROPERTY(QString comment READ getComment WRITE setComment NOTIFY commentChanged)
     Q_PROPERTY(QString keyText READ getKeyText WRITE setKeyText NOTIFY keyTextChanged)
+    Q_PROPERTY(double bpm READ getBpm WRITE trySetBpm NOTIFY bpmChanged)
     Q_PROPERTY(QColor color READ getColor WRITE setColor NOTIFY colorChanged)
     Q_PROPERTY(double duration READ getDuration NOTIFY durationChanged)
     Q_PROPERTY(int sampleRate READ getSampleRate NOTIFY sampleRateChanged)
@@ -66,6 +67,7 @@ class QmlTrackProxy : public QObject {
     QString getTrackTotal() const;
     QString getComment() const;
     QString getKeyText() const;
+    double getBpm() const;
     QColor getColor() const;
     double getDuration() const;
     int getSampleRate() const;
@@ -109,6 +111,7 @@ class QmlTrackProxy : public QObject {
     void setTrackTotal(const QString& trackTotal);
     void setComment(const QString& comment);
     void setKeyText(const QString& keyText);
+    void trySetBpm(double bpm);
     void setColor(const QColor& color);
 
   signals:
@@ -125,6 +128,7 @@ class QmlTrackProxy : public QObject {
     void trackTotalChanged();
     void commentChanged();
     void keyTextChanged();
+    void bpmChanged();
     void colorChanged();
     void durationChanged();
     void sampleRateChanged();

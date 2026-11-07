@@ -17,6 +17,7 @@ on:
 permissions:
   contents: read #  to fetch code (actions/checkout)
   checks: write #  to create new checks (coverallsapp/github-action)
+  pull-requests: write # To publish the E2E video
 
 jobs:
   stop-build:
@@ -74,10 +75,13 @@ jobs:
     permissions:
       contents: read #  to fetch code (actions/checkout)
       actions: write # to delete outdated caches
+      pull-requests: write # To publish the E2E results
     uses: ./.github/workflows/build.yml
     with:
       branch: ${{ github.head_ref || github.ref_name }}
       ref: ${{ github.ref }}
+    secrets:
+      MIXXX_E2E_TOKEN: ${{ secrets.MIXXX_E2E_TOKEN }}
 
   # This task is used as a probe for auto merge
   # In the future, it could also be used to perform a status update (e.g once the whole CI is passing + is ready for review, add a specific label such as `need review`)

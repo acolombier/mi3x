@@ -317,32 +317,11 @@ QmlWaveformRendererFactory::Renderer QmlWaveformRendererStem::create(
             waveformWidget, m_position);
 
     pRenderer->setAllChannelVisualGain(m_gainAll);
-    pRenderer->setOpacity(static_cast<float>(m_opacity));
-    pRenderer->setOutlineOpacity(static_cast<float>(m_outlineOpacity));
-    pRenderer->setReorderOnChange(m_reorderOnChange);
     pRenderer->setSplitStemTracks(m_splitStemTracks);
     connect(this,
             &QmlWaveformRendererStem::gainAllChanged,
             pRenderer.get(),
             &allshader::WaveformRendererStem::setAllChannelVisualGain);
-    connect(this,
-            &QmlWaveformRendererStem::opacityChanged,
-            pRenderer.get(),
-            [renderer = pRenderer.get()](double value) {
-                renderer->setOpacity(static_cast<float>(value));
-            });
-    connect(this,
-            &QmlWaveformRendererStem::outlineOpacityChanged,
-            pRenderer.get(),
-            [renderer = pRenderer.get()](double value) {
-                renderer->setOutlineOpacity(static_cast<float>(value));
-            });
-    connect(this,
-            &QmlWaveformRendererStem::reorderOnChangeChanged,
-            pRenderer.get(),
-            [renderer = pRenderer.get()](bool value) {
-                renderer->setReorderOnChange(value);
-            });
     connect(this,
             &QmlWaveformRendererStem::splitStemTracksChanged,
             pRenderer.get(),

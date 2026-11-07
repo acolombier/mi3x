@@ -13,6 +13,7 @@ Rectangle {
         Legacy
     }
 
+    readonly property int _ADD_CONNECTIONS_RETRY_COUNT: 3
     readonly property list<var> audioTypeMap: [
         {
             entity: "Mixer",
@@ -75,11 +76,18 @@ Rectangle {
     property var selectedTab: ""
     property var system: new Object()
 
-    function addExistingConnection(node, connections) {
+    function addExistingConnection(node, connections, retryCount = 0) {
         if (!connections)
             return;
+        let connectionIdx = 0;
+        let delayedConnections = [];
         for (let connection of connections) {
             let typeDef = audioTypeMap[connection.type];
+            if (!root.system[typeDef.entity]) {
+                // If the gateway hasn't yet registered, we delay building the connection
+                delayedConnections.push(connection);
+                continue;
+            }
             let source = root.system[typeDef.entity].gateways[typeDef.channel][connection.index].edgeItem;
             let availableEdge = node.availableEdge();
             if (!source || availableEdge === null) {
@@ -90,10 +98,18 @@ Rectangle {
                 "existing": true,
                 "router": root,
                 "source": source,
-                "sink": node.itemAt(availableEdge).edgeItem
+                "sink": node.itemAt(availableEdge).edgeItem,
+                "objectName": "connection" + (connectionIdx++)
             });
             root.connections.add(connectionItem);
             node.channelAssignation[availableEdge] = connection.channelGroup / 2;
+        }
+        if (delayedConnections.length) {
+            if (retryCount >= _ADD_CONNECTIONS_RETRY_COUNT) {
+                console.error("addExistingConnection", node, delayedConnections, retryCount);
+            } else {
+                Qt.callLater(() => root.addExistingConnection(node, delayedConnections, retryCount + 1));
+            }
         }
         root.updateHiddenConnectionCount();
     }
@@ -103,10 +119,10 @@ Rectangle {
                 root.newConnection.flags |= AudioConnection.Flags.CannotConnect;
                 return;
             }
-            root.newConnection.source.connecting = false;
             if (root.newConnection.source == edge) {
                 root.newConnection.destroy();
             } else {
+                root.newConnection.flags &= ~AudioConnection.Flags.CannotConnect;
                 root.newConnection.sink = edge;
                 root.connections.add(root.newConnection);
                 root.hasChanges = true;
@@ -115,9 +131,10 @@ Rectangle {
         } else {
             root.newConnection = connectionEdge.createObject(root, {
                 "router": root,
-                "source": edge
+                "source": edge,
+                "objectName": "newConnection"
             });
-            root.newConnection.source.connecting = true;
+            root.newConnection.source.connecting = Qt.binding(() => root.newConnection?.source == edge);
         }
     }
     function entityOnDisconnect(connection) {
@@ -139,7 +156,7 @@ Rectangle {
             if (sink.connection !== undefined) {
                 sink.connection = null;
             } else {
-                sink.connections.delete(connection);
+                sink.connections?.delete(connection);
             }
         }
         connection.destroy();
@@ -317,7 +334,7 @@ Rectangle {
         console.log(`Using sound api: ${api} ${typeof api}`);
         root.inputs = generateDeviceList(api, manager.availableInputDevices(api), root.inputs);
         root.outputs = generateDeviceList(api, manager.availableOutputDevices(api), root.outputs);
-        root.loadConnections();
+        Qt.callLater(root.loadConnections);
     }
     function updateHiddenConnectionCount() {
         root.hiddenConnections = 0;
@@ -343,24 +360,40 @@ Rectangle {
         enabled: root.newConnection != null
         hoverEnabled: true
         preventStealing: true
+        scrollGestureEnabled: true
 
+        onEntered: {
+            if (newConnectionTimeout.running)
+                newConnectionTimeout.stop();
+        }
         onExited: {
-            if (root.newConnection) {
-                root.newConnection.destroy();
-                root.newConnection.source.connection = null;
-                root.newConnection = null;
-            }
+            newConnectionTimeout.start();
         }
         onPositionChanged: mouse => {
             if (root.newConnection) {
                 root.newConnection.target = Qt.point(mouse.x, mouse.y);
             }
         }
-        onPressed: {
+        onPressed: event => {
             if (root.newConnection) {
                 root.newConnection.destroy();
                 root.newConnection.source.connection = null;
                 root.newConnection = null;
+            }
+        }
+
+        Timer {
+            id: newConnectionTimeout
+
+            interval: 1000
+            running: false
+
+            onTriggered: {
+                if (root.newConnection) {
+                    root.newConnection.destroy();
+                    root.newConnection.source.connection = null;
+                    root.newConnection = null;
+                }
             }
         }
     }
@@ -371,6 +404,7 @@ Rectangle {
             Layout.fillHeight: true
             Layout.maximumWidth: 220
             Layout.minimumWidth: 200
+            objectName: "inputColumn"
             visible: root.mode == AudioRouter.Mode.Advanced
 
             Text {
@@ -398,6 +432,7 @@ Rectangle {
                 delegate: AudioEntity {
                     id: inputEntity
 
+                    required property int index
                     required property var modelData
 
                     advanced: root.mode == AudioRouter.Mode.Advanced
@@ -425,6 +460,7 @@ Rectangle {
                     }
                     group: "external"
                     name: modelData
+                    objectName: `entity_${index}`
                     width: ListView.view.width
 
                     onConnect: point => root.entityOnConnect(point)
@@ -474,6 +510,7 @@ Rectangle {
                 RatioChoice {
                     id: modeChoice
 
+                    objectName: "routerMode"
                     options: ["simple", !root.hiddenConnections ? "advanced" : "advanced (!)", "legacy"]
                     tooltips: !root.hiddenConnections ? [] : [null, `${root.hiddenConnections} connection${root.hiddenConnections > 1 ? 's' : ''} hidden\nUse the advanced mode to view them`, null]
 
@@ -495,6 +532,7 @@ Rectangle {
 
                     maxWidth: mainCanvas.width < 560 ? 200 : 400
                     normalizedWidth: false
+                    objectName: "multiSoundcard"
                     options: ["experimental", "default", "disabled"]
                     tooltips: ["No delay", "Long delay", "Short delay"]
 
@@ -526,6 +564,7 @@ Rectangle {
             Layout.fillHeight: true
             Layout.maximumWidth: 220
             Layout.minimumWidth: 200
+            objectName: "outputColumn"
             visible: root.mode != AudioRouter.Mode.Legacy
 
             Text {
@@ -554,6 +593,7 @@ Rectangle {
                 delegate: AudioEntity {
                     id: outputEntity
 
+                    required property int index
                     required property var modelData
 
                     gateways: {
@@ -579,6 +619,7 @@ Rectangle {
                     }
                     group: "external"
                     name: modelData
+                    objectName: `output${index}`
                     width: ListView.view.width
 
                     onConnect: point => root.entityOnConnect(point)
@@ -622,7 +663,7 @@ Rectangle {
             deckConnections.items.push(item);
         }
         onItemRemoved: (index, item) => {
-            deckConnections.items.slice(deckConnections.items.indexOf(item), 1);
+            deckConnections.items.splice(deckConnections.items.indexOf(item), 1);
         }
 
         AudioEntity {

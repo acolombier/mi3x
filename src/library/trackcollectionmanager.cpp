@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "library/dao/trackdao.h"
 #include "library/externaltrackcollection.h"
 #include "library/library_decl.h"
 #include "library/library_prefs.h"
@@ -71,28 +72,6 @@ TrackCollectionManager::TrackCollectionManager(
         kLogger.info() << "Library scanner is disabled in test mode";
     } else {
         m_pScanner = std::make_unique<LibraryScanner>(pDbConnectionPool, pConfig);
-
-        connect(
-                m_pScanner.get(),
-                &LibraryScanner::scanStarted,
-                this,
-                [this]() { m_libraryScanActive.store(true); },
-                Qt::DirectConnection);
-        connect(
-                m_pScanner.get(),
-                &LibraryScanner::scanFinished,
-                this,
-                [this]() { m_libraryScanActive.store(false); },
-                Qt::DirectConnection);
-        connect(
-                m_pScanner.get(),
-                &LibraryScanner::scanSummary,
-                this,
-                [this](const LibraryScanResultSummary& result) {
-                    const std::lock_guard lock(m_libraryScanSummaryMutex);
-                    m_pendingLibraryScanSummary = result;
-                },
-                Qt::DirectConnection);
 
         // Forward signals
         connect(m_pScanner.get(),
@@ -190,14 +169,6 @@ TrackCollectionManager::~TrackCollectionManager() {
     m_pInternalCollection->disconnectDatabase();
 
     GlobalTrackCache::destroyInstance();
-}
-
-std::optional<LibraryScanResultSummary>
-TrackCollectionManager::takePendingLibraryScanSummary() {
-    const std::lock_guard lock(m_libraryScanSummaryMutex);
-    auto result = std::move(m_pendingLibraryScanSummary);
-    m_pendingLibraryScanSummary.reset();
-    return result;
 }
 
 void TrackCollectionManager::startLibraryAutoScan() {
@@ -621,6 +592,12 @@ TrackPointer TrackCollectionManager::getTrackByRef(
             trackRef);
 }
 
+CoverInfo TrackCollectionManager::getCoverInfoForTrackLocation(
+        const QString& trackLocation) const {
+    return internalCollection()->getTrackDAO().getCoverInfoByTrackLocation(
+            trackLocation);
+}
+
 QList<TrackId> TrackCollectionManager::resolveTrackIds(
         const QList<mixxx::FileInfo>& fileInfos,
         QObject* pSource) const {
@@ -635,6 +612,13 @@ QList<TrackId> TrackCollectionManager::resolveTrackIdsFromUrls(
     return internalCollection()->resolveTrackIdsFromUrls(
             urls,
             addMissing);
+}
+
+QList<TrackId> TrackCollectionManager::resolveTrackIdsFromUrls(
+        const QList<QUrl>& urls) {
+    return internalCollection()->resolveTrackIds(
+            urls,
+            TrackDAO::ResolveTrackIdFlag::ResolveOnly);
 }
 
 QList<TrackId> TrackCollectionManager::resolveTrackIdsFromLocations(

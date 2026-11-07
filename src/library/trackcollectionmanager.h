@@ -3,13 +3,10 @@
 #include <QDir>
 #include <QList>
 #include <QSet>
-#include <atomic>
 #include <memory>
-#include <mutex>
-#include <optional>
 
+#include "library/coverart.h"
 #include "library/dao/directorydao.h"
-#include "library/library_decl.h"
 #include "preferences/usersettings.h"
 #include "track/globaltrackcache.h"
 #include "util/db/dbconnectionpool.h"
@@ -20,6 +17,7 @@ class LibraryScanner;
 class TrackCollection;
 class ExternalTrackCollection;
 class RelocatedTrack;
+struct LibraryScanResultSummary;
 
 // Manages Mixxx's internal database of tracks as well as external track collections.
 //
@@ -55,12 +53,20 @@ class TrackCollectionManager : public QObject,
             TrackId trackId) const;
     TrackPointer getTrackByRef(
             const TrackRef& trackRef) const;
+    /// Lightweight lookup that fetches only the cover art info for the
+    /// track at the given location, without loading the full Track
+    /// object. The returned CoverInfo has its trackLocation field set
+    /// to the provided location. Returns a default-constructed CoverInfo
+    /// (type == NONE) if the track is not found in the library.
+    CoverInfo getCoverInfoForTrackLocation(const QString& trackLocation) const;
     QList<TrackId> resolveTrackIds(
             const QList<mixxx::FileInfo>& fileInfos,
             QObject* pSource) const;
     QList<TrackId> resolveTrackIdsFromUrls(
             const QList<QUrl>& urls,
             bool addMissing) const;
+    QList<TrackId> resolveTrackIdsFromUrls(
+            const QList<QUrl>& urls);
     QList<TrackId> resolveTrackIdsFromLocations(
             const QList<QString>& locations) const;
 
@@ -105,11 +111,6 @@ class TrackCollectionManager : public QObject,
         return m_pScanner.get();
     }
 
-    bool isLibraryScanActive() const {
-        return m_libraryScanActive.load();
-    }
-    std::optional<LibraryScanResultSummary> takePendingLibraryScanSummary();
-
   signals:
     void libraryScanStarted();
     void libraryScanFinished();
@@ -147,7 +148,4 @@ class TrackCollectionManager : public QObject,
 
     // TODO: Extract and decouple LibraryScanner from TrackCollectionManager
     std::unique_ptr<LibraryScanner> m_pScanner;
-    std::atomic_bool m_libraryScanActive{false};
-    std::mutex m_libraryScanSummaryMutex;
-    std::optional<LibraryScanResultSummary> m_pendingLibraryScanSummary;
 };

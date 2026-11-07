@@ -1,0 +1,13 @@
+name: anyrpc
+buildsystem: cmake-ninja
+config-opts:
+  - -DCMAKE_BUILD_TYPE=RelWithDebInfo
+  - -DBUILD_WITH_LOG4CPLUS=OFF
+  - -DBUILD_EXAMPLES=OFF
+  - -DBUILD_PROTOCOL_MESSAGEPACK=OFF
+  - -DANYRPC_LIB_BUILD_SHARED=OFF
+  - -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+sources:
+  - type: git
+    url: https://github.com/sgieseking/anyrpc.git
+    commit: b1949b3d40849229055ae75cf5334b9d08579502
