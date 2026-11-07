@@ -41,6 +41,7 @@ from helpers import (
     _wait_for_visible,
     wait_hidden,
     wait_visible,
+    wait_method
 )
 from behave import given, when, then
 
@@ -1050,14 +1051,12 @@ def _beatgrid_popup_item_path(context, name=None, deck=None):
 
 
 def _first_beat_frame(context, deck):
-    frame = context.rpc.invokeMethod(
-        _beatgrid_popup_item_path(context, "shiftSlider", deck),
-        "firstBeatFrame",
-        [],
-    )
-    assert frame is not None and float(frame) >= 0, (
-        f"could not read the first beat frame of deck {deck}")
-    return float(frame)
+    path = _beatgrid_popup_item_path(context, "shiftSlider", deck)
+    assert wait_method(
+        context.rpc, path, "firstBeatFrame",
+        lambda frame: frame is not None and float(frame) >= 0,
+        timeout=8), f"could not read the first beat frame of deck {deck}"
+    return float(context.rpc.invokeMethod(path, "firstBeatFrame", []))
 
 
 def _shift_slider_value(context, deck):
