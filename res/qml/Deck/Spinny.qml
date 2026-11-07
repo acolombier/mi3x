@@ -20,9 +20,9 @@ Item {
         id: spinner
 
         color: '#BDBDBD'
-        height: 140
+        height: root.height
         radius: width / 2
-        width: 140
+        width: root.width
 
         transform: Rotation {
             angle: 45
@@ -86,7 +86,7 @@ Item {
             readonly property int precision: Math.pow(10, Mixxx.Config.libraryBpmColumnPrecision)
 
             color: '#BDBDBD'
-            text: `${parseInt(bpm * precision)/precision}`
+            text: `${parseInt(bpm * precision) / precision}`
 
             Mixxx.ControlProxy {
                 id: bpmControl

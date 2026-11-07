@@ -1,8 +1,9 @@
 import "." as Skin
 import Mixxx 1.0 as Mixxx
-import QtQuick 2.12
+import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
 import QtQuick.Shapes
 import QtQuick.Window 2.12
 import Qt5Compat.GraphicalEffects
@@ -52,6 +53,30 @@ Item {
         }
     }
 
+    EditDeckLayoutPopup {
+        id: editDeckPopup
+
+        contentItem.objectName: "editDeckPopupItem"
+        deckMapping: [deck1, deck2, deck3.item, deck4.item]
+        x: (root.width - width) / 2
+        y: toolbar.height + waveforms.height / 2
+
+        onClosed: {
+            editDeckButton.checked = false;
+        }
+
+        Connections {
+            function onCheckedChanged() {
+                if (!editDeckButton.checked)
+                    editDeckPopup.close();
+                else
+                    editDeckPopup.open();
+            }
+
+            target: editDeckButton
+        }
+    }
+
     // color: Theme.backgroundColor
     // height: isMobile ? Screen.height : designHeight
     // visible: true
@@ -82,14 +107,6 @@ Item {
             value = root.numPreviewDecks;
         }
     }
-    Mixxx.ControlProxy {
-        group: "[Waveform]"
-        key: "WaveformOverviewType"
-
-        onInitializedChanged: {
-            value = root.waveformOverviewTypeRgb;
-        }
-    }
     Column {
         id: content
 
@@ -107,6 +124,7 @@ Item {
 
             color: Theme.toolbarBackgroundColor
             height: 36
+            opacity: root.editDeck ? 0 : 1
             radius: 1
             width: parent.width
 
@@ -439,6 +457,14 @@ Item {
                     }
                 }
                 Rectangle {
+                    anchors.fill: parent
+                    color: Qt.alpha('black', 0.6)
+                    visible: root.editDeck
+
+                    MouseArea {
+                    }
+                }
+                Rectangle {
                     width: 125
 
                     gradient: Gradient {
@@ -518,6 +544,13 @@ Item {
                         }
                     ]
 
+                    Component.onCompleted: {
+                        let previousLayout = Mixxx.Config.getDeckLayout(0);
+                        if (previousLayout) {
+                            deck1.normalModel.clear();
+                            deck1.normalModel.append(JSON.parse(previousLayout));
+                        }
+                    }
                     onToggleFocus: {
                         root.focusedDeck = (root.focusedDeck === deck1) ? null : deck1;
                     }
@@ -533,6 +566,7 @@ Item {
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top: parent.top
                     groups: [deck1.group, deck2.group, deck3.group, deck4.group]
+                    layer.enabled: root.editDeck
                     show4decks: root.show4decks
                     visible: !root.maximizeLibrary
 
@@ -544,6 +578,11 @@ Item {
                             duration: 500
                             spring: 2
                         }
+                    }
+                    layer.effect: MultiEffect {
+                        blur: 1.0
+                        blurEnabled: root.editDeck
+                        blurMax: 32
                     }
                     states: [
                         State {
@@ -611,6 +650,24 @@ Item {
                     FadeBehavior on visible {
                         fadeTarget: mixer
                     }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: Qt.alpha('black', 0.6)
+                        visible: root.editDeck
+
+                        MouseArea {
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            preventStealing: true
+                        }
+                        DragHandler {
+                            target: null
+                        }
+                        WheelHandler {
+                        }
+                    }
                 }
                 Deck {
                     id: deck2
@@ -641,6 +698,13 @@ Item {
                         }
                     ]
 
+                    Component.onCompleted: {
+                        let previousLayout = Mixxx.Config.getDeckLayout(1);
+                        if (previousLayout) {
+                            deck2.normalModel.clear();
+                            deck2.normalModel.append(JSON.parse(previousLayout));
+                        }
+                    }
                     onToggleFocus: {
                         root.focusedDeck = (root.focusedDeck === deck2) ? null : deck2;
                     }
@@ -677,6 +741,14 @@ Item {
                             group: deck3.group
                             minimized: root.maximizeLibrary
                             objectName: "deck3"
+
+                            Component.onCompleted: {
+                                let previousLayout = Mixxx.Config.getDeckLayout(2);
+                                if (previousLayout) {
+                                    normalModel.clear();
+                                    normalModel.append(JSON.parse(previousLayout));
+                                }
+                            }
                         }
                     }
                     states: [
@@ -722,6 +794,14 @@ Item {
                             group: deck4.group
                             minimized: root.maximizeLibrary
                             objectName: "deck4"
+
+                            Component.onCompleted: {
+                                let previousLayout = Mixxx.Config.getDeckLayout(3);
+                                if (previousLayout) {
+                                    normalModel.clear();
+                                    normalModel.append(JSON.parse(previousLayout));
+                                }
+                            }
                         }
                     }
                     states: [
@@ -770,7 +850,32 @@ Item {
                         Skin.Library {
                             anchors.fill: parent
                             focus: true
+                            layer.enabled: root.editDeck
                             objectName: "libraryContent"
+
+                            layer.effect: MultiEffect {
+                                blur: 1.0
+                                blurEnabled: root.editDeck
+                                blurMax: 32
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                color: Qt.alpha('black', 0.6)
+                                visible: root.editDeck
+
+                                MouseArea {
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    preventStealing: true
+                                }
+                                DragHandler {
+                                    target: null
+                                }
+                                WheelHandler {
+                                }
+                            }
                         }
                     }
                     states: [

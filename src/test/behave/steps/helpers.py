@@ -594,7 +594,7 @@ def _setting_spec(setting):
     return spec
 
 def _deck_waveform_path(deck):
-    return f"mainWindow/waveformDisplay_Channel{deck}"
+    return f"mainWindow/deck{deck}waveform"
 
 def _read_float_property(context, path, prop):
     value = _get_property(context, path, prop)
@@ -1041,6 +1041,7 @@ DECK_BUTTON_PATHS = {
     "beatjump_backward": "jumpBackButton",
     "beatgrid": "beatgridButton",
     "hotcue": "hotcueAndStem",
+    "loop": "loop",
     "loop_in": "loopIn",
     "loop_out": "loopOut",
     "quantize": "quantizeButton",
@@ -1052,6 +1053,7 @@ DECK_BUTTON_PATHS = {
     "loop_halve": "loopSizeHalfButton",
     "loop_double": "loopSizeDoubleButton",
     "tempo": "rateSlider",
+    "toolbar": "toolbar",
 }
 
 
