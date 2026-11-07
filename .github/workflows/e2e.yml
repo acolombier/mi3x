@@ -42,6 +42,10 @@ on:
         required: false
         default: "3"
         type: string
+      fail_early:
+        required: false
+        default: "0"
+        type: string
       os:
         description: "Runner image to run the batch on (must host the installer kind being tested)"
         required: true
@@ -312,6 +316,11 @@ jobs:
           MIXXX_TEST_RECORD: ${{ inputs.record }}
           MIXXX_TEST_ARTIFACTS: ${{ github.workspace }}/src/test/behave/artifacts
           MIXXX_BEHAVE_RETRY: ${{ inputs.retry }}
+          MIXXX_BEHAVE_FAIL_EARLY: ${{ inputs.fail_early }}
+          # Linux test runners start fast (observed 1-4 s), so keep tight as a performance threshold; the Windows/macOS runners
+          # show cold starts (shader compilation, audio stack init) up to ~50 s, so give them 60 s.
+          MIXXX_TEST_RPC_TIMEOUT: ${{ runner.os == 'Linux' && '20' || '60' }}
+          MIXXX_TEST_TRACE_RPC: ${{ github.run_attempt != 1 && '1' || '' }}
 
       - name: "Install @actions/artifact for video upload"
         if: always() && steps.e2e_test.outcome != 'skipped'

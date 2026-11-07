@@ -1,6 +1,7 @@
 import http.client
 import json
 import os
+import sys
 import time
 import socket
 import xmlrpc.client
@@ -28,6 +29,15 @@ _RPC_ERRORS = (
 )
 
 # --- RPC helpers ---
+
+# Behave replaces sys.stdout with a capture buffer for the duration of a step
+# and only replays it on failure.
+_TRACE_STREAM = sys.stdout
+
+
+def _trace_print(message):
+    print(message, file=_TRACE_STREAM, flush=True)
+
 
 class _TimeoutTransport(xmlrpc.client.Transport):
     """Transport that sets a per-connection timeout instead of global socket timeout."""
@@ -71,8 +81,9 @@ class RobustRpcProxy:
         "getErrors",
     })
 
-    def __init__(self):
+    def __init__(self, trace=False):
         self._proxy = self._make_proxy()
+        self._trace = trace
 
     @staticmethod
     def _make_proxy():
@@ -83,10 +94,31 @@ class RobustRpcProxy:
 
     def __getattr__(self, name):
         def wrapped(*args, **kwargs):
-            if name in self.READ_ONLY_METHODS:
-                return self._call_read_only(name, args, kwargs)
-            return self._call_stateful(name, args, kwargs)
+            if not self._trace:
+                return self.__dispatch(name, args, kwargs)
+            sent_ms = int(time.time() * 1000)
+            try:
+                result = self.__dispatch(name, args, kwargs)
+            except Exception as e:
+                done_ms = int(time.time() * 1000)
+                _trace_print(
+                    f"[trace] rpc {name} args={repr(args)[:120]} "
+                    f"sent={sent_ms} dur={done_ms - sent_ms}ms "
+                    f"error={type(e).__name__}"
+                )
+                raise
+            done_ms = int(time.time() * 1000)
+            _trace_print(
+                f"[trace] rpc {name} args={repr(args)[:120]} "
+                f"sent={sent_ms} dur={done_ms - sent_ms}ms"
+            )
+            return result
         return wrapped
+
+    def __dispatch(self, name, args, kwargs):
+        if name in self.READ_ONLY_METHODS:
+            return self._call_read_only(name, args, kwargs)
+        return self._call_stateful(name, args, kwargs)
 
     def _call_read_only(self, name, args, kwargs):
         # Level 1: retry with current proxy
@@ -307,7 +339,7 @@ def step_open_and_ready(context):
             capture=not context.config.userdata.get("no_capture", False),
         )
         context.mixxx.start()
-        context.rpc = RobustRpcProxy()
+        context.rpc = RobustRpcProxy(context.config.userdata.get("rpc_trace"))
         session["mixxx"] = context.mixxx
         session["rpc"] = context.rpc
         # A fresh instance has no mock devices registered; the sync below

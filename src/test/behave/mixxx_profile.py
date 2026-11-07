@@ -332,7 +332,9 @@ class MixxxProcess:
         self.output_path = None
         self._output_file = None
         self.last_pid = None
-        self.last_exit_code = None
+        # Spawn-to-RPC-port latency of the most recent successful start() (if any), in seconds.
+        self.startup_seconds = None
+        self._spawn_at = None
 
     def _open_output_log(self, pid):
         """Open the per-spawn application output log, if requested.
@@ -426,6 +428,7 @@ class MixxxProcess:
             "debug",
         ]
         RPC_PORT = 9000
+        self._spawn_at = time.time()
         self.process = subprocess.Popen(
             args,
             env=env,
@@ -440,6 +443,7 @@ class MixxxProcess:
             f"pid={self.process.pid} binary={launched_as} "
             f"profile={self.profile_dir} =====\n"
         )
+        self.last_pid = self.process.pid
 
         output_lines = collections.deque(maxlen=self.OUTPUT_TAIL_LINES)
 
@@ -468,12 +472,23 @@ class MixxxProcess:
                 s.settimeout(1)
                 s.connect(("localhost", RPC_PORT))
                 s.close()
+                self.startup_seconds = round(time.time() - self._spawn_at, 2)
+                banner = (
+                    f"===== rpc-ready after {self.startup_seconds:.2f}s "
+                    f"pid={self.process.pid} timeout={timeout}s =====\n"
+                )
+                self._write_output_banner(banner)
                 return
             except (OSError, ConnectionRefusedError):
                 pass
             if self.process.poll() is not None:
                 if self.capture:
                     _print_output_tail(output_lines, self.output_path)
+                elapsed = time.time() - self._spawn_at
+                self._write_output_banner(
+                    f"===== exited early after {elapsed:.2f}s, "
+                    f"before RPC was ready =====\n"
+                )
                 raise RuntimeError(
                     f"mixxx-test exited early with code "
                     f"{self._format_exit_code(self.process.returncode)}"
@@ -487,11 +502,14 @@ class MixxxProcess:
         # devices — and turns every later fresh-profile spawn of the run
         # into another start() timeout.
         _print_output_tail(output_lines, self.output_path)
-        pid = self.process.pid
+        self._write_output_banner(
+            f"===== rpc wait timed out after {timeout}s "
+            f"pid={self.process.pid} =====\n"
+        )
         self.stop()
         raise RuntimeError(
             f"Timed out waiting for Mixxx RPC on port {RPC_PORT} "
-            f"after {timeout}s (unresponsive process pid {pid} killed)"
+            f"after {timeout}s (unresponsive process pid {self.last_pid} killed)"
         )
 
     def _flatpak_app_running(self):
@@ -571,11 +589,8 @@ class MixxxProcess:
             self.process.wait()
         if self.flatpak_package:
             self._stop_flatpak_app()
-        pid = self.process.pid
         code = self._format_exit_code(self.process.returncode)
         self.process = None
-        self.last_pid = pid
-        self.last_exit_code = code
         # Let the reader thread drain and exit before closing its sink.
         thread = getattr(self, "_log_thread", None)
         if thread is not None:
@@ -585,10 +600,10 @@ class MixxxProcess:
                 pass
         self._write_output_banner(
             f"===== exited {time.strftime('%Y-%m-%d %H:%M:%S')} "
-            f"pid={pid} code={code} =====\n"
+            f"pid={self.last_pid} code={code} =====\n"
         )
         self._close_output_log()
-        print(f"mixxx-test stopped: pid={pid} exit={code}")
+        print(f"mixxx-test stopped: pid={self.last_pid} exit={code}")
         return True
 
     def __enter__(self):
