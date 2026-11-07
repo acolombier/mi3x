@@ -12,6 +12,10 @@ Rectangle {
     property color buttonColor: trackLoadedControl.value > 0 ? Theme.buttonActiveColor : Theme.buttonDisableColor
     required property string group
 
+    function toggleAnchor() {
+        anchorControl.value = anchorControl.value == 0 ? 1 : 0;
+    }
+
     color: Theme.deckLoopBackgroundColor
 
     Label {
@@ -19,6 +23,16 @@ Rectangle {
         anchors.top: parent.top
         color: Theme.deckLoopLabelColor
         text: "Loop"
+
+        TapHandler {
+            acceptedButtons: Qt.RightButton
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+
+            onTapped: toggleAnchor()
+        }
+        TapHandler {
+            onLongPressed: toggleAnchor()
+        }
     }
     Mixxx.ControlProxy {
         id: trackLoadedControl
@@ -55,6 +69,12 @@ Rectangle {
 
         group: root.group
         key: "loop_double"
+    }
+    Mixxx.ControlProxy {
+        id: anchorControl
+
+        group: root.group
+        key: "loop_anchor"
     }
     RowLayout {
         anchors {
@@ -155,6 +175,7 @@ Rectangle {
                 onPressed: mouse => {
                     if (loopEnabled.value ^ mouse.button == Qt.RightButton) {
                         loopHalve.trigger();
+                        scroll.selectedIndex = scroll.values.indexOf(beatloopSize.value);
                     }
                 }
                 onReleased: mouse => {
@@ -275,6 +296,10 @@ Rectangle {
                                 } else {
                                     sizedBeatloopActivate.trigger();
                                 }
+                                scroll.contentX = Qt.binding(() => {
+                                    let focusedItem = loopSizeRepeater.itemAt(scroll.selectedIndex);
+                                    return focusedItem ? Math.min(scroll.contentWidth - scroll.width, Math.max(0, focusedItem.x + focusedItem.width / 2 - scroll.width / 2)) : 0;
+                                });
                             }
 
                             Mixxx.ControlProxy {
@@ -436,20 +461,10 @@ Rectangle {
         required property string key
         required property string label
 
-        function toggleAnchor() {
-            anchorControl.value = anchorControl.value == 0 ? 1 : 0;
-        }
-
         Layout.fillWidth: true
         Layout.minimumWidth: 28
         implicitHeight: 26
 
-        Mixxx.ControlProxy {
-            id: anchorControl
-
-            group: loopPointButton.group
-            key: "loop_anchor"
-        }
         Skin.ControlButton {
             id: controlButton
 
@@ -460,14 +475,6 @@ Rectangle {
             normalColor: loopPointButton.buttonColor
             objectName: loopPointButton.buttonName
             text: loopPointButton.label
-
-            onPressAndHold: toggleAnchor()
-        }
-        MouseArea {
-            acceptedButtons: Qt.RightButton
-            anchors.fill: parent
-
-            onPressed: toggleAnchor()
         }
         Rectangle {
             id: anchorUnderline
