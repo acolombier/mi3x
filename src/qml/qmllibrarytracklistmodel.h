@@ -23,6 +23,7 @@ class QmlLibraryTrackListModel : public QIdentityProxyModel {
     enum Roles {
         FileURL = Qt::UserRole,
         CoverArt,
+        TrackIdRole,
         ColumnTypeRole
     };
     Q_ENUM(Roles);

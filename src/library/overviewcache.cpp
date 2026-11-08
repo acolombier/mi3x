@@ -35,14 +35,22 @@ const Qt::TransformationMode kTransformationMode = Qt::SmoothTransformation;
 inline QImage resizeImageSize(const QImage& image, QSize size) {
     return image.scaled(size, Qt::IgnoreAspectRatio, kTransformationMode);
 }
+
+void addRequester(
+        QHash<TrackId, QList<const QObject*>>* pRequesters,
+        TrackId trackId,
+        const QObject* pRequester) {
+    auto& requesters = (*pRequesters)[trackId];
+    if (pRequester && !requesters.contains(pRequester)) {
+        requesters.append(pRequester);
+    }
+}
 } // anonymous namespace
 
 OverviewCache::OverviewCache(UserSettingsPointer pConfig,
         mixxx::DbConnectionPoolPtr pDbConnectionPool)
         : m_pConfig(pConfig),
-          m_pDbConnectionPool(std::move(pDbConnectionPool)),
-          m_analysisDao(pConfig) {
-    m_analysisDao.initialize(mixxx::DbConnectionPooled(m_pDbConnectionPool));
+          m_pDbConnectionPool(std::move(pDbConnectionPool)) {
 }
 
 void OverviewCache::onTrackAnalysisProgress(TrackId trackId, AnalyzerProgress progress) {
@@ -51,6 +59,7 @@ void OverviewCache::onTrackAnalysisProgress(TrackId trackId, AnalyzerProgress pr
         return;
     }
     m_tracksWithoutOverview.remove(trackId);
+    m_tracksWithoutWaveformSummary.remove(trackId);
     // request update independent from paint events
     emit overviewChanged(trackId);
 }
@@ -64,8 +73,9 @@ void OverviewCache::onTrackSummaryChanged(TrackId trackId) {
         DEBUG_ASSERT(!cacheKey.isEmpty());
         QPixmapCache::remove(cacheKey);
     }
-    // try remove the id from the ignore list
+    // try remove the id from the ignore lists
     m_tracksWithoutOverview.remove(trackId);
+    m_tracksWithoutWaveformSummary.remove(trackId);
     // then let users request an update independent from paint events
     emit overviewChanged(trackId);
 }
@@ -80,7 +90,7 @@ QPixmap OverviewCache::requestCachedOverview(
         return QPixmap();
     }
 
-    if (m_currentlyLoading.contains(trackId)) {
+    if (m_overviewRequesters.contains(trackId)) {
         return QPixmap();
     }
 
@@ -106,7 +116,8 @@ QPixmap OverviewCache::requestUncachedOverview(
         return QPixmap();
     }
 
-    if (m_currentlyLoading.contains(trackId)) {
+    if (m_overviewRequesters.contains(trackId)) {
+        addRequester(&m_overviewRequesters, trackId, pRequester);
         return QPixmap();
     }
 
@@ -124,7 +135,7 @@ QPixmap OverviewCache::requestUncachedOverview(
     }
 
     // no cached overview, request preparation
-    m_currentlyLoading.insert(trackId);
+    addRequester(&m_overviewRequesters, trackId, pRequester);
 
     QFutureWatcher<FutureResult>* watcher = new QFutureWatcher<FutureResult>(this);
     QFuture<FutureResult> future = QtConcurrent::run(
@@ -134,7 +145,6 @@ QPixmap OverviewCache::requestUncachedOverview(
             type,
             signalColors,
             trackId,
-            pRequester,
             desiredSize);
     connect(watcher,
             &QFutureWatcher<FutureResult>::finished,
@@ -152,13 +162,11 @@ OverviewCache::FutureResult OverviewCache::prepareOverview(
         mixxx::OverviewType type,
         const WaveformSignalColors& signalColors,
         TrackId trackId,
-        const QObject* pRequester,
         QSize desiredSize) {
     // kLogger.warning() << "prepareOverview" << trackId;
     FutureResult result;
     result.trackId = trackId;
     result.type = type;
-    result.requester = pRequester;
     result.image = QImage();
     result.resizedToSize = desiredSize;
 
@@ -225,28 +233,100 @@ void OverviewCache::overviewPrepared() {
         // kLogger.warning() << "--> empty pixmap, add to ignore list";
         m_tracksWithoutOverview.insert(res.trackId);
     }
-    m_currentlyLoading.remove(res.trackId);
+    const QList<const QObject*> requesters = m_overviewRequesters.take(res.trackId);
 
-    emit overviewReady(res.requester, res.trackId, !pixmap.isNull());
+    for (const QObject* pRequester : requesters) {
+        emit overviewReady(pRequester, res.trackId, !pixmap.isNull());
+    }
 }
 
-ConstWaveformPointer OverviewCache::fetchWaveformSummary(TrackId trackId) {
-    VERIFY_OR_DEBUG_ASSERT(trackId.isValid()) {
-        return {};
+void OverviewCache::requestWaveformSummary(
+        TrackId trackId,
+        const QObject* pRequester) {
+    if (!trackId.isValid()) {
+        return;
     }
 
-    QList<AnalysisDao::AnalysisInfo> analyses =
-            m_analysisDao.getAnalysesForTrackByType(
+    if (m_summaryRequesters.contains(trackId)) {
+        addRequester(&m_summaryRequesters, trackId, pRequester);
+        return;
+    }
+
+    if (m_tracksWithoutWaveformSummary.contains(trackId)) {
+        // Consistently signal the (negative) result so that requesters can
+        // finish their pending load state, e.g. to report an error.
+        emit waveformSummaryReady(pRequester, trackId, ConstWaveformPointer());
+        return;
+    }
+
+    addRequester(&m_summaryRequesters, trackId, pRequester);
+
+    QFutureWatcher<WaveformSummaryResult>* watcher =
+            new QFutureWatcher<WaveformSummaryResult>(this);
+    QFuture<WaveformSummaryResult> future = QtConcurrent::run(
+            &OverviewCache::prepareWaveformSummary,
+            m_pConfig,
+            m_pDbConnectionPool,
+            trackId);
+    connect(watcher,
+            &QFutureWatcher<WaveformSummaryResult>::finished,
+            this,
+            &OverviewCache::waveformSummaryPrepared);
+    watcher->setFuture(future);
+}
+
+// static
+OverviewCache::WaveformSummaryResult OverviewCache::prepareWaveformSummary(
+        UserSettingsPointer pConfig,
+        mixxx::DbConnectionPoolPtr pDbConnectionPool,
+        TrackId trackId) {
+    WaveformSummaryResult result;
+    result.trackId = trackId;
+
+    if (!trackId.isValid()) {
+        return result;
+    }
+
+    mixxx::DbConnectionPooler dbConnectionPooler(pDbConnectionPool);
+
+    AnalysisDao analysisDao(pConfig);
+    analysisDao.initialize(mixxx::DbConnectionPooled(pDbConnectionPool));
+
+    const QList<AnalysisDao::AnalysisInfo> analyses =
+            analysisDao.getAnalysesForTrackByType(
                     trackId, AnalysisDao::AnalysisType::TYPE_WAVESUMMARY);
 
     for (const AnalysisDao::AnalysisInfo& analysis : std::as_const(analyses)) {
         const WaveformFactory::VersionClass vc =
                 WaveformFactory::waveformSummaryVersionToVersionClass(analysis.version);
         if (vc == WaveformFactory::VC_USE) {
-            return ConstWaveformPointer(
+            result.waveform = ConstWaveformPointer(
                     WaveformFactory::loadWaveformFromAnalysis(analysis));
+            return result;
         }
     }
 
-    return {};
+    return result;
+}
+
+// watcher
+void OverviewCache::waveformSummaryPrepared() {
+    QFutureWatcher<WaveformSummaryResult>* watcher =
+            static_cast<QFutureWatcher<WaveformSummaryResult>*>(sender());
+    VERIFY_OR_DEBUG_ASSERT(watcher) {
+        return;
+    }
+    WaveformSummaryResult res = watcher->result();
+    watcher->deleteLater();
+
+    if (res.waveform.isNull()) {
+        // Avoid (too many) repeated lookups for tracks that have no
+        // waveform summary stored in the database.
+        m_tracksWithoutWaveformSummary.insert(res.trackId);
+    }
+    const QList<const QObject*> requesters = m_summaryRequesters.take(res.trackId);
+
+    for (const QObject* pRequester : requesters) {
+        emit waveformSummaryReady(pRequester, res.trackId, res.waveform);
+    }
 }

@@ -26,6 +26,7 @@ const QHash<int, QByteArray> kRoleNames = {
         {Qt::DecorationRole, "decoration"},
         {QmlLibraryTrackListModel::FileURL, "file_url"},
         {QmlLibraryTrackListModel::CoverArt, "cover_art"},
+        {QmlLibraryTrackListModel::TrackIdRole, "track_id"},
         {QmlLibraryTrackListModel::ColumnTypeRole, "columnType"},
 };
 
@@ -125,6 +126,13 @@ QVariant QmlLibraryTrackListModel::data(const QModelIndex& proxyIndex, int role)
             return {};
         }
         return pTrackModel->getTrackUrl(QIdentityProxyModel::mapToSource(proxyIndex));
+    }
+    case TrackIdRole: {
+        if (pTrackModel == nullptr) {
+            return {};
+        }
+        return pTrackModel->getTrackId(QIdentityProxyModel::mapToSource(proxyIndex))
+                .toVariant();
     }
     case ColumnTypeRole:
         return QVariant::fromValue(pColumn->columnType());
