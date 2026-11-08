@@ -396,7 +396,8 @@ Rectangle {
                     implicitHeight: 30
                     implicitWidth: 30
                     renderer: Mixxx.WaveformOverview.Renderer.Filtered
-                    trackUrl: file_url
+                    trackId: track_id
+                    // FIXME we need a way to cancel ongoing request when the item gets pooled
                 }
             }
             DelegateChoice {

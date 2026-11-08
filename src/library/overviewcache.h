@@ -3,7 +3,6 @@
 #include <QSqlDatabase>
 
 #include "analyzer/analyzerprogress.h"
-#include "library/dao/analysisdao.h"
 #include "preferences/usersettings.h"
 #include "track/trackid.h"
 #include "util/db/dbconnectionpool.h"
@@ -30,7 +29,9 @@ class OverviewCache : public QObject, public Singleton<OverviewCache> {
             const QObject* pRequester,
             QSize desiredSize);
 
-    ConstWaveformPointer fetchWaveformSummary(TrackId trackId);
+    void requestWaveformSummary(
+            TrackId trackId,
+            const QObject* pRequester);
 
     struct FutureResult {
         FutureResult()
@@ -44,8 +45,19 @@ class OverviewCache : public QObject, public Singleton<OverviewCache> {
         const QObject* requester;
     };
 
+    struct WaveformSummaryResult {
+        WaveformSummaryResult()
+                : requester(nullptr) {
+        }
+
+        TrackId trackId;
+        ConstWaveformPointer waveform;
+        const QObject* requester;
+    };
+
   public slots:
     void overviewPrepared();
+    void waveformSummaryPrepared();
     void onTrackAnalysisProgress(TrackId trackId, AnalyzerProgress analyzerProgress);
 
   signals:
@@ -53,6 +65,11 @@ class OverviewCache : public QObject, public Singleton<OverviewCache> {
             const QObject* pRequester,
             TrackId trackId,
             bool pixmapValid);
+
+    void waveformSummaryReady(
+            const QObject* pRequester,
+            TrackId trackId,
+            ConstWaveformPointer waveform);
 
     void overviewChanged(TrackId);
 
@@ -73,13 +90,18 @@ class OverviewCache : public QObject, public Singleton<OverviewCache> {
             const QObject* pRequester,
             QSize desiredSize);
 
+    static WaveformSummaryResult prepareWaveformSummary(
+            UserSettingsPointer pConfig,
+            mixxx::DbConnectionPoolPtr pDbConnectionPool,
+            TrackId trackId,
+            const QObject* pRequester);
+
   private:
     UserSettingsPointer m_pConfig;
     mixxx::DbConnectionPoolPtr m_pDbConnectionPool;
 
-    AnalysisDao m_analysisDao;
-
     QSet<TrackId> m_currentlyLoading;
+    QSet<TrackId> m_summariesLoading;
     QSet<TrackId> m_tracksWithoutOverview;
     QMultiHash<TrackId, QString> m_cacheKeysByTrackId;
 };
