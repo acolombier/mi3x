@@ -36,15 +36,19 @@ QT_LEFT_BUTTON = 1
 QT_RIGHT_BUTTON = 2
 QT_CONTROL_MODIFIER = 2
 
-QT_KEY_ENTER = 0x01000005
-QT_KEY_SPACE = 0x20
-QT_KEY_DOWN = 0x01000015
-QT_KEY_UP = 0x01000013
-QT_KEY_LEFT = 0x01000012
-QT_KEY_TAB = 0x01000001
 QT_KEY_A = 0x41
+QT_KEY_BACKSPACE = 0x01000003
 QT_KEY_DELETE = 0x01000007
+QT_KEY_DOWN = 0x01000015
+QT_KEY_ENTER = 0x01000005
 QT_KEY_ESCAPE = 0x01000000
+QT_KEY_F = 0x46
+QT_KEY_LEFT = 0x01000012
+QT_KEY_LEFT = 0x01000012
+QT_KEY_RIGHT = 0x01000014
+QT_KEY_SPACE = 0x20
+QT_KEY_TAB = 0x01000001
+QT_KEY_UP = 0x01000013
 
 def _track_is_selected(context, path):
     try:
@@ -96,13 +100,8 @@ PALETTE_NAMES = [
 ]
 
 
-QT_KEY_BACKSPACE = 0x01000003
-
-QT_KEY_F = 0x46
-
-QT_KEY_LEFT = 0x01000012
-
-QT_KEY_RIGHT = 0x01000014
+_WAIT_BACKOFF_FACTOR = 2
+_WAIT_INITIAL_DELAY = 0.3
 
 ROUTER_MODE = "mainWindow/routerMode"
 
@@ -114,26 +113,37 @@ def is_visible(rpc, path):
     x, y, width, height = rpc.getBoundingBox(path)
     return rpc.existsAndVisible(path) and width * height > 0
 
+def __waiter(predicate, timeout):
+    """Internal waiter logic that implements deadline and backoff retry"""
+    deadline = time.time() + timeout
+    delay = _WAIT_INITIAL_DELAY
+    while True:
+        if predicate():
+            return True
+        if time.time() >= deadline:
+            return False
+        time.sleep(min(delay, max(0, deadline - time.time())))
+        delay *= _WAIT_BACKOFF_FACTOR
 
 def wait_visible(rpc, path, timeout=5):
     """Poll ``existsAndVisible`` until true or ``timeout`` seconds elapse."""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if rpc.existsAndVisible(path):
-            return True
-        time.sleep(0.3)
-    return False
+    return __waiter(lambda: rpc.existsAndVisible(path), timeout)
 
+def wait_property(rpc, path, prop, value_or_predicate, timeout=5):
+    """Poll ``prop`` until the return value is either the one expected or the predicate evaluates to true, or ``timeout`` seconds elapse."""
+    if callable(value_or_predicate):
+        return __waiter(lambda: value_or_predicate(rpc.getStringProperty(path, prop)), timeout)
+    return __waiter(lambda: rpc.getStringProperty(path, prop) == str(value_or_predicate), timeout)
+
+def wait_method(rpc, path, method, value_or_predicate, args=None, timeout=5):
+    """Invoke ``method`` until the return value is either the one expected or the predicate evaluates to true, or ``timeout`` seconds elapse."""
+    if callable(value_or_predicate):
+        return __waiter(lambda: value_or_predicate(rpc.invokeMethod(path, method, args or [])), timeout)
+    return __waiter(lambda: rpc.invokeMethod(path, method, args or []) == str(value_or_predicate), timeout)
 
 def wait_hidden(rpc, path, timeout=5):
     """Poll ``existsAndVisible`` until false or ``timeout`` seconds elapse."""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if not rpc.existsAndVisible(path):
-            return True
-        time.sleep(0.3)
-    return False
-
+    return __waiter(lambda: not rpc.existsAndVisible(path), timeout)
 
 def wait_clickable(rpc, path, timeout=5):
     """Wait until an item is visible with a non-degenerate bounding box.
@@ -145,8 +155,7 @@ def wait_clickable(rpc, path, timeout=5):
     raising; see ``getErrors``). Only return true once the item has a real
     on-screen box.
     """
-    deadline = time.time() + timeout
-    while time.time() < deadline:
+    def predicate():
         try:
             if rpc.existsAndVisible(path):
                 x, y, width, height = rpc.getBoundingBox(path)
@@ -154,8 +163,7 @@ def wait_clickable(rpc, path, timeout=5):
                     return True
         except Exception:
             pass
-        time.sleep(0.3)
-    return False
+    return __waiter(predicate, timeout)
 
 
 def click(rpc, path):
@@ -295,6 +303,7 @@ def _get_library_state(context, timeout=5):
     """
     deadline = time.time() + timeout
     rpc = context.rpc
+    delay = _WAIT_INITIAL_DELAY
     while True:
         rpc.command("getLibraryState", "")
         raw = rpc.getStringProperty("mainWindow", "lastLibraryState")
@@ -304,7 +313,8 @@ def _get_library_state(context, timeout=5):
             if time.time() >= deadline:
                 raise AssertionError(
                     f"The library state did not become readable (got {raw!r})")
-            time.sleep(0.2)
+            time.sleep(min(delay, max(0, deadline - time.time())))
+            delay *= _WAIT_BACKOFF_FACTOR
 
 
 def _wait_for_library_scan(context, scan_generation, timeout=20):
@@ -317,7 +327,8 @@ def _wait_for_library_scan(context, scan_generation, timeout=20):
     """
     deadline = time.time() + timeout
     last_state = None
-    while time.time() < deadline:
+    delay = _WAIT_INITIAL_DELAY
+    while True:
         try:
             last_state = _get_library_state(context)
             if (last_state.get("scanGeneration", 0) > scan_generation and
@@ -325,11 +336,13 @@ def _wait_for_library_scan(context, scan_generation, timeout=20):
                 return
         except Exception as e:
             last_state = e
-        time.sleep(0.2)
-    raise AssertionError(
-        f"Timed out waiting for the library scan to finish "
-        f"(last state: {last_state})"
-    )
+        if time.time() >= deadline:
+            raise AssertionError(
+                f"Timed out waiting for the library scan to finish "
+                f"(last state: {last_state})"
+            )
+        time.sleep(min(delay, max(0, deadline - time.time())))
+        delay *= _WAIT_BACKOFF_FACTOR
 
 
 def _library_command(context, action=None, path=None, scan=False, payload=None):
@@ -554,13 +567,16 @@ def _last_track_row(context, timeout=5):
     that happen to be in the database.
     """
     deadline = time.time() + timeout
-    while time.time() < deadline:
+    delay = _WAIT_INITIAL_DELAY
+    while True:
         height = float(_get_property(context, TRACK_TABLE_PATH, "contentHeight"))
         row = int(height // _ROW_HEIGHT) - 1
         if row >= 0:
             return row
-        time.sleep(0.3)
-    raise AssertionError("The track table has no rows")
+        if time.time() >= deadline:
+            raise AssertionError("The track table has no rows")
+        time.sleep(min(delay, max(0, deadline - time.time())))
+        delay *= _WAIT_BACKOFF_FACTOR
 
 def _find_sidebar_named_entity_path(context, entity, name, expand_if_needed=False):
     assert _is_visible(context, LIBRARY_TREEVIEW_PATH), "The library sidebar is not visible"
@@ -716,25 +732,33 @@ def _activate_library_search(context, timeout=15):
     # and spix synthetic taps on TapHandlers can be dropped silently; every
     # retry is verified against the pane's activated state.
     deadline = time.time() + timeout
-    while time.time() < deadline:
+    delay = _WAIT_INITIAL_DELAY
+    while True:
         if _search_activated(context):
             return
+        if time.time() >= deadline:
+            break
         _click(context, SEARCH_PANE_PATH)
-        time.sleep(0.3)
+        time.sleep(min(delay, max(0, deadline - time.time())))
+        delay *= _WAIT_BACKOFF_FACTOR
     assert _search_activated(context), "Library search bar did not open"
+
 
 def _deactivate_library_search(context, timeout=5):
     # Escape triggers persistSearch() + deactivateSearch() in the search bar's
     # key handler, which is the deterministic way to give up focus. Re-Escape
     # is needed after a dropped synthetic tap re-opened the bar.
     deadline = time.time() + timeout
-    while time.time() < deadline:
+    delay = _WAIT_INITIAL_DELAY
+    while True:
         if not _search_activated(context):
             return
+        if time.time() >= deadline:
+            break
         context.rpc.enterKey("mainWindow", QT_KEY_ESCAPE, 0)
-        time.sleep(0.3)
+        time.sleep(min(delay, max(0, deadline - time.time())))
+        delay *= _WAIT_BACKOFF_FACTOR
     assert not _search_activated(context), "Library search bar is still activated"
-
 def _track_rows(context, tracklist_path):
     table = f"{tracklist_path}/trackTableView"
     height = float(_get_property(context, table, "contentHeight") or 0)
@@ -743,7 +767,8 @@ def _track_rows(context, tracklist_path):
 def _track_row_by_title(context, tracklist_path, title, timeout=5):
     """Index of the first row whose displayed title matches, or -1."""
     deadline = time.time() + timeout
-    while time.time() < deadline:
+    delay = _WAIT_INITIAL_DELAY
+    while True:
         rows = _track_rows(context, tracklist_path)
         for row in range(rows):
             track_title = str(
@@ -751,8 +776,10 @@ def _track_row_by_title(context, tracklist_path, title, timeout=5):
             )
             if track_title == title:
                 return row
-        time.sleep(0.3)
-    return -1
+        if time.time() >= deadline:
+            return -1
+        time.sleep(min(delay, max(0, deadline - time.time())))
+        delay *= _WAIT_BACKOFF_FACTOR
 
 def _perform_track_action(context, action, row, table=TRACK_TABLE_PATH):
     _scroll_tableview_to_row(context, row, table)
@@ -855,13 +882,16 @@ def _type_this_track(context, field, transform=None):
 def _wait_for_search_suggestion(context, value, timeout=15):
     deadline = time.time() + timeout
     texts = []
-    while time.time() < deadline:
+    delay = _WAIT_INITIAL_DELAY
+    while True:
         texts = _search_suggestion_texts(context)
         if value in texts:
             return
-        time.sleep(0.3)
-    raise AssertionError(
-        f'The search suggestion "{value}" is not visible (suggestions: {texts})')
+        if time.time() >= deadline:
+            raise AssertionError(
+                f'The search suggestion "{value}" is not visible (suggestions: {texts})')
+        time.sleep(min(delay, max(0, deadline - time.time())))
+        delay *= _WAIT_BACKOFF_FACTOR
 
 def search_field_quote(value):
     """Quote a criterion value the same way res/qml/Library/SearchPane.qml does."""
@@ -1048,11 +1078,15 @@ def _find_list_row_path(context, list_path, row_prefix, needle, row_properties,
     """
     deadline = time.time() + timeout
     count = 0
-    while time.time() < deadline:
+    delay = _WAIT_INITIAL_DELAY
+    while True:
         count = int(_get_property(context, list_path, "count") or 0)
         if count > 0:
             break
-        time.sleep(0.2)
+        if time.time() >= deadline:
+            break
+        time.sleep(min(delay, max(0, deadline - time.time())))
+        delay *= _WAIT_BACKOFF_FACTOR
     assert count > 0, f'The "{list_path.rsplit("/", 1)[1]}" list is empty'
 
     row_texts = []
@@ -1082,7 +1116,8 @@ def _scroll_tableview_to_row(context, row, table=TRACK_TABLE_PATH):
     """
     deadline = time.time() + 15
     last_error = None
-    while time.time() < deadline:
+    delay = _WAIT_INITIAL_DELAY
+    while True:
         try:
             table_visible = context.rpc.existsAndVisible(table)
             y = float(_get_property(context, table, "contentY"))
@@ -1090,7 +1125,10 @@ def _scroll_tableview_to_row(context, row, table=TRACK_TABLE_PATH):
             viewport = float(_get_property(context, table, "height")) or 0
         except Exception as e:
             last_error = e
-            time.sleep(0.3)
+            if time.time() >= deadline:
+                break
+            time.sleep(min(delay, max(0, deadline - time.time())))
+            delay *= _WAIT_BACKOFF_FACTOR
             continue
         if not table_visible or viewport <= 0:
             raise AssertionError(
@@ -1105,7 +1143,10 @@ def _scroll_tableview_to_row(context, row, table=TRACK_TABLE_PATH):
         new_y = target if target < y else target + _ROW_HEIGHT - viewport
         new_y = max(0.0, min(new_y, height - viewport))
         _set_property(context, table, "contentY", str(new_y))
-        time.sleep(0.3)
+        if time.time() >= deadline:
+            break
+        time.sleep(min(delay, max(0, deadline - time.time())))
+        delay *= _WAIT_BACKOFF_FACTOR
     raise AssertionError(
         f"Failed to scroll track table so row {row} is in view"
         + (f" (last error: {last_error})" if last_error else "")
@@ -1118,25 +1159,31 @@ def _search_suggestion_texts(context):
         return json.loads(raw)
     except (TypeError, ValueError):
         return []
-
 def _wait_for_context_menu(context, timeout=5):
     deadline = time.time() + timeout
-    while time.time() < deadline:
+    delay = _WAIT_INITIAL_DELAY
+    while True:
         try:
             if _is_visible(context, TRACK_CONTEXT_MENU_PATH):
                 return True
         except Exception:
             pass
-        time.sleep(0.2)
-    return False
+        if time.time() >= deadline:
+            return False
+        time.sleep(min(delay, max(0, deadline - time.time())))
+        delay *= _WAIT_BACKOFF_FACTOR
+
 
 def _wait_for_track_selected(context, path, timeout=5):
     deadline = time.time() + timeout
-    while time.time() < deadline:
+    delay = _WAIT_INITIAL_DELAY
+    while True:
         if _track_is_selected(context, path):
             return True
-        time.sleep(0.2)
-    return False
+        if time.time() >= deadline:
+            return False
+        time.sleep(min(delay, max(0, deadline - time.time())))
+        delay *= _WAIT_BACKOFF_FACTOR
 
 def remember_track(context, entry, name="this"):
     """Add ``entry`` (a tracks-catalog entry with ``location``) to

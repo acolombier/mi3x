@@ -39,7 +39,10 @@ from helpers import (
     _set_hotcue,
     _wait_for_hidden,
     _wait_for_visible,
+    wait_hidden,
     wait_visible,
+    wait_method,
+    wait_property
 )
 from behave import given, when, then
 
@@ -544,6 +547,24 @@ def step_given_popup_open(context, hotcue, deck):
     _open_hotcue_popup(context, deck, hotcue)
 
 
+@given("the hotcue popup is closed")
+def step_given_hotcue_popup_closed(context):
+    """Close a hotcue popup if it was left open by the previous scenario."""
+    deck = getattr(context, "_popup_deck", 1)
+    hotcue = getattr(context, "_popup_hotcue", 1)
+    if not _is_open(context, hotcue, deck):
+        return
+    content = _hotcue_popup(context, "hotcuePopupContent", hotcue, deck)
+    _click(context, _deck_button_path(deck, "spinny"))
+    if not wait_hidden(context.rpc, content, 2):
+        context.rpc.enterKey(content, QT_KEY_ESCAPE, 0)
+        wait_hidden(context.rpc, content, 2)
+    time.sleep(0.3)
+    assert not _is_open(context, hotcue, deck), (
+        "the hotcue popup left open by the previous scenario could not be "
+        "closed")
+
+
 @given("hotcue {hotcue:d} is set on deck {deck:d}")
 def step_given_hotcue_is_set(context, hotcue, deck):
     group = _deck_group(deck)
@@ -634,6 +655,17 @@ def step_given_beatloop_size(context, beats, deck=1):
 @given("quantize is disabled on deck {deck:d}")
 def step_given_quantize_disabled(context, deck):
     _set_control_value(context, _deck_group(deck), "quantize", 0)
+
+
+@given("the deck layout is in its default state")
+def step_given_deck_layout_default(context):
+    """Restore the deck component (edit-mode) layout to the default order."""
+    for deck in range(1, 5):
+        path = _deck_path(deck)
+        if not _is_visible(context, path):
+            continue
+        context.rpc.invokeMethod(path, "resetLayout", [])
+    time.sleep(0.5)
 
 
 # When: popup interactions
@@ -910,25 +942,19 @@ def step_swap_is_visible(context):
 
 def _assert_split_half_position(context, display_path, position):
     group = _deck_group(getattr(context, "_popup_deck", 1))
-    track_samples = _get_control_value(context, group, "track_samples")
-    expected = position / track_samples
-    deadline = time.time() + 2.0
-    while True:
-        value = float(_get_property(context, display_path, "position"))
-        if abs(value - expected) <= 0.005 or time.time() >= deadline:
-            break
-        time.sleep(0.1)
-    assert abs(value - expected) <= 0.005, (
-        f"{display_path} position {value!r} does not display the expected "
-        f"track ratio {expected!r}")
+    expected = position / _get_control_value(context, group, "track_samples")
+    assert wait_property(
+        context.rpc, display_path, "position",
+        lambda value: abs(float(value) - expected) <= 0.005), (
+        f"{display_path} position "
+        f"{float(_get_property(context, display_path, 'position'))!r} does "
+        f"not display the expected track ratio {expected!r}")
 
 
 @then("the split view start half should display the span start position")
 def step_split_start_half_position(context):
     hotcue = getattr(context, "_popup_hotcue", 1)
     group = _deck_group(getattr(context, "_popup_deck", 1))
-    # Let it settle
-    time.sleep(0.5)
     _assert_split_half_position(
         context,
         _hotcue_waveform(context, "waveformPreviewFull"),
@@ -940,8 +966,6 @@ def step_split_start_half_position(context):
 def step_split_target_half_position(context):
     hotcue = getattr(context, "_popup_hotcue", 1)
     group = _deck_group(getattr(context, "_popup_deck", 1))
-    # Let it settle
-    time.sleep(0.5)
     _assert_split_half_position(
         context,
         _hotcue_waveform(context, "waveformPreviewPartial"),
@@ -1020,14 +1044,12 @@ def _beatgrid_popup_item_path(context, name=None, deck=None):
 
 
 def _first_beat_frame(context, deck):
-    frame = context.rpc.invokeMethod(
-        _beatgrid_popup_item_path(context, "shiftSlider", deck),
-        "firstBeatFrame",
-        [],
-    )
-    assert frame is not None and float(frame) >= 0, (
-        f"could not read the first beat frame of deck {deck}")
-    return float(frame)
+    path = _beatgrid_popup_item_path(context, "shiftSlider", deck)
+    assert wait_method(
+        context.rpc, path, "firstBeatFrame",
+        lambda frame: frame is not None and float(frame) >= 0,
+        timeout=8), f"could not read the first beat frame of deck {deck}"
+    return float(context.rpc.invokeMethod(path, "firstBeatFrame", []))
 
 
 def _shift_slider_value(context, deck):

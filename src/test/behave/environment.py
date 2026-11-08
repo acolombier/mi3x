@@ -62,31 +62,16 @@ def _step_error_line(step):
     )
 
 
-def _mixxx_pids(context):
-    """PIDs of the mixxx-test instance(s) this scenario attempt ran against.
+def _mixxx_pid(context):
+    """PID of this attempt's session instance, ``None`` before a spawn."""
+    mixxx = context._session.get("mixxx")
+    return None if mixxx is None else mixxx.last_pid
 
-    Session and context can hold distinct instances (a failed start() leaves
-    context holding a never-ready process the session never adopted), so both
-    are probed; each instance contributes one PID (process attribute while
-    running or crashed-but-unreaped, ``last_pid`` once stopped). Attempt
-    boundaries restart the process, so PIDs repeat across attempts only when
-    the autoretry reset misbehaves.
 
-    """
-    pids = []
-    seen = set()
-    session = context._session
-    for mixxx in (session.get("mixxx"), getattr(context, "mixxx", None)):
-        if mixxx is None or id(mixxx) in seen:
-            continue
-        seen.add(id(mixxx))
-        pid = getattr(mixxx, "last_pid", None)
-        if pid is None:
-            proc = getattr(mixxx, "process", None)
-            pid = getattr(proc, "pid", None) if proc is not None else None
-        if pid is not None:
-            pids.append(pid)
-    return pids
+def _mixxx_startup_seconds(context):
+    """Spawn-to-RPC-port latency, ``None`` when spawn never succeeded."""
+    mixxx = context._session.get("mixxx")
+    return None if mixxx is None else mixxx.startup_seconds
 
 
 def _parse_gh_issue(tags):
@@ -107,15 +92,12 @@ def _reset_session(context):
     fresh profile. A scenario that fails may leave Mixxx in an unknown state,
     so it must never be reused as a grouped instance."""
     session = context._session
-    # Stop both the session instance and whatever context.mixxx points at:
-    # after a failed start() the two diverge (context holds the never-ready
-    # process), and a live stray keeps port 9000 occupied.
-    for mixxx in (session.get("mixxx"), getattr(context, "mixxx", None)):
-        if mixxx is not None:
-            try:
-                mixxx.stop()
-            except Exception:
-                pass
+    mixxx = session.get("mixxx")
+    if mixxx is not None:
+        try:
+            mixxx.stop()
+        except Exception:
+            pass
     session["mixxx"] = None
     session["rpc"] = None
     session["ready_key"] = None
@@ -272,7 +254,8 @@ def after_scenario(context, scenario):
         "start_time": scenario.start_at,
         "end_time": time.time(),
         "error": " / ".join(errors),
-        "mixxx_pids": _mixxx_pids(context),
+        "mixxx_pid": _mixxx_pid(context),
+        "mixxx_startup_seconds": _mixxx_startup_seconds(context),
         # Pinning info: replaying with this run seed and scenario name
         # reproduces the picks recorded in "tracks".
         "run_seed": context.config.userdata.get("run_seed"),

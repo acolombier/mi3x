@@ -444,6 +444,8 @@ Feature: Browse
       And Mixxx is open and ready to operate
       And the window size is default
       And the library columns are in their default state
+      And no search is currently active
+      And the source "All..." is selected in the library sidebar
 
   Scenario: Sidebar shows all default sources at launch
     Then the library sidebar should show the source "All..."
@@ -456,6 +458,7 @@ Feature: Browse
     Then the option to create a new item should not be available for the selected library source
 
   Scenario: Creating a new playlist via sidebar
+    Given no playlist named "MyTestPlaylist" exists
     When I select the source "Playlists" in the library sidebar
     And I initiate creating a new item in the selected library source
     Then a create popup for the library source should be visible
@@ -466,6 +469,7 @@ Feature: Browse
     Then a playlist named "MyTestPlaylist" should appear in the library sidebar
 
   Scenario: Creating a new crate via sidebar
+    Given no crate named "MyTestCrate" exists
     When I select the source "Crates" in the library sidebar
     And I initiate creating a new item in the selected library source
     Then a create popup for the library source should be visible
@@ -476,6 +480,7 @@ Feature: Browse
     Then a crate named "MyTestCrate" should appear in the library sidebar
 
   Scenario: Creating playlist via track context menu
+    Given no playlist named "MyTestPlaylist" exists
     When I right-click the track at row 1
     And I select "Add to playlists" > "Create New Playlist" on the track menu
     When I enter "MyTestPlaylist" as the new playlist context-menu input and submit
@@ -485,6 +490,7 @@ Feature: Browse
     Then a playlist named "MyTestPlaylist" should appear in the library sidebar
 
   Scenario: Creating crate via track context menu
+    Given no crate named "MyTestCrate" exists
     When I right-click the track at row 1
     And I select "Crates" > "Create New Crate" on the track menu
     When I enter "MyTestCrate" as the new crate context-menu input and submit

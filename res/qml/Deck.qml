@@ -30,40 +30,8 @@ Item {
 
     signal toggleFocus
 
-    function serializeModel(item) {
-        let result = new Array();
-        for (let i = 0; i < item.count; i++) {
-            let child = item.get(i);
-            let object = {
-                type: child.type
-            };
-            if (child.items !== undefined) {
-                object.items = serializeModel(child.items);
-            }
-            result.push(object);
-        }
-        return result;
-    }
-
-    Drag.dragType: Drag.Automatic
-    Drag.mimeData: {
-        let data = {
-            "mixxx/player": group
-        };
-        const trackLocationUrl = currentTrack?.trackLocationUrl;
-        if (trackLocationUrl)
-            data["text/uri-list"] = trackLocationUrl.toString();
-
-        return data;
-    }
-    Drag.supportedActions: Qt.CopyAction
-
-    Binding on Drag.active {
-        delayed: true
-        value: dragArea.drag.active
-    }
-
-    Component.onCompleted: {
+    function resetLayout() {
+        itemModel.clear();
         itemModel.append({
             "type": "column",
             "items": [
@@ -141,6 +109,7 @@ Item {
                 }
             ]
         });
+        minimizedItemModel.clear();
         minimizedItemModel.append({
             "type": "row",
             "items": [
@@ -169,8 +138,41 @@ Item {
             ]
         });
     }
-    Component.onDestruction: {
-        // TODO to be saved by setting editor
+    function serializeModel(item) {
+        let result = new Array();
+        for (let i = 0; i < item.count; i++) {
+            let child = item.get(i);
+            let object = {
+                type: child.type
+            };
+            if (child.items !== undefined) {
+                object.items = serializeModel(child.items);
+            }
+            result.push(object);
+        }
+        return result;
+    }
+
+    Drag.dragType: Drag.Automatic
+    Drag.mimeData: {
+        let data = {
+            "mixxx/player": group
+        };
+        const trackLocationUrl = currentTrack?.trackLocationUrl;
+        if (trackLocationUrl)
+            data["text/uri-list"] = trackLocationUrl.toString();
+
+        return data;
+    }
+    Drag.supportedActions: Qt.CopyAction
+
+    Binding on Drag.active {
+        delayed: true
+        value: dragArea.drag.active
+    }
+
+    Component.onCompleted: {
+        resetLayout();
     }
 
     Skin.SectionBackground {
