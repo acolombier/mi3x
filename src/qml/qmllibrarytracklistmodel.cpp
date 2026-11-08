@@ -49,6 +49,11 @@ QmlLibraryTrackListModel::QmlLibraryTrackListModel(
     setObjectName(pModel->objectName());
     m_columns.reserve(librarySource.size());
     for (const auto* pColumn : std::as_const(librarySource)) {
+        if (!pColumn) {
+            // pColumn may be null in case a QmlLibraryTrackListColumn failed to
+            // instantiate due to validation (columns)
+            continue;
+        }
         m_columns.emplace_back(make_parented<QmlLibraryTrackListColumn>(this,
                 pColumn->label(),
                 pColumn->fillSpan(),
@@ -269,5 +274,15 @@ void QmlLibraryTrackListModel::sort(int column, Qt::SortOrder order) {
     emit layoutChanged(QList<QPersistentModelIndex>(), QAbstractItemModel::VerticalSortHint);
 }
 
+QModelIndex QmlLibraryTrackListModel::index(
+        int row, int column, const QModelIndex& parent) const {
+    if (const auto* const pSourceModel = sourceModel()) {
+        const int sourceColumnCount = pSourceModel->columnCount(mapToSource(parent));
+        if (column >= sourceColumnCount) {
+            column = sourceColumnCount - 1;
+        }
+    }
+    return QIdentityProxyModel::index(row, column, parent);
+}
 } // namespace qml
 } // namespace mixxx
