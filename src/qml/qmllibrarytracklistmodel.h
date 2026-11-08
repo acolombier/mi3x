@@ -81,6 +81,8 @@ class QmlLibraryTrackListModel : public QIdentityProxyModel {
             Qt::Orientation orientation,
             int role = Qt::DisplayRole) const override;
     Q_INVOKABLE void sort(int column, Qt::SortOrder order) override;
+    QModelIndex index(
+            int row, int column, const QModelIndex& parent) const override;
 
   signals:
     void columnsChanged();
