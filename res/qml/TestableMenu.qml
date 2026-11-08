@@ -12,7 +12,8 @@ Menu {
     id: control
 
     readonly property int depth: {
-        return parent instanceof MenuItem ? parent.menu.depth + 1 : 0;
+        // May be null when the tree is getting tore down
+        return parent instanceof MenuItem ? parent?.menu?.depth + 1 : 0;
     }
 
     // Spix objectName of the root menu's content item. Nested menus derive
@@ -22,7 +23,7 @@ Menu {
     readonly property Menu rootMenu: {
         let menu = control;
         while (menu.depth > 0) {
-            menu = menu.parent.menu;
+            menu = menu?.parent?.menu;
         }
         return menu;
     }
@@ -66,6 +67,8 @@ Menu {
 
     onOpenedChanged: {
         for (let i = 0; i < contentItem.count; i++) {
+            if (!contentItem?.itemAtIndex(i))
+                continue;
             contentItem.itemAtIndex(i).objectName = "menuItem" + i;
         }
     }
