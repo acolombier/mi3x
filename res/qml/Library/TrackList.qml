@@ -412,6 +412,7 @@ Rectangle {
                     // that Spix, used for testing, may accidentally picked a pooled, now stale item.
                     TableView.onPooled: {
                         objectName = "";
+                        pooled();
                     }
                     TableView.onReused: {
                         objectName = Qt.binding(() => "trackRow_" + row);
