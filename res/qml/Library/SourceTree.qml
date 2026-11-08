@@ -11,13 +11,11 @@ Mixxx.LibrarySourceTree {
     defaultColumns: [
         Mixxx.TrackListColumn {
             autoHideWidth: 750
-            columnIdx: Mixxx.TrackListColumn.SQLColumns.Album
             columnType: Mixxx.TrackListColumn.ColumnType.AlbumArt
             preferredWidth: 100
         },
         Mixxx.TrackListColumn {
             autoHideWidth: 850
-            columnIdx: Mixxx.TrackListColumn.SQLColumns.Title
             columnType: Mixxx.TrackListColumn.ColumnType.Overview
             fillSpan: 3
             label: qsTr("Preview")

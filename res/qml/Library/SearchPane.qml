@@ -772,6 +772,10 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
             }
         }
+        MouseArea {
+            anchors.fill: expandedContent
+            preventStealing: true
+        }
         Column {
             anchors.fill: parent
             anchors.topMargin: 32

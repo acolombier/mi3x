@@ -78,6 +78,7 @@ from helpers import (
     wait_clickable,
     wait_hidden,
     wait_visible,
+    wait_property,
 )
 from behave import given, when, then
 
@@ -152,7 +153,7 @@ def _wait_for_library_state(context, expected, timeout=30):
                 return True, state
         except Exception as e:
             last_state = f"RPC error: {e}"
-        time.sleep(0.3)
+        time.sleep(5)
     return False, last_state
 
 def _create_music_directory(context, dir_id, tracks, permission, dirname):
@@ -879,15 +880,9 @@ def step_search_query_is(context, query):
     if "title of this track" in expected:
         expected = expected.replace(
                 "<title of this track>", _remembered_track(context).title)
-    deadline = time.time() + 5
-    seen = ""
-    while time.time() < deadline:
-        seen = _get_property(context, SEARCH_PANE_PATH, "activeQuery") or ""
-        if seen == expected:
-            return
-        time.sleep(0.3)
-    raise AssertionError(
-            f'The search query is "{seen}", expected "{expected}"')
+    assert wait_property(
+        context.rpc, SEARCH_PANE_PATH, "activeQuery",
+        expected), f'The search query is "{_get_property(context, SEARCH_PANE_PATH, 'activeQuery')}", expected "{expected}"'
 
 @then('the library search criteria should be "{fields}"')
 def step_search_criteria_equal(context, fields):

@@ -19,6 +19,7 @@ class QmlLibraryTrackListColumn : public QObject {
     Q_PROPERTY(QString label MEMBER m_label NOTIFY labelChanged)
     Q_PROPERTY(int fillSpan MEMBER m_fillSpan FINAL)
     Q_PROPERTY(int columnIdx MEMBER m_columnIdx NOTIFY columnIdxChanged)
+    Q_PROPERTY(int sortColumn READ getSortColumn NOTIFY columnIdxChanged)
     Q_PROPERTY(double preferredWidth MEMBER m_preferredWidth FINAL)
     Q_PROPERTY(double autoHideWidth MEMBER m_autoHideWidth NOTIFY autoHideWidthChanged)
     Q_PROPERTY(Display display MEMBER m_display NOTIFY displayChanged)
@@ -136,6 +137,8 @@ class QmlLibraryTrackListColumn : public QObject {
     double autoHideWidth() const {
         return m_autoHideWidth;
     }
+
+    int getSortColumn() const;
 
   private:
     QString m_label;
