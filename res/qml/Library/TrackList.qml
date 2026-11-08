@@ -40,8 +40,6 @@ Rectangle {
     function resetColumns() {
         root.movedColumn = new Object();
         view.clearColumnReordering();
-        horizontalHeader.sortingColumn = -1;
-        horizontalHeader.sortingOrder = Qt.DescendingOrder;
         for (let i = 0; i < view.model.columns.length; i++) {
             view.model.columns[i].display = Mixxx.TrackListColumn.Display.Auto;
         }
@@ -79,6 +77,18 @@ Rectangle {
         view.cachedColumnWidth = Object();
     }
 
+    Mixxx.ControlProxy {
+        id: librarySortColumnCO
+
+        group: "[Library]"
+        key: "sort_column"
+    }
+    Mixxx.ControlProxy {
+        id: librarySortOrderCO
+
+        group: "[Library]"
+        key: "sort_order"
+    }
     Menu {
         id: columnSelectionMenu
 
@@ -147,8 +157,16 @@ Rectangle {
     HorizontalHeaderView {
         id: horizontalHeader
 
-        property int sortingColumn: -1
-        property var sortingOrder: Qt.Descending
+        readonly property int sortingColumn: {
+            for (let i = 0; i < root.sidebar.tracklist?.columns.length; i++) {
+                let columns = view.getColumn(i);
+                // FIXME CO doesn't fully use the same value as ColumnCache somehow... We could create a readonly C++ property that provide the mapping based of columnIdx
+                if (columns.columnIdx == librarySortColumnCO.value)
+                    return i;
+            }
+            return -1;
+        }
+        readonly property var sortingOrder: librarySortOrderCO.value == 1 ? Qt.AscendingOrder : Qt.DescendingOrder
 
         anchors.left: parent.left
         anchors.margins: 5
@@ -176,13 +194,14 @@ Rectangle {
                     columnSelectionMenu.popup(parent);
                 }
                 onTapped: {
-                    if (horizontalHeader.sortingColumn == index) {
-                        horizontalHeader.sortingOrder = horizontalHeader.sortingOrder == Qt.DescendingOrder ? Qt.AscendingOrder : Qt.DescendingOrder;
+                    let column = view.getColumn(index);
+                    if (librarySortColumnCO.value == column.columnIdx) {
+                        librarySortOrderCO.value = !librarySortOrderCO.value;
                     } else {
-                        horizontalHeader.sortingColumn = index;
-                        horizontalHeader.sortingOrder = Qt.AscendingOrder;
+                        librarySortOrderCO.value = 1;
+                        // FIXME CO doesn't fully use the same value as ColumnCache somehow... We could create a readonly C++ property that provide the mapping based of columnIdx
+                        librarySortColumnCO.value = column.columnIdx;
                     }
-                    view.model.sort(horizontalHeader.sortingColumn, horizontalHeader.sortingOrder);
                 }
             }
             TapHandler {
@@ -264,6 +283,9 @@ Rectangle {
                 }
             }
         }
+
+        onSortingColumnChanged: view.model?.sort(horizontalHeader.sortingColumn, horizontalHeader.sortingOrder)
+        onSortingOrderChanged: view.model?.sort(horizontalHeader.sortingColumn, horizontalHeader.sortingOrder)
     }
     TableView {
         id: view
@@ -379,6 +401,7 @@ Rectangle {
                         asynchronous: true
                         clip: true
                         fillMode: Image.PreserveAspectCrop
+                        smooth: true
                         source: cover_art
                     }
                 }
@@ -488,6 +511,7 @@ Rectangle {
             }
             root.movedColumn[newVisualIndex] = logicalIndex;
         }
+        onModelChanged: view.model?.sort(horizontalHeader.sortingColumn, horizontalHeader.sortingOrder)
 
         TapHandler {
             onTapped: {
