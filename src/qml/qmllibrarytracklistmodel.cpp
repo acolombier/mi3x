@@ -251,6 +251,7 @@ void QmlLibraryTrackListModel::setSearch(const QString& searchText) {
         return;
     }
     pTrackModel->search(searchText);
+    emit searchChanged();
 }
 
 void QmlLibraryTrackListModel::sort(int column, Qt::SortOrder order) {

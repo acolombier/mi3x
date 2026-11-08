@@ -72,10 +72,11 @@ Feature: Browse
     When I right-click the track at row 1
     Then the track context menu should be visible
 
-  @sub/library
-  Scenario: Track context menu can be shown on long press
-    When I long-press the track at row 1
-    Then the track context menu should be visible
+  # Android/iOs only!
+  # @sub/library
+  # Scenario: Track context menu can be shown on long press
+  #   When I long-press the track at row 1
+  #   Then the track context menu should be visible
 
   # Flaky test on Xcb
   @xpass
@@ -141,6 +142,7 @@ Feature: Browse
     Background:
       Given a new library-ready profile
       And Mixxx is open and ready to operate
+      And the window size is default
       And no search is currently active
 
   @sub/search

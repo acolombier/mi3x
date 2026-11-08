@@ -22,6 +22,8 @@ ApplicationWindow {
     // sees presses that nothing else accepted.
     readonly property alias touchHub: touchHubArea
 
+    signal requestTrackProperties(Mixxx.Track track)
+
     color: Theme.backgroundColor
     height: isMobile ? Screen.height : designHeight
     minimumHeight: isMobile ? 0 : 300
@@ -33,6 +35,9 @@ ApplicationWindow {
     Component.onCompleted: {
         Mixxx.Core.clearOpenedPopup();
     }
+
+    // TODO implement the track property popup
+    onRequestTrackProperties: track => print("requesting to see properties for track", track)
 
     Connections {
         function onReadyChanged() {

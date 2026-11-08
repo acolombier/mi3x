@@ -95,7 +95,7 @@ Item {
                 return false;
             }
             function onActiveFocusItemChanged() {
-                if (!root.Window.activeFocusItem)
+                if (!root.Window.activeFocusItem || libraryControl.focusWidget == Skin.FocusedWidgetControl.WidgetKind.ContextMenu)
                     return;
 
                 if (containsFocusedItem(root.activeTracklist)) {

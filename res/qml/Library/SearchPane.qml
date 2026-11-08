@@ -475,6 +475,17 @@ Rectangle {
         refreshSuggestions();
     }
 
+    Connections {
+        function onSearchChanged() {
+            if (activeSidebar.tracklist.search != searchPane.activeQuery) {
+                searchPane.clearAllCriteria();
+                searchPane.textField.text = activeSidebar.tracklist.search;
+                searchPane.tryConvertToFieldToken();
+            }
+        }
+
+        target: activeSidebar?.tracklist
+    }
     Mixxx.ControlProxy {
         group: "[Library]"
         key: "clear_search"
