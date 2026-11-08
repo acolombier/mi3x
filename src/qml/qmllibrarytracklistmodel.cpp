@@ -110,32 +110,15 @@ QVariant QmlLibraryTrackListModel::data(const QModelIndex& proxyIndex, int role)
                         .toDouble());
     }
     case CoverArt: {
-        QString location;
-        if (pTrackTableModel != nullptr) {
-            location = QIdentityProxyModel::data(
-                    proxyIndex.siblingAtColumn(pTrackTableModel->fieldIndex(
-                            ColumnCache::COLUMN_TRACKLOCATIONSTABLE_LOCATION)),
-                    Qt::DisplayRole)
-                               .toString();
-        } else if (pTrackModel != nullptr) {
-            auto pTrack = pTrackModel->getTrack(
-                    QIdentityProxyModel::mapToSource(proxyIndex));
-            location = pTrack->getCoverInfo().coverLocation;
-        }
-        if (location.isEmpty()) {
+        VERIFY_OR_DEBUG_ASSERT(pTrackModel) {
             return {};
         }
-        Library* pLibrary = QmlLibraryProxy::get();
-        VERIFY_OR_DEBUG_ASSERT(pLibrary) {
-            return AsyncImageProvider::trackLocationToCoverArtUrl(location);
-        }
-        auto coverInfo = pLibrary->trackCollectionManager()->getCoverInfoForTrackLocation(
-                location);
+        const CoverInfo coverInfo = pTrackModel->getCoverInfo(
+                QIdentityProxyModel::mapToSource(proxyIndex));
         if (!coverInfo.hasImage()) {
             return {};
         }
-
-        return AsyncImageProvider::trackLocationToCoverArtUrl(location);
+        return AsyncImageProvider::coverInfoToCoverArtUrl(coverInfo);
     }
     case FileURL: {
         if (pTrackModel == nullptr) {

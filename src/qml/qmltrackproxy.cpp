@@ -249,7 +249,7 @@ QUrl QmlTrackProxy::getCoverArtUrl() const {
     }
 
     const CoverInfo coverInfo = m_pTrack->getCoverInfoWithLocation();
-    return AsyncImageProvider::trackLocationToCoverArtUrl(coverInfo.trackLocation);
+    return AsyncImageProvider::coverInfoToCoverArtUrl(coverInfo);
 }
 
 QUrl QmlTrackProxy::getTrackLocationUrl() const {
