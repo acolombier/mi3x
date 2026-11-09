@@ -68,6 +68,8 @@ Item {
             }
         }
         Mixxx.WaveformRendererFiltered {
+            id: mainRenderer
+
             axesColor: '#a1a1a1a1'
             gainAll: 1.0
             gainHigh: 1.0
@@ -78,6 +80,8 @@ Item {
             midColor: '#97632D'
         }
         Mixxx.WaveformRendererStem {
+            id: stemRenderer
+
             gainAll: root.splitStemTracks ? 2.0 : 1.0
             splitStemTracks: root.splitStemTracks
         }
@@ -186,6 +190,7 @@ Item {
             }
         }
     }
+    // TODO move to TouchHub
     MouseArea {
         property point mouseAnchor: Qt.point(0, 0)
         property int mouseStatus: WaveformDisplay.MouseStatus.Normal
@@ -247,6 +252,11 @@ Item {
             mouseStatus = WaveformDisplay.MouseStatus.Normal;
         }
         onWheel: mouse => {
+            if (mouse.modifiers & Qt.ShiftModifier) {
+                mainRenderer.gainAll += mouse.angleDelta.y > 0 ? 0.1 : -0.1;
+                stemRenderer.gainAll += mouse.angleDelta.y > 0 ? 0.1 : -0.1;
+                return;
+            }
             if (mouse.angleDelta.y < 0 && zoomControl.value > 1) {
                 zoomControl.value -= 1;
             } else if (mouse.angleDelta.y > 0 && zoomControl.value < 10.0) {
