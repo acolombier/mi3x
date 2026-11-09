@@ -31,7 +31,13 @@ DrawingMode fromSgDrawingMode(unsigned int mode) {
 } // namespace
 
 Geometry::Geometry(const rendergraph::AttributeSet& attributeSet, int vertexCount)
-        : BaseGeometry(attributeSet, vertexCount) {
+        : BaseGeometry(attributeSet, vertexCount,
+
+                  // Use 32-bit indices to prevent Qt's batch renderer from merging these
+                  // non-indexed geometries into a 16-bit indexed draw, which overflows
+                  // for geometries with more than 65535 vertices.
+                  0,
+                  QSGGeometry::UnsignedIntType) {
 }
 
 void Geometry::setAttributeValues(int attributePosition, const float* from, int numTuples) {
