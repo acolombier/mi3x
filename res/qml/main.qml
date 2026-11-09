@@ -15,6 +15,7 @@ ApplicationWindow {
     // Used to show click interaction on the Window. Mainly relevant on automated testing
     property bool enableDiagnosticClick: false
     readonly property bool isMobile: Qt.platform.os === "android" || Qt.platform.os === "ios"
+    readonly property alias settings: settingsPopup
 
     // Window-wide gesture router, reachable from anywhere via
     // Window.window.touchHub. It lives at the bottom of the scene so it only
@@ -56,8 +57,8 @@ ApplicationWindow {
 
         sourceComponent: Component {
             MainWindow {
-                enableDiagnosticClick: root.enableDiagnosticClick
                 focus: true
+                settingsPopup: root.settings
             }
         }
 
@@ -197,6 +198,25 @@ ApplicationWindow {
             click.y = Qt.binding(() => mouse.y - click.height / 2);
             clicked = true;
             mouse.accepted = false;
+        }
+    }
+    Skin.Settings {
+        id: settingsPopup
+
+        enableDiagnosticClick: root.enableDiagnosticClick
+        focus: true
+        height: Math.min(840, root.height)
+        width: Math.min(1400, root.width)
+        x: Math.round((root.width - width) / 2)
+        y: Math.round((root.height - height) / 2)
+
+        Overlay.modal: Rectangle {
+            id: overlayModal
+
+            property real radius: 12
+
+            anchors.fill: root
+            color: Qt.alpha('#000000', 0.6)
         }
     }
 }

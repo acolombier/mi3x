@@ -427,6 +427,10 @@ void MixxxMainWindow::initialize() {
             &PlayerManager::noVinylControlInputConfigured,
             this,
             &MixxxMainWindow::slotNoVinylControlInputConfigured);
+    connect(pPlayerManager.get(),
+            &PlayerManager::trackLoadFailed,
+            this,
+            &MixxxMainWindow::slotTrackLoadFailed);
 
     connect(&PlayerInfo::instance(),
             &PlayerInfo::currentPlayingTrackChanged,
@@ -668,77 +672,25 @@ QDialog::DialogCode MixxxMainWindow::soundDeviceErrorDlg(
 }
 
 QDialog::DialogCode MixxxMainWindow::soundDeviceBusyDlg(bool* retryClicked) {
-    QString title(tr("Sound Device Busy"));
-    QString text(
-            "<html> <p>" %
-                    tr("Mixxx was unable to open all the configured sound devices.") +
-            "</p> <p>" %
-                    m_pCoreServices->getSoundManager()->getErrorDeviceName() %
-                    " is used by another application or not plugged in."
-                    "</p><ul>"
-                    "<li>" %
-                    tr("<b>Retry</b> after closing the other application "
-                       "or reconnecting a sound device") %
-                    "</li>"
-                    "<li>" %
-                    tr("<b>Reconfigure</b> Mixxx's sound device settings.") %
-                    "</li>"
-                    "<li>" %
-                    tr("Get <b>Help</b> from the Mixxx Wiki.") %
-                    "</li>"
-                    "<li>" %
-                    tr("<b>Exit</b> Mixxx.") %
-                    "</li>"
-                    "</ul></html>");
-    return soundDeviceErrorDlg(title, text, retryClicked);
+    auto titleAndText = SoundManager::soundDeviceBusyMessageBuilder(
+            m_pCoreServices->getSoundManager()->getErrorDeviceName());
+    return soundDeviceErrorDlg(titleAndText.first, titleAndText.second, retryClicked);
 }
 
 QDialog::DialogCode MixxxMainWindow::soundDeviceErrorMsgDlg(
         SoundDeviceStatus status, bool* retryClicked) {
-    QString title(tr("Sound Device Error"));
-    QString text("<html> <p>" %
-                    tr("Mixxx was unable to open all the configured sound "
-                       "devices.") +
-            "</p> <p>" %
-                    m_pCoreServices->getSoundManager()
-                            ->getLastErrorMessage(status)
-                            .replace("\n", "<br/>") %
-                    "</p><ul>"
-                    "<li>" %
-                    tr("<b>Retry</b> after fixing an issue") %
-                    "</li>"
-                    "<li>" %
-                    tr("<b>Reconfigure</b> Mixxx's sound device settings.") %
-                    "</li>"
-                    "<li>" %
-                    tr("Get <b>Help</b> from the Mixxx Wiki.") %
-                    "</li>"
-                    "<li>" %
-                    tr("<b>Exit</b> Mixxx.") %
-                    "</li>"
-                    "</ul></html>");
-    return soundDeviceErrorDlg(title, text, retryClicked);
+    auto titleAndText = SoundManager::soundDeviceErrorMessageBuilder(
+            m_pCoreServices->getSoundManager()->getLastErrorMessage(status));
+    return soundDeviceErrorDlg(titleAndText.first, titleAndText.second, retryClicked);
 }
 
 QDialog::DialogCode MixxxMainWindow::noOutputDlg(bool* continueClicked) {
     QMessageBox msgBox;
+
     msgBox.setIcon(QMessageBox::Warning);
-    msgBox.setWindowTitle(tr("No Output Devices"));
-    msgBox.setText(
-            "<html>" + tr("Mixxx was configured without any output sound devices. "
-            "Audio processing will be disabled without a configured output device.") +
-            "<ul>"
-                "<li>" +
-                    tr("<b>Continue</b> without any outputs.") +
-                "</li>"
-                "<li>" +
-                    tr("<b>Reconfigure</b> Mixxx's sound device settings.") +
-                "</li>"
-                "<li>" +
-                    tr("<b>Exit</b> Mixxx.") +
-                "</li>"
-            "</ul></html>"
-    );
+    auto titleAndText = SoundManager::soundDeviceNoOutputMessageBuilder();
+    msgBox.setWindowTitle(titleAndText.first);
+    msgBox.setText(titleAndText.second);
 
     QPushButton* continueButton =
             msgBox.addButton(tr("Continue"), QMessageBox::ActionRole);
@@ -1135,6 +1087,16 @@ void MixxxMainWindow::slotNoVinylControlInputConfigured() {
         m_pPrefDlg->show();
         m_pPrefDlg->showSoundHardwarePage(mixxx::preferences::SoundHardwareTab::Input);
     }
+}
+
+void MixxxMainWindow::slotTrackLoadFailed(
+        TrackPointer, const QString& reason) {
+    QMessageBox::warning(this, tr("Couldn't load track."), reason);
+}
+
+void MixxxMainWindow::slotBroadcastError(
+        const QString& title, const QString& text) {
+    QMessageBox::warning(this, title, text);
 }
 
 void MixxxMainWindow::slotNoDeckPassthroughInputConfigured() {

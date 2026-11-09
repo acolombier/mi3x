@@ -70,6 +70,7 @@ class BaseTrackPlayer : public BasePlayer {
     void newTrackLoaded(TrackPointer pLoadedTrack);
     void trackUnloaded(TrackPointer pUnloadedTrack);
     void loadingTrack(TrackPointer pNewTrack, TrackPointer pOldTrack);
+    void trackLoadFailed(TrackPointer pFailedTrack, const QString& reason);
 #ifdef __STEM__
     void selectedStems(mixxx::StemChannelSelection stemMask);
 #endif

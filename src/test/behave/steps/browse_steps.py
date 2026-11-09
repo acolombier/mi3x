@@ -49,6 +49,7 @@ from helpers import (
     _is_visible,
     _last_track_row,
     _library_command,
+    _load_track,
     _perform_track_action,
     _recent_row_path,
     _remember_catalog_track,
@@ -56,6 +57,7 @@ from helpers import (
     _right_click,
     _search_activated,
     _search_criteria_fields,
+    _select_menu_items,
     _set_control_value,
     _set_property,
     _sidebar_feature_row_path,
@@ -82,6 +84,7 @@ from behave import given, when, then
 import glob
 import json
 import shutil
+import tempfile
 from pathlib import Path
 import os
 import re
@@ -266,51 +269,8 @@ def step_click_track_below_fold(context):
 
 @when('I select {path} on the track menu')
 def step_select_track_menu(context, path):
-
     steps = list(map(lambda raw: raw.strip()[1:-1], path.split('>')))
-    time.sleep(1)
-
-    def activate(steps, depth=0):
-        menu_path = TRACK_CONTEXT_MENU_PATH if not depth else f"{TRACK_CONTEXT_MENU_PATH}_Sub{depth}"
-        assert wait_visible(context.rpc, menu_path, timeout=5), f"Context {'menu' if not depth else 'submenu'} is not visible"
-        step = steps.pop(0)
-        menu = json.loads(context.rpc.invokeMethod(menu_path, "serialisedDump", []))
-        entry = [(i, item) for i, item in enumerate(menu["items"]) if item.get("text") == step]
-        if not entry:
-            print("Content menu content was:", menu)
-        assert entry, f"Unable to find the item {repr(step)} in context menu"
-        target_index, item = entry[0]
-        path = menu_path + "/" + item["objectName"]
-
-        context.rpc.invokeMethod(menu_path, "forceActiveFocus", [])
-        current_index = menu["currentIndex"]
-        while current_index != target_index and current_index < menu["count"] - 1:
-            if context.rpc.existsAndVisible(f"{TRACK_CONTEXT_MENU_PATH}_Sub{depth+1}"):
-                context.rpc.enterKey(f"{TRACK_CONTEXT_MENU_PATH}_Sub{depth+1}", QT_KEY_LEFT, 0)
-                time.sleep(0.5)
-            # Later, we could extend the DSL to request a click on the item. This may be useful to assert granularly the context menu behaviour
-            # _click(context, path)
-            # time.sleep(0.3)
-            # new_index = int(_get_property(context, menu_path, "currentIndex"))
-            context.rpc.enterKey(menu_path, QT_KEY_DOWN if current_index < target_index else QT_KEY_UP, 0)
-            time.sleep(0.5)
-            new_index = int(_get_property(context, menu_path, "currentIndex"))
-            # Some platform may struggle with dispatching the emulated keyboard input, so we use the direct setter as fallback
-            if new_index == current_index:
-                context.rpc.invokeMethod(menu_path, "setMenuIndex", [target_index])
-                new_index = int(_get_property(context, menu_path, "currentIndex"))
-            assert new_index != current_index, "Unable to change the context menu index"
-            current_index = new_index
-        assert target_index == current_index, "Unable to reach the target context menu item"
-        context.rpc.enterKey(menu_path, QT_KEY_ENTER, 0)
-        time.sleep(0.5)
-        if steps:
-            activate(steps, depth+1)
-        else:
-            # Not all menu actions will hide the menu, so we don't assert here
-            wait_hidden(context.rpc, menu_path, timeout=3)
-
-    activate(steps)
+    _select_menu_items(context, TRACK_CONTEXT_MENU_PATH, steps)
 
 @when('I discard the track menu')
 def step_select_track_menu(context):
@@ -1057,6 +1017,41 @@ def step_select_music_directory(context, row):
 def step_scanning_overlay_hidden(context):
     # Rescanning library may be slow
     assert wait_hidden(context.rpc, LIBRARY_SCAN_OVERLAY, timeout=10), "Library scanning overlay is still visible"
+
+# --- Library scanner & load-failure notifications (@sub/notifications) -------
+
+HEADER_LOGO_PATH = "mainWindow/logo"
+GLOBAL_CONTEXT_MENU_PATH = "mainWindow/globalContextMenu"
+MISSING_TRACK_PATH = os.path.join(
+    tempfile.gettempdir(), "mixxx-test-missing-track.mp3")
+
+@when("I trigger a library scan from the header menu")
+def step_trigger_library_scan_from_header_menu(context):
+    # The header logo opens the global context menu through a TapHandler,
+    # which swallows some spix synthetic taps (AGENTS.md exception): every
+    # tap retry is verified against the menu's visibility. The notification
+    # drawer auto-opens at start-up on top of the header; its
+    # CloseOnPressOutsidePolicy consumes a first outside tap, which the
+    # retry also covers.
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        if _is_visible(context, GLOBAL_CONTEXT_MENU_PATH):
+            break
+        _click(context, HEADER_LOGO_PATH)
+        time.sleep(0.3)
+    assert _is_visible(context, GLOBAL_CONTEXT_MENU_PATH), (
+        "The header context menu did not open")
+    _select_menu_items(context, GLOBAL_CONTEXT_MENU_PATH, ["Library", "Scan"])
+
+@when("I attempt to load a missing track on deck {deck:d}")
+def step_attempt_load_missing_track(context, deck):
+    # loadTrack RPC with a nonexistent path (the scenario is tagged
+    # @test/missing-ui-interaction): track-load failures surface as a
+    # notification, not a modal, deduped per track. The path is remembered
+    # so the details assertion can check that the failure reason mentions
+    # it.
+    context._missing_track_path = MISSING_TRACK_PATH
+    _load_track(context, deck, MISSING_TRACK_PATH)
 
 @when("I click the remove button for the music directory at row {row:d}")
 def step_click_remove_music_directory(context, row):

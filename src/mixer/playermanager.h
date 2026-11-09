@@ -258,6 +258,9 @@ class PlayerManager : public PlayerManagerInterface {
     // input configured.
     void noVinylControlInputConfigured();
 
+    // Relay of BaseTrackPlayer::trackLoadFailed of any player.
+    void trackLoadFailed(TrackPointer pTrack, const QString& reason);
+
     void trackAnalyzerProgress(TrackId trackId, AnalyzerProgress analyzerProgress);
     void trackAnalyzerIdle();
 

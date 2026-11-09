@@ -677,15 +677,16 @@ plain temp-directory behavior.
 The `--serve` mode registers a custom handler via
 `server.setGenericCommandHandler(...)` in `src/qml/rpcserve.cpp`.
 
-| Command           | Payload               | Result                                                                 | How to read result                                        |
-|-------------------|-----------------------|------------------------------------------------------------------------|-----------------------------------------------------------|
-| `getControlValue` | `"[Group],key"`       | `double` value stored in `mainWindow.lastControlValue` window property | `rpc.getStringProperty("mainWindow", "lastControlValue")` |
-| `setControlValue` | `"[Group],key,value"` | Sets a ControlObject value                                             | None                                                      |
-| `setHotcue`       | JSON (see below)      | Sets a hotcue's label and/or type on the track loaded into the group   | None                                                      |
-| `loadTrack`       | `"deck,filepath"`     | Loads a track file onto the specified deck                             | None                                                      |
-| `library`         | JSON (see below)      | Adds/removes library directories, optionally triggers a scan           | None                                                      |
-| `getLibraryState` | (empty)               | Returns a JSON snapshot of the library state (see below)               | `rpc.getStringProperty("mainWindow", "lastLibraryState")` |
-| `reloadQml`       | (empty)               | Tears down and rebuilds the QML engine                                 | None                                                      |
+| Command            | Payload               | Result                                                                 | How to read result                                          |
+|--------------------|-----------------------|------------------------------------------------------------------------|-----------------------------------------------------------  |
+| `getControlValue`  | `"[Group],key"`       | `double` value stored in `mainWindow.lastControlValue` window property | `rpc.getStringProperty("mainWindow", "lastControlValue")`   |
+| `setControlValue`  | `"[Group],key,value"` | Sets a ControlObject value                                             | None                                                        |
+| `setHotcue`        | JSON (see below)      | Sets a hotcue's label and/or type on the track loaded into the group   | None                                                        |
+| `loadTrack`        | `"deck,filepath"`     | Loads a track file onto the specified deck                             | None                                                        |
+| `library`          | JSON (see below)      | Adds/removes library directories, optionally triggers a scan           | None                                                        |
+| `getLibraryState`  | (empty)               | Returns a JSON snapshot of the library state (see below)               | `rpc.getStringProperty("mainWindow", "lastLibraryState")`   |
+| `getNotifications` | (empty)               | Returns a JSON snapshot of the active notifications (see below)        | `rpc.getStringProperty("mainWindow", "lastNotifications")`  |
+| `reloadQml`        | (empty)               | Tears down and rebuilds the QML engine                                 | None                                                        |
 
 ### `library` command
 
@@ -731,6 +732,15 @@ with `sources` (each watch path with `trackCount`/`totalSecond`),
 `scanGeneration` counter. `_get_library_state` reads it in one command/read
 pair, and `_wait_for_library_scan` polls the counter/flag pair so tests can
 wait for library scans without blocking the app's main thread.
+
+### `getNotifications` command
+
+No payload needed. Returns a JSON document in `mainWindow.lastNotifications`
+with `notifications`, a list of the active notifications in display order,
+each with `text`, `details`, `flags` (the raw `mixxx::Notification::Flags`
+int; sticky is bit `1 << 4`) and `buttons` (the CTA labels in insertion
+order). `_get_notifications` reads it in one command/read pair and
+`_find_notification` polls it for a notification by title text.
 
 ### `reloadQml` command
 
@@ -785,6 +795,11 @@ result = context.rpc.getStringProperty("mainWindow", "myResult")
 ### Profile types
 
 - `empty`: schema-only database, no tracks (the only type currently implemented)
+- `busy-sound-devices`: seeds the saved sound configuration with a mock device
+  whose `openStatus` is `ErrorDeviceCount` (`seed_failing_sound_devices`), so
+  start-up raises the "Sound Device Busy" notification
+- `error-sound-devices`: same with `Error`, raising the "Sound Device Error"
+  notification (no Reconfigure CTA, only Retry/Exit)
 
 ### `MixxxProcess` class
 

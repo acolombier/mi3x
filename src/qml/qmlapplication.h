@@ -51,6 +51,8 @@ class QmlApplication : public QObject {
     void slotFrameSwapped();
     void slotWindowChanged(QQuickWindow* window);
 #endif
+  signals:
+    void settingSaved();
 
   private:
     std::shared_ptr<CoreServices> m_pCoreServices;
@@ -64,6 +66,8 @@ class QmlApplication : public QObject {
     bool m_ownsWaveformWidgetFactory{false};
     bool m_loadSucceeded;
     QmlAutoReload m_autoReload;
+    // reference to the setting popup. Owned by the QML scene
+    QObject* m_pSettingsPopup;
 
 #ifdef __RPC_SERVER__
     // Automation server (--serve); created on demand at the end of the

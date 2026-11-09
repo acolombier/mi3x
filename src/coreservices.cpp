@@ -8,6 +8,8 @@
 #include <QtGlobal>
 #include <gsl/pointers>
 
+#include "util/cmdlineargs.h"
+
 #ifdef __BROADCAST__
 #include "broadcast/broadcastmanager.h"
 #endif
@@ -31,6 +33,7 @@
 #include "mixer/playerinfo.h"
 #include "mixer/playermanager.h"
 #include "moc_coreservices.cpp"
+#include "notificationmanager.h"
 #include "preferences/dialog/dlgpreferences.h"
 #include "preferences/settingsmanager.h"
 #ifdef __MODPLUG__
@@ -465,6 +468,8 @@ void CoreServices::initialize() {
 
     ScopedTimer t(QStringLiteral("CoreServices::initialize"));
 
+    NotificationManager::createInstance();
+
     VERIFY_OR_DEBUG_ASSERT(SoundSourceProxy::registerProviders()) {
         qCritical() << "Failed to register any SoundSource providers";
         return;
@@ -682,15 +687,37 @@ void CoreServices::initialize() {
         // resolves to) and a user hitting 'cancel'. If we get a blank return
         // but the user didn't hit cancel, we need to know this and let the
         // user take some course of action -- bkgood
-        QString fd = QFileDialog::getExistingDirectory(nullptr,
-                tr("Choose music library directory"),
-                QStandardPaths::writableLocation(
-                        QStandardPaths::MusicLocation),
-                QFileDialog::ShowDirsOnly);
+        QString fd;
+        if (!CmdlineArgs::Instance().isQml()) {
+            fd = QFileDialog::getExistingDirectory(nullptr,
+                    tr("Choose music library directory"),
+                    QStandardPaths::writableLocation(
+                            QStandardPaths::MusicLocation),
+                    QFileDialog::ShowDirsOnly);
+        }
 #endif
-        // request to add directory to database.
+        // request to add directory to database in case we were able to resolve
+        // a default directory (legacy, iOS and Android).
         if (!fd.isEmpty() && m_pLibrary->requestAddDir(fd)) {
             musicDirAdded = true;
+        } else {
+            // prompt the use to add their directory
+            auto pNotification =
+                    std::make_shared<mixxx::Notification>(tr("No music directory configured!"),
+                            mixxx::Notification::Flag::Sticky);
+            pNotification->addButton(tr("Choose Directory"), this, [this, pNotification]() {
+                QString fd = QFileDialog::getExistingDirectory(nullptr,
+                        tr("Choose music library directory"),
+                        QStandardPaths::writableLocation(
+                                QStandardPaths::MusicLocation));
+                if (!fd.isEmpty()) {
+                    // adds Folder to database.
+                    m_pLibrary->requestAddDir(fd);
+                    m_pTrackCollectionManager->startLibraryScan();
+                    NotificationManager::instance()->closeNotification(pNotification);
+                }
+            });
+            NotificationManager::instance()->notify(pNotification);
         }
 #ifndef Q_OS_ANDROID
         }
@@ -767,7 +794,9 @@ void CoreServices::initialize() {
 
     ControllerScriptEngineBase::registerPlayerManager(getPlayerManager());
 
-#ifdef MIXXX_USE_QML
+#ifndef MIXXX_USE_QML
+    emit initialized();
+#else
     initializeQMLSingletons();
 }
 
@@ -805,6 +834,7 @@ void CoreServices::initializeQMLSingletons() {
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
 #endif
 #endif
+    emit initialized();
 }
 
 void CoreServices::initializeKeyboard() {
@@ -974,6 +1004,9 @@ void CoreServices::finalize() {
     // beforehand!
     qDebug() << t.elapsed(false).debugMillisWithUnit() << "detaching all track collections";
     CLEAR_AND_CHECK_DELETED(m_pTrackCollectionManager);
+
+    qDebug() << t.elapsed(false).debugMillisWithUnit() << "deleting NotificationManager";
+    NotificationManager::destroy();
 
     qDebug() << t.elapsed(false).debugMillisWithUnit() << "closing database connection(s)";
     m_pDbConnectionPool->destroyThreadLocalConnection();

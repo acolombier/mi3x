@@ -15,9 +15,6 @@ Item {
     readonly property int designHeight: 1008
     readonly property int designWidth: 1792
     property alias editDeck: editDeckButton.checked
-
-    // Used to show click interaction on the Window. Mainly relevant on automated testing
-    property bool enableDiagnosticClick: false
     property var focusedDeck: null
     readonly property Item imeFocusItem: Window.activeFocusItem
     // Pull-to-top IME shift: while the soft keyboard is up, lift the
@@ -41,6 +38,7 @@ Item {
     readonly property int numDecks: 4
     readonly property int numPreviewDecks: 1
     readonly property int numSamplers: 16
+    required property var settingsPopup
     readonly property bool show4decks: show4DecksButton.checked && show4DecksButton.visible
     property alias showEffects: showEffectsButton.checked
     property alias showSamplers: showSamplersButton.checked
@@ -115,6 +113,49 @@ Item {
             RowLayout {
                 anchors.fill: parent
 
+                Item {
+                    height: 26
+                    implicitWidth: 130
+
+                    Image {
+                        id: logo
+
+                        anchors.fill: parent
+                        anchors.leftMargin: 10
+                        fillMode: Image.PreserveAspectFit
+                        source: "qrc:/images/mixxx-icon-logo-symbolic.svg"
+                    }
+                    TapHandler {
+                        id: tapHandler
+
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+                        onLongPressed: () => {
+                            contextMenu.popup(parent, parent.width, parent.height / 2);
+                        }
+                        onTapped: (eventPoint, button) => {
+                            contextMenu.popup(parent, parent.width, parent.height / 2);
+                        }
+                    }
+                    Skin.TestableMenu {
+                        id: contextMenu
+
+                        menuName: "globalContextMenu"
+                        title: qsTr("File")
+
+                        Skin.TestableMenu {
+                            title: qsTr("Library")
+
+                            MenuItem {
+                                text: qsTr("Scan")
+
+                                onTriggered: {
+                                    Mixxx.Library.scanner.start();
+                                }
+                            }
+                        }
+                    }
+                }
                 Skin.Button {
                     id: show4DecksButton
 
@@ -199,18 +240,89 @@ Item {
                     }
                 }
                 Skin.Button {
+                    id: notificationButton
+
+                    activeColor: Theme.white
+                    checked: notificationPopup.opened && !notificationPopup.focusedNotification
+                    enabled: !!Mixxx.Core.notifications.length
+                    icon.height: 16
+                    icon.source: "images/notification_bell.svg"
+                    icon.width: 16
+                    implicitWidth: implicitHeight
+
+                    onClicked: {
+                        if (!notificationPopup.opened) {
+                            notificationPopup.open();
+                        } else if (notificationPopup.focusedNotification == null) {
+                            notificationPopup.close();
+                        }
+                        notificationPopup.focusedNotification = null;
+                    }
+
+                    Rectangle {
+                        id: notificationCounter
+
+                        color: '#2D4EA1'
+                        height: width
+                        radius: height / 2
+                        visible: parent.enabled
+                        width: 10
+                        x: 3 * parent.width / 4
+                        y: parent.height - height
+                    }
+                    Connections {
+                        function onNotificationAdded(notification) {
+                            if (!notificationPopup.opened) {
+                                notificationPopup.focusedNotification = notification;
+                                notificationPopup.open();
+                            }
+                        }
+                        function onNotificationClosed(notification) {
+                            if (notificationPopup.focusedNotification == notification) {
+                                notificationPopup.focusedNotification = null;
+                                notificationPopup.close();
+                            }
+                        }
+
+                        target: Mixxx.Core
+                    }
+                    Skin.NotificationDrawer {
+                        id: notificationPopup
+
+                        focus: true
+                        x: {
+                            opened; // Bind to opening
+                            let pos = notificationButton.mapToItem(root, 0, 0);
+                            return root.width - pos.x - width - 18;
+                        }
+                        y: notificationButton.height
+
+                        background {
+                            visible: notificationButton.checked
+                        }
+                        arrow {
+                            Component.onCompleted: {
+                                arrow.pinTo.x = Qt.binding(() => {
+                                    opened; // Bind to opening
+                                    return notificationButton.mapToItem(notificationPopup.contentItem, (notificationButton.width - arrow.width) / 2, notificationButton.height).x;
+                                });
+                            }
+                        }
+                    }
+                }
+                Skin.Button {
                     id: showPreferencesButton
 
                     activeColor: Theme.white
-                    checked: settingsPopup.opened
+                    checked: root.settingsPopup.opened
                     icon.height: 16
                     icon.source: "images/gear.svg"
                     icon.width: 16
                     implicitWidth: implicitHeight
 
                     onClicked: {
-                        if (!settingsPopup.opened) {
-                            settingsPopup.open();
+                        if (!root.settingsPopup.opened) {
+                            root.settingsPopup.open();
                         }
                     }
                     onPressAndHold: {
@@ -692,39 +804,6 @@ Item {
                         bottom: parent.bottom
                         top: mixer.bottom
                     }
-                }
-            }
-        }
-    }
-    Skin.Settings {
-        id: settingsPopup
-
-        enableDiagnosticClick: parent.enableDiagnosticClick
-        focus: true
-        height: Math.min(840, parent.height)
-        modal: true
-        width: Math.min(1400, parent.width)
-        x: Math.round((parent.width - width) / 2)
-        y: Math.round((parent.height - height) / 2)
-
-        Overlay.modal: Rectangle {
-            id: overlayModal
-
-            readonly property bool hasHardwareAcceleration: Mixxx.Config.useAcceleration
-            property real radius: 12
-
-            anchors.fill: parent
-            color: Qt.alpha('#00000010', hasHardwareAcceleration ? 1.0 : 0.6)
-
-            Repeater {
-                model: hasHardwareAcceleration ? 1 : 0
-
-                GaussianBlur {
-                    anchors.fill: overlayModal
-                    deviation: 4
-                    radius: Math.max(0, overlayModal.radius)
-                    samples: 16
-                    source: content
                 }
             }
         }

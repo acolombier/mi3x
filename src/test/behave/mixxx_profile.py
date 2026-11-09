@@ -21,6 +21,7 @@ import xml.etree.ElementTree as ET
 TRACK_MANIFEST = os.path.join(os.path.dirname(__file__), "test_tracks.json")
 SETTINGS_FILE = "mixxx.cfg"
 DATABASE_FILE = "mixxxdb.sqlite"
+SOUNDCONFIG_FILE = "soundconfig.xml"
 SCHEMA_FILE = os.path.join(
     os.path.dirname(__file__),
     os.pardir,
@@ -29,6 +30,11 @@ SCHEMA_FILE = os.path.join(
     "res",
     "schema.xml",
 )
+
+# Name of the mock device seeded by seed_failing_sound_devices(), whose
+# failing open() makes the start-up flow raise a sound-device notification.
+FAILING_MOCK_DEVICE_NAME = "Unopenable Sound Device"
+WORKING_MOCK_DEVICE_NAME = "Working Sound Device"
 
 
 def profile_dir():
@@ -41,30 +47,6 @@ def database_path():
 
 def mixxx_cfg_path():
     return os.path.join(profile_dir(), SETTINGS_FILE)
-
-
-# Bundle ID of the installed Mixxx.app, used to locate the App Sandbox
-# container when testing the packaged macOS bundle.
-MACOS_SANDBOX_BUNDLE_ID = "org.mixxx.mixxx"
-
-
-def macos_sandbox_container(binary):
-    """Return the App Sandbox container of a macOS .app bundle binary.
-
-    The installed Mixxx.app is signed with the App Sandbox entitlement
-    (packaging/macos/Mixxx.entitlements), so the spawned process can only
-    write inside its own container — not in the harness's temp directory,
-    where profiles and the track cache would otherwise be created. Returns
-    None when the binary is not the main executable of an .app bundle
-    (build-tree binaries are not sandboxed) or not running on macOS.
-    """
-    if sys.platform != "darwin" or not binary:
-        return None
-    parts = os.path.abspath(binary).split(os.sep)
-    if not any(part.endswith(".app") for part in parts[:-1]):
-        return None
-    container_home = f"~/Library/Containers/{MACOS_SANDBOX_BUNDLE_ID}/Data"
-    return os.path.expanduser(container_home)
 
 
 def load_track_manifest():
@@ -265,6 +247,66 @@ def create_empty_profile(settings_dir=None):
     if settings_dir is None:
         settings_dir = profile_dir()
     os.makedirs(settings_dir, exist_ok=True)
+
+
+def seed_failing_sound_devices(settings_dir=None, open_status=4):
+    """Seed the profile's saved sound configuration with a failing device.
+
+    Two coordinated files make SoundManager::setupDevices() fail at
+    start-up, raising a sound-device notification (sound.feature
+    @sub/notifications):
+
+    * mixxx.cfg `[Soundcard Config] mockDevices` lists a mock device with
+      ``openStatus``. Test builds register those devices at SoundManager
+      start-up, before the saved sound configuration is validated, so the
+      device is enumerable (deterministic, no real audio hardware needed).
+      The status decides which notification start-up raises:
+      ``4`` (ErrorDeviceCount) -> "Sound Device Busy"; ``-1`` (Error) ->
+      "Sound Device Error".
+    * soundconfig.xml references that device with a Master (Main) output, so
+      the configured output set is non-empty (suppressing the separate
+      "No Output Devices" notification) and the failing open() is what
+      fails the set-up.
+
+    Note: mixxx.cfg is read by Mixxx's own INI parser ("key value", the
+    value being everything after the first whitespace), so the JSON payload
+    stays on a single line separated from the key by one space.
+    """
+    if settings_dir is None:
+        settings_dir = profile_dir()
+    devices = [
+        {
+            "name": FAILING_MOCK_DEVICE_NAME,
+            "api": "Mock",
+            "outputChannels": 2,
+            "inputChannels": 0,
+            "openStatus": open_status,
+        },
+        # Always include a working device to allow reconfiguring
+        {
+            "name": WORKING_MOCK_DEVICE_NAME,
+            "api": "Mock",
+            "outputChannels": 2,
+            "inputChannels": 0
+        },
+    ]
+    cfg_path = os.path.join(settings_dir, SETTINGS_FILE)
+    with open(cfg_path, "a", encoding="utf-8") as f:
+        f.write("[Soundcard Config]\n")
+        f.write("mockDevices " + json.dumps(devices, separators=(",", ":")) + "\n")
+
+    soundconfig_path = os.path.join(settings_dir, SOUNDCONFIG_FILE)
+    with open(soundconfig_path, "w", encoding="utf-8") as f:
+        f.write(
+            '<SoundManagerConfig api="Mock" samplerate="48000" latency="5"'
+            ' sync_buffers="2" force_network_clock="0" deck_count="2">\n'
+            f'  <SoundDevice name="{FAILING_MOCK_DEVICE_NAME}"'
+            ' deviceIndex="0">\n'
+            '    <output type="Master" index="0" channel="0"'
+            ' channel_count="2"/>\n'
+            "  </SoundDevice>\n"
+            "</SoundManagerConfig>\n"
+        )
 
 
 def add_directory_to_db(track_dir, settings_dir=None):
@@ -628,26 +670,29 @@ def setup_profile(base_dir, profile_type):
 
     Types:
       'empty'   - Folder is ready
+      'busy-sound-devices' - Folder is ready; the saved sound configuration
+          references a mock device whose open() fails with ErrorDeviceCount,
+          so start-up raises the "Sound Device Busy" notification
+          (see seed_failing_sound_devices).
+      'error-sound-devices' - Same, with open() failing with Error, raising
+          the "Sound Device Error" notification.
     """
     create_empty_profile(base_dir)
+    failing_status_by_type = {
+        # SoundDeviceStatus::ErrorDeviceCount -> "Sound Device Busy"
+        "busy-sound-devices": 4,
+        # SoundDeviceStatus::Error -> "Sound Device Error"
+        "error-sound-devices": -1,
+    }
+    failing_status = failing_status_by_type.get(profile_type)
+    if failing_status is not None:
+        seed_failing_sound_devices(base_dir, open_status=failing_status)
     return base_dir
 
 
-def make_temp_profile(profile_type="empty", container=None):
-    """Create a temporary profile directory and return its path.
-
-    When ``container`` is set (sandboxed macOS .app bundles, see
-    ``macos_sandbox_container``), the profile is created inside the App
-    Sandbox container instead of the harness temp directory: the sandboxed
-    Mixxx process cannot write outside of it.
-    """
-    if container:
-        container_tmp = os.path.join(container, "tmp")
-        os.makedirs(container_tmp, exist_ok=True)
-        base = tempfile.mkdtemp(prefix="mixxx-test-profile-", dir=container_tmp)
-    else:
-        base = tempfile.mkdtemp(prefix="mixxx-test-profile-")
-    return setup_profile(base, profile_type)
+def make_temp_profile(profile_type="empty"):
+    """Create a temporary profile directory and return its path."""
+    return setup_profile(tempfile.mkdtemp(prefix="mixxx-test-profile-"), profile_type)
 
 
 def cleanup_profile(profile_dir):
