@@ -1,5 +1,5 @@
 import QtQuick
-import "../../../qml" as Skin
+import ".." as Skin
 import "../LateNightTheme"
 
 Skin.ControlKnob {
@@ -22,7 +22,7 @@ Skin.ControlKnob {
     color: displayArcColor
     implicitHeight: backgroundImage.implicitHeight
     implicitWidth: backgroundImage.implicitWidth
-    knobCenterOffsetY: displayArcOffsetY
+    // knobCenterOffsetY: displayArcOffsetY ??
     showDefaultBackground: false
     showDefaultForeground: false
 

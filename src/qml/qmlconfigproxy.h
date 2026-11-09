@@ -281,6 +281,12 @@ class QmlConfigProxy : public QmlConfigProxyBase {
                     set_bpmAnalyserPluginId NOTIFY bpmAnalyserPluginIdChanged);
 
     // Key group
+    Q_PROPERTY(QString mainWindowGeometry READ mainWindowGeometry WRITE
+                    set_mainWindowGeometry NOTIFY mainWindowGeometryChanged);
+    Q_PROPERTY(QString mainWindowState READ mainWindowState WRITE
+                    set_mainWindowState NOTIFY mainWindowStateChanged);
+
+    // Key group
     Q_PROPERTY(bool keyDetectionEnabled READ keyDetectionEnabled WRITE
                     set_keyDetectionEnabled NOTIFY keyDetectionEnabledChanged);
     Q_PROPERTY(bool keyFastAnalysis READ keyFastAnalysis WRITE
@@ -519,6 +525,10 @@ class QmlConfigProxy : public QmlConfigProxyBase {
     PROPERTY_DECL_ACCESSOR(bool, bpmFastAnalysis);
     PROPERTY_DECL_ACCESSOR(QString, bpmAnalyserPluginId);
 
+    // MainWindow group
+    PROPERTY_DECL_ACCESSOR(QString, mainWindowGeometry);
+    PROPERTY_DECL_ACCESSOR(QString, mainWindowState);
+
     // Key group
     PROPERTY_DECL_ACCESSOR(bool, keyDetectionEnabled);
     PROPERTY_DECL_ACCESSOR(bool, keyFastAnalysis);
@@ -647,6 +657,8 @@ class QmlConfigProxy : public QmlConfigProxyBase {
     void bpmReanalyzeImportedChanged();
     void bpmFastAnalysisChanged();
     void bpmAnalyserPluginIdChanged();
+    void mainWindowGeometryChanged();
+    void mainWindowStateChanged();
     void keyDetectionEnabledChanged();
     void keyFastAnalysisChanged();
     void keyReanalyzeWhenSettingsChangeChanged();

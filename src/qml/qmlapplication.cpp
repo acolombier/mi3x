@@ -7,8 +7,6 @@
 #include <QQuickWindow>
 #include <QTextDocument>
 #include <optional>
-#include <utility>
-
 #include "controllers/controllermanager.h"
 #include "defs_urls.h"
 #include "mixer/playermanager.h"
@@ -106,14 +104,11 @@ namespace qml {
 
 QmlApplication::QmlApplication(
         QApplication* app,
-        std::shared_ptr<CoreServices> pCoreServices,
-        const QString& mainQmlFilePath)
-        : m_pCoreServices(std::move(pCoreServices)),
+        const CmdlineArgs& args)
+        : m_pCoreServices(std::make_unique<mixxx::CoreServices>(args, app)),
           m_visualsManager(std::make_unique<VisualsManager>()),
           m_pGuiTick(std::make_unique<GuiTick>()),
-          m_mainFilePath(mainQmlFilePath.isEmpty()
-                          ? m_pCoreServices->getSettings()->getResourcePath() + kMainQmlFileName
-                          : mainQmlFilePath),
+          m_mainFilePath(m_pCoreServices->getSettings()->getResourcePath() + kMainQmlFileName),
           m_pAppEngine(nullptr),
           m_loadSucceeded(false),
           m_pSettingsPopup(nullptr),
@@ -204,7 +199,7 @@ QmlApplication::QmlApplication(
     // Start the automation server if requested. It attaches to this
     // application instance (no separate Qt application setup needed).
     if (CmdlineArgs::Instance().getServe()) {
-        m_pRpcServe = std::make_unique<RpcServe>(this, m_pCoreServices);
+        m_pRpcServe = std::make_unique<RpcServe>(this, m_pCoreServices.get());
     }
 #endif
 
@@ -455,6 +450,9 @@ QmlApplication::~QmlApplication() {
 #endif
     m_visualsManager.reset();
     QmlApplicationProxy::registerVinylControlManager(nullptr);
+    disconnect(&m_guiTickTimer);
+    m_guiTickTimer.stop();
+    m_pGuiTick.reset();
     m_pCoreServices.reset();
 }
 

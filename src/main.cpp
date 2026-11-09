@@ -28,8 +28,6 @@
 #if defined(__WINDOWS__)
 #include "nativeeventhandlerwin.h"
 #endif
-#include "skin/skin.h"
-#include "skin/skinloader.h"
 #include "sources/soundsourceproxy.h"
 #include "util/cmdlineargs.h"
 #include "util/console.h"
@@ -62,18 +60,8 @@ int runMixxx(MixxxApplication* pApp, const CmdlineArgs& args) {
     CmdlineArgs::Instance().parseForUserFeedback();
 
     int exitCode;
-    auto pCoreServices = std::make_shared<mixxx::CoreServices>(args, pApp);
 #ifdef MIXXX_USE_QML
-    QString mainQmlFilePath;
     bool loadQml = args.isQml();
-    if (!loadQml && args.getDeveloper()) {
-        mixxx::skin::SkinLoader skinLoader(pCoreServices->getSettings());
-        const mixxx::skin::SkinPointer pSkin = skinLoader.getConfiguredSkin();
-        if (pSkin && pSkin->type() == mixxx::skin::SkinType::QML) {
-            loadQml = true;
-            mainQmlFilePath = pSkin->mainQmlFilePath();
-        }
-    }
 #ifdef __RPC_SERVER__
     if (CmdlineArgs::Instance().getServe() && !loadQml) {
         // The automation server is hosted by the QML application and is
@@ -86,15 +74,13 @@ int runMixxx(MixxxApplication* pApp, const CmdlineArgs& args) {
     }
 #endif
     if (loadQml) {
-        mixxx::qml::QmlApplication qmlApplication(pApp, pCoreServices, mainQmlFilePath);
-        if (!qmlApplication.isReady() && !CmdlineArgs::Instance().getDeveloper()) {
-            exitCode = kFatalErrorOnStartupExitCode;
-        } else {
-            exitCode = pApp->exec();
-        }
+        mixxx::qml::QmlApplication qmlApplication(pApp, args);
+        exitCode = pApp->exec();
     } else
 #endif
     {
+        auto pCoreServices = std::make_shared<mixxx::CoreServices>(args, pApp);
+
         // This scope ensures that `MixxxMainWindow` is destroyed *before*
         // CoreServices is shut down. Otherwise a debug assertion complaining about
         // leaked COs may be triggered.

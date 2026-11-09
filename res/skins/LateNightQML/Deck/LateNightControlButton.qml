@@ -1,5 +1,5 @@
 import QtQuick
-import "../../../qml" as Skin
+import "../../../qml/Behaviors" as Behaviors
 
 // A LateNight-styled button wrapper around shared Mixxx.ControlProxy behavior.
 LateNightIconButton {
@@ -68,7 +68,7 @@ LateNightIconButton {
         controlBehavior.startLatchReveal();
     }
 
-    Skin.ControlProxyButtonBehavior {
+    Behaviors.ControlProxyButton {
         id: controlBehavior
 
         anchors.fill: parent
