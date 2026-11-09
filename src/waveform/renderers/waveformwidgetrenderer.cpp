@@ -115,14 +115,13 @@ bool WaveformWidgetRenderer::init() {
                 m_group, QStringLiteral("track_samples"));
 
         m_visualPlayPosition = VisualPlayPosition::getVisualPlayPosition(m_group);
+        VERIFY_OR_DEBUG_ASSERT(m_visualPlayPosition) {
+            return false;
+        }
     } else {
         m_pRateRatioCO.reset();
         m_pGainControlObject.reset();
         m_pTrackSamplesControlObject.reset();
-    }
-
-    VERIFY_OR_DEBUG_ASSERT(m_visualPlayPosition) {
-        return false;
     }
 
     for (auto* pRendered : std::as_const(m_rendererStack)) {
@@ -152,7 +151,8 @@ void WaveformWidgetRenderer::onPreRender(VSyncTimeProvider* vsyncThread) {
     // For a valid track to render we need
     m_trackSamples = m_pTrackSamplesControlObject
             ? m_pTrackSamplesControlObject->get()
-            : m_pTrack->getSampleRate() * m_pTrack->getDuration();
+            : m_pTrack->getSampleRate() * m_pTrack->getDuration() *
+                    mixxx::kEngineChannelOutputCount;
     if (m_trackSamples <= 0) {
         return;
     }

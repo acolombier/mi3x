@@ -46,10 +46,6 @@ Mixxx.ControllerScreen {
     Mixxx.ControlProxy {
         group: root.group
         key: "track_loaded"
-
-        onValueChanged: value => {
-            deckPlayer = Mixxx.PlayerManager.getPlayer(root.group);
-        }
     }
     Timer {
         id: channelchange
@@ -60,7 +56,6 @@ Mixxx.ControllerScreen {
 
         onTriggered: {
             root.group = root.group === "[Channel1]" ? "[Channel2]" : "[Channel1]";
-            deckPlayer = Mixxx.PlayerManager.getPlayer(root.group);
         }
     }
     Component {
@@ -90,8 +85,8 @@ Mixxx.ControllerScreen {
                 anchors.fill: parent
                 fillMode: Image.PreserveAspectFit
                 height: 100
-                source: deckPlayer.coverArtUrl ?? "../images/templates/logo_mixxx.png"
-                visible: deckPlayer.trackLocationUrl?.toString().length !== 0
+                source: deckPlayer?.currentTrack?.coverArtUrl ?? "../images/templates/logo_mixxx.png"
+                visible: deckPlayer?.currentTrack?.trackLocationUrl?.toString().length !== 0
                 width: 100
             }
             Text {
@@ -100,7 +95,7 @@ Mixxx.ControllerScreen {
                 font.letterSpacing: -1
                 font.pixelSize: 12
                 text: qsTr("No Track Loaded")
-                visible: deckPlayer.trackLocationUrl?.toString().length === 0
+                visible: deckPlayer?.currentTrack?.trackLocationUrl?.toString().length === 0
             }
         }
     }
@@ -174,8 +169,13 @@ Mixxx.ControllerScreen {
                         text: qsTr("Widget")
                     }
                     Skin.HotcueButton {
+                        currentTrack: deckPlayer?.currentTrack
                         group: root.group
                         hotcueNumber: 1
+                        label: {
+                            deckPlayer?.currentTrack?.hotcuesModel.revision;
+                            return deckPlayer?.currentTrack?.hotcuesModel.getByHotcueNumber(0)?.label;
+                        }
                     }
                     Skin.ControlKnob {
                         arcStart: Knob.ArcStart.Minimum

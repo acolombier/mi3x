@@ -1,3 +1,4 @@
+import Mixxx 1.0 as Mixxx
 import QtQuick 2.12
 import QtQuick.Shapes
 import "../Theme"
@@ -12,6 +13,7 @@ Item {
 
     property bool existing: false
     property int flags: 0
+    property alias hovered: hoverHandler.hovered
     readonly property bool ready: !!source && !!sink
     required property var router
     property var sink: undefined
@@ -21,6 +23,8 @@ Item {
     property bool system: false
     property var target: source.mapToItem(router, source.width / 2, source.height / 2)
     property bool vertical: false
+
+    signal tapped
 
     height: Math.max(2, Math.abs(sourcePosition.y - sinkPosition.y))
     visible: !source || !sink || source.visible && sink.visible
@@ -105,6 +109,8 @@ Item {
         }
     }
     onSinkPositionChanged: {
+        if (!sourcePosition || !sinkPosition)
+            return;
         scale.xScale = sourcePosition.x > sinkPosition.x ? -1 : 1;
         scale.yScale = sourcePosition.y > sinkPosition.y ? -1 : 1;
     }
@@ -131,25 +137,28 @@ Item {
         }
     }
     onSourcePositionChanged: {
+        if (!sourcePosition || !sinkPosition)
+            return;
         scale.xScale = sourcePosition.x > sinkPosition.x ? -1 : 1;
         scale.yScale = sourcePosition.y > sinkPosition.y ? -1 : 1;
     }
     onTargetChanged: {
-        if (!source)
+        if (!source || !sourcePosition || !sinkPosition)
             return;
         scale.xScale = sourcePosition.x > sinkPosition.x ? -1 : 1;
         scale.yScale = sourcePosition.y > sinkPosition.y ? -1 : 1;
     }
 
     Shape {
+        property int multiSamplingLevel: Mixxx.Config.multiSamplingLevel
+
         anchors.fill: parent
         // anchors.centerIn: parent
         antialiasing: true
-        layer.enabled: true
+        containsMode: Shape.FillContains
+        layer.enabled: multiSamplingLevel > 1
+        layer.samples: multiSamplingLevel
 
-        // FIXME: This is causing GL glitched in Android
-        // layer.samples: 16
-        // layer.textureMirroring: ShaderEffectSource.MirrorHorizontally
         ShapePath {
             id: line
 
@@ -173,6 +182,16 @@ Item {
                 x: root.width
                 y: root.height
             }
+        }
+        HoverHandler {
+            id: hoverHandler
+
+            enabled: root.router.newConnection == null
+        }
+        TapHandler {
+            enabled: root.router.newConnection == null
+
+            onTapped: root.tapped()
         }
     }
 }

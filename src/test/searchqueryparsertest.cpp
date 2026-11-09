@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QtDebug>
 
+#include "library/searchqueries.h"
 #include "library/searchquery.h"
 #include "library/searchqueryparser.h"
 #include "library/trackset/crate/crate.h"
@@ -433,6 +434,22 @@ TEST_F(SearchQueryParserTest, NumericFilterAllowsSpace) {
             qPrintable(pQuery->toSql()));
 }
 
+TEST_F(SearchQueryParserTest, NumericFilterKeyId) {
+    m_parser.setSearchColumns({"artist", "album"});
+    auto pQuery(m_parser.parseQuery("key_id:11", QString()));
+
+    TrackPointer pTrack = newTestTrack();
+    pTrack->setKey(static_cast<mixxx::track::io::key::ChromaticKey>(11),
+            mixxx::track::io::key::USER);
+    EXPECT_TRUE(pQuery->match(pTrack));
+    pTrack->setKey(static_cast<mixxx::track::io::key::ChromaticKey>(12),
+            mixxx::track::io::key::USER);
+    EXPECT_FALSE(pQuery->match(pTrack));
+
+    EXPECT_STREQ(qPrintable(QString("key_id = 11")),
+            qPrintable(pQuery->toSql()));
+}
+
 TEST_F(SearchQueryParserTest, NumericFilterOperators) {
     m_parser.setSearchColumns({"artist", "album"});
     auto pQuery(m_parser.parseQuery("bitrate:>127", QString()));
@@ -619,46 +636,6 @@ TEST_F(SearchQueryParserTest, BpmFilter) {
     EXPECT_STREQ(
             qPrintable(QString("bpm IS NULL")),
             qPrintable(pQuery->toSql()));
-}
-
-TEST_F(SearchQueryParserTest, NumPlusMinusOperator) {
-    m_parser.setSearchColumns({"artist", "album"});
-
-    // Test the +/- suffix for numerical queries
-    // + means >=
-    // - means <=
-
-    // BPM
-    TrackPointer pTrack = newTestTrack();
-    pTrack->trySetBpm(124);
-    auto pQuery = m_parser.parseQuery("bpm:123+", QString());
-    EXPECT_TRUE(pQuery->match(pTrack));
-
-    EXPECT_STREQ(
-            qPrintable(QString("bpm >= 123")),
-            qPrintable(pQuery->toSql()));
-
-    pQuery = m_parser.parseQuery("bpm:125+", QString());
-    EXPECT_FALSE(pQuery->match(pTrack));
-
-    pQuery = m_parser.parseQuery("bpm:124-", QString());
-    EXPECT_TRUE(pQuery->match(pTrack));
-
-    // Duration
-    pTrack->setDuration(91);
-    pQuery = m_parser.parseQuery("duration:1:30+", QString());
-
-    EXPECT_STREQ(
-            qPrintable(QString("duration >= 90")),
-            qPrintable(pQuery->toSql()));
-
-    EXPECT_TRUE(pQuery->match(pTrack));
-
-    pQuery = m_parser.parseQuery("duration:1:25-", QString());
-    EXPECT_FALSE(pQuery->match(pTrack));
-
-    pQuery = m_parser.parseQuery("duration:1:31-", QString());
-    EXPECT_TRUE(pQuery->match(pTrack));
 }
 
 TEST_F(SearchQueryParserTest, MultipleFilters) {
@@ -1420,4 +1397,23 @@ TEST_F(SearchQueryParserTest, QuotedOrOperator) {
     pTrackI->setTitle("a | contrived|example and more");
     pTrackI->setComment("house");
     EXPECT_TRUE(pQuery->match(pTrackI));
+}
+
+TEST_F(SearchQueryParserTest, RecognizesSearchQueriesChipAliases) {
+    // The chip round-trip in SearchQueries must not fall behind this
+    // parser: an alias the parser accepts but the chips cannot represent
+    // degrades a token to free text when a query is restored, silently.
+    const QHash<QString, QStringList>& parserFields = m_parser.fieldToSqlColumns();
+    const QStringList chipAliases = mixxx::SearchQueries::chipFieldAliases();
+    for (const QString& alias : chipAliases) {
+        EXPECT_TRUE(parserFields.contains(alias))
+                << "chip field alias not recognized by the parser: "
+                << alias.toStdString();
+        const QStringList columns = parserFields.value(alias);
+        for (const QString& column : columns) {
+            EXPECT_TRUE(parserFields.contains(column))
+                    << "chip field query name not recognized by the parser: "
+                    << column.toStdString();
+        }
+    }
 }

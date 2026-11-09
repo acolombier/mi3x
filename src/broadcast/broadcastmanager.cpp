@@ -102,8 +102,8 @@ void BroadcastManager::slotControlEnabled(double v) {
         if (!atLeastOneEnabled) {
             m_pBroadcastEnabled->set(false);
             emit broadcastEnabled(0.0);
-            QMessageBox::warning(nullptr, tr("Action failed"),
-                                tr("Please enable at least one connection to use Live Broadcasting."));
+            emit broadcastError(tr("Action failed"),
+                    tr("Please enable at least one connection to use Live Broadcasting."));
             return;
         }
 

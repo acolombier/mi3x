@@ -2,6 +2,8 @@
 
 #include <QMutexLocker>
 
+#include "controllers/hid/hidapimutex.h"
+
 #ifdef __ANDROID__
 #include <android/log.h>
 #include <hidapi_libusb.h>
@@ -62,6 +64,8 @@ HidIoThread::HidIoThread(hid_device* pHidDevice,
 }
 
 HidIoThread::~HidIoThread() {
+    // hidapi is not thread-safe (see hidapimutex.h).
+    std::lock_guard<std::mutex> hidLock(mixxx::hid::hidapiMutex());
     hid_close(m_pHidDevice);
 #ifdef Q_OS_ANDROID
     if (m_androidConnection.isValid()) {

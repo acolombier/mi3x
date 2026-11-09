@@ -1,5 +1,5 @@
-import Qt5Compat.GraphicalEffects
 import QtQuick 2.12
+import QtQuick.Effects
 import QtQuick.Controls
 import "../Theme"
 
@@ -8,9 +8,11 @@ Item {
 
     readonly property int decimalFactor: Math.pow(10, decimals)
     property int decimals: 0
+    property int margins: 7
     property list<double> markers: []
     property double max: markers.length ? markers[markers.length - 1] : 1
     property double min: markers.length ? markers[0] : 0
+    property bool showTextInput: true
     property alias slider: control
     property alias suffix: textInputSection.suffix
     property double value: 0
@@ -79,18 +81,19 @@ Item {
         id: control
 
         anchors.left: root.left
-        anchors.right: textInputSection.left
-        anchors.rightMargin: 10
+        anchors.right: root.showTextInput ? textInputSection.left : root.right
+        anchors.rightMargin: root.showTextInput ? 10 : 0
         anchors.verticalCenter: root.verticalCenter
         from: 0
+        objectName: root.objectName ? "Track" : ""
         to: 1
 
         background: Item {
             height: control.availableHeight
             implicitHeight: 4
             implicitWidth: 200
-            width: control.availableWidth - 14
-            x: control.leftPadding + 7
+            width: control.availableWidth - 2 * root.margins
+            x: control.leftPadding + root.margins
 
             Rectangle {
                 color: "#181818"
@@ -144,6 +147,7 @@ Item {
         }
         handle: Item {
             height: 14
+            objectName: root.objectName ? "Handler" : ""
             width: 14
             x: control.leftPadding + control.visualPosition * (control.availableWidth - width)
             y: -5
@@ -152,29 +156,35 @@ Item {
                 id: handle
 
                 anchors.fill: parent
-                color: Theme.accentColor
+                color: root.enabled ? Theme.accentColor : Theme.lightGray
                 radius: 7
-            }
-            InnerShadow {
-                id: handleEffect1
 
+                border {
+                    color: "#0E2A54"
+                    width: 1
+                }
+            }
+            Rectangle {
                 anchors.fill: parent
-                color: "#0E2A54"
-                horizontalOffset: 0
-                radius: 16.0
-                samples: 16
+                radius: 7
+
+                gradient: Gradient {
+                    GradientStop {
+                        color: Qt.rgba(0, 0, 0, 0.25)
+                        position: 0.0
+                    }
+                    GradientStop {
+                        color: "transparent"
+                        position: 0.4
+                    }
+                }
+            }
+            MultiEffect {
+                anchors.fill: parent
+                shadowBlur: 0.1
+                shadowColor: Qt.alpha(Theme.darkGray, 0.25)
+                shadowEnabled: true
                 source: handle
-                verticalOffset: 0
-            }
-            DropShadow {
-                id: handleEffect2
-
-                anchors.fill: parent
-                color: Qt.alpha(Theme.darkGray, 0.25)
-                horizontalOffset: 0
-                radius: 12.0
-                source: handleEffect1
-                verticalOffset: 0
             }
         }
 
@@ -191,6 +201,7 @@ Item {
         anchors.margins: 4
         anchors.right: root.right
         height: 30
+        visible: root.showTextInput
         width: fontMetrics.advanceWidth + 8
 
         Rectangle {
@@ -200,28 +211,18 @@ Item {
             anchors.margins: 4
             color: Theme.darkGray2
             radius: 4
-        }
-        DropShadow {
-            id: dropSetting
 
+            border {
+                color: "#353535"
+                width: 1
+            }
+        }
+        MultiEffect {
             anchors.fill: backgroundInput
-            color: Theme.darkGray
-            horizontalOffset: 0
-            radius: 4.0
+            shadowBlur: 0.15
+            shadowColor: Theme.darkGray
+            shadowEnabled: true
             source: backgroundInput
-            verticalOffset: 0
-        }
-        InnerShadow {
-            id: effect2
-
-            anchors.fill: backgroundInput
-            color: "#353535"
-            horizontalOffset: 0
-            radius: 12
-            samples: 24
-            source: dropSetting
-            spread: 0.2
-            verticalOffset: 0
         }
         Item {
             anchors.fill: parent
@@ -235,6 +236,7 @@ Item {
                 color: Qt.alpha(acceptableInput ? Theme.white : Theme.warningColor, root.enabled ? 1 : 0.5)
                 focus: true
                 horizontalAlignment: TextInput.AlignRight
+                objectName: root.objectName ? "Value" : ""
                 text: textFromValue(root.value, control.locale)
 
                 validator: DoubleValidator {

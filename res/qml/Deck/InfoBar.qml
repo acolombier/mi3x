@@ -11,7 +11,7 @@ import "../Theme"
 Rectangle {
     id: root
 
-    property list<string> availableData: ["none", "title", "year", "time", "artist", "rating"]
+    property list<string> availableData: ["None", "Title", "Year", "Time", "Artist", "Rating", "BPM"]
     readonly property var currentTrack: deckPlayer?.currentTrack
     property var deckPlayer: Mixxx.PlayerManager.getPlayer(group)
     property bool editMode: false
@@ -28,7 +28,7 @@ Rectangle {
         GradientStop {
             color: {
                 const trackColor = root.currentTrack?.color;
-                if (!trackColor.valid)
+                if (!trackColor?.valid)
                     return Theme.deckInfoBarBackgroundColor;
 
                 return Qt.darker(root.currentTrack?.color, 2);
@@ -48,7 +48,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.top: parent.top
         asynchronous: true
-        source: root.currentTrack?.coverArtUrl
+        source: root.currentTrack?.coverArtUrl || ''
         visible: false
         width: height
     }
@@ -78,7 +78,7 @@ Rectangle {
         role: "type"
 
         DelegateChoice {
-            roleValue: "title"
+            roleValue: "Title"
 
             Cell {
                 item.font.bold: false
@@ -88,26 +88,41 @@ Rectangle {
             }
         }
         DelegateChoice {
-            roleValue: "artist"
+            roleValue: "Artist"
 
             Cell {
-                item.text: root.currentTrack?.artist
+                item.text: root.currentTrack?.artist || ''
             }
         }
         DelegateChoice {
-            roleValue: "year"
+            roleValue: "Year"
 
             Cell {
-                item.text: root.currentTrack?.year
-                visible: root.width > 500 && root.currentTrack?.year
+                item.text: root.currentTrack?.year || ''
+                visible: root.width > 500 && !!root.currentTrack?.year
             }
         }
         DelegateChoice {
-            roleValue: "time"
+            roleValue: "BPM"
 
             Cell {
+                item.text: bpmCO.value > 0 ? bpmCO.value.toFixed(2) : "-"
                 visible: root.width > 450
+
+                Mixxx.ControlProxy {
+                    id: bpmCO
+
+                    group: root.group
+                    key: "bpm"
+                }
+            }
+        }
+        DelegateChoice {
+            roleValue: "Time"
+
+            Cell {
                 item.text: time.text
+                visible: root.width > 450
 
                 Mixxx.ControlProxy {
                     id: durationControl
@@ -121,9 +136,9 @@ Rectangle {
                     group: root.group
                     key: "playposition"
                 }
-
                 TrackTime {
                     id: time
+
                     display: Mixxx.Config.controlPositionDisplay
                     elapsed: durationControl.value * playPositionControl.value
                     mode: Mixxx.Config.controlTimeFormat
@@ -133,7 +148,7 @@ Rectangle {
             }
         }
         DelegateChoice {
-            roleValue: "rating"
+            roleValue: "Rating"
 
             Item {
                 id: cell
@@ -166,10 +181,12 @@ Rectangle {
                         Shape {
                             id: star
 
+                            property int multiSamplingLevel: Mixxx.Config.multiSamplingLevel
+
                             antialiasing: true
                             height: 14
-                            layer.enabled: true
-                            layer.samples: 4
+                            layer.enabled: multiSamplingLevel > 1
+                            layer.samples: multiSamplingLevel
                             width: 16
 
                             ShapePath {
@@ -263,26 +280,26 @@ Rectangle {
         id: topRowModel
 
         ListElement {
-            type: "title"
+            type: "Title"
         }
         ListElement {
-            type: "year"
+            type: "BPM"
         }
         ListElement {
-            type: "time"
+            type: "Time"
         }
     }
     ListModel {
         id: bottomRowModel
 
         ListElement {
-            type: "artist"
+            type: "Artist"
         }
         ListElement {
-            type: "none"
+            type: "Year"
         }
         ListElement {
-            type: "rating"
+            type: "Rating"
         }
     }
     Component {

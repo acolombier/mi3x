@@ -1,0 +1,15 @@
+name: spix
+buildsystem: cmake-ninja
+config-opts:
+  - -DCMAKE_BUILD_TYPE=RelWithDebInfo
+  - -DSPIX_BUILD_EXAMPLES=OFF
+  - -DSPIX_QT_MAJOR=6
+  - -DAnyRPC_INCLUDE_DIRS=/app/include
+  - -DAnyRPC_LIBRARIES=/app/lib
+sources:
+  - type: git
+    url: https://github.com/faaxm/spix.git
+    commit: 73ed4d0880e8434815a82a5ad876d03a51eaa1db
+  # Same patch the in-tree ExternalProject applies to the pinned revision.
+  - type: patch
+    path: ../../../spix.patch

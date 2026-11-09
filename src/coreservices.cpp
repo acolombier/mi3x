@@ -8,6 +8,8 @@
 #include <QtGlobal>
 #include <gsl/pointers>
 
+#include "util/cmdlineargs.h"
+
 #ifdef __BROADCAST__
 #include "broadcast/broadcastmanager.h"
 #endif
@@ -31,6 +33,7 @@
 #include "mixer/playerinfo.h"
 #include "mixer/playermanager.h"
 #include "moc_coreservices.cpp"
+#include "notificationmanager.h"
 #include "preferences/dialog/dlgpreferences.h"
 #include "preferences/settingsmanager.h"
 #ifdef __MODPLUG__
@@ -414,7 +417,18 @@ void CoreServices::initializeSettings() {
     // prompt the user to grant access or select a new location.
     // See https://github.com/mixxxdj/mixxx/issues/15489
     if (m_cmdlineArgs.getSettingsPathSet()) {
-        if (!Sandbox::ensureSettingsPathAccessible(&settingsPath)) {
+#ifdef __RPC_SERVER__
+        bool interactive = !m_cmdlineArgs.getServe();
+        bool sandboxCheck = Sandbox::ensureSettingsPathAccessible(&settingsPath, interactive);
+        if (!sandboxCheck && !interactive) {
+            qCritical() << "Cannot access settings folder" << settingsPath
+                        << "-- exiting (--serve automation mode)";
+            exit(1);
+        }
+#else
+        bool sandboxCheck = Sandbox::ensureSettingsPathAccessible(&settingsPath);
+#endif
+        if (!sandboxCheck) {
             // The user either declined the permission dialog or the
             // folder remains unwritable. Show a clear error and exit.
             QMessageBox::critical(nullptr,
@@ -453,6 +467,8 @@ void CoreServices::initialize() {
     }
 
     ScopedTimer t(QStringLiteral("CoreServices::initialize"));
+
+    NotificationManager::createInstance();
 
     VERIFY_OR_DEBUG_ASSERT(SoundSourceProxy::registerProviders()) {
         qCritical() << "Failed to register any SoundSource providers";
@@ -587,6 +603,13 @@ void CoreServices::initialize() {
             &TrackDAO::waveformSummaryUpdated,
             pOverviewCache,
             &OverviewCache::onTrackSummaryChanged);
+    // Forward per-track analyzer progress to OverviewCache so that
+    // OverviewCache clients (e.g. QmlWaveformOverview) can repaint
+    // the partial waveform during analysis.
+    connect(m_pPlayerManager.get(),
+            &PlayerManager::trackAnalyzerProgress,
+            pOverviewCache,
+            &OverviewCache::onTrackAnalysisProgress);
 
     // Binding the PlayManager to the Library may already trigger
     // loading of tracks which requires that the GlobalTrackCache has
@@ -596,7 +619,15 @@ void CoreServices::initialize() {
 
     bool musicDirAdded = false;
 
-    if (m_pTrackCollectionManager->internalCollection()->loadRootDirs().isEmpty()) {
+    if (m_pTrackCollectionManager->internalCollection()
+                    ->loadRootDirs()
+                    .isEmpty()) {
+#ifndef Q_OS_ANDROID
+        if (CmdlineArgs::Instance().getDeveloper()) {
+            qInfo() << "No music directory configured - skipping first-run "
+                       "directory prompt because developer mode is enabled";
+        } else {
+#endif
 #if defined(Q_OS_IOS) || defined(Q_OS_WASM)
         // On the web and iOS, we are running in a sandbox (a virtual file
         // system on the web). Since we are generally limited to paths within
@@ -656,16 +687,41 @@ void CoreServices::initialize() {
         // resolves to) and a user hitting 'cancel'. If we get a blank return
         // but the user didn't hit cancel, we need to know this and let the
         // user take some course of action -- bkgood
-        QString fd = QFileDialog::getExistingDirectory(nullptr,
-                tr("Choose music library directory"),
-                QStandardPaths::writableLocation(
-                        QStandardPaths::MusicLocation),
-                QFileDialog::ShowDirsOnly);
+        QString fd;
+        if (!CmdlineArgs::Instance().isQml()) {
+            fd = QFileDialog::getExistingDirectory(nullptr,
+                    tr("Choose music library directory"),
+                    QStandardPaths::writableLocation(
+                            QStandardPaths::MusicLocation),
+                    QFileDialog::ShowDirsOnly);
+        }
 #endif
-        // request to add directory to database.
+        // request to add directory to database in case we were able to resolve
+        // a default directory (legacy, iOS and Android).
         if (!fd.isEmpty() && m_pLibrary->requestAddDir(fd)) {
             musicDirAdded = true;
+        } else {
+            // prompt the use to add their directory
+            auto pNotification =
+                    std::make_shared<mixxx::Notification>(tr("No music directory configured!"),
+                            mixxx::Notification::Flag::Sticky);
+            pNotification->addButton(tr("Choose Directory"), this, [this, pNotification]() {
+                QString fd = QFileDialog::getExistingDirectory(nullptr,
+                        tr("Choose music library directory"),
+                        QStandardPaths::writableLocation(
+                                QStandardPaths::MusicLocation));
+                if (!fd.isEmpty()) {
+                    // adds Folder to database.
+                    m_pLibrary->requestAddDir(fd);
+                    m_pTrackCollectionManager->startLibraryScan();
+                    NotificationManager::instance()->closeNotification(pNotification);
+                }
+            });
+            NotificationManager::instance()->notify(pNotification);
         }
+#ifndef Q_OS_ANDROID
+        }
+#endif
     }
 
     emit initializationProgressUpdate(60, tr("controllers"));
@@ -738,7 +794,9 @@ void CoreServices::initialize() {
 
     ControllerScriptEngineBase::registerPlayerManager(getPlayerManager());
 
-#ifdef MIXXX_USE_QML
+#ifndef MIXXX_USE_QML
+    emit initialized();
+#else
     initializeQMLSingletons();
 }
 
@@ -776,6 +834,7 @@ void CoreServices::initializeQMLSingletons() {
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
 #endif
 #endif
+    emit initialized();
 }
 
 void CoreServices::initializeKeyboard() {
@@ -945,6 +1004,9 @@ void CoreServices::finalize() {
     // beforehand!
     qDebug() << t.elapsed(false).debugMillisWithUnit() << "detaching all track collections";
     CLEAR_AND_CHECK_DELETED(m_pTrackCollectionManager);
+
+    qDebug() << t.elapsed(false).debugMillisWithUnit() << "deleting NotificationManager";
+    NotificationManager::destroy();
 
     qDebug() << t.elapsed(false).debugMillisWithUnit() << "closing database connection(s)";
     m_pDbConnectionPool->destroyThreadLocalConnection();

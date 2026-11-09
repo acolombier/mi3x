@@ -1,4 +1,4 @@
-import QtQuick 2.12
+import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import ".." as Skin
@@ -20,13 +20,11 @@ Item {
     signal gatewayReady(string address, Item node)
     signal scrolled
 
-    implicitHeight: 45 + 28 * gatewayRepeater.visibleChannels
+    implicitHeight: content.anchors.margins * 2 + gatewayColumn.anchors.topMargin + gatewayColumn.anchors.bottomMargin + content.implicitHeight
+    objectName: "entity_" + name.replace('/', '') // '/' is used as separator on Spix
+
     width: 105
     z: 10
-
-    onGatewaysChanged: {
-        gatewayRepeater.visibleChannels = root.gateways.length;
-    }
 
     Rectangle {
         id: content
@@ -34,37 +32,34 @@ Item {
         anchors.fill: parent
         anchors.margins: 8
         color: Theme.darkGray3
+        implicitHeight: gatewayColumn.implicitHeight
         radius: 15
 
-        Column {
+        ColumnLayout {
             id: gatewayColumn
 
+            anchors.bottomMargin: 4
             anchors.fill: parent
-            padding: 0
-            spacing: 4
+            anchors.topMargin: 4
 
-            Item {
-                height: nameLabel.implicitHeight + 9
-                width: parent.width
+            Skin.ScrollingText {
+                id: nameLabel
 
-                Label {
-                    id: nameLabel
+                Layout.alignment: Qt.AlignHCenter
+                Layout.preferredWidth: Math.min(text.implicitWidth, content.width - 20)
+                color: content.color
+                endScroll.duration: 4000
+                startsScroll.duration: 4000
 
-                    anchors.fill: parent
-                    anchors.margins: 9
+                text {
                     color: Theme.white
-                    elide: Text.ElideRight
                     font.pixelSize: 15
                     fontSizeMode: Text.Fit
-                    horizontalAlignment: Text.AlignHCenter
                     text: name
-                    verticalAlignment: Text.AlignTop
                 }
             }
             Repeater {
                 id: gatewayRepeater
-
-                property int visibleChannels: root.gateways.length
 
                 model: root.gateways
 
@@ -103,10 +98,6 @@ Item {
 
                     model: node.channels.length / 2 * instances
 
-                    Component.onCompleted: {
-                        root.gatewayReady(address, node);
-                    }
-
                     Item {
                         id: channel
 
@@ -118,10 +109,10 @@ Item {
                         visible: (edgeItem.connection?.ready || index == node.connectionCount) && (!node.advanced || root.advanced)
                         width: parent.width
 
-                        onVisibleChanged: {
-                            if (counted != channel.visible)
-                                gatewayRepeater.visibleChannels += channel.visible ? 1 : -1;
-                            counted = channel.visible;
+                        Component.onCompleted: {
+                            if (channel.index === 0) {
+                                root.gatewayReady(address, node);
+                            }
                         }
 
                         RowLayout {
@@ -133,20 +124,20 @@ Item {
                                 right: parent.right
                                 rightMargin: 15
                             }
-                            Label {
+                            Skin.ScrollingText {
                                 Layout.alignment: Qt.AlignVCenter
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 28
-                                color: Theme.white
-                                elide: Text.ElideRight
-                                font.pixelSize: 10
-                                fontSizeMode: Text.Fit
-                                text: node.instances == 1 ? label : `${label} #${index + 1}`
-                                verticalAlignment: Text.AlignVCenter
+                                color: content.color
+                                endScroll.duration: 4000
+                                startsScroll.duration: 4000
+
+                                text {
+                                    color: Theme.white
+                                    font.pixelSize: 10
+                                    fontSizeMode: Text.Fit
+                                    text: index == 0 ? label : `${label} #${index + 1}`
+                                }
                             }
-                            // Item {
-                            //     Layout.fillWidth: true
-                            // }
                             Skin.ComboBox {
                                 id: channelSelector
 
@@ -156,6 +147,8 @@ Item {
                                 clip: true
                                 currentIndex: node.channelAssignation[channel.index] ?? 0
                                 font.pixelSize: 12
+                                implicitWidth: 66
+                                indicator.visible: false
                                 model: {
                                     return [...Array(node.channels.length / 2)].map((e, i) => `Ch ${i * 2 + node.channels[0] + 1} - ${i * 2 + node.channels[0] + 2}`);
                                 }
@@ -182,6 +175,10 @@ Item {
                             property int instance: index / (node.channels.length / 2)
                             property string type: node.type
 
+                            // Used for testing
+                            function connectionObjectName() {
+                                return edge.connection?.objectName;
+                            }
                             function updateConnectionPosition() {
                                 if (edge.connection && edge.connection.source == edge) {
                                     edge.connection.sourcePosition = edge.mapToItem(edge.connection.router, edge.width / 2, edge.height / 2);
@@ -190,19 +187,16 @@ Item {
                                 }
                             }
 
-                            anchors.horizontalCenter: type == "source" ? parent.right : parent.left
                             anchors.verticalCenter: inputLabel.verticalCenter
                             color: Theme.midGray
                             height: width
+                            objectName: "edge_" + node.address + index
                             radius: width / 2
                             width: 15
+                            x: (type == "source" ? content.width : 0) - width / 2
                             z: 100
 
                             states: [
-                                State {
-                                    name: "idle"
-                                    when: !edge.connecting && !edge.connection
-                                },
                                 State {
                                     name: "warning"
                                     when: (!edge.connection && node.required) || (edge.connection && edge.connection.state == "warning")
@@ -211,6 +205,10 @@ Item {
                                         edge.color: Theme.warningColor
                                         edge.width: 20
                                     }
+                                },
+                                State {
+                                    name: "idle"
+                                    when: !edge.connecting && !edge.connection
                                 },
                                 State {
                                     name: "hidden"
@@ -230,6 +228,10 @@ Item {
                                     }
                                 },
                                 State {
+                                    name: "existing"
+                                    when: edge.connection && edge.connection.existing
+                                },
+                                State {
                                     name: "creating"
                                     when: edge.connecting
 
@@ -246,6 +248,22 @@ Item {
                                 counted = !!edge.connection;
                             }
 
+                            Connections {
+                                function onHoveredChanged() {
+                                    if (edge.connection.hovered) {
+                                        edge.connection.flags |= AudioConnection.Flags.AboutToDelete;
+                                    } else if (!edgeMouseArea.containsMouse) {
+                                        edge.connection.flags &= ~AudioConnection.Flags.AboutToDelete;
+                                    }
+                                }
+                                function onTapped() {
+                                    if (edge.connection?.flags & AudioConnection.Flags.AboutToDelete) {
+                                        root.disconnect(edge.connection);
+                                    }
+                                }
+
+                                target: edge.connection
+                            }
                             Connections {
                                 function onScrolled() {
                                     edge.updateConnectionPosition();
@@ -299,7 +317,7 @@ Item {
                                     }
                                 }
                                 onExited: {
-                                    if (edge.connection) {
+                                    if (edge.connection && !edge.connection.hovered) {
                                         edge.connection.flags &= ~AudioConnection.Flags.AboutToDelete;
                                     }
                                 }

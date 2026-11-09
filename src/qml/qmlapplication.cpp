@@ -1,36 +1,35 @@
 #include "qmlapplication.h"
 
 #include <QCoreApplication>
-#include <QEventLoop>
-#include <QLocale>
-#include <QMessageBox>
-#include <QMetaEnum>
+#include <QQmlContext>
 #include <QQmlEngineExtensionPlugin>
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QTextDocument>
-#include <memory>
+#include <optional>
 #include <utility>
 
-#include "control/controlproxy.h"
-#include "control/controlpushbutton.h"
 #include "controllers/controllermanager.h"
-#include "controllers/keyboard/keyboardeventfilter.h"
+#include "defs_urls.h"
 #include "mixer/playermanager.h"
 #include "moc_qmlapplication.cpp"
+#include "notificationmanager.h"
 #include "preferences/configobject.h"
 #include "qml/asyncimageprovider.h"
 #include "qml/qmlapplicationproxy.h"
-#include "qml/qmlconfigproxy.h"
 #include "qml/qmlcoreservices.h"
 #include "qml/qmldlgpreferencesproxy.h"
 #include "qml/qmlrecordingproxy.h"
 #include "soundio/soundmanager.h"
+#include "util/assert.h"
+#include "util/desktophelper.h"
 #include "util/versionstore.h"
 #include "waveform/guitick.h"
-#include "waveform/overviewtype.h"
 #include "waveform/visualsmanager.h"
 #include "waveform/waveformwidgetfactory.h"
+#ifdef __RPC_SERVER__
+#include "qml/rpcserve.h"
+#endif
 #if defined(Q_OS_ANDROID)
 #include <android/api-level.h>
 #include <android/log.h>
@@ -43,16 +42,13 @@
 
 Q_IMPORT_QML_PLUGIN(MixxxPlugin)
 Q_IMPORT_QML_PLUGIN(Mixxx_ControlsPlugin)
+#ifdef QT_STATIC
+Q_IMPORT_QML_PLUGIN(QtGraphicalEffectsPrivatePlugin)
+Q_IMPORT_QML_PLUGIN(QMultimediaQuickModule)
+#endif
 
 namespace {
 const QString kMainQmlFileName = QStringLiteral("qml/main.qml");
-
-QString normalizedColorScheme(const QString& colorScheme) {
-    if (colorScheme.compare(QStringLiteral("Classic"), Qt::CaseInsensitive) == 0) {
-        return QStringLiteral("Classic");
-    }
-    return QStringLiteral("PaleMoon");
-}
 
 // Converts a (capturing) lambda into a function pointer that can be passed to
 // qmlRegisterSingletonType.
@@ -102,6 +98,7 @@ void copyAssetDir(const QString& src, const QString& dst) {
     }
 }
 #endif
+
 } // namespace
 
 namespace mixxx {
@@ -119,11 +116,14 @@ QmlApplication::QmlApplication(
                           : mainQmlFilePath),
           m_pAppEngine(nullptr),
           m_loadSucceeded(false),
+          m_pSettingsPopup(nullptr),
 #if defined(Q_OS_ANDROID)
           m_perfSession(nullptr),
 #endif
           m_autoReload() {
 #ifdef MIXXX_USE_QML
+    // Put the legacy waveform widget factory into QML mode. This keeps the
+    // shared preferences page consistent with the QML renderer capabilities.
     WaveformWidgetFactory::setQmlMode(true);
 #endif
     QQuickStyle::setStyle("Basic");
@@ -136,40 +136,20 @@ QmlApplication::QmlApplication(
     }
 #endif
 
-    const QString colorScheme = m_pCoreServices->getSettings()->getValueString(
-            ConfigKey("[Config]", "Scheme"));
-    QJSEngine::setObjectOwnership(QmlCoreServices::createInstance(
-                                          normalizedColorScheme(colorScheme), this),
-            QJSEngine::CppOwnership);
-    QmlApplicationProxy::registerVinylControlManager(
-            m_pCoreServices->getVinylControlManager().get());
-
-    const ConfigKey overviewTypeKey(
-            QStringLiteral("[Waveform]"),
-            QStringLiteral("WaveformOverviewType"));
-    m_pWaveformOverviewType = std::make_unique<ControlPushButton>(overviewTypeKey);
-    m_pWaveformOverviewType->setStates(QMetaEnum::fromType<mixxx::OverviewType>().keyCount());
-    m_pWaveformOverviewType->setReadOnly();
-    const auto overviewType = m_pCoreServices->getSettings()->getValue<mixxx::OverviewType>(
-            overviewTypeKey,
-            mixxx::OverviewType::RGB);
-    m_pWaveformOverviewType->forceSet(static_cast<double>(overviewType));
+    QmlCoreServices::registerCoreServices(m_pCoreServices.get());
 
     m_loadSucceeded = loadQml(m_mainFilePath);
-    if (!m_loadSucceeded) {
+    if (!m_loadSucceeded && !CmdlineArgs::Instance().getDeveloper()) {
         return;
     }
 
-    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
-    connect(m_pCoreServices.get(),
-            &CoreServices::initializationProgressUpdate,
-            QmlCoreServices::instance(),
-            &QmlCoreServices::setInitializationProgress);
-
     m_pCoreServices->initialize();
-    app->installEventFilter(m_pCoreServices->getKeyboardEventFilter().get());
-    registerImageProvider();
+    QmlApplicationProxy::registerVinylControlManager(
+            m_pCoreServices->getVinylControlManager().get());
 
+    // Create the legacy waveform widget factory if the widget main window has
+    // not already done so. The shared preferences page and the QML waveform
+    // display require the factory instance (and its config) to exist.
     if (!WaveformWidgetFactory::isCreated()) {
         WaveformWidgetFactory::createInstance();
         m_ownsWaveformWidgetFactory = true;
@@ -190,7 +170,7 @@ QmlApplication::QmlApplication(
     // is taken and the gate remains in effect as designed.
     const bool viaNewUiFlag = CmdlineArgs::Instance().isQml();
 
-    if (configVersion == VersionStore::FUTURE_UNSTABLE) {
+    if (configVersion == VersionStore::FUTURE_UNSTABLE || configVersion.isEmpty()) {
         qDebug() << "Generating a new user profile for safe testing with unstable code";
     } else if (!viaNewUiFlag) {
         qDebug() << "QmlApplication: QML skin loaded via preferences, "
@@ -217,109 +197,30 @@ QmlApplication::QmlApplication(
                 msgBox.addButton(tr("Ok"), QMessageBox::ActionRole);
         msgBox.exec();
         m_pCoreServices.reset();
-        exit(-1);
+        QCoreApplication::exit(-1);
     }
 
-    SoundDeviceStatus result = m_pCoreServices->getSoundManager()->setupDevices();
-    if (result != SoundDeviceStatus::Ok) {
-        const int reInt = static_cast<int>(result);
-        qCritical() << "Error setting up sound devices:" << reInt;
-#ifndef Q_OS_ANDROID
-        exit(reInt);
+#ifdef __RPC_SERVER__
+    // Start the automation server if requested. It attaches to this
+    // application instance (no separate Qt application setup needed).
+    if (CmdlineArgs::Instance().getServe()) {
+        m_pRpcServe = std::make_unique<RpcServe>(this, m_pCoreServices);
+    }
 #endif
-    }
-
-    setupSpinnyCoverControls();
 
     // FIXME: DlgPreferences has some initialization logic that must be executed
     // before the GUI is shown, at least for the effects system.
-    std::shared_ptr<QDialog> pDlgPreferences =
-            m_pCoreServices->makeDlgPreferences();
+    std::shared_ptr<QDialog> pDlgPreferences = m_pCoreServices->makeDlgPreferences();
     // Without this, QApplication will quit when the last QWidget QWindow is
     // closed because it does not take into account the window created by
     // the QQmlApplicationEngine.
     pDlgPreferences->setAttribute(Qt::WA_QuitOnClose, false);
-
-    auto inputWarningVisible = std::make_shared<bool>(false);
-    auto showNoInputConfiguredWarning =
-            [pDlgPreferences, inputWarningVisible](const QString& message) {
-                if (*inputWarningVisible) {
-                    return;
-                }
-                *inputWarningVisible = true;
-
-                QMessageBox msgBox(QMessageBox::Warning,
-                        VersionStore::applicationName(),
-                        message,
-                        QMessageBox::Ok | QMessageBox::Cancel);
-#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
-                msgBox.setOption(QMessageBox::Option::DontUseNativeDialog);
-#endif
-                msgBox.setWindowModality(Qt::ApplicationModal);
-                msgBox.setDefaultButton(QMessageBox::Cancel);
-                msgBox.exec();
-
-                const bool accepted = msgBox.clickedButton() == msgBox.button(QMessageBox::Ok);
-                *inputWarningVisible = false;
-                if (accepted) {
-                    pDlgPreferences->show();
-                    if (!QMetaObject::invokeMethod(pDlgPreferences.get(),
-                                "showSoundHardwareInputPage",
-                                Qt::DirectConnection)) {
-                        qWarning() << "QML input warning could not open Sound Hardware preferences";
-                    }
-                    pDlgPreferences->raise();
-                    pDlgPreferences->activateWindow();
-                }
-            };
-
-    connect(m_pCoreServices->getPlayerManager().get(),
-            &PlayerManager::noDeckPassthroughInputConfigured,
-            this,
-            [showNoInputConfiguredWarning]() {
-                showNoInputConfiguredWarning(
-                        tr("There is no input device selected for this "
-                           "passthrough control.\n"
-                           "Please select an input device in the sound "
-                           "hardware preferences first."));
-            });
-    connect(m_pCoreServices->getPlayerManager().get(),
-            &PlayerManager::noVinylControlInputConfigured,
-            this,
-            [showNoInputConfiguredWarning]() {
-                showNoInputConfiguredWarning(
-                        tr("There is no input device selected for this vinyl "
-                           "control.\n"
-                           "Please select an input device in the sound "
-                           "hardware preferences first."));
-            });
-    connect(m_pCoreServices->getPlayerManager().get(),
-            &PlayerManager::noMicrophoneInputConfigured,
-            this,
-            [showNoInputConfiguredWarning]() {
-                showNoInputConfiguredWarning(
-                        tr("There is no input device selected for this microphone.\n"
-                           "Do you want to select an input device?"));
-            });
-    connect(m_pCoreServices->getPlayerManager().get(),
-            &PlayerManager::noAuxiliaryInputConfigured,
-            this,
-            [showNoInputConfiguredWarning]() {
-                showNoInputConfiguredWarning(
-                        tr("There is no input device selected for this auxiliary.\n"
-                           "Do you want to select an input device?"));
-            });
 
     // Since DlgPreferences is only meant to be used in the main QML engine, it
     // follows a strict singleton pattern design
     QmlDlgPreferencesProxy::s_pInstance =
             std::make_unique<QmlDlgPreferencesProxy>(pDlgPreferences, this);
     QmlRecordingProxy::s_pRecordingManager = m_pCoreServices->getRecordingManager();
-    QmlApplicationProxy::registerReloadCallback([this]() {
-        QTimer::singleShot(0, this, [this]() {
-            loadQml(m_mainFilePath);
-        });
-    });
 
     const QStringList visualGroups =
             m_pCoreServices->getPlayerManager()->getVisualPlayerGroups();
@@ -339,26 +240,163 @@ QmlApplication::QmlApplication(
             });
 
     connect(&m_guiTickTimer, &QTimer::timeout, this, [this]() {
-        m_visualsManager->process(
-                WaveformWidgetFactory::instance()->getEndOfTrackWarningTime());
         m_pGuiTick->process();
     });
     m_guiTickTimer.start(std::chrono::milliseconds(16));
 
-    m_pCoreServices->getControllerManager()->setUpDevices();
+    // No memory leak here, the QQmlEngine takes ownership of the provider
+    QQuickAsyncImageProvider* pImageProvider = new AsyncImageProvider(
+            m_pCoreServices->getTrackCollectionManager());
+    m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
 
-    QmlCoreServices::instance()->setInitializationProgress(65, tr("skin"));
-    QmlCoreServices::instance()->setReady();
+    m_pCoreServices->getControllerManager()->setUpDevices();
 
     connect(&m_autoReload,
             &QmlAutoReload::triggered,
             this,
             [this]() {
-                if (!loadQml(m_mainFilePath)) {
+                if (!loadQml(m_mainFilePath) && !CmdlineArgs::Instance().getDeveloper()) {
                     qWarning() << "Auto-reload failed to load QML. Exiting.";
                     QCoreApplication::exit(-1);
                 }
+                // No memory leak here, the QQmlEngine takes ownership of the provider
+                QQuickAsyncImageProvider* pImageProvider = new AsyncImageProvider(
+                        m_pCoreServices->getTrackCollectionManager());
+                m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
             });
+
+    // Sound hardware setup
+    // Try to open configured devices. If that fails, display dialogs
+    // that allow to either retry, reconfigure devices or exit.
+    SoundDeviceStatus result = m_pCoreServices->getSoundManager()->setupDevices();
+    std::optional<std::pair<QString, QString>> titleAndText;
+    mixxx::Notification::Flags notificationFlags;
+    bool showContinue = false, showHelp = false;
+    // Predicate to indicate whether the issue is resolved and the notification can be closed
+    std::function<bool(SoundDeviceStatus)> showRetry = nullptr, showReconfig = nullptr;
+    if (result == SoundDeviceStatus::ErrorDeviceCount ||
+            result == SoundDeviceStatus::ErrorExcessiveOutputChannel) {
+        titleAndText = SoundManager::soundDeviceBusyMessageBuilder(
+                m_pCoreServices->getSoundManager()->getErrorDeviceName());
+        notificationFlags = mixxx::Notification::Flag::Sticky |
+                mixxx::Notification::Flag::Wrap |
+                mixxx::Notification::Flag::Error;
+        showRetry = [](SoundDeviceStatus result) {
+            return !(result == SoundDeviceStatus::ErrorDeviceCount ||
+                    result == SoundDeviceStatus::ErrorExcessiveOutputChannel);
+        };
+        showHelp = true;
+        showReconfig = showRetry;
+    } else if (result != SoundDeviceStatus::Ok) {
+        titleAndText = SoundManager::soundDeviceErrorMessageBuilder(
+                m_pCoreServices->getSoundManager()->getLastErrorMessage(
+                        result));
+        notificationFlags = mixxx::Notification::Flag::Sticky |
+                mixxx::Notification::Flag::Wrap |
+                mixxx::Notification::Flag::Error;
+        showRetry = [](SoundDeviceStatus result) {
+            return result == SoundDeviceStatus::Ok;
+        };
+    } else if (m_pCoreServices->getSoundManager()
+                       ->getConfig()
+                       .getOutputs()
+                       .isEmpty() &&
+            !m_pCoreServices->getSoundManager()->pipewireSkipConfig()) {
+        titleAndText = SoundManager::soundDeviceNoOutputMessageBuilder();
+        notificationFlags = mixxx::Notification::Flag::Sticky |
+                mixxx::Notification::Flag::Wrap |
+                mixxx::Notification::Flag::Warn;
+        showContinue = true;
+        showReconfig = [this](SoundDeviceStatus result) {
+            return result == SoundDeviceStatus::Ok &&
+                    !m_pCoreServices->getSoundManager()
+                             ->getConfig()
+                             .getOutputs()
+                             .isEmpty() &&
+                    !m_pCoreServices->getSoundManager()->pipewireSkipConfig();
+        };
+    }
+    if (titleAndText) {
+        auto pNotification =
+                std::make_shared<mixxx::Notification>(titleAndText->first, notificationFlags);
+        pNotification->setDetails(titleAndText->second);
+
+        if (showContinue) {
+            pNotification->addButton(tr("Continue"), this, [this, pNotification]() {
+                NotificationManager::instance()->closeNotification(pNotification);
+            });
+        }
+        if (showRetry) {
+            pNotification->addButton(tr("Retry"),
+                    this,
+                    [this, pNotification, showRetry = std::move(showRetry)]() {
+                        // FIXME alsa will freeze for 5 second. Plus the setting
+                        // was already applied so this lead to double op
+                        m_pCoreServices->getSoundManager()
+                                ->clearAndQueryDevices();
+                        if (showRetry(m_pCoreServices->getSoundManager()
+                                            ->setupDevices())) {
+                            NotificationManager::instance()
+                                    ->closeNotification(pNotification);
+                        }
+                    });
+        }
+        if (showHelp) {
+            pNotification->addButton(tr("Help"), this, [this, pNotification]() {
+                mixxx::DesktopHelper::openUrl(QUrl(MIXXX_WIKI_TROUBLESHOOTING_SOUND_URL));
+            });
+        }
+        if (showReconfig) {
+            pNotification->addButton(tr("Reconfigure"),
+                    this,
+                    [this,
+                            pNotification,
+                            showReconfig = std::move(showReconfig)]() {
+                        VERIFY_OR_DEBUG_ASSERT(m_pSettingsPopup) {
+                            return;
+                        }
+                        QMetaObject::invokeMethod(
+                                m_pSettingsPopup, "open", Qt::QueuedConnection);
+                        QMetaObject::invokeMethod(m_pSettingsPopup,
+                                "focusSection",
+                                Qt::QueuedConnection,
+                                Q_ARG(QVariant,
+                                        QVariant::fromValue(
+                                                QStringList({"soundHardware",
+                                                        "routerGroup"}))));
+                        connect(
+                                this,
+                                &QmlApplication::settingSaved,
+                                this,
+                                [this, pNotification, showReconfig]() {
+                                    // FIXME alsa will freeze for 5 second. Plus
+                                    // the setting was already applied so this
+                                    // lead to double op
+                                    m_pCoreServices->getSoundManager()
+                                            ->clearAndQueryDevices();
+                                    if (showReconfig(m_pCoreServices
+                                                        ->getSoundManager()
+                                                        ->setupDevices())) {
+                                        NotificationManager::instance()
+                                                ->closeNotification(
+                                                        pNotification);
+                                        // The user has either reconfigured
+                                        // devices or accepted no outputs, so
+                                        // it's now safe to write the new config
+                                        // to disk.
+                                        m_pCoreServices->getSoundManager()
+                                                ->getConfig()
+                                                .writeToDisk();
+                                    }
+                                },
+                                Qt::SingleShotConnection);
+                    });
+        }
+        pNotification->addButton(tr("Exit"), this, [this, pNotification]() {
+            QCoreApplication::exit(0);
+        });
+        NotificationManager::instance()->notify(pNotification);
+    }
 
 #if defined(Q_OS_ANDROID)
     APerformanceHintManager* manager = APerformanceHint_getManager();
@@ -374,30 +412,16 @@ QmlApplication::QmlApplication(
         APerformanceHint_setPreferPowerEfficiency(m_perfSession, false);
         __android_log_print(ANDROID_LOG_VERBOSE, "mixxx", "ADPF session ready");
     }
-#endif
 }
 
 void QmlApplication::slotWindowChanged(QQuickWindow* window) {
     if (window) {
-        connect(window,
-                &QQuickWindow::afterFrameEnd,
-                this,
-                &QmlApplication::slotFrameSwapped,
-                Qt::UniqueConnection);
+        connect(window, &QQuickWindow::afterFrameEnd, this, &QmlApplication::slotFrameSwapped);
     }
-#if defined(Q_OS_ANDROID)
     m_frameTimer.restart();
-#endif
 }
 
 void QmlApplication::slotFrameSwapped() {
-#ifdef MIXXX_USE_QML
-    if (WaveformWidgetFactory::isCreated() &&
-            WaveformWidgetFactory::instance()->reportQmlFrame()) {
-        QmlConfigProxy::notifyWaveformAverageFrameRateChanged();
-    }
-#endif
-#if defined(Q_OS_ANDROID)
     VERIFY_OR_DEBUG_ASSERT(m_perfSession) {
         return;
     }
@@ -410,6 +434,11 @@ void QmlApplication::slotFrameSwapped() {
 }
 
 QmlApplication::~QmlApplication() {
+#ifdef __RPC_SERVER__
+    // Tear down the automation server first: it may reference the QML
+    // engine and the command handler, which must not outlive them.
+    m_pRpcServe.reset();
+#endif
     QmlApplicationProxy::registerReloadCallback({});
     // Destroy the QML engine before the waveform factory. Scene-graph nodes
     // owned by the engine may still reference QML waveform renderers and the
@@ -429,94 +458,59 @@ QmlApplication::~QmlApplication() {
     m_pCoreServices.reset();
 }
 
-void QmlApplication::setupSpinnyCoverControls() {
-    m_pShowSpinny = make_parented<ControlProxy>("[Skin]", "show_spinnies", this);
-    m_pShowCover = make_parented<ControlProxy>("[Skin]", "show_coverart", this);
-    m_pSelectBigSpinnyCover = std::make_unique<ControlPushButton>(
-            ConfigKey("[Skin]", "select_big_spinny_or_cover"), true);
-    m_pSelectBigSpinnyCover->setButtonMode(mixxx::control::ButtonMode::Toggle);
-
-    m_pShowSpinnyAndOrCover = std::make_unique<ControlPushButton>(
-            ConfigKey("[Skin]", "show_spinny_or_cover"));
-    m_pShowSpinnyAndOrCover->setButtonMode(mixxx::control::ButtonMode::Toggle);
-    m_pShowSpinnyAndOrCover->setReadOnly();
-
-    m_pShowSmallSpinnyCover = std::make_unique<ControlPushButton>(
-            ConfigKey("[Skin]", "show_small_spinny_or_cover"));
-    m_pShowSmallSpinnyCover->setButtonMode(mixxx::control::ButtonMode::Toggle);
-    m_pShowSmallSpinnyCover->setReadOnly();
-
-    m_pShowBigSpinnyCover = std::make_unique<ControlPushButton>(
-            ConfigKey("[Skin]", "show_big_spinny_or_cover"));
-    m_pShowBigSpinnyCover->setButtonMode(mixxx::control::ButtonMode::Toggle);
-    m_pShowBigSpinnyCover->setReadOnly();
-
-    m_pShowSpinny->connectValueChanged(this, &QmlApplication::updateSpinnyCoverControls);
-    m_pShowCover->connectValueChanged(this, &QmlApplication::updateSpinnyCoverControls);
-    connect(m_pSelectBigSpinnyCover.get(),
-            &ControlObject::valueChanged,
-            this,
-            &QmlApplication::updateSpinnyCoverControls);
-
-    updateSpinnyCoverControls();
-}
-
-void QmlApplication::updateSpinnyCoverControls() {
-    m_pShowSpinnyAndOrCover->setAndConfirm(
-            (m_pShowSpinny->toBool() || m_pShowCover->toBool()) ? 1.0 : 0.0);
-    m_pShowSmallSpinnyCover->setAndConfirm(
-            (m_pShowSpinnyAndOrCover->toBool() && !m_pSelectBigSpinnyCover->toBool())
-                    ? 1.0
-                    : 0.0);
-    m_pShowBigSpinnyCover->setAndConfirm(
-            (m_pShowSpinnyAndOrCover->toBool() && m_pSelectBigSpinnyCover->toBool())
-                    ? 1.0
-                    : 0.0);
-}
-
 bool QmlApplication::loadQml(const QString& path) {
     // QQmlApplicationEngine::load creates a new window but also leaves the old one,
     // so it is necessary to destroy the old QQmlApplicationEngine and create a new one.
     m_pAppEngine = std::make_unique<QQmlApplicationEngine>();
-    m_pAppEngine->setUiLanguage(QLocale().name());
+    m_pSettingsPopup = nullptr;
 
     m_autoReload.clear();
     m_pAppEngine->addUrlInterceptor(&m_autoReload);
     m_pAppEngine->addImportPath(QStringLiteral(":/mixxx.org/imports"));
 
-    registerImageProvider();
-
     m_pAppEngine->load(path);
-    const auto rootObjects = m_pAppEngine->rootObjects();
-    if (rootObjects.isEmpty()) {
+    if (m_pAppEngine->rootObjects().isEmpty()) {
         qWarning() << "Failed to load QML file" << path;
-        m_pAppEngine.reset();
-        return false;
+        if (!CmdlineArgs::Instance().getDeveloper()) {
+            m_pAppEngine.reset();
+            return false;
+        }
     }
 
-    for (auto* item : rootObjects) {
+    const auto& rootObjects = m_pAppEngine->rootObjects();
+    for (auto* item : std::as_const(rootObjects)) {
         auto* pWindow = qobject_cast<QQuickWindow*>(item);
         if (!pWindow) {
             continue;
         }
+        m_pSettingsPopup = m_pAppEngine->contextForObject(item)->objectForName("settingsPopup");
+#if defined(Q_OS_ANDROID)
         slotWindowChanged(pWindow);
+#endif
         break;
     }
+    DEBUG_ASSERT(m_pSettingsPopup);
+
+    if (m_pSettingsPopup) {
+        const QMetaObject* meta = m_pSettingsPopup->metaObject();
+        int signalIndex = meta->indexOfSignal(
+                "saved(QVariant)");
+        DEBUG_ASSERT(signalIndex >= 0);
+        if (signalIndex >= 0) {
+            QMetaMethod signalMethod = meta->method(signalIndex);
+            connect(m_pSettingsPopup,
+                    signalMethod,
+                    this,
+                    QMetaMethod::fromSignal(&QmlApplication::settingSaved));
+        }
+    }
+
+#ifdef __RPC_SERVER__
+    if (m_pRpcServe) {
+        m_pRpcServe->onQmlLoaded();
+    }
+#endif
     return true;
-}
-
-void QmlApplication::registerImageProvider() {
-    if (!m_pAppEngine) {
-        return;
-    }
-
-    const auto pTrackCollectionManager = m_pCoreServices->getTrackCollectionManager();
-    if (!pTrackCollectionManager) {
-        return;
-    }
-
-    auto* pImageProvider = new AsyncImageProvider(pTrackCollectionManager);
-    m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
 }
 
 } // namespace qml

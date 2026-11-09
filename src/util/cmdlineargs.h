@@ -46,6 +46,11 @@ class CmdlineArgs final {
         return m_controllerAbortOnWarning;
     }
     bool getDeveloper() const { return m_developer; }
+#ifdef __RPC_SERVER__
+    bool getServe() const {
+        return m_serve;
+    }
+#endif
     bool getStats() const {
         return m_developer || m_stats;
     }
@@ -117,6 +122,9 @@ class CmdlineArgs final {
     bool m_controllerPreviewScreens;
     bool m_controllerAbortOnWarning; // Controller Engine will be stricter
     bool m_developer; // Developer Mode
+#ifdef __RPC_SERVER__
+    bool m_serve; // Automation/server mode (--serve)
+#endif
     bool m_stats;     // Enable stats collection
 #ifdef MIXXX_USE_QML
     bool m_qml;

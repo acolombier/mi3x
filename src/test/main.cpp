@@ -7,13 +7,13 @@
 #include "util/logging.h"
 
 int main(int argc, char **argv) {
+    // We never want to popup error dialogs when running tests.
+    ErrorDialogHandler::setEnabled(false);
+
     // By default, render analyzer waveform tests to an offscreen buffer
     if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")) {
         qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
     }
-
-    // We never want to popup error dialogs when running tests.
-    ErrorDialogHandler::setEnabled(false);
 
 #ifdef USE_BENCH
     bool run_benchmarks = false;

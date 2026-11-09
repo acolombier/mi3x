@@ -26,6 +26,14 @@
 #include "util/sample.h"
 #include "vinylcontrol/defs_vinylcontrol.h"
 
+#ifdef __RPC_SERVER__
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+
+#include "soundio/sounddevicemock.h"
+#endif
+
 #ifdef __PIPEWIRE__
 #include "soundio/pipewireenumerator.h"
 #endif
@@ -88,6 +96,26 @@ SoundManager::SoundManager(
         m_config.loadDefaults(this, SoundManagerConfig::API | SoundManagerConfig::OTHER);
     }
 
+#ifdef __RPC_SERVER__
+    // E2E testing: register mock devices from the profile's saved sound
+    // configuration before the config is validated, so start-up scenarios
+    // (e.g. unopenable configured devices raising the "Sound Device Busy"
+    // notification) run against a deterministic device set.
+    const QString mockDevicesJson = m_pConfig->getValueString(
+            ConfigKey("[Soundcard Config]",
+                    QStringLiteral("mockDevices")));
+    if (!mockDevicesJson.isEmpty()) {
+        const QJsonDocument doc =
+                QJsonDocument::fromJson(mockDevicesJson.toUtf8());
+        if (doc.isArray()) {
+            registerMockDevices(doc.array());
+        } else {
+            qWarning() << "SoundManager: invalid mockDevices config value:"
+                       << mockDevicesJson;
+        }
+    }
+#endif
+
     if (!isPipewireSelected()) {
         devicesEnumerated();
     }
@@ -133,7 +161,10 @@ QList<SoundDevicePointer> SoundManager::getDeviceList(
     // input/output.
     QList<SoundDevicePointer> filteredDeviceList;
 
-    for (const auto& pDevice : m_pEnumerator->queryDevices()) {
+    auto appendIfMatch = [&filteredDeviceList,
+                                 &filterAPI,
+                                 bOutputDevices,
+                                 bInputDevices](const auto& pDevice) {
         // Skip devices that don't match the API, don't have input channels when
         // we want input devices, or don't have output channels when we want
         // output devices. If searching for both input and output devices,
@@ -148,18 +179,81 @@ QList<SoundDevicePointer> SoundManager::getDeviceList(
                 (bOutputDevices && !bInputDevices && !hasOutputs) ||
                 (bInputDevices && !bOutputDevices && !hasInputs) ||
                 (!hasInputs && !hasOutputs)) {
-            continue;
+            return;
         }
 
         filteredDeviceList.push_back(pDevice);
+    };
+
+#ifdef __RPC_SERVER__
+    if (filterAPI == SoundManagerConfig::kAPIMock) {
+        for (const auto& pDevice : m_devices) {
+            appendIfMatch(pDevice);
+        }
+    } else {
+#endif
+        for (const auto& pDevice : m_pEnumerator->queryDevices()) {
+            appendIfMatch(pDevice);
+        }
+#ifdef __RPC_SERVER__
     }
+#endif
 
     return filteredDeviceList;
 }
 
 QList<QString> SoundManager::getHostAPIList() const {
-    return m_pEnumerator->getAPIs();
+    QList<QString> apiList;
+
+    auto apis = m_pEnumerator->getAPIs();
+    for (const auto& api : std::as_const(apis)) {
+        apiList.push_back(api);
+    }
+
+#ifdef __RPC_SERVER__
+    if (m_testMockingMode) {
+        apiList.push_back(SoundManagerConfig::kAPIMock);
+    }
+#endif
+
+    return apiList;
 }
+
+#ifdef __RPC_SERVER__
+void SoundManager::registerMockDevices(const QJsonArray& devices) {
+    for (const auto& entry : devices) {
+        QJsonObject obj = entry.toObject();
+        auto pDevice = QSharedPointer<SoundDeviceMock>::create(m_pConfig,
+                this,
+                obj["api"].toString(),
+                obj["name"].toString(),
+                obj["outputChannels"].toInt(0),
+                obj["inputChannels"].toInt(0),
+                static_cast<SoundDeviceStatus>(obj["openStatus"].toInt(
+                        static_cast<int>(SoundDeviceStatus::Ok))));
+        m_devices.push_back(pDevice);
+        addDevice(pDevice);
+    }
+    m_testMockingMode = true;
+    emit devicesUpdated();
+}
+
+void SoundManager::clearMockDevices() {
+    auto it = m_devices.begin();
+    while (it != m_devices.end()) {
+        if (dynamic_cast<SoundDeviceMock*>(it->data()) != nullptr) {
+            qDebug() << "SoundManager::clearMockDevices"
+                     << (*it)->getDisplayName();
+            emit deviceRemoved(*it);
+            it = m_devices.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    m_testMockingMode = false;
+    emit devicesUpdated();
+}
+#endif
 
 void SoundManager::closeDevices(
         [[maybe_unused]] bool sleepAfterClosing, [[maybe_unused]] bool async) {
@@ -330,7 +424,14 @@ SoundDeviceStatus SoundManager::setupDevices() {
     bool haveOutput = false;
     // loop over all available devices
 
-    std::vector<SoundDevicePointer> devices = m_pEnumerator->queryDevices();
+    std::vector<SoundDevicePointer> devices =
+#ifdef __RPC_SERVER__
+            m_config.getAPI() == SoundManagerConfig::kAPIMock
+            ? std::vector<SoundDevicePointer>(
+                      m_devices.begin(), m_devices.end())
+            :
+#endif
+            m_pEnumerator->queryDevices();
 
     // here some network device conditions can be separated, currently simply
     // add it to the list of other devices
@@ -728,4 +829,73 @@ void SoundManager::devicesEnumerated() {
 void SoundManager::invalidateConfig() {
     qDebug() << "SoundManager::invalidateConfig";
     emit configInvalidated();
+}
+
+std::pair<QString, QString> SoundManager::soundDeviceBusyMessageBuilder(const QString& device) {
+    return {
+            tr("Sound Device Busy"),
+            "<html> <p>" %
+                            tr("Mixxx was unable to open all the configured sound devices.") +
+                    "</p> <p>" %
+                            tr("%1 is used by another application or not "
+                               "plugged in.")
+                                    .arg(device) %
+                            "</p><ul>"
+                            "<li>" %
+                            tr("<b>Retry</b> after closing the other application "
+                               "or reconnecting a sound device") %
+                            "</li>"
+                            "<li>" %
+                            tr("<b>Reconfigure</b> Mixxx's sound device settings.") %
+                            "</li>"
+                            "<li>" %
+                            tr("Get <b>Help</b> from the Mixxx Wiki.") %
+                            "</li>"
+                            "<li>" %
+                            tr("<b>Exit</b> Mixxx.") %
+                            "</li>"
+                            "</ul></html>"};
+}
+
+std::pair<QString, QString> SoundManager::soundDeviceErrorMessageBuilder(QString error) {
+    return {
+            tr("Sound Device Error"),
+            "<html> <p>" %
+                            tr("Mixxx was unable to open all the configured sound "
+                               "devices.") +
+                    "</p> <p>" %
+                            error.replace("\n", "<br/>") %
+                            "</p><ul>"
+                            "<li>" %
+                            tr("<b>Retry</b> after fixing an issue") %
+                            "</li>"
+                            "<li>" %
+                            tr("<b>Reconfigure</b> Mixxx's sound device settings.") %
+                            "</li>"
+                            "<li>" %
+                            tr("Get <b>Help</b> from the Mixxx Wiki.") %
+                            "</li>"
+                            "<li>" %
+                            tr("<b>Exit</b> Mixxx.") %
+                            "</li>"
+                            "</ul></html>"};
+}
+
+std::pair<QString, QString> SoundManager::soundDeviceNoOutputMessageBuilder() {
+    return {
+            tr("No Output Devices"),
+
+            "<html>" + tr("Mixxx was configured without any output sound devices. "
+                          "Audio processing will be disabled without a configured output device.") +
+                    "<ul>"
+                    "<li>" +
+                    tr("<b>Continue</b> without any outputs.") +
+                    "</li>"
+                    "<li>" +
+                    tr("<b>Reconfigure</b> Mixxx's sound device settings.") +
+                    "</li>"
+                    "<li>" +
+                    tr("<b>Exit</b> Mixxx.") +
+                    "</li>"
+                    "</ul></html>"};
 }

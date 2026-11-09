@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import Qt5Compat.GraphicalEffects
 import "../Theme"
 
 SpinBox {
@@ -21,6 +20,7 @@ SpinBox {
 
     editable: true
     from: decimalToInt(root.min)
+    implicitWidth: 140
     padding: 0
     spacing: 2
     stepSize: root.step * decimalFactor
@@ -28,13 +28,12 @@ SpinBox {
         return Number(value / decimalFactor).toLocaleString(locale, 'f', root.precision);
     }
     to: decimalToInt(root.max)
-    value: decimalToInt(realValue)
     valueFromText: function (text, locale) {
         return Math.round(Number.fromLocaleString(locale, text) * decimalFactor);
     }
 
     background: Item {
-        implicitWidth: 140
+        implicitWidth: root.implicitWidth
     }
     contentItem: Item {
         width: root.textWidth + 2 * root.spacing
@@ -43,8 +42,12 @@ SpinBox {
             id: content
 
             anchors.fill: parent
-            color: Theme.accentColor
+            color: root.enabled ? Theme.accentColor : Theme.lightGray
 
+            border {
+                color: "#0E2A54"
+                width: 1
+            }
             Text {
                 id: textLabel
 
@@ -56,36 +59,14 @@ SpinBox {
                 verticalAlignment: Text.AlignVCenter
             }
         }
-        InnerShadow {
-            id: bottomInnerEffect
-
-            anchors.fill: parent
-            color: "#0E2A54"
-            horizontalOffset: -1
-            radius: 8
-            samples: 32
-            source: content
-            spread: 0.4
-            verticalOffset: -1
-        }
-        InnerShadow {
-            id: topInnerEffect
-
-            anchors.fill: parent
-            color: "#0E2A54"
-            horizontalOffset: 1
-            radius: 8
-            samples: 32
-            source: bottomInnerEffect
-            spread: 0.4
-            verticalOffset: 1
-        }
     }
     down.indicator: Indicator {
+        objectName: "downButton"
         text: "-"
         x: root.mirrored ? parent.width - width : 0
     }
     up.indicator: Indicator {
+        objectName: "upButton"
         text: "+"
         x: root.mirrored ? 0 : parent.width - width
     }
@@ -96,8 +77,11 @@ SpinBox {
         top: Math.max(root.from, root.to)
     }
 
+    Component.onCompleted: {
+        root.value = decimalToInt(realValue);
+    }
     onValueChanged: {
-        root.value = value;
+        root.realValue = root.value / root.decimalFactor;
     }
 
     component Indicator: Item {
@@ -113,10 +97,13 @@ SpinBox {
             id: content
 
             anchors.fill: parent
-            border.width: 0
             color: Theme.darkGray2
             radius: 2
 
+            border {
+                color: "#40000000"
+                width: 1
+            }
             Text {
                 anchors.fill: parent
                 color: Theme.white
@@ -126,30 +113,6 @@ SpinBox {
                 text: indicator.text
                 verticalAlignment: Text.AlignVCenter
             }
-        }
-        InnerShadow {
-            id: bottomInnerEffect
-
-            anchors.fill: parent
-            color: "#40000000"
-            horizontalOffset: -2
-            radius: 4
-            samples: 16
-            source: content
-            spread: 0.3
-            verticalOffset: -2
-        }
-        InnerShadow {
-            id: topInnerEffect
-
-            anchors.fill: parent
-            color: "#40000000"
-            horizontalOffset: 2
-            radius: 4
-            samples: 16
-            source: bottomInnerEffect
-            spread: 0.3
-            verticalOffset: 2
         }
     }
 }
