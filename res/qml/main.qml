@@ -86,7 +86,7 @@ ApplicationWindow {
         // Implicit binding to skins
         property ApplicationWindow applicationWindow: root
         property var devTools: devToolsWindow
-        property var settingsPopup: settingsPopupItem
+        property var settingsPopup: root.settings
 
         active: Mixxx.Core.ready
         anchors.fill: parent
