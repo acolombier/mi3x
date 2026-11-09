@@ -332,6 +332,14 @@ Rectangle {
                                         input.onTextEdited: {
                                             popup.lastError = null;
                                         }
+
+                                        // Android IME focus
+                                        input {
+                                            readonly property var imeLayoutSideEffect: 20
+
+                                            EnterKey.type: Qt.EnterKeyDone
+                                            inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText | Qt.ImhNoFullscreen | Qt.ImhUrlCharactersOnly
+                                        }
                                     }
                                     RowLayout {
                                         Layout.fillWidth: true
