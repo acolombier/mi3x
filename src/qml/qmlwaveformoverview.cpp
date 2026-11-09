@@ -46,10 +46,12 @@ QmlWaveformOverview::QmlWaveformOverview(QQuickItem* parent)
             &OverviewCache::waveformSummaryReady,
             this,
             &QmlWaveformOverview::slotWaveformSummaryReady);
-    connect(OverviewCache::instance(),
-            &OverviewCache::analyzerProgress,
-            this,
-            &QmlWaveformOverview::slotWaveformUpdated);
+
+    // FIXME! SPAM, leading to bug
+    // connect(OverviewCache::instance(),
+    //         &OverviewCache::analyzerProgress,
+    //         this,
+    //         &QmlWaveformOverview::slotWaveformUpdated);
     connect(this,
             &QmlWaveformOverview::rendererChanged,
             this,
