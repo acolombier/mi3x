@@ -16,17 +16,6 @@
 #include "waveform/waveform.h"
 #include "waveform/waveformwidgetfactory.h"
 
-namespace {
-#ifdef __SCENEGRAPH__
-// FIXME this is a workaround an issue with waveform only drawing partially in
-// SG. The workaround is to reduce the the number of vertices, by reducing the
-// precision of waveform strips.
-const float kPixelPerStrip = 2;
-#else
-const float kPixelPerStrip = 1;
-#endif
-} // namespace
-
 using namespace rendergraph;
 
 namespace allshader {
@@ -153,9 +142,9 @@ bool WaveformRendererStem::preprocessInner() {
     const float devicePixelRatio = m_waveformRenderer->getDevicePixelRatio();
     const int length = static_cast<int>(m_waveformRenderer->getLength());
     const int pixelLength = static_cast<int>(m_waveformRenderer->getLength() * devicePixelRatio);
-    const int stripLength = static_cast<int>(static_cast<float>(pixelLength) / kPixelPerStrip);
-    const float invDevicePixelRatio = kPixelPerStrip / devicePixelRatio;
-    const float halfStripSize = kPixelPerStrip / 2.0f / devicePixelRatio;
+    const int stripLength = pixelLength;
+    const float invDevicePixelRatio = 1.f / devicePixelRatio;
+    const float halfStripSize = 0.5f / devicePixelRatio;
 
     // See waveformrenderersimple.cpp for a detailed explanation of the frame and index calculation
     const int visualFramesSize = dataSize / 2;
