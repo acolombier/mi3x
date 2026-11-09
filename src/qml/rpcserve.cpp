@@ -52,7 +52,7 @@ namespace qml {
 
 RpcServe::RpcServe(
         QmlApplication* pQmlApplication,
-        std::shared_ptr<CoreServices> pCoreServices)
+        CoreServices* pCoreServices)
         : m_pQmlApplication(pQmlApplication),
           m_server(9000),
           m_pBot(std::make_unique<spix::QtQmlBot>()) {

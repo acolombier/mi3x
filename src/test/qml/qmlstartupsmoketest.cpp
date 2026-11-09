@@ -1,35 +1,22 @@
 #include <gtest/gtest.h>
 
 #include <QDialog>
-#include <QDir>
 #include <QEvent>
 #include <QFile>
 #include <QFileDialog>
 #include <QString>
 #include <QTemporaryDir>
 #include <QTimer>
-#include <memory>
-#include <ostream>
+#include <algorithm>
 #include <string>
 
-#include "coreservices.h"
 #include "preferences/configobject.h"
 #include "qml/qmlapplication.h"
-#include "skin/qml/qmlskin.h"
 #include "test/mixxxtest.h"
 #include "util/cmdlineargs.h"
 #include "util/versionstore.h"
 
 namespace {
-
-struct QmlSkin {
-    const char* name;
-    bool useNewUi;
-};
-
-void PrintTo(const QmlSkin& skin, std::ostream* stream) {
-    *stream << skin.name;
-}
 
 class RejectFileDialogs final : public QObject {
   protected:
@@ -60,7 +47,7 @@ class SettingsPathGuard final {
 };
 
 class QmlStartupSmokeTest : public MixxxTest,
-                            public testing::WithParamInterface<QmlSkin> {
+                            public testing::WithParamInterface<const char*> {
   protected:
     static CmdlineArgs makeCmdlineArgs(const QString& settingsPath) {
         CmdlineArgs args;
@@ -68,14 +55,12 @@ class QmlStartupSmokeTest : public MixxxTest,
         return args;
     }
 
-    static void writeProfile(const QString& settingsPath, const QmlSkin& skin) {
+    static void writeProfile(const QString& settingsPath, const char* skinName) {
         auto settings = UserSettingsPointer(new UserSettings(settingsPath + "mixxx.cfg"));
         settings->setValue(ConfigKey("[Config]", "Version"), VersionStore::FUTURE_UNSTABLE);
-        if (!skin.useNewUi) {
-            settings->setValue(
-                    ConfigKey("[Config]", "ResizableSkin"),
-                    QString::fromLatin1(skin.name));
-        }
+        settings->setValue(
+                ConfigKey("[Config]", "ResizableSkin"),
+                QString::fromLatin1(skinName));
         settings->save();
 
         QFile soundConfig(settingsPath + "soundconfig.xml");
@@ -85,62 +70,38 @@ class QmlStartupSmokeTest : public MixxxTest,
 };
 
 TEST_P(QmlStartupSmokeTest, Starts) {
-    const auto& skin = GetParam();
-    // The text in this block was generated autonomously by an AI agent.
-    // The LateNightQML skin follows the pre-merge QML trajectory and relies on
-    // component APIs that were dropped in favor of the trusted feat/qml UI, so
-    // its smoke test cannot pass in this merged state until the skin catches up.
-    // End of AI-agent-generated text.
-    if (!skin.useNewUi) {
-        GTEST_SKIP() << "LateNightQML skin is pending migration to the feat/qml QML design";
-    }
+    const char* skinName = GetParam();
     QTemporaryDir profile;
     ASSERT_TRUE(profile.isValid());
     const QString settingsPath = profile.path() + QLatin1Char('/');
-    writeProfile(settingsPath, skin);
+    writeProfile(settingsPath, skinName);
 
     SettingsPathGuard settingsPathGuard(CmdlineArgs::Instance());
     CmdlineArgs::Instance().setSettingsPath(settingsPath);
     const auto args = makeCmdlineArgs(settingsPath);
-    auto coreServices = std::make_shared<mixxx::CoreServices>(args, application());
-
-    QString mainQmlFilePath;
-    if (!skin.useNewUi) {
-        ASSERT_QSTRING_EQ(
-                QString::fromLatin1(skin.name),
-                coreServices->getSettings()->getValueString(
-                        ConfigKey("[Config]", "ResizableSkin")));
-        const auto qmlSkin = mixxx::skin::qml::QmlSkin::fromDirectory(
-                QDir(QStringLiteral(RESOURCE_FOLDER "/skins/LateNightQML")));
-        ASSERT_TRUE(qmlSkin);
-        ASSERT_EQ(mixxx::skin::SkinType::QML, qmlSkin->type());
-        mainQmlFilePath = qmlSkin->mainQmlFilePath();
-    }
 
     RejectFileDialogs rejectFileDialogs;
     application()->installEventFilter(&rejectFileDialogs);
     bool startupReady = false;
     {
-        mixxx::qml::QmlApplication qmlApplication(application(), coreServices, mainQmlFilePath);
+        mixxx::qml::QmlApplication qmlApplication(application(), args);
         startupReady = qmlApplication.isReady();
     }
     application()->removeEventFilter(&rejectFileDialogs);
 
     EXPECT_TRUE(startupReady)
-            << "Mixxx failed to start the QML skin '" << skin.name << "'"
-            << "\nQML entry point: "
-            << (mainQmlFilePath.isEmpty() ? "<default>" : qPrintable(mainQmlFilePath))
+            << "Mixxx failed to start the QML skin '" << skinName << "'"
             << "\nSettings path: " << qPrintable(settingsPath);
 }
 
 INSTANTIATE_TEST_SUITE_P(
         QmlSkins,
         QmlStartupSmokeTest,
-        testing::Values(
-                QmlSkin{"LateNightQML", false},
-                QmlSkin{"NewUi", true}),
-        [](const testing::TestParamInfo<QmlSkin>& info) {
-            return std::string(info.param.name);
+        testing::Values("Midnight Dark", "LateNight"),
+        [](const testing::TestParamInfo<const char*>& info) {
+            std::string name = info.param;
+            std::replace(name.begin(), name.end(), ' ', '_');
+            return name;
         });
 
 } // namespace
