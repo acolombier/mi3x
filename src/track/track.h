@@ -15,7 +15,6 @@
 #include "track/cueinfoimporter.h"
 #ifdef __STEM__
 #include "track/steminfo.h"
-#include "track/steminfoimporter.h"
 #endif
 #include "track/track_decl.h"
 #include "track/trackrecord.h"
@@ -350,17 +349,12 @@ class Track : public QObject {
     void setCuePoints(const QList<CuePointer>& cuePoints);
 
 #ifdef __STEM__
-    QList<StemInfo> getStemInfo() const {
-        const QMutexLocker lock(&m_qMutex);
-        // lock thread-unsafe copy constructors of QList
-        return m_stemInfo;
+    mixxx::StemInfo getStemInfo() const {
+        return getMetadata().getStemInfo();
     }
-    // Setter is only available internally. See setStemPointsWhileLocked
 
     bool hasStem() const {
-        const QMutexLocker lock(&m_qMutex);
-        // lock thread-unsafe copy constructors of QList
-        return !m_stemInfo.isEmpty();
+        return getMetadata().getStemInfo().isValid();
     }
 #endif
 
@@ -384,6 +378,9 @@ class Track : public QObject {
 
     // Set the track's Beats if not locked
     bool trySetBeats(mixxx::BeatsPointer pBeats);
+#ifdef __STEM__
+    bool trySetStemInfo(mixxx::StemInfo stemInfo);
+#endif
 
     void undoBeatsChange();
     bool canUndoBeatsChange() const {
@@ -481,6 +478,9 @@ class Track : public QObject {
     void bpmChanged();
     void bpmLockChanged(bool locked);
     void keyChanged();
+#ifdef __STEM__
+    void stemInfoChanged();
+#endif
     void timesPlayedChanged();
     void durationChanged();
     void infoChanged();
@@ -554,10 +554,6 @@ class Track : public QObject {
     bool importPendingCueInfosWhileLocked();
 
 #ifdef __STEM__
-    /// Sets stem info and returns a boolean to indicate if stems were updated.
-    /// Only supposed to be called while the caller guards this a lock.
-    bool setStemInfosWhileLocked(QList<StemInfo> stemInfo);
-
     /// Imports pending stem info from a stemInfoImporter and returns a boolean to
     /// indicate if stems were updated. Only supposed to be called while the
     /// caller guards this a lock.
@@ -617,11 +613,6 @@ class Track : public QObject {
 
     // The list of cue points for the track
     QList<CuePointer> m_cuePoints;
-
-#ifdef __STEM__
-    // The list of stem info
-    QList<StemInfo> m_stemInfo;
-#endif
 
     // Storage for the track's beats
     mixxx::BeatsPointer m_pBeats;

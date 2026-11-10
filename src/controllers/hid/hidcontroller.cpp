@@ -23,6 +23,10 @@ constexpr size_t kMaxHidErrorMessageSize = 512;
 } // namespace
 #endif
 
+namespace {
+const QString kEmptyNamespace = QString("");
+}
+
 HidController::HidController(
         mixxx::hid::DeviceInfo&& deviceInfo)
         : Controller(deviceInfo.formatName()),
@@ -70,6 +74,13 @@ QList<std::shared_ptr<AbstractLegacyControllerSetting>> HidController::getMappin
         return {};
     }
     return m_pMapping->getSettings();
+}
+
+const QString& HidController::getSharedDataNamespace() {
+    if (!m_pMapping) {
+        return kEmptyNamespace;
+    }
+    return m_pMapping->sharedDataNamespace();
 }
 
 #ifdef MIXXX_USE_QML
@@ -147,7 +158,8 @@ QJniObject HidController::openAndroidUsbDevice() {
 }
 #endif
 
-int HidController::open(const QString& resourcePath) {
+int HidController::open(const QString& resourcePath,
+        std::shared_ptr<ControllerSharedData> runtimeData) {
     if (isOpen()) {
         qDebug() << "HID device" << getName() << "already open";
         return -1;
@@ -334,7 +346,7 @@ int HidController::open(const QString& resourcePath) {
         qWarning() << "HidIoThread wasn't in expected OutputActive state";
     }
 
-    applyMapping(resourcePath);
+    applyMapping(resourcePath, runtimeData);
     setOpen(true);
     return 0;
 }

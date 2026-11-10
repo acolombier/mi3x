@@ -15,6 +15,7 @@ class Controller;
 class ControllerLearningEventFilter;
 class MappingInfoEnumerator;
 class LegacyControllerMapping;
+class ControllerSharedData;
 class ControllerEnumerator;
 
 /// Function to sort controllers by name
@@ -100,4 +101,5 @@ class ControllerManager : public QObject {
     QSharedPointer<MappingInfoEnumerator> m_pMainThreadSystemMappingEnumerator;
     /// Accessed only from the ControllerManager thread via slotPollDevices().
     bool m_skipPoll;
+    std::shared_ptr<ControllerSharedData> m_pRuntimeData;
 };

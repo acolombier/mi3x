@@ -43,7 +43,8 @@ PortMidiController::~PortMidiController() {
     }
 }
 
-int PortMidiController::open(const QString& resourcePath) {
+int PortMidiController::open(const QString& resourcePath,
+        std::shared_ptr<ControllerSharedData> runtimeData) {
     if (isOpen()) {
         qCWarning(m_logBase) << "PortMIDI device" << getName() << "already open";
         return -1;
@@ -79,7 +80,7 @@ int PortMidiController::open(const QString& resourcePath) {
         }
     }
     startEngine();
-    applyMapping(resourcePath);
+    applyMapping(resourcePath, runtimeData);
     setOpen(true);
     return 0;
 }

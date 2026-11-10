@@ -206,7 +206,7 @@ class FakeController : public Controller {
     }
 
   private:
-    int open(const QString&) override {
+    int open(const QString&, std::shared_ptr<ControllerSharedData>) override {
         return 0;
     }
 
