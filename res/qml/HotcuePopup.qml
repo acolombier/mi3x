@@ -1,5 +1,6 @@
 import "." as Skin
 import Mixxx 1.0 as Mixxx
+import Mixxx.Controls 1.0 as MixxxControls
 import QtQuick 2.12
 import QtQuick.Controls 2.12
 import QtQuick.Effects
@@ -15,15 +16,15 @@ Popup {
     readonly property real cuePosition: hotcue.position
     readonly property list<var> cueTypes: [
         {
-            "type": hotcue.typeHotCue,
+            "type": MixxxControls.Hotcue.Type.Cue,
             "name": "CUE"
         },
         {
-            "type": hotcue.typeLoop,
+            "type": MixxxControls.Hotcue.Type.Loop,
             "name": "LOOP"
         },
         {
-            "type": hotcue.typeJump,
+            "type": MixxxControls.Hotcue.Type.Jump,
             "name": "JUMP"
         }
     ]
@@ -38,7 +39,7 @@ Popup {
     property bool failedToConvert: false
     readonly property bool forwardSpan: cueEndPosition >= cuePosition
     readonly property bool hasSpan: isLoopOrJump && trackSamples > 0 && cueEndPosition >= 0 && spanSamples > 0
-    required property Hotcue hotcue
+    required property MixxxControls.Hotcue hotcue
     readonly property bool isLoopOrJump: hotcue.type === hotcue.typeLoop || hotcue.type === hotcue.typeJump
     readonly property real sampleRate: currentTrack ? currentTrack.sampleRate : 0
     readonly property real spanCenterPosition: hasSpan ? (spanStart + spanEnd) / 2 : cuePosition

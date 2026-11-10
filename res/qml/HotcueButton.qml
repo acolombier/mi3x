@@ -5,10 +5,16 @@ import Qt5Compat.GraphicalEffects
 import QtQuick.Layouts
 import QtQuick.Controls 2
 
+import Mixxx 1.0 as Mixxx
+import Mixxx.Controls 1.0 as MixxxControls
+
+import "Theme"
+
 Item {
     id: root
 
     required property var currentTrack
+    property alias editButton: editButton
     required property string group
     required property int hotcueNumber
     required property var label
@@ -16,10 +22,12 @@ Item {
     /// String mirror of the (possibly unset) label, for UI tests
     readonly property string labelText: label === undefined || label === null ? "" : String(label)
 
-    Skin.Hotcue {
+    signal usedTouchScreen(bool state)
+
+    MixxxControls.Hotcue {
         id: hotcue
 
-        activate: activator.pressed
+        activate: touchScreenActivator.pressed || activator.pressed
         group: root.group
         hotcueNumber: root.hotcueNumber
 
@@ -50,12 +58,23 @@ Item {
             onTapped: (eventPoint, button) => popup.openFrom(root)
         }
         TapHandler {
-            onLongPressed: () => popup.openFrom(root)
+            id: touchScreenActivator
+
+            acceptedDevices: PointerDevice.TouchScreen | PointerDevice.Stylus
+
+            onTapped: {
+                root.usedTouchScreen(true);
+            }
         }
         TapHandler {
             id: activator
 
             acceptedButtons: Qt.LeftButton
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+
+            onTapped: {
+                root.usedTouchScreen(false);
+            }
         }
         Skin.InnerShadowMask {
             border.color: Qt.darker(hotcue.isSet ? hotcue.color : '#2B2B2B', 2)
@@ -80,20 +99,33 @@ Item {
         shadowEnabled: true
         source: backgroundImage
     }
+    Skin.Button {
+        id: editButton
+
+        anchors.right: root.right
+        anchors.top: root.top
+        implicitHeight: 15
+        implicitWidth: 15
+        text: "E"
+
+        onClicked: {
+            popup.openFrom(root);
+        }
+    }
     ColumnLayout {
         anchors.centerIn: backgroundImage
         spacing: 0
 
         Label {
             Layout.alignment: Qt.AlignHCenter
-            color: "#626262"
+            color: !hotcue.isSet ? Theme.midGray3 : Mixxx.ColorUtils.chooseColorByBrightness(hotcue.color, Theme.white, Theme.midGray3, 127)
             font.pixelSize: 14
             font.weight: Font.Bold
             text: root.hotcueNumber
         }
         Label {
             Layout.alignment: Qt.AlignHCenter
-            color: "#626262"
+            color: !hotcue.isSet ? Theme.midGray3 : Mixxx.ColorUtils.chooseColorByBrightness(hotcue.color, Theme.white, Theme.midGray3, 127)
             font.pixelSize: 12
             objectName: "hotcueButtonLabel" + root.hotcueNumber
             text: root.label ?? ""
