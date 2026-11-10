@@ -194,6 +194,11 @@ class FakeController : public Controller {
         return std::nullopt;
     }
 
+    const QString& getSharedDataNamespace() override {
+        static const QString sharedDataNamespace = QStringLiteral("test");
+        return sharedDataNamespace;
+    }
+
   protected:
     void send(const QList<int>& data, unsigned int length) override {
         Q_UNUSED(data);
@@ -206,7 +211,7 @@ class FakeController : public Controller {
     }
 
   private:
-    int open(const QString&) override {
+    int open(const QString&, std::shared_ptr<ControllerSharedData>) override {
         return 0;
     }
 

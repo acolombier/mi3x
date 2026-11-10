@@ -17,6 +17,10 @@
 #include "util/make_const_iterator.h"
 #include "util/math.h"
 
+namespace {
+const QString kEmptyNamespace = QString("");
+}
+
 const QString kMakeInputHandlerError = QStringLiteral(
         "Invalid timer callback provided to midi.makeInputHandler. "
         "Please pass a function and make sure that your code contains no syntax errors.");
@@ -75,6 +79,13 @@ QList<std::shared_ptr<AbstractLegacyControllerSetting>> MidiController::getMappi
     return m_pMapping->getSettings();
 }
 
+const QString& MidiController::getSharedDataNamespace() {
+    if (!m_pMapping) {
+        return kEmptyNamespace;
+    }
+    return m_pMapping->sharedDataNamespace();
+}
+
 #ifdef MIXXX_USE_QML
 QList<LegacyControllerMapping::QMLModuleInfo> MidiController::getMappingModules() {
     if (!m_pMapping) {
@@ -102,9 +113,10 @@ bool MidiController::matchMapping(const MappingInfo& mapping) {
     return false;
 }
 
-bool MidiController::applyMapping(const QString& resourcePath) {
+bool MidiController::applyMapping(const QString& resourcePath,
+        std::shared_ptr<ControllerSharedData> runtimeData) {
     // Handles the engine
-    bool result = Controller::applyMapping(resourcePath);
+    bool result = Controller::applyMapping(resourcePath, runtimeData);
 
     // Only execute this code if this is an output device
     if (isOutputDevice()) {

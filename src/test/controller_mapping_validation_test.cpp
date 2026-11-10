@@ -217,7 +217,9 @@ bool MappingTestFixture::testLoadMapping(const QString& mappingPath) {
 
     FakeController controller;
     controller.setMapping(pMapping);
-    bool result = controller.applyMapping(getTestDir().filePath(RESOURCE_FOLDER));
+    bool result = controller.applyMapping(
+            getTestDir().filePath(RESOURCE_FOLDER),
+            std::shared_ptr<ControllerSharedData>(nullptr));
     controller.stopEngine();
     return result;
 }

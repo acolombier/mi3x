@@ -20,7 +20,9 @@ class MockMidiController : public MidiController {
     ~MockMidiController() override {
     }
 
-    MOCK_METHOD1(open, int(const QString& resourcePath));
+    MOCK_METHOD2(open,
+            int(const QString& resourcePath,
+                    std::shared_ptr<ControllerSharedData> runtimeData));
     MOCK_METHOD0(close, int());
     MOCK_METHOD3(sendShortMsg,
             void(unsigned char status,

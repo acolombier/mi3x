@@ -78,6 +78,7 @@ MappingInfo::MappingInfo(const QFileInfo& fileInfo) {
 
     QXmlStreamReader xml(&file);
     bool inInfo = false;
+    bool inController = false;
     bool inInfoDevices = false;
     int xmlHierachyDepth = 0;
 
@@ -141,6 +142,28 @@ MappingInfo::MappingInfo(const QFileInfo& fileInfo) {
                     continue;
                 }
             }
+            if (!inController &&
+                    xmlElementName == QStringLiteral("controller") &&
+                    xmlHierachyDepth == 2) {
+                inController = true;
+                continue;
+            }
+
+            if (xmlElementName == QStringLiteral("MixxxControllerPreset") &&
+                    xmlHierachyDepth == 1) {
+                QXmlStreamAttributes xmlElementAttributes = xml.attributes();
+                auto mixxxVersion = xmlElementAttributes
+                                            .value(QStringLiteral("mixxxVersion"))
+                                            .toString();
+                if (!mixxxVersion.isEmpty()) {
+                    m_mixxxVersion = sanitizeVersion(mixxxVersion);
+                } else {
+                    m_mixxxVersion = QVersionNumber();
+                }
+            }
+
+            m_hasScreens |= inController && xmlElementName == QStringLiteral("screens");
+            m_hasSettings |= xmlElementName == QStringLiteral("settings");
 
             if (xmlElementName == QStringLiteral("MixxxControllerPreset") &&
                     xmlHierachyDepth == 1) {
@@ -160,10 +183,8 @@ MappingInfo::MappingInfo(const QFileInfo& fileInfo) {
                 --xmlHierachyDepth;
                 continue;
             }
-            if (inInfo && name == QStringLiteral("info")) {
-                // End of info block; we stop file-reading/parsing entirely
-                // Stopping here saves several hundreds milliseconds of startup time
-                break;
+            if (inController && name == QStringLiteral("controller")) {
+                inController = false;
             }
 
             --xmlHierachyDepth;

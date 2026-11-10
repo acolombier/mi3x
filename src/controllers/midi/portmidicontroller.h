@@ -94,7 +94,8 @@ class PortMidiController : public MidiController {
                       unsigned char byte2) override;
 
   private:
-    int open(const QString& resourcePath) override;
+    int open(const QString& resourcePath,
+            std::shared_ptr<ControllerSharedData> runtimeData) override;
     int close() override;
 
     // The sysex data must already contain the start byte 0xf0 and the end byte

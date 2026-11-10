@@ -9,6 +9,7 @@
 
 class MidiOutputHandler;
 class MidiController;
+class ControllerSharedData;
 
 class MidiInputHandleJSProxy final : public QObject {
     Q_OBJECT
@@ -43,6 +44,7 @@ class MidiController : public Controller {
 
     QList<LegacyControllerMapping::ScriptFileInfo> getMappingScriptFiles() override;
     QList<std::shared_ptr<AbstractLegacyControllerSetting>> getMappingSettings() override;
+    const QString& getSharedDataNamespace() override;
 #ifdef MIXXX_USE_QML
     QList<LegacyControllerMapping::QMLModuleInfo> getMappingModules() override;
     QList<LegacyControllerMapping::ScreenInfo> getMappingInfoScreens() override;
@@ -82,7 +84,6 @@ class MidiController : public Controller {
             unsigned char control,
             const QJSValue& scriptCode);
 
-    bool applyMapping(const QString& resourcePath) override;
     int close() override;
 
   protected slots:
@@ -94,6 +95,8 @@ class MidiController : public Controller {
     // For receiving System Exclusive messages
     void receive(const QByteArray& data, mixxx::Duration timestamp) override;
     void slotBeforeEngineShutdown() override;
+    bool applyMapping(const QString& resourcePath,
+            std::shared_ptr<ControllerSharedData> runtimeData) override;
 
   private slots:
     void learnTemporaryInputMappings(const MidiInputMappings& mappings);

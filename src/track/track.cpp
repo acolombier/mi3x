@@ -10,6 +10,11 @@
 #include "moc_track.cpp"
 #include "sources/metadatasource.h"
 #include "track/keyfactory.h"
+#ifdef __STEM__
+#include "track/steminfo.h"
+#include "track/steminfoimporter.h"
+#include "track/taglib/trackmetadata_mp4.h"
+#endif
 #include "util/assert.h"
 #include "util/logger.h"
 #include "util/time.h"
@@ -559,6 +564,9 @@ void Track::emitChangedSignalsForAllMetadata() {
     emit durationChanged();
     emit infoChanged();
     emit keyChanged();
+#ifdef __STEM__
+    emit stemInfoChanged();
+#endif
 }
 
 bool Track::checkSourceSynchronized() const {
@@ -1484,17 +1492,22 @@ bool Track::importPendingCueInfosWhileLocked() {
 }
 
 #ifdef __STEM__
-bool Track::setStemInfosWhileLocked(QList<StemInfo> stemInfos) {
-    m_stemInfo = std::move(stemInfos);
+bool Track::importPendingStemInfosWhileLocked() {
+    TagLib::MP4::File file(TAGLIB_FILENAME_FROM_QSTRING(getLocation()));
+    const TagLib::MP4::Tag* pTag = file.tag();
+
+    auto metadata = m_record.getMetadata();
+    mixxx::taglib::mp4::importStemInfo(&metadata, *pTag);
+    m_record.setMetadata(metadata);
+
     return true;
 }
-
-bool Track::importPendingStemInfosWhileLocked() {
-    const QList<StemInfo> stemInfos =
-            mixxx::StemInfoImporter::importStemInfos(
-                    getLocation());
-
-    return setStemInfosWhileLocked(stemInfos);
+bool Track::trySetStemInfo(mixxx::StemInfo stemInfo) {
+    auto locked = QMutexLocker(&m_qMutex);
+    auto metadata = m_record.getMetadata();
+    metadata.setStemInfo(stemInfo);
+    m_record.setMetadata(metadata);
+    return true;
 }
 #endif
 
@@ -1958,7 +1971,8 @@ void Track::updateStreamInfoFromSource(
     const bool importBeats = m_pBeatsImporterPending && !m_pBeatsImporterPending->isEmpty();
     const bool importCueInfos = m_pCueInfoImporterPending && !m_pCueInfoImporterPending->isEmpty();
 #ifdef __STEM__
-    const bool importStemInfos = mixxx::StemInfoImporter::maybeStemFile(getLocation());
+    const bool importStemInfos =
+            mixxx::StemInfoImporter::maybeStemFile(getLocation()) && !hasStem();
 #endif
 
     if (!importBeats && !importCueInfos

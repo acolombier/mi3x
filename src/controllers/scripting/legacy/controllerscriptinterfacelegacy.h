@@ -59,6 +59,11 @@ class ControllerScriptInterfaceLegacy : public QObject {
     Q_INVOKABLE QObject* getPlayer(const QString& group);
     Q_INVOKABLE double getValue(const QString& group, const QString& name);
     Q_INVOKABLE void setValue(const QString& group, const QString& name, double newValue);
+
+    Q_INVOKABLE QJSValue getSharedData();
+    Q_INVOKABLE void setSharedData(const QJSValue& value);
+    Q_INVOKABLE QJSValue makeSharedDataConnection(const QJSValue& callback);
+
     Q_INVOKABLE double getParameter(const QString& group, const QString& name);
     Q_INVOKABLE void setParameter(const QString& group, const QString& name, double newValue);
     Q_INVOKABLE double getParameterForValue(
@@ -118,8 +123,16 @@ class ControllerScriptInterfaceLegacy : public QObject {
     /// Execute a ScriptConnection's JS callback
     void triggerScriptConnection(const ScriptConnection& conn);
 
+    /// Disconnect and remove a ScriptConnection's RuntimeData JS callback
+    bool removeRuntimeDataConnection(const ScriptConnection& conn);
+    /// Execute a ScriptConnection's RuntimeData JS callback
+    void triggerRuntimeDataConnection(const ScriptConnection& conn);
+
     /// Handler for timers that scripts set.
     virtual void timerEvent(QTimerEvent* event);
+
+  private slots:
+    void onRuntimeDataUpdated(const QVariant& value);
 
   private:
     QJSValue makeConnectionInternal(const QString& group,
@@ -156,4 +169,8 @@ class ControllerScriptInterfaceLegacy : public QObject {
 
     ControllerScriptEngineLegacy* m_pScriptEngineLegacy;
     const RuntimeLoggingCategory m_logger;
+
+    QList<ScriptConnection> m_runtimeDataConnections;
+
+    friend class ControllerSharedDataTest;
 };
