@@ -1,33 +1,36 @@
 import Mixxx 1.0 as Mixxx
 import QtQuick 2.12
-import "Theme"
 
 Item {
     id: root
+
+    // mixxx::CueType enum values
+    enum Type {
+        Cue = 1,
+        Jump = 5,
+        Loop = 4
+    }
 
     property alias activate: hotcueActivateControl.value
     property alias clear: hotcueClearControl.value
     readonly property color color: {
         if (hotcueColorControl.value < 0)
-            return Theme.deckActiveColor;
+            return null;
 
         return "#" + hotcueColorControl.value.toString(16).padStart(6, "0");
     }
+    property alias colorRaw: hotcueColorControl.value
+    property alias endPosition: hotcueEndPositionControl.value
     /// Engine sample end position of the hotcue (-1 if unset)
-    readonly property real endPosition: hotcueEndPositionControl.value
     required property string group
     required property int hotcueNumber
     readonly property bool isActive: hotcueStatusControl.value == 2
     readonly property bool isSet: hotcueStatusControl.value != 0
-    /// Engine sample position of the hotcue (-1 if unset)
-    readonly property real position: hotcuePositionControl.value
-    /// Type of the hotcue (mixxx::CueType: 1 = hotcue, 4 = loop, 5 = jump)
-    readonly property int type: hotcueTypeControl.value
+    property alias position: hotcuePositionControl.value
+    property alias status: hotcueStatusControl.value
+    property alias type: hotcueTypeControl.value
 
-    // mixxx::CueType enum values
-    readonly property int typeHotCue: 1
-    readonly property int typeJump: 5
-    readonly property int typeLoop: 4
+    /// Engine sample position of the hotcue (-1 if unset)
 
     function setColor(newColor) {
         hotcueColorControl.value = (parseInt(newColor.r * 255) << 16) | (parseInt(newColor.g * 255) << 8) | parseInt(newColor.b * 255);

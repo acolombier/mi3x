@@ -36,13 +36,14 @@ QString formatDuration(double seconds, TrackTime::DisplayFormat format) {
 class QmlDurationFormatterTest : public testing::Test {
   protected:
     void SetUp() override {
+        m_engine.addImportPath(QStringLiteral(":/mixxx.org/imports"));
         m_engine.addImportPath(QStringLiteral(RESOURCE_FOLDER "/qml"));
 
         QQmlComponent component(&m_engine);
         component.setData(R"(
 import QtQml 2.12
 import Mixxx 1.0 as Mixxx
-import "Deck" as DeckComponents
+import Mixxx.Controls 1.0 as MixxxControls
 
 QtObject {
     readonly property int traditional: Mixxx.DurationFormatter.Mode.Traditional
@@ -51,15 +52,15 @@ QtObject {
     readonly property int secondsLong: Mixxx.DurationFormatter.Mode.SecondsLong
     readonly property int kiloSeconds: Mixxx.DurationFormatter.Mode.KiloSeconds
     readonly property int hectoSeconds: Mixxx.DurationFormatter.Mode.HectoSeconds
-    readonly property int trackTimeTraditional: DeckComponents.TrackTime.Mode.Traditional
-    readonly property int trackTimeTraditionalCoarse: DeckComponents.TrackTime.Mode.TraditionalCoarse
-    readonly property int trackTimeSeconds: DeckComponents.TrackTime.Mode.Seconds
-    readonly property int trackTimeSecondsLong: DeckComponents.TrackTime.Mode.SecondsLong
-    readonly property int trackTimeKiloSeconds: DeckComponents.TrackTime.Mode.KiloSeconds
-    readonly property int trackTimeHectoSeconds: DeckComponents.TrackTime.Mode.HectoSeconds
-    readonly property int trackTimeElapsed: DeckComponents.TrackTime.Display.Elapsed
-    readonly property int trackTimeRemaining: DeckComponents.TrackTime.Display.Remaining
-    readonly property int trackTimeBoth: DeckComponents.TrackTime.Display.Both
+    readonly property int trackTimeTraditional: MixxxControls.TrackTime.Mode.Traditional
+    readonly property int trackTimeTraditionalCoarse: MixxxControls.TrackTime.Mode.TraditionalCoarse
+    readonly property int trackTimeSeconds: MixxxControls.TrackTime.Mode.Seconds
+    readonly property int trackTimeSecondsLong: MixxxControls.TrackTime.Mode.SecondsLong
+    readonly property int trackTimeKiloSeconds: MixxxControls.TrackTime.Mode.KiloSeconds
+    readonly property int trackTimeHectoSeconds: MixxxControls.TrackTime.Mode.HectoSeconds
+    readonly property int trackTimeElapsed: MixxxControls.TrackTime.Display.Elapsed
+    readonly property int trackTimeRemaining: MixxxControls.TrackTime.Display.Remaining
+    readonly property int trackTimeBoth: MixxxControls.TrackTime.Display.Both
 
     function formatDuration(value, mode) {
         return Mixxx.DurationFormatter.format(value, mode);

@@ -12,6 +12,10 @@ Rectangle {
     property color buttonColor: trackLoadedControl.value > 0 ? Theme.buttonActiveColor : Theme.buttonDisableColor
     required property string group
 
+    function toggleAnchor() {
+        anchorControl.value = anchorControl.value == 0 ? 1 : 0;
+    }
+
     color: Theme.deckLoopBackgroundColor
 
     Label {
@@ -66,17 +70,13 @@ Rectangle {
             topMargin: 22
         }
         LoopPointButton {
-            buttonColor: root.buttonColor
             buttonName: "loopIn"
-            group: root.group
             isEndAnchor: false
             key: "loop_in"
             label: "In"
         }
         LoopPointButton {
-            buttonColor: root.buttonColor
             buttonName: "loopOut"
-            group: root.group
             isEndAnchor: true
             key: "loop_out"
             label: "Out"
@@ -424,40 +424,39 @@ Rectangle {
             }
         }
     }
+    Mixxx.ControlProxy {
+        id: anchorControl
+
+        group: root.group
+        key: "loop_anchor"
+    }
+    TapHandler {
+        acceptedDevices: PointerDevice.TouchScreen | PointerDevice.Stylus
+
+        onLongPressed: toggleAnchor()
+    }
 
     component LoopPointButton: Item {
         id: loopPointButton
 
         readonly property bool anchored: anchorControl.value == (isEndAnchor ? 1 : 0)
-        required property color buttonColor
         required property string buttonName
-        required property string group
         required property bool isEndAnchor
         required property string key
         required property string label
-
-        function toggleAnchor() {
-            anchorControl.value = anchorControl.value == 0 ? 1 : 0;
-        }
 
         Layout.fillWidth: true
         Layout.minimumWidth: 28
         implicitHeight: 26
 
-        Mixxx.ControlProxy {
-            id: anchorControl
-
-            group: loopPointButton.group
-            key: "loop_anchor"
-        }
         Skin.ControlButton {
             id: controlButton
 
-            activeColor: loopPointButton.buttonColor
+            activeColor: root.buttonColor
             anchors.fill: parent
-            group: loopPointButton.group
+            group: root.group
             key: loopPointButton.key
-            normalColor: loopPointButton.buttonColor
+            normalColor: root.buttonColor
             objectName: loopPointButton.buttonName
             text: loopPointButton.label
 
@@ -472,7 +471,7 @@ Rectangle {
         Rectangle {
             id: anchorUnderline
 
-            color: loopPointButton.buttonColor
+            color: root.buttonColor
             height: 2
             opacity: loopPointButton.anchored ? 1 : 0
             width: parent.width - 8

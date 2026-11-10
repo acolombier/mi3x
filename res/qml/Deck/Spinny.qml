@@ -21,6 +21,9 @@ Item {
 
         color: '#BDBDBD'
         height: 140
+        layer.enabled: true
+        layer.samples: 4
+        layer.smooth: true
         radius: width / 2
         width: 140
 
@@ -86,7 +89,7 @@ Item {
             readonly property int precision: Math.pow(10, Mixxx.Config.libraryBpmColumnPrecision)
 
             color: '#BDBDBD'
-            text: `${parseInt(bpm * precision)/precision}`
+            text: `${parseInt(bpm * precision) / precision}`
 
             Mixxx.ControlProxy {
                 id: bpmControl

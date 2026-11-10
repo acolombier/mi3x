@@ -1,5 +1,6 @@
 import "." as Skin
 import Mixxx 1.0 as Mixxx
+import Mixxx.Controls 1.0 as MixxxControls
 import QtQuick 2.12
 import QtQuick.Controls 2.12
 import QtQuick.Effects
@@ -15,15 +16,15 @@ Popup {
     readonly property real cuePosition: hotcue.position
     readonly property list<var> cueTypes: [
         {
-            "type": hotcue.typeHotCue,
+            "type": MixxxControls.Hotcue.Type.Cue,
             "name": "CUE"
         },
         {
-            "type": hotcue.typeLoop,
+            "type": MixxxControls.Hotcue.Type.Loop,
             "name": "LOOP"
         },
         {
-            "type": hotcue.typeJump,
+            "type": MixxxControls.Hotcue.Type.Jump,
             "name": "JUMP"
         }
     ]
@@ -38,8 +39,8 @@ Popup {
     property bool failedToConvert: false
     readonly property bool forwardSpan: cueEndPosition >= cuePosition
     readonly property bool hasSpan: isLoopOrJump && trackSamples > 0 && cueEndPosition >= 0 && spanSamples > 0
-    required property Hotcue hotcue
-    readonly property bool isLoopOrJump: hotcue.type === hotcue.typeLoop || hotcue.type === hotcue.typeJump
+    required property MixxxControls.Hotcue hotcue
+    readonly property bool isLoopOrJump: hotcue.type === MixxxControls.Hotcue.Type.Loop || hotcue.type === MixxxControls.Hotcue.Type.Jump
     readonly property real sampleRate: currentTrack ? currentTrack.sampleRate : 0
     readonly property real spanCenterPosition: hasSpan ? (spanStart + spanEnd) / 2 : cuePosition
     readonly property real spanEnd: Math.max(cuePosition, cueEndPosition)
@@ -104,7 +105,7 @@ Popup {
         // waveform pixels together with the waveform's zoom value.
         readonly property real audioVisualRatio: waveformPreviewFull.audioVisualRatio
 
-        objectName: "hotcuePopupContent" + root.uid
+        objectName: root.opened ? "hotcuePopupContent" + root.uid : ""
 
         Shape {
             property int multiSamplingLevel: Mixxx.Config.multiSamplingLevel
@@ -201,7 +202,7 @@ Popup {
                     }
 
                     // Span width targeted in the un-split view: 2/3 of the width
-                    readonly property bool jumpSplitView: splitView && root.hotcue.type === root.hotcue.typeJump
+                    readonly property bool jumpSplitView: splitView && root.hotcue.type === root.MixxxControls.Hotcue.Type.Jump
 
                     // The renderer centers each waveform window on the given
                     // position (playMarkerPosition = 0.5), and
@@ -283,7 +284,7 @@ Popup {
 
                         anchors.bottom: parent.bottom
                         anchors.top: parent.top
-                        color: hotcue.type === hotcue.typeJump ? Qt.alpha("grey", 0.6) : Qt.alpha(root.hotcue.color, 0.3)
+                        color: hotcue.type === MixxxControls.Hotcue.Type.Jump ? Qt.alpha("grey", 0.6) : Qt.alpha(root.hotcue.color, 0.3)
                         visible: root.hasSpan && !(waveformPreview.jumpSplitView)
                         width: waveformPreview.splitView ? waveformPreview.width / 2 : waveformPreview.spanWidth
                         x: waveformPreview.splitView ? waveformPreview.width / 4 : parent.width / 2 - width / 2

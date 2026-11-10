@@ -97,6 +97,10 @@ Item {
             }
 
             GridLayout {
+                id: hotcueGrid
+
+                property bool showEditButton: Qt.platform.os === "android" || Qt.platform.os === "ios"
+
                 anchors.bottomMargin: 8
                 anchors.fill: parent
                 anchors.leftMargin: 16
@@ -116,6 +120,7 @@ Item {
                         Layout.fillWidth: true
                         Layout.row: parseInt(index / 4)
                         currentTrack: root.currentTrack
+                        editButton.visible: hotcueGrid.showEditButton
                         group: root.group
                         hotcueNumber: index + 1
                         label: {
@@ -125,6 +130,8 @@ Item {
                             return root.currentTrack?.hotcuesModel.getByHotcueNumber(index)?.label;
                         }
                         objectName: "hotcue_" + (index + 1)
+
+                        onUsedTouchScreen: state => hotcueGrid.showEditButton = state
                     }
                 }
             }
