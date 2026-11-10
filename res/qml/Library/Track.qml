@@ -9,10 +9,11 @@ Item {
 
     property var _lazyTrack: null
     required property var capabilities
+    property alias contextMenu: contextMenu
     required property var crates
+    readonly property var dragThreshold: 20
     readonly property var library: Mixxx.Library
     required property var playlists
-    property alias tap: tapHandler
     required property var view
 
     function fetchTrack() {
@@ -46,8 +47,31 @@ Item {
         id: tapHandler
 
         acceptedButtons: Qt.LeftButton | Qt.RightButton
-        // FIXME: this is a workaround on Qt bug. See core proxy for details
-        enabled: !Mixxx.Core.hasPopup
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        // // FIXME: this is a workaround on Qt bug. See core proxy for details
+        // enabled: !Mixxx.Core.hasPopup
+        dragThreshold: root.dragThreshold
+
+        onDoubleTapped: (eventPoint, button) => {
+            if (button === Qt.RightButton)
+                return;
+            view.selectionModel.selectRow(row);
+            view.loadSelectedTrackIntoNextAvailableDeck(false);
+        }
+        onTapped: (eventPoint, button) => {
+            view.selectionModel.selectRow(row);
+            if (button === Qt.RightButton) {
+                contextMenu.popup(parent, eventPoint.position);
+            }
+        }
+    }
+    TapHandler {
+        id: touchScreenTapHandler
+
+        acceptedDevices: PointerDevice.TouchScreen | PointerDevice.Stylus
+        // // FIXME: this is a workaround on Qt bug. See core proxy for details
+        // enabled: !Mixxx.Core.hasPopup
+        dragThreshold: root.dragThreshold
 
         onDoubleTapped: (eventPoint, button) => {
             view.selectionModel.selectRow(row);
@@ -55,15 +79,10 @@ Item {
         }
         onLongPressed: {
             view.selectionModel.selectRow(row);
-            contextMenu.build();
-            contextMenu.popup(parent);
+            contextMenu.popup(parent, 0, 0);
         }
         onTapped: (eventPoint, button) => {
             view.selectionModel.selectRow(row);
-            if (button === Qt.RightButton) {
-                contextMenu.build();
-                contextMenu.popup(parent, eventPoint.position);
-            }
         }
     }
     Mixxx.ControlProxy {
@@ -118,15 +137,8 @@ Item {
         group: "[Library]"
         key: "show_track_menu"
 
-        // FIXME can we bind it here? Technically, even if the value may change outside this bind, this would be different instance proxy so the binding likely survive still
-        value: contextMenu.opened
-
         onValueChanged: {
-            if (!selected)
-                return;
-            if (value && !contextMenu.opened && column == Math.min(2, view?.model?.columns?.length - 1))
-                contextMenu.popup(parent);
-            else if (!value && contextMenu.opened) {
+            if (!value && contextMenu.opened) {
                 contextMenu.close();
             }
         }
@@ -183,7 +195,6 @@ Item {
                     searchMenu.push(record({
                         type: "separator"
                     }));
-                print(view?.model.search, view?.model.search.includes(search), search, Array.from(searchQuery));
                 // FIXME Not very reliable - doesn't detect field alias, doesn't detected quoted values
                 if (view?.model.search.includes(search))
                     searchQuery.add(search);
@@ -196,7 +207,6 @@ Item {
                             searchQuery.delete(search);
                         else
                             searchQuery.add(search);
-                        print("searchQuery", Array.from(searchQuery));
                     }
                 }));
             };
@@ -530,10 +540,14 @@ Item {
             }
         }
 
+        menuName: "trackContextMenu"
+
         onAboutToShow: {
             contextMenu.build();
-            // No bind, we only update this value when open change, otherwise we let it be driven by other components
-            focusedWidgetControl.value = opened ? Skin.FocusedWidgetControl.WidgetKind.ContextMenu : Skin.FocusedWidgetControl.WidgetKind.LibraryView;
+        }
+        onOpened: {
+            focusedWidgetControl.value = Qt.binding(() => opened ? Skin.FocusedWidgetControl.WidgetKind.ContextMenu : Skin.FocusedWidgetControl.WidgetKind.LibraryView);
+            showTrackMenuControl.value = Qt.binding(() => opened ? 1 : 0);
         }
 
         Skin.FocusedWidgetControl {
