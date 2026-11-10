@@ -145,8 +145,13 @@ Rectangle {
 
             property var initialPosition: null
 
+            // Excluding other pointing devices when not selected as they are clashing with the library scroll
+            acceptedDevices: selected ? PointerDevice.AllDevices : PointerDevice.Mouse | PointerDevice.TouchPad
+            dragThreshold: root.track.dragThreshold
+
             onActiveChanged: {
                 if (active && !initialPosition) {
+                    root.track.view?.selectionModel.selectRow(row);
                     initialPosition = Qt.point(root.x, root.y);
                 }
                 if (active && !dragImageSource.active && dummyHandler.Drag.imageSource.toString().length == 0) {
