@@ -3,9 +3,8 @@ import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Dialogs
 import Mixxx 1.0 as Mixxx
+import Mixxx.Controls 1.0 as MixxxControls
 import "." as Setting
-import "../Deck" as DeckComponents
-import "." as SettingComponents
 import ".." as Skin
 import "../Theme"
 
@@ -594,7 +593,7 @@ Category {
                                                 verticalAlignment: Text.AlignVCenter
                                             }
                                         }
-                                        SettingComponents.SpinBox {
+                                        Setting.SpinBox {
                                             id: bpmPrecisionInput
 
                                             Layout.fillWidth: true
@@ -650,7 +649,7 @@ Category {
                                                 verticalAlignment: Text.AlignVCenter
                                             }
                                         }
-                                        SettingComponents.Slider {
+                                        Setting.Slider {
                                             id: libraryRowHeightInput
 
                                             markers: [14, 20, 50, 80]
@@ -1078,7 +1077,7 @@ Category {
                                         text: parent.label
                                     }
                                 }
-                                SettingComponents.Slider {
+                                Setting.Slider {
                                     id: endOfTrackWarningInput
 
                                     Layout.fillWidth: parent.columns === 1
@@ -1102,7 +1101,7 @@ Category {
                                         text: parent.label
                                     }
                                 }
-                                SettingComponents.Slider {
+                                Setting.Slider {
                                     id: beatGridAlphaInput
 
                                     Layout.fillWidth: parent.columns === 1
@@ -1125,7 +1124,7 @@ Category {
                                         text: parent.label
                                     }
                                 }
-                                SettingComponents.Slider {
+                                Setting.Slider {
                                     id: defaultZoomInput
 
                                     Layout.fillWidth: parent.columns === 1
@@ -1585,7 +1584,7 @@ Category {
                                     }
                                 }
                             }
-                            SettingComponents.Slider {
+                            Setting.Slider {
                                 id: playMarkerPositionInput
 
                                 Layout.fillWidth: true
@@ -1823,7 +1822,7 @@ Category {
                                     text: "Global"
                                     verticalAlignment: Text.AlignVCenter
                                 }
-                                SettingComponents.Slider {
+                                Setting.Slider {
                                     id: visualGainAllInput
 
                                     markers: [50, 100, 150, 300, 500]
@@ -1879,7 +1878,7 @@ Category {
                                                 verticalAlignment: Text.AlignVCenter
                                             }
                                         }
-                                        SettingComponents.Slider {
+                                        Setting.Slider {
                                             id: visualGainLowInput
 
                                             Layout.column: waveformTab.width < 1000 ? 1 : 0
@@ -1911,7 +1910,7 @@ Category {
                                                 verticalAlignment: Text.AlignVCenter
                                             }
                                         }
-                                        SettingComponents.Slider {
+                                        Setting.Slider {
                                             id: visualGainMediumInput
 
                                             Layout.column: 1
@@ -1943,7 +1942,7 @@ Category {
                                                 verticalAlignment: Text.AlignVCenter
                                             }
                                         }
-                                        SettingComponents.Slider {
+                                        Setting.Slider {
                                             id: visualGainHighInput
 
                                             Layout.column: waveformTab.width < 1000 ? 1 : 2
@@ -2088,7 +2087,7 @@ Category {
                                 id: timeMode
 
                                 Layout.preferredWidth: (deckPane.width - 56) * 0.3
-                                model: [DeckComponents.TrackTime.Mode.Traditional, DeckComponents.TrackTime.Mode.TraditionalCoarse, DeckComponents.TrackTime.Mode.Seconds, DeckComponents.TrackTime.Mode.SecondsLong, DeckComponents.TrackTime.Mode.KiloSeconds, DeckComponents.TrackTime.Mode.HectoSeconds,]
+                                model: [MixxxControls.TrackTime.Mode.Traditional, MixxxControls.TrackTime.Mode.TraditionalCoarse, MixxxControls.TrackTime.Mode.Seconds, MixxxControls.TrackTime.Mode.SecondsLong, MixxxControls.TrackTime.Mode.KiloSeconds, MixxxControls.TrackTime.Mode.HectoSeconds,]
                                 objectName: "setting_timeFormat"
 
                                 contentItem: Content {
@@ -2569,7 +2568,7 @@ Category {
                                                 font.weight: Font.Medium
                                                 text: "Temporary"
                                             }
-                                            SettingComponents.SpinBox {
+                                            Setting.SpinBox {
                                                 id: adjustmentButtonsTemporaryFineInput
 
                                                 Layout.alignment: Qt.AlignHCenter
@@ -2585,7 +2584,7 @@ Category {
 
                                                 onValueChanged: decksTab.dirty = true
                                             }
-                                            SettingComponents.SpinBox {
+                                            Setting.SpinBox {
                                                 id: adjustmentButtonsTemporaryCoarseInput
 
                                                 Layout.alignment: Qt.AlignHCenter
@@ -2608,7 +2607,7 @@ Category {
                                                 font.weight: Font.Medium
                                                 text: "Permanent"
                                             }
-                                            SettingComponents.SpinBox {
+                                            Setting.SpinBox {
                                                 id: adjustmentButtonsPermanentFineInput
 
                                                 Layout.alignment: Qt.AlignHCenter
@@ -2624,7 +2623,7 @@ Category {
 
                                                 onValueChanged: decksTab.dirty = true
                                             }
-                                            SettingComponents.SpinBox {
+                                            Setting.SpinBox {
                                                 id: adjustmentButtonsPermanentCoarseInput
 
                                                 Layout.alignment: Qt.AlignHCenter
@@ -2659,7 +2658,7 @@ Category {
                                                 verticalAlignment: Text.AlignVCenter
                                             }
                                         }
-                                        SettingComponents.Slider {
+                                        Setting.Slider {
                                             id: rampingSensitivityInput
 
                                             max: 2500
@@ -2815,30 +2814,44 @@ Category {
             elide: Text.ElideRight
             text: {
                 switch (parent.mode) {
-                case DeckComponents.TrackTime.Mode.TraditionalCoarse:
+                case MixxxControls.TrackTime.Mode.TraditionalCoarse:
                     return "Traditional (Coarse)";
-                case DeckComponents.TrackTime.Mode.Seconds:
+                case MixxxControls.TrackTime.Mode.Seconds:
                     return "Seconds";
-                case DeckComponents.TrackTime.Mode.SecondsLong:
+                case MixxxControls.TrackTime.Mode.SecondsLong:
                     return "Seconds (Long)";
-                case DeckComponents.TrackTime.Mode.KiloSeconds:
+                case MixxxControls.TrackTime.Mode.KiloSeconds:
                     return "Kiloseconds";
-                case DeckComponents.TrackTime.Mode.HectoSeconds:
+                case MixxxControls.TrackTime.Mode.HectoSeconds:
                     return "Hectoseconds";
                 default:
                     console.warn(`Unsupported track time mode: ${root.mode}. Defaulting to traditional`);
-                case DeckComponents.TrackTime.Mode.Traditional:
+                case MixxxControls.TrackTime.Mode.Traditional:
                     return "Traditional";
                 }
             }
             verticalAlignment: Text.AlignVCenter
         }
-        DeckComponents.TrackTime {
+        MixxxControls.TrackTime {
             Layout.rightMargin: 17
-            display: trackTimeDisplayInput.selected === "elapsed" ? DeckComponents.TrackTime.Display.Elapsed : trackTimeDisplayInput.selected === "remaining" ? DeckComponents.TrackTime.Display.Remaining : DeckComponents.TrackTime.Display.Both
+            display: trackTimeDisplayInput.selected === "elapsed" ? MixxxControls.TrackTime.Display.Elapsed : trackTimeDisplayInput.selected === "remaining" ? MixxxControls.TrackTime.Display.Remaining : MixxxControls.TrackTime.Display.Both
             elapsed: 83.45
+            implicitHeight: text.implicitHeight
+            implicitWidth: text.implicitWidth
             mode: parent.mode
             remaining: 147.23
+
+            Text {
+                id: text
+
+                color: Theme.buttonNormalColor
+                elide: Text.ElideRight
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.buttonFontPixelSize
+                horizontalAlignment: Text.AlignHCenter
+                text: parent.value
+                verticalAlignment: Text.AlignVCenter
+            }
         }
     }
     component WaveformMaskComponent: Item {
