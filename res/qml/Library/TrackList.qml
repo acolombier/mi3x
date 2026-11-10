@@ -511,6 +511,31 @@ Rectangle {
         }
         onModelChanged: view.model?.sort(horizontalHeader.sortingColumn, horizontalHeader.sortingOrder)
 
+        Mixxx.ControlProxy {
+            id: showTrackMenuControl
+
+            group: "[Library]"
+            key: "show_track_menu"
+
+            onValueChanged: {
+                // This signal is only responsible of opening the context menu on request. COntext menu will close itself on request.
+                if (value != 1.0)
+                    return;
+
+                const selected = view.selectionModel.selectedIndexes;
+                const currentRow = (selected.length == 0) ? 0 : selected[0].row;
+                for (let cIdx = 0; cIdx < view?.model?.columns?.length; cIdx++) {
+                    // Check if a context menu has already been opened via input interaction
+                    if (view.itemAtIndex(view.index(currentRow, cIdx))?.track?.contextMenu.opened)
+                        return;
+                }
+
+                // Upon CO request, we show the context menu near the 3 (or last) column
+                const trackItem = view.itemAtIndex(view.index(currentRow, Math.min(2, view?.model?.columns?.length - 1)))?.track;
+                if (trackItem)
+                    trackItem.contextMenu.open(trackItem);
+            }
+        }
         TapHandler {
             onTapped: {
                 view.forceActiveFocus();
