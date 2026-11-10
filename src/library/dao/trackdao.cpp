@@ -2063,7 +2063,7 @@ void TrackDAO::hideAllTracks(const QDir& rootDir) const {
     }
 
     QStringList trackIds;
-    const int idColumn = query.record().indexOf(LIBRARYTABLE_MIXXXDELETED);
+    const int idColumn = query.record().indexOf(LIBRARYTABLE_ID);
     while (query.next()) {
         trackIds.append(TrackId(query.value(idColumn)).toString());
     }
