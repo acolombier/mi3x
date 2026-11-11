@@ -1,59 +1,59 @@
 import "." as Skin
 import Mixxx 1.0 as Mixxx
-import QtQuick 2.12
+import QtQuick
+import QtQuick.Controls
 import "Theme"
 
 Item {
     id: root
 
-    property Mixxx.EffectSlotProxy slot: Mixxx.EffectsManager.getEffectSlot(unitNumber, effectNumber)
-    required property int unitNumber
     required property int effectNumber
     property bool expanded: false
     readonly property string group: slot.group
     property real maxSelectorWidth: 300
+    property Mixxx.EffectSlotProxy slot: Mixxx.EffectsManager.getEffectSlot(unitNumber, effectNumber)
+    required property int unitNumber
 
-    height: 50
+    height: 35
 
     Item {
         id: selector
 
+        anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.top: parent.top
-        anchors.bottom: parent.bottom
         width: Math.min(root.width, root.maxSelectorWidth)
 
         Skin.ControlButton {
             id: effectEnableButton
 
+            activeColor: Theme.effectColor
             anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
             anchors.margins: 5
-            width: 40
+            anchors.verticalCenter: parent.verticalCenter
             group: root.group
             key: "enabled"
-            toggleable: true
             text: "ON"
-            activeColor: Theme.effectColor
+            toggleable: true
+            width: 40
         }
-
         Skin.ComboBox {
             id: effectSelector
 
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
             anchors.left: effectEnableButton.right
-            anchors.right: effectMetaKnob.left
             anchors.margins: 5
-            textRole: "display"
+            anchors.right: effectMetaKnob.left
+            anchors.verticalCenter: parent.verticalCenter
             model: Mixxx.EffectsManager.visibleEffectsModel
-            onActivated: (index) => {
+            textRole: "display"
+
+            Component.onCompleted: root.slot.onEffectIdChanged() // WRONG
+
+            onActivated: index => {
                 const effectId = model.get(index).effectId;
                 if (root.slot.effectId != effectId)
                     root.slot.effectId = effectId;
             }
-            Component.onCompleted: root.slot.onEffectIdChanged()
 
             Connections {
                 function onEffectIdChanged() {
@@ -71,124 +71,135 @@ Item {
                 target: root.slot
             }
         }
-
         Skin.ControlMiniKnob {
             id: effectMetaKnob
 
-            anchors.right: parent.right
-            anchors.top: parent.top
             anchors.bottom: parent.bottom
             anchors.margins: 5
+            anchors.right: parent.right
+            anchors.top: parent.top
             arcStart: Knob.ArcStart.Minimum
-            width: 40
+            color: Theme.effectColor
             group: root.group
             key: "meta"
-            color: Theme.effectColor
+            width: 30
         }
     }
+    FocusScope {
+        id: focusScope
 
-    ListView {
-        id: parametersView
-
-        visible: root.expanded
-        anchors.leftMargin: 10
-        anchors.top: parent.top
-        anchors.left: selector.right
-        anchors.right: parent.right
         anchors.bottom: parent.bottom
-        clip: true
-        spacing: 5
-        model: root.slot.parametersModel
-        orientation: ListView.Horizontal
+        anchors.left: selector.right
+        anchors.leftMargin: 10
+        anchors.right: parent.right
+        anchors.top: parent.top
 
-        delegate: Item {
-            id: parameter
+        ListView {
+            id: parametersView
 
-            required property int index
-            required property string shortName
-            required property string name
-            required property string controlKey
-            required property int type
-            property int number: index + 1
-            // TODO: Use null coalescing when we switch to Qt >= 5.15
-            property string label: shortName ?? name
-            property bool isKnob: type == 0
-            property bool isButton: type == 1
+            anchors.fill: parent
+            model: root.slot.parametersModel
+            orientation: ListView.Horizontal
+            // clip: true
+            spacing: 5
+            visible: root.expanded
 
-            width: 50
-            height: 50
-
-            EmbeddedText {
-                anchors.fill: parent
-                verticalAlignment: Text.AlignBottom
-                text: parameter.label
-                font.bold: false
+            ScrollBar.horizontal: ScrollBar {
+                // Don't obstruct the component
+                anchors.top: parent.bottom
+                policy: parametersView.contentWidth > parametersView.width && (handler.hovered || focusScope.activeFocus) ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
             }
+            delegate: Item {
+                id: parameter
 
-            Skin.ControlMiniKnob {
-                id: parameterKnob
+                required property string controlKey
+                required property int index
+                property bool isButton: type == 1
+                property bool isKnob: type == 0
+                // TODO: Use null coalescing when we switch to Qt >= 5.15
+                property string label: shortName ?? name
+                required property string name
+                property int number: index + 1
+                required property string shortName
+                required property int type
 
-                width: 30
-                height: 30
-                anchors.centerIn: parent
-                arcStart: 0
-                group: root.group
-                key: parameter.controlKey
-                color: Theme.effectColor
-                visible: parameter.isKnob
+                height: root.height
+                width: 50
 
-                Mixxx.ControlProxy {
-                    id: parameterLoadedControl
+                EmbeddedText {
+                    anchors.fill: parent
+                    font.bold: false
+                    text: parameter.label
+                    verticalAlignment: Text.AlignBottom
+                }
+                Skin.ControlMiniKnob {
+                    id: parameterKnob
 
-                    property bool loaded: value != 0
-
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.top: parent.top
+                    arcStart: 0
+                    color: Theme.effectColor
                     group: root.group
-                    key: parameter.controlKey + "_loaded"
+                    height: width
+                    key: parameter.controlKey
+                    visible: parameter.isKnob
+                    width: 22
+
+                    Mixxx.ControlProxy {
+                        id: parameterLoadedControl
+
+                        property bool loaded: value != 0
+
+                        group: root.group
+                        key: parameter.controlKey + "_loaded"
+                    }
+                }
+                Skin.ControlButton {
+                    id: buttonParameterButton
+
+                    activeColor: Theme.effectColor
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.top: parent.top
+                    group: root.group
+                    height: 22
+                    key: parameter.controlKey
+                    text: "ON"
+                    toggleable: true
+                    visible: parameter.isButton
+                    width: parent.width
+
+                    Mixxx.ControlProxy {
+                        id: buttonParameterLoadedControl
+
+                        property bool loaded: value != 0
+
+                        group: root.group
+                        key: parameter.controlKey + "_loaded"
+                    }
+                }
+            }
+            Skin.FadeBehavior on opacity {
+                fadeTarget: parametersView
+            }
+            populate: Transition {
+                NumberAnimation {
+                    duration: 200
+                    from: 0
+                    property: "opacity"
+                    to: 1
+                }
+                NumberAnimation {
+                    duration: 200
+                    from: 0
+                    property: "scale"
+                    to: 1
                 }
             }
 
-            Skin.ControlButton {
-                id: buttonParameterButton
+            HoverHandler {
+                id: handler
 
-                height: 22
-                width: parent.width
-                anchors.centerIn: parent
-                group: root.group
-                key: parameter.controlKey
-                activeColor: Theme.effectColor
-                visible: parameter.isButton
-                toggleable: true
-                text: "ON"
-
-                Mixxx.ControlProxy {
-                    id: buttonParameterLoadedControl
-
-                    property bool loaded: value != 0
-
-                    group: root.group
-                    key: parameter.controlKey + "_loaded"
-                }
             }
-        }
-
-        populate: Transition {
-            NumberAnimation {
-                property: "opacity"
-                from: 0
-                to: 1
-                duration: 200
-            }
-
-            NumberAnimation {
-                property: "scale"
-                from: 0
-                to: 1
-                duration: 200
-            }
-        }
-
-        Skin.FadeBehavior on opacity {
-            fadeTarget: parametersView
         }
     }
 }

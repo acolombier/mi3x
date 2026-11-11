@@ -25,7 +25,7 @@ Rectangle {
     Drag.supportedActions: Qt.CopyAction
     color: {
         const trackColor = root.currentTrack?.color;
-        if (!trackColor.valid)
+        if (!trackColor?.valid)
             return Theme.backgroundColor;
         return Qt.darker(root.currentTrack?.color, 2);
     }
@@ -74,18 +74,23 @@ Rectangle {
         text: "Play"
         width: 40
     }
-    Text {
+    Skin.ScrollingText {
         id: label
 
         anchors.left: playButton.right
         anchors.margins: 5
         anchors.right: embedded.right
         anchors.top: embedded.top
-        color: Theme.deckTextColor
-        elide: Text.ElideRight
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.textFontPixelSize
-        text: root.currentTrack?.title
+        color: root.color
+        endScroll.duration: 4000
+        startsScroll.duration: 4000
+
+        text {
+            color: Theme.deckTextColor
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.textFontPixelSize
+            text: root.currentTrack ? `${root.currentTrack.title} - ${root.currentTrack.artist}` : ""
+        }
     }
     Rectangle {
         id: progressContainer
