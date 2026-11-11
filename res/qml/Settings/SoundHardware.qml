@@ -628,6 +628,12 @@ Category {
                     Layout.minimumWidth: Math.max(600, scrollView.width)
                     label: "Router"
 
+                    onActivated: {
+                        if (scrollView.height < scrollView.contentHeight) {
+                            scrollView.contentItem.contentY = routerGroup.mapToItem(scrollView, 0, 0).y;
+                        }
+                    }
+
                     AudioRouter {
                         id: router
 
