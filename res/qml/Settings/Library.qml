@@ -607,11 +607,11 @@ Category {
                 GridLayout {
                     id: settings
 
-                    anchors.left: librarySourcesGrid.left
+                    anchors.left: sourcesGrid.left
                     anchors.leftMargin: 17
-                    anchors.right: librarySourcesGrid.right
+                    anchors.right: sourcesGrid.right
                     anchors.rightMargin: 17
-                    anchors.top: librarySourcesGrid.bottom
+                    anchors.top: sourcesGrid.bottom
                     anchors.topMargin: 10
                     columnSpacing: 20
                     columns: width > 800 ? 4 : 2
