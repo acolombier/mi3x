@@ -2529,8 +2529,9 @@ class S4Mk3Deck extends Deck {
                             script.triggerControl("[Playlist]", right ? "SelectNextTrack" : "SelectPrevTrack");
                         }
                     } else {
-                        engine.setValue("[Library]", "focused_widget", this.shifted ? 2 : 3);
-                        engine.setValue("[Library]", this.deck.turntableButton.pressed ? "ScrollVertical" : "MoveVertical", right ? 1 : -1);
+                        const trackMenuActive = engine.getValue("[Library]", "show_track_menu") === 1.0;
+                        if (!trackMenuActive) { engine.setValue("[Library]", "focused_widget", this.shifted ? 2 : 3); }
+                        engine.setValue("[Library]", !trackMenuActive && this.deck.turntableButton.pressed ? "ScrollVertical" : "MoveVertical", right ? 1 : -1);
                     }
                 }
             }
