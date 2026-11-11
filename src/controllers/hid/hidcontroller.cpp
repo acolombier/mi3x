@@ -132,7 +132,7 @@ QJniObject HidController::openAndroidUsbDevice() {
                 usbDevice)) {
         auto pendingIntent = mixxx::android::getIntent();
         usbManager.callMethod<void>("requestPermission",
-                "(Landroid/hardware/usb/UsbDevice;)Landroid/app/"
+                "(Landroid/hardware/usb/UsbDevice;Landroid/app/"
                 "PendingIntent;)V",
                 usbDevice,
                 pendingIntent);
