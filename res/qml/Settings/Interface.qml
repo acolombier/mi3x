@@ -251,7 +251,9 @@ Category {
 
         Item {
             implicitHeight: [themeColorTab.implicitHeight, waveformTab.implicitHeight, decksTab.implicitHeight][root.selectedIndex]
-            implicitWidth: scrollView.width
+            // implicitWidth: scrollView.width
+            width: scrollView.width - 20
+            x: 10
 
             Mixxx.SettingGroup {
                 id: themeColorTab
@@ -2680,6 +2682,32 @@ Category {
                     }
                 }
             }
+        }
+    }
+    Rectangle {
+        id: overflowIndicator
+
+        anchors.bottom: scrollView.bottom
+        color: 'transparent'
+        height: 40
+        visible: scrollView.height < scrollView.contentHeight && scrollView.contentItem.contentY + scrollView.height < scrollView.contentHeight
+        width: parent.width
+
+        gradient: Gradient {
+            orientation: Gradient.Vertical
+
+            GradientStop {
+                color: Qt.alpha(Theme.darkGray, 0.4)
+                position: 1
+            }
+            GradientStop {
+                color: 'transparent'
+                position: 0
+            }
+        }
+        Skin.FadeBehavior on visible {
+            duration: 500
+            fadeTarget: overflowIndicator
         }
     }
     Item {
