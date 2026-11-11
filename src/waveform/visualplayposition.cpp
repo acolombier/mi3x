@@ -60,6 +60,9 @@ double VisualPlayPosition::calcOffsetAtNextVSync(
     if (data.m_audioBufferMicroS != 0.0) {
         int refToVSync = pSyncTimeProvider->fromTimerToNextSync(data.m_referenceTime).count();
         int syncIntervalTimeMicros = pSyncTimeProvider->getSyncInterval().count();
+        // Difference between the last render frame swap and the audio callback
+        // entry time (render time - audio time).
+        const int renderToAudioMicros = refToVSync - syncIntervalTimeMicros;
         // The positive offset is limited to the audio buffer + 2 x waveform sync interval
         // This should be sufficient to compensate jitter, but does not continue
         // in case of underflows.
@@ -80,6 +83,8 @@ double VisualPlayPosition::calcOffsetAtNextVSync(
                 qWarning() << "VisualPlayPosition::calcOffsetAtNextVSync"
                            << m_key << "outdated position request (offset < minOffset)";
                 qDebug() << m_key << "refToVSync:" << refToVSync
+                         << "syncInterval:" << syncIntervalTimeMicros
+                         << "renderToAudio:" << renderToAudioMicros
                          << "data.m_callbackEntrytoDac:"
                          << data.m_callbackEntrytoDac;
                 m_noTransport = true;
@@ -90,6 +95,8 @@ double VisualPlayPosition::calcOffsetAtNextVSync(
                 qWarning() << "VisualPlayPosition::calcOffsetAtNextVSync"
                            << m_key << "no transport (offsetMicros > maxOffsetMicros)";
                 qDebug() << m_key << "refToVSync:" << refToVSync
+                         << "syncInterval:" << syncIntervalTimeMicros
+                         << "renderToAudio:" << renderToAudioMicros
                          << "data.m_callbackEntrytoDac:"
                          << data.m_callbackEntrytoDac;
                 m_noTransport = true;
@@ -97,6 +104,8 @@ double VisualPlayPosition::calcOffsetAtNextVSync(
         } else {
             if (m_noTransport) {
                 qDebug() << m_key << "refToVSync:" << refToVSync
+                         << "syncInterval:" << syncIntervalTimeMicros
+                         << "renderToAudio:" << renderToAudioMicros
                          << "data.m_callbackEntrytoDac:"
                          << data.m_callbackEntrytoDac;
             }
@@ -155,27 +164,34 @@ bool VisualPlayPosition::getPlaySlipAtNextVSync(
         double* pPlayPosition,
         double* pSlipPosition) {
     VisualPlayPositionData data;
-    std::size_t i = 0;
     double offsetBuffers = 0;
+    if (!m_data.getAt(0, &data)) {
+        // No data available at all, e.g. track ejected
+        return false;
+    }
+    offsetBuffers = calcOffsetAtNextVSync(pSyncTimeProvider, data);
     // Work around #15886: Don't use the most recent buffer right away because
     // it likely not reached the DAC. This has caused a visible jump back, from
     // the correct pause position to a too early position when start playing.
-    for (; i < 3; ++i) {
-        // Find buffer that is currently in the DAC.
-        // This is either at 0 or 1, but can also be at 2, if the buffer has
-        // been updated conurrently during the loop
-        if (m_data.getAt(i, &data)) {
-            offsetBuffers = calcOffsetAtNextVSync(pSyncTimeProvider, data);
-            if (offsetBuffers > -1) {
-                // The buffer, currently in the DAC has an offset of -1 ... 0
-                break;
-            }
+    // Find the newest buffer that is currently in the DAC. This is either at 0
+    // or 1, but can also be at 2, if the buffer has been updated concurrently
+    // during the loop.
+    for (std::size_t i = 1; i < 3 && offsetBuffers <= -1; ++i) {
+        VisualPlayPositionData candidate;
+        if (!m_data.getAt(i, &candidate)) {
+            break;
+        }
+        const double candidateOffset = calcOffsetAtNextVSync(pSyncTimeProvider, candidate);
+        if (candidateOffset > -1) {
+            data = candidate;
+            offsetBuffers = candidateOffset;
+            break;
         }
     }
-    if (i >= 3) {
-        // No valid data available e.g, track ejected
-        return false;
-    }
+    // If none of the recent buffers is currently in the DAC window (e.g. the
+    // render side is lagging behind the audio clock), fall back to the most
+    // recent buffer with its clamped offset. Otherwise returning "no data" here
+    // would reset the displayed play position to the track start.
 
     const double offsetSteps = data.m_positionStep * offsetBuffers;
     double interpolatedPlayPos = determinePlayPosInLoopBoundries(data, offsetSteps);

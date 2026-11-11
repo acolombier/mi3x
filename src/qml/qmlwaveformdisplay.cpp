@@ -28,7 +28,9 @@
 using namespace allshader;
 
 namespace {
-constexpr int kDefaultSyncInternalMs = 100;
+constexpr auto kDefaultSyncInterval = std::chrono::microseconds(16667);
+constexpr auto kMinimumSyncInterval = std::chrono::microseconds(1000);
+constexpr auto kMaximumSyncInterval = std::chrono::microseconds(100000);
 } // namespace
 
 namespace mixxx {
@@ -37,7 +39,7 @@ namespace qml {
 QmlWaveformDisplay::QmlWaveformDisplay(QQuickItem* parent)
         : QQuickItem(parent),
           WaveformWidgetRenderer(),
-          m_syncInterval(kDefaultSyncInternalMs),
+          m_syncInterval(kDefaultSyncInterval),
           m_pPlayer(nullptr),
           m_pTrack(nullptr),
           m_visualPlayPosition(QSharedPointer<VisualPlayPosition>::create()),
@@ -146,6 +148,7 @@ void QmlWaveformDisplay::slotWindowChanged(QQuickWindow* window) {
                 Qt::UniqueConnection);
     }
     m_timer.restart();
+    m_haveFrameInterval = false;
 }
 
 void QmlWaveformDisplay::setOptions(mixxx::qml::WaveformRendererSignalBaseOptions options) {
@@ -156,16 +159,13 @@ void QmlWaveformDisplay::setOptions(mixxx::qml::WaveformRendererSignalBaseOption
 }
 
 std::chrono::microseconds QmlWaveformDisplay::fromTimerToNextSync(const PerformanceTimer& timer) {
-    // TODO @m0dB probably better to use a singleton instead of deriving QmlWaveformDisplay from
-    // ISyncTimeProvider and have each keep track of this.
-    if (m_pTrack) {
+    if (!m_timer.running()) {
         return m_syncInterval;
     }
     return m_syncInterval + std::chrono::microseconds(m_timer.difference(timer).toIntegerMicros());
 }
 
 void QmlWaveformDisplay::slotFrameSwapped() {
-    m_timer.restart();
     if (!getTrackInfo()) {
         return;
     }
@@ -263,6 +263,20 @@ QSGNode* QmlWaveformDisplay::updatePaintNode(QSGNode* node, UpdatePaintNodeData*
     for (auto* pRenderer : std::as_const(m_rendererStack)) {
         pRenderer->update();
     }
+
+    // Measure the frame cadence here on the render thread so that the waveform
+    // position sync (fromTimerToNextSync, called below via onPreRender) uses a
+    // timer that is consistent with the actual frame timing. Restarting the
+    // timer in the queued slotFrameSwapped() on the GUI thread introduced a
+    // cross-thread delay that made the position appear to lag and bounce.
+    const auto frameInterval =
+            std::chrono::microseconds(m_timer.restart().toIntegerMicros());
+    if (m_haveFrameInterval &&
+            frameInterval >= kMinimumSyncInterval &&
+            frameInterval <= kMaximumSyncInterval) {
+        m_syncInterval = frameInterval;
+    }
+    m_haveFrameInterval = true;
 
     return pClipNode;
 }

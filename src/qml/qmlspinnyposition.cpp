@@ -68,7 +68,6 @@ void QmlSpinnyPosition::slotWindowChanged(QQuickWindow* window) {
             update();
         }
     }
-    resetFrameTiming();
 }
 
 void QmlSpinnyPosition::slotFrameSwapped() {
@@ -81,6 +80,12 @@ void QmlSpinnyPosition::slotFrameSwapped() {
     if (m_haveFrameInterval && frameInterval >= kMinimumSyncInterval &&
             frameInterval <= kMaximumSyncInterval) {
         m_syncInterval = frameInterval;
+    }
+    if (m_haveFrameInterval && frameInterval > 2 * m_syncInterval) {
+        // Diagnostic: a frame swap arrived much later than the adapted cadence.
+        qDebug() << "QmlSpinnyPosition::slotFrameSwapped" << m_group
+                 << "frame stall" << frameInterval.count() << "us"
+                 << "syncInterval" << m_syncInterval.count() << "us";
     }
     m_haveFrameInterval = true;
     refresh();
@@ -159,6 +164,7 @@ void QmlSpinnyPosition::updatePositions() {
 }
 
 QSGNode* QmlSpinnyPosition::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*) {
+    resetFrameTiming();
     return oldNode;
 }
 

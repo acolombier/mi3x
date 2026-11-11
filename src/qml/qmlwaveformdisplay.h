@@ -165,8 +165,9 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
     double m_audioVisualRatio = 0.0;
     QSharedPointer<VisualPlayPosition> m_visualPlayPosition;
     double m_manualPosition;
+    bool m_haveFrameInterval{false};
 
-    std::chrono::milliseconds m_syncInterval;
+    std::chrono::microseconds m_syncInterval;
     enum class DirtyFlag : int {
         None = 0x0,
         Geometry = 0x1,
