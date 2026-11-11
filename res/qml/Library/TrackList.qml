@@ -160,8 +160,7 @@ Rectangle {
         readonly property int sortingColumn: {
             for (let i = 0; i < root.sidebar.tracklist?.columns.length; i++) {
                 let columns = view.getColumn(i);
-                // FIXME CO doesn't fully use the same value as ColumnCache somehow... We could create a readonly C++ property that provide the mapping based of columnIdx
-                if (columns.columnIdx == librarySortColumnCO.value)
+                if (columns.sortColumn == librarySortColumnCO.value)
                     return i;
             }
             return -1;
