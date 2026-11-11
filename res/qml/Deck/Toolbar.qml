@@ -29,6 +29,7 @@ Item {
         implicitHeight: 22
         implicitWidth: 22
         key: "reverse"
+        rightKey: "reverseroll"
 
         contentItem: Shape {
             property int multiSamplingLevel: Mixxx.Config.multiSamplingLevel
