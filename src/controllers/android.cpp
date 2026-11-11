@@ -11,7 +11,7 @@ namespace mixxx {
 namespace android {
 std::mutex s_androidLock = {};
 std::condition_variable s_grantingWaitCond = {};
-std::vector<std::pair<QJniObject, bool>> s_grantingResult = {};
+std::vector<std::pair<int, bool>> s_grantingResult = {};
 QJniObject s_intent = {};
 QJniObject s_usbManager = {};
 
@@ -31,10 +31,10 @@ const QJniObject& getIntent() {
     QJniObject context = QNativeInterface::QAndroidApplication::context();
 
     s_usbManager = QJniObject("org/mixxx/UsbPermission");
-    jint FLAG_IMMUTABLE =
+    jint FLAG_MUTABLE =
             QJniObject::getStaticField<jint>(
                     "android/app/PendingIntent",
-                    "FLAG_IMMUTABLE");
+                    "FLAG_MUTABLE");
     QtJniTypes::String ACTION_USB_PERMISSION =
             QJniObject::fromString("org.mixxx.permissions.USB_PERMISSION");
     QtJniTypes::Intent intent = QJniObject("android/content/Intent",
@@ -43,6 +43,9 @@ const QJniObject& getIntent() {
     if (!intent.isValid()) {
         __android_log_print(ANDROID_LOG_WARN, "mixxx", "pending intent is invalid!");
     }
+    const QtJniTypes::String packageName =
+            context.callObjectMethod("getPackageName", "()Ljava/lang/String;");
+    intent.callMethod<QtJniTypes::Intent>("setPackage", packageName);
     s_intent =
             QJniObject::callStaticMethod<jobject>("android/app/PendingIntent",
                     "getBroadcast",
@@ -51,7 +54,7 @@ const QJniObject& getIntent() {
                     context,
                     0,
                     intent,
-                    FLAG_IMMUTABLE);
+                    FLAG_MUTABLE);
 
     if (!s_intent.isValid()) {
         __android_log_print(ANDROID_LOG_WARN, "mixxx", "pending intent is invalid!");
@@ -74,16 +77,17 @@ const QJniObject& getIntent() {
 bool waitForPermission(const QJniObject& device) {
     __android_log_print(ANDROID_LOG_VERBOSE, "mixxx", "about to wait for perm");
     std::unique_lock lock(s_androidLock);
-    std::vector<std::pair<QJniObject, bool>>::const_iterator result = s_grantingResult.cend();
+    const int deviceId = device.callMethod<jint>("getDeviceId");
+    std::vector<std::pair<int, bool>>::const_iterator result = s_grantingResult.cend();
 
     int retries = 0;
 
     while (!s_grantingWaitCond.wait_for(
-            lock, std::chrono::seconds(1), [&result, device] {
+            lock, std::chrono::seconds(1), [&result, deviceId] {
                 result = std::find_if(s_grantingResult.cbegin(),
                         s_grantingResult.cend(),
-                        [device](auto resultPair) {
-                            return resultPair.first == device;
+                        [deviceId](auto resultPair) {
+                            return resultPair.first == deviceId;
                         });
                 return result != s_grantingResult.cend();
             })) {
@@ -105,8 +109,13 @@ bool waitForPermission(const QJniObject& device) {
 
 void usbDeviceAccessResult(QJniObject device, bool granted) {
     std::unique_lock lock(s_androidLock);
-    __android_log_print(ANDROID_LOG_WARN, "mixxx", "received permission result: %d", granted);
-    s_grantingResult.push_back(std::make_pair<>(device, granted));
+    const int deviceId = device.callMethod<jint>("getDeviceId");
+    __android_log_print(ANDROID_LOG_WARN,
+            "mixxx",
+            "received permission result for device %d: %d",
+            deviceId,
+            granted);
+    s_grantingResult.push_back(std::make_pair<>(deviceId, granted));
     s_grantingWaitCond.notify_one();
     // FIXME Handle large list?
 }
