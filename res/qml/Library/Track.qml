@@ -48,9 +48,9 @@ Item {
 
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-        // // FIXME: this is a workaround on Qt bug. See core proxy for details
-        // enabled: !Mixxx.Core.hasPopup
         dragThreshold: root.dragThreshold
+        // FIXME: this is a workaround on Qt bug. See core proxy for details
+        enabled: !Mixxx.Core.hasPopup
 
         onDoubleTapped: (eventPoint, button) => {
             if (button === Qt.RightButton)
@@ -69,9 +69,9 @@ Item {
         id: touchScreenTapHandler
 
         acceptedDevices: PointerDevice.TouchScreen | PointerDevice.Stylus
-        // // FIXME: this is a workaround on Qt bug. See core proxy for details
-        // enabled: !Mixxx.Core.hasPopup
         dragThreshold: root.dragThreshold
+        // FIXME: this is a workaround on Qt bug. See core proxy for details
+        enabled: !Mixxx.Core.hasPopup
 
         onDoubleTapped: (eventPoint, button) => {
             view.selectionModel.selectRow(row);
