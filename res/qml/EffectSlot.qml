@@ -44,31 +44,22 @@ Item {
             anchors.margins: 5
             anchors.right: effectMetaKnob.left
             anchors.verticalCenter: parent.verticalCenter
+            currentIndex: {
+                const rowCount = effectSelector.model.rowCount();
+                for (let i = 0; i < rowCount; i++) {
+                    if (effectSelector.model.get(i).effectId === root.slot.effectId) {
+                        return i;
+                    }
+                }
+                return -1;
+            }
             model: Mixxx.EffectsManager.visibleEffectsModel
             textRole: "display"
-
-            Component.onCompleted: root.slot.onEffectIdChanged() // WRONG
 
             onActivated: index => {
                 const effectId = model.get(index).effectId;
                 if (root.slot.effectId != effectId)
                     root.slot.effectId = effectId;
-            }
-
-            Connections {
-                function onEffectIdChanged() {
-                    const rowCount = effectSelector.model.rowCount();
-                    // TODO: Consider using an additional QHash in the
-                    // model and provide a more efficient lookup method
-                    for (let i = 0; i < rowCount; i++) {
-                        if (effectSelector.model.get(i).effectId === root.slot.effectId) {
-                            effectSelector.currentIndex = i;
-                            break;
-                        }
-                    }
-                }
-
-                target: root.slot
             }
         }
         Skin.ControlMiniKnob {

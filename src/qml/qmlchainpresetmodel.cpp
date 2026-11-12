@@ -23,11 +23,13 @@ const QHash<int, QByteArray> kRoleNames = {
 QmlChainPresetModel::QmlChainPresetModel(
         std::shared_ptr<EffectsManager> pEffectsManager,
         PresetType presetType,
-        QObject* parent)
+        QObject* parent,
+        bool includeEmptyPreset)
         : QAbstractListModel(parent),
           m_pEffectsManager(std::move(pEffectsManager)),
           m_pEffectChainPresetManager(m_pEffectsManager->getChainPresetManager()),
-          m_presetType(presetType) {
+          m_presetType(presetType),
+          m_includeEmptyPreset(includeEmptyPreset) {
     slotUpdated();
     if (m_presetType == PresetType::Quick) {
         connect(m_pEffectChainPresetManager.get(),
@@ -47,6 +49,11 @@ void QmlChainPresetModel::slotUpdated() {
     m_effectChainPresets = m_presetType == PresetType::Quick
             ? m_pEffectChainPresetManager->getQuickEffectPresetsSorted()
             : m_pEffectChainPresetManager->getPresetsSorted();
+    if (!m_includeEmptyPreset) {
+        m_effectChainPresets.removeIf([](const EffectChainPresetPointer& pPreset) {
+            return pPreset->name() == kNoEffectString;
+        });
+    }
     endResetModel();
 }
 
@@ -97,6 +104,82 @@ int QmlChainPresetModel::rowCount(const QModelIndex& parent) const {
 
 QHash<int, QByteArray> QmlChainPresetModel::roleNames() const {
     return kRoleNames;
+}
+
+QString QmlChainPresetModel::presetName(int row) const {
+    if (row < 0 || row >= m_effectChainPresets.size()) {
+        return {};
+    }
+    return m_effectChainPresets.at(row)->name();
+}
+
+bool QmlChainPresetModel::renamePreset(int row, const QString& newName) {
+    if (row < 0 || row >= m_effectChainPresets.size()) {
+        return false;
+    }
+    QString error;
+    const bool success = m_pEffectChainPresetManager->renamePresetTo(
+            m_effectChainPresets.at(row)->name(), newName, &error);
+    m_lastError = success ? QString() : error;
+    emit lastErrorChanged();
+    return success;
+}
+
+bool QmlChainPresetModel::deletePreset(int row) {
+    if (row < 0 || row >= m_effectChainPresets.size()) {
+        return false;
+    }
+    QString error;
+    const bool success = m_pEffectChainPresetManager->deletePresetByName(
+            m_effectChainPresets.at(row)->name(), &error);
+    m_lastError = success ? QString() : error;
+    emit lastErrorChanged();
+    return success;
+}
+
+bool QmlChainPresetModel::exportPresetToFile(int row, const QString& filePath) {
+    if (row < 0 || row >= m_effectChainPresets.size()) {
+        return false;
+    }
+    QString error;
+    const bool success = m_pEffectChainPresetManager->exportPresetToFile(
+            m_effectChainPresets.at(row)->name(), filePath, &error);
+    m_lastError = success ? QString() : error;
+    emit lastErrorChanged();
+    return success;
+}
+
+QStringList QmlChainPresetModel::importPresets(const QStringList& filePaths) {
+    QStringList errors;
+    const QStringList imported = m_pEffectChainPresetManager->importPresetsFromFiles(
+            filePaths, &errors);
+    m_lastError = errors.join(QStringLiteral("\n"));
+    emit lastErrorChanged();
+    return imported;
+}
+
+bool QmlChainPresetModel::movePreset(int fromIndex, int toIndex) {
+    if (fromIndex < 0 || fromIndex >= m_effectChainPresets.size() ||
+            toIndex < 0 || toIndex >= m_effectChainPresets.size() ||
+            fromIndex == toIndex) {
+        return false;
+    }
+    QStringList order;
+    order.reserve(m_effectChainPresets.size());
+    for (const auto& pPreset : std::as_const(m_effectChainPresets)) {
+        order.append(pPreset->name());
+    }
+    order.move(fromIndex, toIndex);
+    if (m_presetType == PresetType::Quick) {
+        m_pEffectChainPresetManager->setQuickEffectPresetOrder(order);
+    } else {
+        m_pEffectChainPresetManager->setPresetOrder(order);
+    }
+    return true;
+}
+
+void QmlChainPresetModel::resetToDefaults() {
+    m_pEffectChainPresetManager->resetToDefaults();
 }
 
 QVariant QmlChainPresetModel::get(int row) const {

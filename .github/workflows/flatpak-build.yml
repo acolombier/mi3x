@@ -133,7 +133,7 @@ jobs:
           - target: e2e-batch-2
             features: "deck waveform"
           - target: e2e-batch-3
-            features: "preferences sound analyzer broadcast recording"
+            features: "preferences sound analyzer broadcast recording engine"
     uses: ./.github/workflows/e2e.yml
     with:
       installer_artifact_id: ${{ needs.build-flatpak.outputs.bundle-artifact-id-x86_64 }}

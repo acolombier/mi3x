@@ -17,6 +17,15 @@
 
 #include "control/controlobject.h"
 #include "coreservices.h"
+#include "effects/backends/effectmanifest.h"
+#include "effects/chains/equalizereffectchain.h"
+#include "effects/chains/quickeffectchain.h"
+#include "effects/effectchain.h"
+#include "effects/effectslot.h"
+#include "effects/effectsmanager.h"
+#include "effects/presets/effectchainpreset.h"
+#include "effects/presets/effectchainpresetmanager.h"
+#include "effects/visibleeffectslist.h"
 #include "library/dao/trackdao.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
@@ -425,6 +434,77 @@ RpcServe::RpcServe(
                     auto windows = QGuiApplication::topLevelWindows();
                     for (auto* w : std::as_const(windows)) {
                         w->setProperty("lastNotifications", json);
+                    }
+                } else if (command == "getEffectsState") {
+                    // Two-step pattern like getLibraryState/getNotifications:
+                    // snapshot the live effect-graph state as JSON in a window
+                    // property for a subsequent getStringProperty() to read.
+                    // This reflects the in-memory state applied by the settings
+                    // page (Save applies the EQ/QuickEffect changes immediately;
+                    // effects.xml is only flushed on shutdown).
+                    auto pEffectsManager = pCoreServices->getEffectsManager();
+
+                    auto uniqueIdOfSlot = [](const EffectSlotPointer& pSlot) {
+                        const auto pManifest = pSlot ? pSlot->getManifest() : nullptr;
+                        return pManifest ? pManifest->uniqueId() : QString();
+                    };
+
+                    QJsonObject state;
+                    if (pEffectsManager) {
+                        const auto pOutputChain = pEffectsManager->getOutputEffectChain();
+                        state["mainEq"] = uniqueIdOfSlot(
+                                pOutputChain ? pOutputChain->getEffectSlot(0)
+                                             : EffectSlotPointer());
+
+                        QJsonArray decks;
+                        const auto* pNumDecks = ControlObject::getControl(
+                                ConfigKey(QStringLiteral("[App]"), QStringLiteral("num_decks")));
+                        const int numDecks = pNumDecks ? static_cast<int>(pNumDecks->get()) : 0;
+                        for (int deck = 0; deck < numDecks; ++deck) {
+                            const QString group = PlayerManager::groupForDeck(deck);
+                            QJsonObject deckState;
+                            deckState["group"] = group;
+                            const auto pEqChain = pEffectsManager->getEqualizerEffectChain(group);
+                            deckState["eq"] = uniqueIdOfSlot(
+                                    pEqChain ? pEqChain->getEffectSlot(0)
+                                             : EffectSlotPointer());
+                            const auto pQuickChain = pEffectsManager->getQuickEffectChain(group);
+                            deckState["quickEffect"] =
+                                    pQuickChain ? pQuickChain->presetName() : QString();
+                            decks.append(deckState);
+                        }
+                        state["decks"] = decks;
+
+                        QJsonArray visibleEffects;
+                        for (const auto& pManifest :
+                                pEffectsManager->getVisibleEffectsList()->getList()) {
+                            visibleEffects.append(pManifest->uniqueId());
+                        }
+                        state["visibleEffects"] = visibleEffects;
+
+                        QJsonArray standardOrder;
+                        for (const auto& pPreset :
+                                pEffectsManager->getChainPresetManager()->getPresetsSorted()) {
+                            standardOrder.append(pPreset->name());
+                        }
+                        state["standardPresetOrder"] = standardOrder;
+
+                        QJsonArray quickOrder;
+                        for (const auto& pPreset :
+                                pEffectsManager->getChainPresetManager()
+                                        ->getQuickEffectPresetsSorted()) {
+                            quickOrder.append(pPreset->name());
+                        }
+                        state["quickPresetOrder"] = quickOrder;
+                    }
+
+                    QString json = QString::fromUtf8(
+                            QJsonDocument(state).toJson(QJsonDocument::Compact));
+                    qDebug() << "getEffectsState:" << json;
+
+                    auto windows = QGuiApplication::topLevelWindows();
+                    for (auto* w : std::as_const(windows)) {
+                        w->setProperty("lastEffectsState", json);
                     }
                 } else if (command == "registerMockDevices") {
                     QJsonDocument doc =
