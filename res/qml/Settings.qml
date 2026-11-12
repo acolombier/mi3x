@@ -181,7 +181,7 @@ Popup {
 
                                 color: ListView.isCurrentItem ? Theme.darkGray3 : Theme.darkGray2
                                 height: 38
-                                objectName: "category_" + label
+                                objectName: "category_" + label.replace(/[^a-zA-Z0-9]+/g, '')
                                 width: ListView.view.width
 
                                 Image {

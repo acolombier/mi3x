@@ -61,6 +61,17 @@ class EffectChainPresetManager : public QObject {
     bool renamePreset(const QString& oldName);
     bool deletePreset(const QString& chainPresetName);
 
+    QStringList importPresetsFromFiles(const QStringList& filePaths,
+            QStringList* pErrors = nullptr);
+    bool exportPresetToFile(const QString& chainPresetName,
+            const QString& filePath,
+            QString* pError = nullptr);
+    bool renamePresetTo(const QString& oldName,
+            const QString& newName,
+            QString* pError = nullptr);
+    bool deletePresetByName(const QString& chainPresetName,
+            QString* pError = nullptr);
+
     void resetToDefaults();
 
     void setPresetOrder(const QStringList& chainPresetList);

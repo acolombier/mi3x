@@ -18,6 +18,9 @@ class QmlEffectSlotProxy : public QObject {
     Q_PROPERTY(QString effectName READ getEffectName NOTIFY effectIdChanged)
     Q_PROPERTY(QString effectDescription READ getEffectDescription NOTIFY effectIdChanged)
     Q_PROPERTY(QString effectId READ getEffectId WRITE setEffectId NOTIFY effectIdChanged)
+    Q_PROPERTY(QString uniqueId READ getUniqueId NOTIFY effectIdChanged)
+    Q_PROPERTY(bool enabled READ isEnabled WRITE setEnabled NOTIFY enabledChanged)
+    Q_PROPERTY(QString chainPresetName READ getChainPresetName NOTIFY chainPresetChanged)
     Q_PROPERTY(mixxx::qml::QmlEffectSlotParametersModel* parametersModel
                     READ getParametersModel CONSTANT)
     QML_NAMED_ELEMENT(EffectSlotProxy)
@@ -39,20 +42,30 @@ class QmlEffectSlotProxy : public QObject {
     int getNumber() const;
     QString getGroup() const;
     QString getEffectId() const;
+    QString getUniqueId() const;
     bool isLoaded() const;
+    bool isEnabled() const;
     QString getEffectName() const;
     QString getEffectDescription() const;
+    QString getChainPresetName() const;
     QmlEffectSlotParametersModel* getParametersModel() const;
 
   public slots:
     void setEffectId(const QString& effectId);
+    void setEnabled(bool enabled);
 
   public:
     Q_INVOKABLE void setParameterVisible(const QString& parameterId, bool visible);
     Q_INVOKABLE void saveDefaultSnapshot();
+    Q_INVOKABLE double getParameterValue(const QString& parameterId) const;
+    Q_INVOKABLE bool setParameterValue(const QString& parameterId, double value);
+    Q_INVOKABLE bool resetParameterToDefault(const QString& parameterId);
+    Q_INVOKABLE void resetParametersToDefaults();
 
   signals:
     void effectIdChanged();
+    void enabledChanged();
+    void chainPresetChanged();
 
   private:
     /// FIXME: The reference to EffectManager is needed for loading effects.
