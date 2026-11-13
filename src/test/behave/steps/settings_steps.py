@@ -64,13 +64,39 @@ CONFIG_SAVE_MAP = {
         "key": "InhibitScreensaver",
         "expected": {"no": "0", "while running": "1", "while playing": "2"},
     },
+    "cue mode": {
+        "group": "[Controls]",
+        "key": "CueDefault",
+        "expected": {
+            "Mixxx": "", # Default, no setting set
+            "Pioneer": "1",
+            "Denon": "2",
+            "Numark": "3",
+            "Mixxx (no blinking)": "4",
+            "CUP": "5"
+        }
+    },
+    "keylock mode": {
+        "group": "[Controls]",
+        "key": "keylockMode",
+        "expected": {
+            "original key": "0", "current key": "1"
+        }
+    },
+    "keyunlock mode": {
+        "group": "[Controls]",
+        "key": "keyunlockMode",
+        "expected": {
+            "reset key": "0", "keep key": "1"
+        }
+    },
     "slider range": {
-        "group": "[Control]",
+        "group": "[Controls]",
         "key": "RateRangePercent",
         "expected": lambda value: str(int(float(value.rstrip("%")))),
     },
     "slider orientation": {
-        "group": "[Control]",
+        "group": "[Controls]",
         "key": "RateDir",
         "expected": {"down": "", "up": "0"},
     },
@@ -242,6 +268,29 @@ CONFIG_SAVE_MAP = {
 
 # ControlObject side-effects of saveDeck().
 CONTROL_VALUE_MAP = {
+    "cue mode": {
+        "key": "cue_mode",
+        "expected": {
+            "Mixxx": 0,
+            "Pioneer": 1,
+            "Denon": 2,
+            "Numark": 3,
+            "Mixxx (no blinking)": 4,
+            "CUP": 5,
+        }
+    },
+    "keylock mode": {
+        "key": "keylockMode",
+        "expected": {
+            "original key": 0, "current key": 1
+        }
+    },
+    "keyunlock mode": {
+        "key": "keyunlockMode",
+        "expected": {
+            "reset key": 0, "keep key": 1
+        }
+    },
     "slider range": {"key": "rateRange", "expected": lambda value: float(value.rstrip("%"))/100},
     "slider orientation": {"key": "rate_dir", "expected": {"down": -1, "up": 1}},
 }
@@ -332,7 +381,7 @@ def step_tab_selected(context, tab):
 
 @given('the "{setting}" setting is "{value}"')
 def step_setting_is(context, setting, value):
-    spec = _setting_spec(setting)
+    spec = _setting_spec(context, setting)
     if spec["kind"] != "ratio":
         raise ValueError(f"Cannot preset non-ratio setting: {setting}")
     _set_property(context, spec["path"], "selected", value)
@@ -387,7 +436,7 @@ def step_click_tab(context, tab):
 @when('I toggle the "{setting}" setting to "{value}" with {method}')
 @when('I set the "{setting}" setting to "{value}" with {method}')
 def step_set_setting(context, setting, value, method=None):
-    spec = _setting_spec(setting)
+    spec = _setting_spec(context, setting)
     path = spec["path"]
     _scroll_setting_into_view(context, path)
     assert wait_visible(context.rpc, path), f"Setting '{setting}' not visible (path={path})"
@@ -629,7 +678,6 @@ def _assert_setting_value_matches(context, setting, spec, value):
             f"but is index '{actual}'"
         )
     elif kind == "slider":
-        spec.update(json.loads(context.rpc.invokeMethod(spec['path'], "serialize", [])))
         tolerance = min(1.0, 0.01 * (spec["max"] - spec["min"]))
         diff = abs(float(actual) - float(value))
         assert diff <= tolerance, (
@@ -642,19 +690,19 @@ def _assert_setting_value_matches(context, setting, spec, value):
 
 @then('the "{setting}" setting should be "{value}"')
 def step_setting_should_be(context, setting, value):
-    _assert_setting_value_matches(context, setting, _setting_spec(setting), value)
+    _assert_setting_value_matches(context, setting, _setting_spec(context, setting), value)
 
 
 @then('the "{setting}" setting should be enabled')
 def step_setting_should_be_enabled(context, setting):
-    spec = _setting_spec(setting)
+    spec = _setting_spec(context, setting)
     actual = _get_property(context, spec["path"], "enabled")
     assert actual == "true", f"Setting '{setting}' should be enabled but enabled={actual}"
 
 
 @then('the "{setting}" setting should be disabled')
 def step_setting_should_be_disabled(context, setting):
-    spec = _setting_spec(setting)
+    spec = _setting_spec(context, setting)
     actual = _get_property(context, spec["path"], "enabled")
     assert actual == "false", f"Setting '{setting}' should be disabled but enabled={actual}"
 
@@ -671,7 +719,7 @@ def step_setting_saved_as(context, setting, value):
     elif isinstance(expected, dict):
         expected = expected[value]
     assert actual == expected, (
-        f"Config for '{setting}' ([{spec['group']}],{spec['key']}) should be saved as '{value}' but is '{actual}'"
+        f"Config for '{setting}' ({spec['group']},{spec['key']}) should be saved as '{value}' ({expected}) but is '{actual}'"
     )
 
 
@@ -692,7 +740,7 @@ def step_setting_saved(context, setting):
     if not spec:
         raise ValueError(f"No config mapping for setting: {setting}")
     actual = _get_config_value(context, spec["group"], spec["key"])
-    widget = _setting_spec(setting)
+    widget = _setting_spec(context, setting)
     current = _get_property(context, widget["path"], "currentText")
     assert actual == current, (
         f"Config for '{setting}' should be saved as '{current}' but is '{actual}'"
@@ -733,7 +781,7 @@ valid = None
 
 @then('the "{setting}" setting should not be visible')
 def step_setting_not_visible(context, setting):
-    spec = _setting_spec(setting)
+    spec = _setting_spec(context, setting)
     assert wait_hidden(context.rpc, spec["path"]), f"Setting '{setting}' is still visible"
 
 # --- Responsiveness steps ---
@@ -797,13 +845,13 @@ def step_click_categories_button(context):
 
 @then('the "{setting}" setting should be visible')
 def step_setting_visible(context, setting):
-    spec = _setting_spec(setting)
+    spec = _setting_spec(context, setting)
     assert wait_visible(context.rpc, spec["path"]), f"Setting '{setting}' is not visible"
 
 
 @then('the "{setting}" setting should be expanded')
 def step_setting_expanded(context, setting):
-    spec = _setting_spec(setting)
+    spec = _setting_spec(context, setting)
     assert wait_visible(context.rpc, f"{spec['path']}/option0"), (
         f"Setting '{setting}' should be expanded but its option pills are not visible"
     )
@@ -874,7 +922,7 @@ def step_not_overlap(context, item, target):
 
 @then('the "{setting}" setting should be compacted')
 def step_setting_compacted(context, setting):
-    spec = _setting_spec(setting)
+    spec = _setting_spec(context, setting)
     assert wait_visible(context.rpc, f"{spec['path']}/nextButton"), (
         f"Setting '{setting}' should be compacted but its spinbox buttons are not visible"
     )
@@ -915,7 +963,7 @@ def step_scroll_down_settings(context):
 
 @then('the "{setting}" setting should {assertion} visible on screen')
 def step_setting_on_screen(context, setting, assertion):
-    spec = _setting_spec(setting)
+    spec = _setting_spec(context, setting)
     expected = assertion == "be"
     assert wait_visible(context.rpc, spec["path"]), f"Setting '{setting}' is not present"
     setting_bb = context.rpc.getBoundingBox(spec["path"])
@@ -966,14 +1014,14 @@ def _drag_slider_handle(context, spec, value):
     track = f"{path}/control"
     assert wait_visible(context.rpc, handler), f"Slider handle not visible at {handler}"
     assert wait_visible(context.rpc, track), f"Slider track not visible at {track}"
-    spec.update(json.loads(context.rpc.invokeMethod(path, "serialize", [])))
-    for attempt in range(2):
-        target_vp = _value_to_ratio(
-            float(value), spec["min"], spec["max"], spec.get("markers", [])
-        )
-        context.rpc.mouseBeginDrag(handler, 0.25, 0.5, track, target_vp, 0.5)
-        context.rpc.mouseEndDrag(handler)
-        time.sleep(0.5)
+    target_vp = _value_to_ratio(
+        float(value), spec["min"], spec["max"], spec.get("markers", [])
+    )
+    track_bb = context.rpc.getBoundingBox(track)[2]
+    handler_bb = context.rpc.getBoundingBox(handler)[2]
+    corrected_offset = (track_bb - handler_bb/2)/track_bb*target_vp
+    context.rpc.mouseClickWithProportion(track, corrected_offset, 0.5)
+    time.sleep(0.5)
 
 
 def _enter_text_value(context, path, value):

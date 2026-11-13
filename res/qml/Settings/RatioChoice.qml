@@ -249,7 +249,7 @@ Item {
             onExited: {
                 popup.close();
             }
-            onPressed: {
+            onPressed: mouse => {
                 mouse.accepted = false;
             }
         }

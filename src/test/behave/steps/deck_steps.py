@@ -495,18 +495,9 @@ def _open_hotcue_popup(context, deck, hotcue):
     context._popup_hotcue = hotcue
     path = _deck_hotcue_path(deck, hotcue)
     popup_path = _hotcue_popup(context, "hotcuePopupContent")
-    # AGENTS.md click-retry exception: the popup opens via tap on the
-    # hotcue button's TapHandler, and spix synthetic taps can be dropped
-    # under load; each retry is verified against the popup being visible.
-    # The popup is modal while open, so further right-clicks on the button
-    # cannot toggle it again.
-    deadline = time.time() + 15.0
-    while not _is_visible(context, popup_path):
-        if time.time() >= deadline:
-            break
+    if not _is_visible(context, popup_path):
         context.rpc.mouseClickWithButton(path, QT_RIGHT_BUTTON, 0)
-        time.sleep(0.3)
-    assert _is_visible(context, popup_path), (
+    assert wait_visible(context.rpc, popup_path, timeout=3), (
         f"the hotcue popup for hotcue {hotcue} on deck {deck} did not open")
 
 

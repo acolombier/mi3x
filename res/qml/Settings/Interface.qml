@@ -125,6 +125,9 @@ Category {
     }
     function saveDeck() {
         Mixxx.Config.controlCueDefault = cueModeInput.currentIndex;
+        for (let i = 0; i < cueMode.count; i++) {
+            cueMode.objectAt(i).value = Mixxx.Config.controlCueDefault;
+        }
         Mixxx.Config.controlSetIntroStartAtMainCue = setIntroStartToMainCueInput.isOn;
         Mixxx.Config.controlPositionDisplay = trackTimeDisplayInput.options.indexOf(trackTimeDisplayInput.selected);
         Mixxx.Config.controlTimeFormat = timeMode.currentIndex;
@@ -142,25 +145,19 @@ Category {
         }
         Mixxx.Config.controlRateDir = sliderOrientationInput.selected === "down";
         Mixxx.Config.controlKeylockMode = keylockModeInput.options.indexOf(keylockModeInput.selected);
+        for (let i = 0; i < keylockMode.count; i++) {
+            keylockMode.objectAt(i).value = Mixxx.Config.controlKeylockMode;
+        }
         Mixxx.Config.controlKeyunlockMode = keyunlockModeInput.options.indexOf(keyunlockModeInput.selected);
+        for (let i = 0; i < keyunlockMode.count; i++) {
+            keyunlockMode.objectAt(i).value = Mixxx.Config.controlKeyunlockMode;
+        }
         Mixxx.Config.controlPitchBendBehaviour = pitchBendBehaviourInput.options.indexOf(pitchBendBehaviourInput.selected);
         Mixxx.Config.controlRateTempCoarse = adjustmentButtonsTemporaryCoarseInput.value / 100;
         Mixxx.Config.controlRateTempFine = adjustmentButtonsTemporaryFineInput.value / 100;
         Mixxx.Config.controlRatePermCoarse = adjustmentButtonsPermanentCoarseInput.value / 100;
         Mixxx.Config.controlRatePermFine = adjustmentButtonsPermanentFineInput.value / 100;
         Mixxx.Config.controlRateRampSensitivity = rampingSensitivityInput.value;
-        // TODO: following setting are currently not exposed
-        // Mixxx.Config.waveformOverviewType
-        // Mixxx.Config.waveformOverviewStereo
-        // Mixxx.Config.waveformOverviewMinuteMarkers
-        // Mixxx.Config.waveformEnabled
-        // Mixxx.Config.waveformFrameRate
-        // Mixxx.Config.waveformStemOpacity
-        // Mixxx.Config.waveformStemOutlineOpacity
-        // Mixxx.Config.waveformStemReorderOnChange
-        // Mixxx.Config.waveformStemSplitTracks
-        // Mixxx.Config.waveformCachingEnabled
-        // Mixxx.Config.waveformGenerationWithAnalysisEnabled
         loadDeck();
     }
     function saveInterface() {
@@ -229,6 +226,42 @@ Category {
 
             group: `[Channel${index + 1}]`
             key: "rate_dir"
+        }
+    }
+    Instantiator {
+        id: keylockMode
+
+        model: numDecks.value
+
+        Mixxx.ControlProxy {
+            required property int index
+
+            group: `[Channel${index + 1}]`
+            key: "keylockMode"
+        }
+    }
+    Instantiator {
+        id: keyunlockMode
+
+        model: numDecks.value
+
+        Mixxx.ControlProxy {
+            required property int index
+
+            group: `[Channel${index + 1}]`
+            key: "keyunlockMode"
+        }
+    }
+    Instantiator {
+        id: cueMode
+
+        model: numDecks.value
+
+        Mixxx.ControlProxy {
+            required property int index
+
+            group: `[Channel${index + 1}]`
+            key: "cue_mode"
         }
     }
     ScrollView {
@@ -996,6 +1029,18 @@ Category {
                     waveformTab.dirty = false;
                 }
                 function save() {
+                    // TODO: following setting are currently not exposed
+                    // Mixxx.Config.waveformOverviewType
+                    // Mixxx.Config.waveformOverviewStereo
+                    // Mixxx.Config.waveformOverviewMinuteMarkers
+                    // Mixxx.Config.waveformEnabled
+                    // Mixxx.Config.waveformFrameRate
+                    // Mixxx.Config.waveformStemOpacity
+                    // Mixxx.Config.waveformStemOutlineOpacity
+                    // Mixxx.Config.waveformStemReorderOnChange
+                    // Mixxx.Config.waveformStemSplitTracks
+                    // Mixxx.Config.waveformCachingEnabled
+                    // Mixxx.Config.waveformGenerationWithAnalysisEnabled
                     Mixxx.Config.waveformEndOfTrackWarningTime = endOfTrackWarningInput.value;
                     Mixxx.Config.waveformZoomSynchronization = synchronizeAllZoomLevelInput.isOn;
                     Mixxx.Config.waveformOverviewNormalized = normaliseWaveformOverviewLevelInput.isOn;
@@ -2059,7 +2104,8 @@ Category {
                                 id: cueModeInput
 
                                 implicitWidth: 200
-                                model: ["Mixxx", "Mixxx (no blinking)", "Pioneer", "Denon", "Numark", "CUP",]
+                                // Order MUST natch the enum order as defined in src/engine/controls/cuecontrol.h
+                                model: ["Mixxx", "Pioneer", "Denon", "Numark", "Mixxx (no blinking)", "CUP",]
                                 objectName: "setting_cueMode"
 
                                 onCurrentIndexChanged: decksTab.dirty = true

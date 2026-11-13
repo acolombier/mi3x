@@ -140,7 +140,7 @@ def step_preview_waveform_band_gain(context, band, value):
 def step_preview_waveform_option(context):
     bits = 0
     for name, bit in WAVEFORM_OPTION_BITS.items():
-        selected = _get_property(context, _setting_spec(name)["path"], "selected")
+        selected = _get_property(context, _setting_spec(context, name)["path"], "selected")
         if selected == "on":
             bits |= bit
     actual = int(_get_property(context, WAVEFORM_PREVIEW_PATH, "options"))
