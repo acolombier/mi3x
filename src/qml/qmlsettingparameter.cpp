@@ -45,7 +45,7 @@ QmlSettingParameterManager::QmlSettingParameterManager(QQuickItem* parent)
         : QQuickItem(parent),
           m_model(this) {
     m_model.setSourceModel(&m_sourceModel);
-    m_model.setFilterKeyColumn(1);
+    m_model.setFilterRole(Qt::UserRole);
     m_model.setFilterCaseSensitivity(Qt::CaseInsensitive);
 }
 QmlSettingParameterManager::~QmlSettingParameterManager() {
@@ -54,22 +54,44 @@ QmlSettingParameterManager::~QmlSettingParameterManager() {
 }
 
 void QmlSettingParameterManager::registerSettingParamater(
-        QmlSettingParameter* pParameter, QList<QmlSettingGroup*> pathItems) {
-    QStringList path;
-    for (const auto* pItem : pathItems) {
-        path.append(pItem->label());
-    }
-    pathItems.append(pParameter);
+        QmlSettingParameter* pParameter, const QList<QmlSettingGroup*>& pathItems) {
+    auto generateRow = [pParameter](QList<QmlSettingGroup*> pathItems) {
+        QStringList component;
+        for (const auto* pItem : pathItems) {
+            component.append(pItem->label());
+        }
+        QString path = component.join(" > ");
 
-    auto* pItem = new QStandardItem(pParameter->label());
-    pItem->setData(path.join(" > "), Qt::WhatsThisRole);
-    pItem->setData(QVariant::fromValue(pathItems), Qt::ToolTipRole);
-    m_sourceModel.appendRow(QList<QStandardItem*>{pItem,
-            new QStandardItem(pParameter->label() + path.join(" > "))});
+        component.append(pParameter->label());
+        component.append(pParameter->keywords());
+        pathItems.append(pParameter);
+
+        auto* pItem = new QStandardItem(pParameter->label());
+        pItem->setData(component.join(" "), Qt::UserRole);
+        pItem->setData(path, Qt::WhatsThisRole);
+        pItem->setData(QVariant::fromValue(pathItems), Qt::ToolTipRole);
+        return QList<QStandardItem*>{pItem,
+                new QStandardItem(pParameter->label() + path)};
+    };
+    m_sourceModel.appendRow(generateRow(pathItems));
     auto rowIndex = m_sourceModel.index(m_sourceModel.rowCount() - 1, 0);
     connect(pParameter, &QObject::destroyed, this, [this, rowIndex](QObject*) {
         m_sourceModel.removeRow(rowIndex.row());
     });
+    connect(pParameter,
+            &QmlSettingParameter::labelChanged,
+            this,
+            [this, pathItems, generateRow, rowIndex]() {
+                m_sourceModel.removeRow(rowIndex.row());
+                m_sourceModel.appendRow(generateRow(pathItems));
+            });
+    connect(pParameter,
+            &QmlSettingParameter::keywordsChanged,
+            this,
+            [this, pathItems, generateRow, rowIndex]() {
+                m_sourceModel.removeRow(rowIndex.row());
+                m_sourceModel.appendRow(generateRow(pathItems));
+            });
 }
 
 void QmlSettingParameterManager::search(const QString& criteria) {
