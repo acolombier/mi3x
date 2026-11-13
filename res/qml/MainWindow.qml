@@ -243,7 +243,7 @@ Item {
                     id: notificationButton
 
                     activeColor: Theme.white
-                    checked: notificationPopup.opened && !notificationPopup.focusedNotification
+                    checked: notificationDrawer.visible && !notificationDrawer.focusedNotification
                     enabled: !!Mixxx.Core.notifications.length
                     icon.height: 16
                     icon.source: "images/notification_bell.svg"
@@ -251,12 +251,14 @@ Item {
                     implicitWidth: implicitHeight
 
                     onClicked: {
-                        if (!notificationPopup.opened) {
-                            notificationPopup.open();
-                        } else if (notificationPopup.focusedNotification == null) {
-                            notificationPopup.close();
+                        if (!notificationDrawer.visible) {
+                            notificationDrawer.focusedNotification = null;
+                            notificationDrawer.visible = true;
+                            return;
+                        } else if (notificationDrawer.focusedNotification == null) {
+                            notificationDrawer.visible = false;
                         }
-                        notificationPopup.focusedNotification = null;
+                        notificationDrawer.focusedNotification = null;
                     }
 
                     Rectangle {
@@ -272,42 +274,19 @@ Item {
                     }
                     Connections {
                         function onNotificationAdded(notification) {
-                            if (!notificationPopup.opened) {
-                                notificationPopup.focusedNotification = notification;
-                                notificationPopup.open();
+                            if (!notificationDrawer.visible) {
+                                notificationDrawer.focusedNotification = notification;
+                                notificationDrawer.visible = true;
                             }
                         }
                         function onNotificationClosed(notification) {
-                            if (notificationPopup.focusedNotification == notification) {
-                                notificationPopup.focusedNotification = null;
-                                notificationPopup.close();
+                            if (notificationDrawer.focusedNotification == notification) {
+                                notificationDrawer.focusedNotification = null;
+                                notificationDrawer.visible = false;
                             }
                         }
 
                         target: Mixxx.Core
-                    }
-                    Skin.NotificationDrawer {
-                        id: notificationPopup
-
-                        focus: true
-                        x: {
-                            opened; // Bind to opening
-                            let pos = notificationButton.mapToItem(root, 0, 0);
-                            return root.width - pos.x - width - 18;
-                        }
-                        y: notificationButton.height
-
-                        background {
-                            visible: notificationButton.checked
-                        }
-                        arrow {
-                            Component.onCompleted: {
-                                arrow.pinTo.x = Qt.binding(() => {
-                                    opened; // Bind to opening
-                                    return notificationButton.mapToItem(notificationPopup.contentItem, (notificationButton.width - arrow.width) / 2, notificationButton.height).x;
-                                });
-                            }
-                        }
                     }
                 }
                 Skin.Button {
@@ -805,6 +784,30 @@ Item {
                         top: mixer.bottom
                     }
                 }
+            }
+        }
+    }
+    Skin.NotificationDrawer {
+        id: notificationDrawer
+
+        focus: true
+        x: {
+            return root.width - width - 18;
+        }
+        y: {
+            let pos = notificationButton.mapToItem(root, 0, 0);
+            return pos.y + notificationButton.height;
+        }
+
+        background {
+            visible: notificationButton.checked
+        }
+        arrow {
+            Component.onCompleted: {
+                arrow.pinTo.x = Qt.binding(() => {
+                    visible; // Bind to opening
+                    return notificationButton.mapToItem(notificationDrawer, (notificationButton.width - arrow.width) / 2, notificationButton.height).x;
+                });
             }
         }
     }

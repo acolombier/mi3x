@@ -7,7 +7,6 @@
 #include <QQuickItem>
 #include <QQuickPaintedItem>
 #include <QString>
-#include <QUrl>
 
 #include "library/overviewcache.h"
 #include "qmltrackproxy.h"
@@ -24,7 +23,9 @@ class QmlWaveformOverview : public QQuickPaintedItem {
                     NOTIFY trackChanged)
     Q_PROPERTY(mixxx::qml::QmlWaveformOverview::Channels channels READ
                     getChannels WRITE setChannels NOTIFY channelsChanged)
-    Q_PROPERTY(QUrl trackUrl READ trackUrl WRITE setTrackUrl NOTIFY trackUrlChanged)
+    Q_PROPERTY(int trackId READ trackId WRITE setTrackId NOTIFY trackIdChanged)
+    Q_PROPERTY(mixxx::qml::QmlWaveformOverview::Status status READ status NOTIFY
+                    statusChanged)
     Q_PROPERTY(mixxx::qml::QmlWaveformOverview::Renderer renderer MEMBER
                     m_renderer NOTIFY rendererChanged)
     Q_PROPERTY(QColor colorHigh MEMBER m_colorHigh NOTIFY colorHighChanged)
@@ -46,6 +47,17 @@ class QmlWaveformOverview : public QQuickPaintedItem {
     };
     Q_ENUM(Renderer)
 
+    /// Mirrors the semantics of QQuickImageBase::Status (Image.status,
+    /// Loader.status): track the asynchronous load of the waveform summary.
+    enum class Status {
+        Null = 0,    // No Waveform summary yet bound. Either because unitaliased
+                     // or because the waveform summary is not actively painted
+        Ready = 1,   // Waveform summary loaded and paintable
+        Loading = 2, // Load scheduled or in flight
+        Error = 3,   // No waveform summary exists for this track
+    };
+    Q_ENUM(Status)
+
     QmlWaveformOverview(QQuickItem* parent = nullptr);
     ~QmlWaveformOverview() override = default;
 
@@ -53,20 +65,24 @@ class QmlWaveformOverview : public QQuickPaintedItem {
 
     void setTrack(QmlTrackProxy* track);
     QmlTrackProxy* getTrack() const;
-    void setTrackUrl(const QUrl& track);
-    QUrl trackUrl() const {
-        return m_trackUrl;
-    }
+    int trackId() const;
+    void setTrackId(int trackId);
+    Status status() const;
 
     void setChannels(Channels channels);
     Channels getChannels() const;
   private slots:
     void slotWaveformUpdated();
     void slotOverviewChanged(TrackId trackId);
+    void slotWaveformSummaryReady(
+            const QObject* pRequester,
+            TrackId trackId,
+            ConstWaveformPointer pWaveform);
 
   signals:
     void trackChanged();
-    void trackUrlChanged();
+    void trackIdChanged();
+    void statusChanged();
     void channelsChanged(mixxx::qml::QmlWaveformOverview::Channels channels);
     void rendererChanged(mixxx::qml::QmlWaveformOverview::Renderer renderer);
     void colorHighChanged(const QColor& color);
@@ -74,6 +90,7 @@ class QmlWaveformOverview : public QQuickPaintedItem {
     void colorLowChanged(const QColor& color);
 
   private:
+    void setStatus(Status status);
     void drawFiltered(QPainter* pPainter,
             Channels channels,
             ConstWaveformPointer pWaveform,
@@ -85,9 +102,9 @@ class QmlWaveformOverview : public QQuickPaintedItem {
     QColor getRgbPenColor(ConstWaveformPointer pWaveform, int completion) const;
     QPixmap renderWaveformToPixmap(ConstWaveformPointer pWaveform, int completion) const;
     void invalidatePixmapCacheForCurrent();
+    void invalidatePixmapCache(TrackId trackId);
 
     QPointer<QmlTrackProxy> m_pTrack;
-    QUrl m_trackUrl;
     Channels m_channels;
     Renderer m_renderer;
     QColor m_colorHigh;
@@ -96,8 +113,7 @@ class QmlWaveformOverview : public QQuickPaintedItem {
 
     ConstWaveformPointer m_waveformSummary;
     TrackId m_trackId;
-
-    static QString pixmapCacheKey(TrackId trackId);
+    Status m_status;
 };
 
 } // namespace qml

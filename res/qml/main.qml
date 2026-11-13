@@ -22,6 +22,8 @@ ApplicationWindow {
     // sees presses that nothing else accepted.
     readonly property alias touchHub: touchHubArea
 
+    signal requestTrackProperties(Mixxx.Track track)
+
     color: Theme.backgroundColor
     height: isMobile ? Screen.height : designHeight
     minimumHeight: isMobile ? 0 : 300
@@ -33,6 +35,9 @@ ApplicationWindow {
     Component.onCompleted: {
         Mixxx.Core.clearOpenedPopup();
     }
+
+    // TODO implement the track property popup
+    onRequestTrackProperties: track => print("requesting to see properties for track", track)
 
     Connections {
         function onReadyChanged() {
@@ -51,7 +56,11 @@ ApplicationWindow {
         id: content
 
         active: Mixxx.Core.ready
+        anchors.bottomMargin: SafeArea.margins.bottom
         anchors.fill: parent
+        anchors.leftMargin: SafeArea.margins.left
+        anchors.rightMargin: SafeArea.margins.right
+        anchors.topMargin: SafeArea.margins.top
         asynchronous: true
         focus: true
 
@@ -206,8 +215,8 @@ ApplicationWindow {
         enableDiagnosticClick: root.enableDiagnosticClick
         focus: true
         height: Math.min(840, root.height)
-        width: Math.min(1400, root.width)
-        x: Math.round((root.width - width) / 2)
+        width: Math.min(1400, content.width)
+        x: Math.round((content.width - width) / 2)
         y: Math.round((root.height - height) / 2)
 
         Overlay.modal: Rectangle {

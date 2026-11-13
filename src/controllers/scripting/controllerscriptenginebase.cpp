@@ -72,15 +72,9 @@ bool ControllerScriptEngineBase::initialize() {
         QQuickStyle::setStyle("Basic");
         auto pQmlEngine = std::make_shared<QQmlEngine>(this);
         pQmlEngine->addImportPath(QStringLiteral(":/mixxx.org/imports"));
-        if (s_pTrackCollectionManager) {
-            mixxx::qml::AsyncImageProvider* pImageProvider = new mixxx::qml::AsyncImageProvider(
-                    s_pTrackCollectionManager);
-            pQmlEngine->addImageProvider(mixxx::qml::AsyncImageProvider::kProviderName,
-                    pImageProvider);
-        } else {
-            DEBUG_ASSERT(!"TrackCollectionManager is missing");
-            qCWarning(m_logger) << "TrackCollectionManager hasn't been registered yet";
-        }
+        mixxx::qml::AsyncImageProvider* pImageProvider = new mixxx::qml::AsyncImageProvider();
+        pQmlEngine->addImageProvider(mixxx::qml::AsyncImageProvider::kProviderName,
+                pImageProvider);
         connect(pQmlEngine.get(),
                 &QQmlEngine::warnings,
                 this,

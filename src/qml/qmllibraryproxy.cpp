@@ -4,6 +4,7 @@
 #include <QQmlEngine>
 #include <cmath>
 
+#include "analyzer/analyzertrack.h"
 #include "control/controlobject.h"
 #include "library/library.h"
 #include "library/librarytablemodel.h"
@@ -199,11 +200,33 @@ QmlLibraryTrackListModel* QmlLibraryProxy::model() const {
             QList<QmlLibraryTrackListColumn*>{}, s_pLibrary->trackTableModel())
             .get();
 }
-void QmlLibraryProxy::analyze(const QmlTrackProxy* track) const {
+void QmlLibraryProxy::analyze(
+        const QmlTrackProxy* track, bool reanalyse, bool useFixedTempo) const {
     VERIFY_OR_DEBUG_ASSERT(track && track->internal()) {
         return;
     }
-    emit s_pLibrary->analyzeTracks({track->internal()->getId()});
+    const TrackIdList trackIds = {track->internal()->getId()};
+    if (trackIds.empty()) {
+        qWarning() << "No tracks selected for analysis";
+        return;
+    }
+
+    // FIXME eventually, we will be taking a list of track in a params. We
+    // should use a mixxx::TrackPointerOperation when we get more than one
+    // operation
+    if (reanalyse) {
+        track->internal()->trySetBeats(mixxx::BeatsPointer());
+    }
+
+    AnalyzerTrack::Options options;
+    options.useFixedTempo = useFixedTempo;
+
+    QList<AnalyzerScheduledTrack> tracks;
+    for (auto trackId : trackIds) {
+        AnalyzerScheduledTrack track(trackId, options);
+        tracks.append(track);
+    }
+    emit s_pLibrary->analyzeTracks(tracks);
 }
 
 QString QmlLibraryProxy::deckHotcueLabel(

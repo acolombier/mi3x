@@ -489,14 +489,19 @@ LibraryControl::LibraryControl(Library* pLibrary)
     m_pShowTrackMenu = std::make_unique<ControlPushButton>(
             ConfigKey("[Library]", "show_track_menu"));
     m_pShowTrackMenu->setStates(2);
-    m_pShowTrackMenu->connectValueChangeRequest(this,
-            [this](double value) {
-                VERIFY_OR_DEBUG_ASSERT(m_pLibraryWidget) {
-                    return;
-                }
-                bool show = static_cast<bool>(value);
-                emit showHideTrackMenu(show);
-            });
+#ifdef MIXXX_USE_QML
+    if (!CmdlineArgs::Instance().isQml())
+#endif
+    {
+        m_pShowTrackMenu->connectValueChangeRequest(this,
+                [this](double value) {
+                    VERIFY_OR_DEBUG_ASSERT(m_pLibraryWidget) {
+                        return;
+                    }
+                    bool show = static_cast<bool>(value);
+                    emit showHideTrackMenu(show);
+                });
+    }
 
     // Deprecated controls
     m_pSelectNextTrack = std::make_unique<ControlPushButton>(ConfigKey("[Playlist]", "SelectNextTrack"));

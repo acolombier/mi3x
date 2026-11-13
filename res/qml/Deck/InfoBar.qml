@@ -124,25 +124,10 @@ Rectangle {
                 item.text: time.text
                 visible: root.width > 450
 
-                Mixxx.ControlProxy {
-                    id: durationControl
-
-                    group: root.group
-                    key: "duration"
-                }
-                Mixxx.ControlProxy {
-                    id: playPositionControl
-
-                    group: root.group
-                    key: "playposition"
-                }
                 TrackTime {
                     id: time
 
-                    display: Mixxx.Config.controlPositionDisplay
-                    elapsed: durationControl.value * playPositionControl.value
-                    mode: Mixxx.Config.controlTimeFormat
-                    remaining: durationControl.value * (1 - playPositionControl.value)
+                    control.group: root.group
                     visible: false
                 }
             }

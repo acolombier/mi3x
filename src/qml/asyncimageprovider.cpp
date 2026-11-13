@@ -1,8 +1,11 @@
 #include "qml/asyncimageprovider.h"
 
+#include <QCoreApplication>
+#include <QDataStream>
 #include <QThread>
 #include <QtDebug>
 
+#include "library/coverartcache.h"
 #include "moc_asyncimageprovider.cpp"
 
 namespace {
@@ -15,11 +18,9 @@ namespace qml {
 
 AsyncImageResponse::AsyncImageResponse(
         QString id,
-        QSize requestedSize,
-        std::shared_ptr<TrackCollectionManager> pTrackCollectionManager)
+        QSize requestedSize)
         : m_id(std::move(id)),
-          m_requestedSize(requestedSize),
-          m_pTrackCollectionManager(std::move(pTrackCollectionManager)) {
+          m_requestedSize(requestedSize) {
 }
 
 QQuickTextureFactory* AsyncImageResponse::textureFactory() const {
@@ -32,13 +33,7 @@ void AsyncImageResponse::initialize() {
         emit finished();
         return;
     }
-    const QString trackLocation =
-            AsyncImageProvider::coverArtUrlIdToTrackLocation(m_id);
-
-    // Lightweight: query CoverInfo directly from the database without
-    // loading the full, stateful Track object.
-    m_coverInfo = m_pTrackCollectionManager->getCoverInfoForTrackLocation(
-            trackLocation);
+    m_coverInfo = AsyncImageProvider::coverArtUrlIdToCoverInfo(m_id);
     if (!m_coverInfo.hasImage()) {
         emit finished();
         return;
@@ -94,25 +89,23 @@ void AsyncImageResponse::slotCoverFound(
     emit finished();
 }
 
-AsyncImageProvider::AsyncImageProvider(
-        std::shared_ptr<TrackCollectionManager> pTrackCollectionManager)
-        : QQuickAsyncImageProvider(),
-          m_pTrackCollectionManager(pTrackCollectionManager) {
+AsyncImageProvider::AsyncImageProvider()
+        : QQuickAsyncImageProvider() {
 }
 
 QQuickImageResponse* AsyncImageProvider::requestImageResponse(
         const QString& id, const QSize& requestedSize) {
     auto* pResponse = new AsyncImageResponse(
-            id, requestedSize, m_pTrackCollectionManager);
-    // The response must live on the same thread as the
-    // TrackCollectionManager (the main thread) because:
+            id, requestedSize);
+    // The response must live on the same thread as the CoverArtCachethread (the
+    // main thread) because:
     //  - CoverArtCache::getCachedCover() accesses QPixmapCache which
     //    is not thread-safe.
     //  - CoverArtCache::coverFound is emitted on the main thread and
     //    the slot should be invoked there.
-    // move the response before connecting any signals.
-    pResponse->moveToThread(m_pTrackCollectionManager->thread());
-    if (QThread::currentThread() != m_pTrackCollectionManager->thread()) {
+    // Move the response before connecting any signals.
+    pResponse->moveToThread(CoverArtCache::instance()->thread());
+    if (QThread::currentThread() != CoverArtCache::instance()->thread()) {
         // requestImageResponse is called from the QQuickPixmapReader thread.
         // initialize() must run on the main thread, but it must not block this
         // thread: the main thread may simultaneously be tearing down the QML
@@ -138,17 +131,40 @@ QQuickImageResponse* AsyncImageProvider::requestImageResponse(
 const QString AsyncImageProvider::kProviderName = QStringLiteral("mixxx");
 
 // static
-QUrl AsyncImageProvider::trackLocationToCoverArtUrl(const QString& trackLocation) {
+QUrl AsyncImageProvider::coverInfoToCoverArtUrl(const CoverInfo& coverInfo) {
+    QByteArray data;
+    QDataStream stream(&data, QIODevice::WriteOnly);
+    stream << coverInfo.trackLocation
+           << coverInfo.coverLocation
+           << static_cast<qint32>(coverInfo.type)
+           << static_cast<qint32>(coverInfo.source)
+           << coverInfo.imageDigest()
+           << coverInfo.legacyHash();
+
     QUrl url("image://" + kProviderName + "/" + kCoverArtPrefix);
     return url.resolved(
-            QString::fromLatin1(trackLocation.toUtf8().toBase64(
+            QString::fromLatin1(data.toBase64(
                     QByteArray::Base64UrlEncoding)));
 }
 
 //static
-QString AsyncImageProvider::coverArtUrlIdToTrackLocation(const QString& coverArtUrlId) {
-    return QString::fromUtf8(QByteArray::fromBase64(
-            coverArtUrlId.mid(kCoverArtPrefix.size()).toLatin1(), QByteArray::Base64UrlEncoding));
+CoverInfo AsyncImageProvider::coverArtUrlIdToCoverInfo(const QString& coverArtUrlId) {
+    CoverInfo coverInfo;
+    const QByteArray data = QByteArray::fromBase64(
+            coverArtUrlId.mid(kCoverArtPrefix.size()).toLatin1(),
+            QByteArray::Base64UrlEncoding);
+    QDataStream stream(data);
+
+    qint32 type = 0;
+    qint32 source = 0;
+    QByteArray digest;
+    quint16 legacyHash = 0;
+    stream >> coverInfo.trackLocation >> coverInfo.coverLocation >> type >>
+            source >> digest >> legacyHash;
+    coverInfo.type = static_cast<CoverInfo::Type>(type);
+    coverInfo.source = static_cast<CoverInfo::Source>(source);
+    coverInfo.setImageDigest(digest, legacyHash);
+    return coverInfo;
 }
 
 } // namespace qml

@@ -40,9 +40,7 @@ inline QImage resizeImageSize(const QImage& image, QSize size) {
 OverviewCache::OverviewCache(UserSettingsPointer pConfig,
         mixxx::DbConnectionPoolPtr pDbConnectionPool)
         : m_pConfig(pConfig),
-          m_pDbConnectionPool(std::move(pDbConnectionPool)),
-          m_analysisDao(pConfig) {
-    m_analysisDao.initialize(mixxx::DbConnectionPooled(m_pDbConnectionPool));
+          m_pDbConnectionPool(std::move(pDbConnectionPool)) {
 }
 
 void OverviewCache::onTrackAnalysisProgress(TrackId trackId, AnalyzerProgress progress) {
@@ -230,23 +228,93 @@ void OverviewCache::overviewPrepared() {
     emit overviewReady(res.requester, res.trackId, !pixmap.isNull());
 }
 
-ConstWaveformPointer OverviewCache::fetchWaveformSummary(TrackId trackId) {
-    VERIFY_OR_DEBUG_ASSERT(trackId.isValid()) {
-        return {};
+void OverviewCache::requestWaveformSummary(
+        TrackId trackId,
+        const QObject* pRequester) {
+    if (!trackId.isValid()) {
+        return;
     }
 
-    QList<AnalysisDao::AnalysisInfo> analyses =
-            m_analysisDao.getAnalysesForTrackByType(
+    if (m_summariesLoading.contains(trackId)) {
+        return;
+    }
+
+    if (m_tracksWithoutOverview.contains(trackId)) {
+        // Consistently signal the (negative) result so that requesters can
+        // finish their pending load state, e.g. to report an error.
+        emit waveformSummaryReady(pRequester, trackId, ConstWaveformPointer());
+        return;
+    }
+
+    m_summariesLoading.insert(trackId);
+
+    QFutureWatcher<WaveformSummaryResult>* watcher =
+            new QFutureWatcher<WaveformSummaryResult>(this);
+    QFuture<WaveformSummaryResult> future = QtConcurrent::run(
+            &OverviewCache::prepareWaveformSummary,
+            m_pConfig,
+            m_pDbConnectionPool,
+            trackId,
+            pRequester);
+    connect(watcher,
+            &QFutureWatcher<WaveformSummaryResult>::finished,
+            this,
+            &OverviewCache::waveformSummaryPrepared);
+    watcher->setFuture(future);
+}
+
+// static
+OverviewCache::WaveformSummaryResult OverviewCache::prepareWaveformSummary(
+        UserSettingsPointer pConfig,
+        mixxx::DbConnectionPoolPtr pDbConnectionPool,
+        TrackId trackId,
+        const QObject* pRequester) {
+    WaveformSummaryResult result;
+    result.trackId = trackId;
+    result.requester = pRequester;
+
+    if (!trackId.isValid()) {
+        return result;
+    }
+
+    mixxx::DbConnectionPooler dbConnectionPooler(pDbConnectionPool);
+
+    AnalysisDao analysisDao(pConfig);
+    analysisDao.initialize(mixxx::DbConnectionPooled(pDbConnectionPool));
+
+    const QList<AnalysisDao::AnalysisInfo> analyses =
+            analysisDao.getAnalysesForTrackByType(
                     trackId, AnalysisDao::AnalysisType::TYPE_WAVESUMMARY);
 
     for (const AnalysisDao::AnalysisInfo& analysis : std::as_const(analyses)) {
         const WaveformFactory::VersionClass vc =
                 WaveformFactory::waveformSummaryVersionToVersionClass(analysis.version);
         if (vc == WaveformFactory::VC_USE) {
-            return ConstWaveformPointer(
+            result.waveform = ConstWaveformPointer(
                     WaveformFactory::loadWaveformFromAnalysis(analysis));
+            return result;
         }
     }
 
-    return {};
+    return result;
+}
+
+// watcher
+void OverviewCache::waveformSummaryPrepared() {
+    QFutureWatcher<WaveformSummaryResult>* watcher =
+            static_cast<QFutureWatcher<WaveformSummaryResult>*>(sender());
+    VERIFY_OR_DEBUG_ASSERT(watcher) {
+        return;
+    }
+    WaveformSummaryResult res = watcher->result();
+    watcher->deleteLater();
+
+    if (res.waveform.isNull()) {
+        // Avoid (too many) repeated lookups for tracks that have no
+        // waveform summary stored in the database.
+        m_tracksWithoutOverview.insert(res.trackId);
+    }
+    m_summariesLoading.remove(res.trackId);
+
+    emit waveformSummaryReady(res.requester, res.trackId, res.waveform);
 }

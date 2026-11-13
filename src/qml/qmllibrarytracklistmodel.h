@@ -16,13 +16,14 @@ class QmlLibraryTrackListModel : public QIdentityProxyModel {
     QML_NAMED_ELEMENT(LibraryTrackListModel)
     Q_PROPERTY(QQmlListProperty<mixxx::qml::QmlLibraryTrackListColumn> columns
                     READ columns NOTIFY columnsChanged)
-    Q_PROPERTY(QString search READ search WRITE setSearch)
+    Q_PROPERTY(QString search READ search WRITE setSearch NOTIFY searchChanged)
     QML_UNCREATABLE("Only accessible via Mixxx.Library")
 
   public:
     enum Roles {
         FileURL = Qt::UserRole,
         CoverArt,
+        TrackIdRole,
         ColumnTypeRole
     };
     Q_ENUM(Roles);
@@ -50,6 +51,13 @@ class QmlLibraryTrackListModel : public QIdentityProxyModel {
         Analyze = 1u << 17u,
         Properties = 1u << 18u,
         Sorting = 1u << 19u,
+        BPM = 1u << 20u,
+        Color = 1u << 21u,
+        Hotcues = 1u << 22u,
+        Reset = 1u << 23u,
+        SearchRelated = 1u << 24u,
+        SelectInLibrary = 1u << 25u,
+        FileBrowser = 1u << 26u,
     };
     Q_ENUM(Capability)
 
@@ -80,9 +88,12 @@ class QmlLibraryTrackListModel : public QIdentityProxyModel {
             Qt::Orientation orientation,
             int role = Qt::DisplayRole) const override;
     Q_INVOKABLE void sort(int column, Qt::SortOrder order) override;
+    QModelIndex index(
+            int row, int column, const QModelIndex& parent) const override;
 
   signals:
     void columnsChanged();
+    void searchChanged();
 
   private:
     QmlTrackProxy* getOrCreateTrackProxy(int row) const;
