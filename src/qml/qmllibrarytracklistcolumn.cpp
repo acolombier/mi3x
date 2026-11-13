@@ -83,6 +83,13 @@ static const std::map<ColumnCache::Column, TrackModel::SortColumnId>
 namespace mixxx {
 namespace qml {
 
+quint32 QmlLibraryTrackListColumn::key() const {
+    if (m_columnType == ColumnType::Default) {
+        return static_cast<quint32>(m_columnIdx) & 0x0FFF;
+    }
+    return static_cast<quint32>(m_columnType) << 12;
+}
+
 QmlLibraryTrackListColumn::QmlLibraryTrackListColumn(QObject* parent,
         const QString& label,
         int fillSpan,

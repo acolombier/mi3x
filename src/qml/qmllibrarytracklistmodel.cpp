@@ -1,5 +1,6 @@
 #include "qml/qmllibrarytracklistmodel.h"
 
+#include <QJsonObject>
 #include <QObject>
 #include <QQmlEngine>
 #include <QSortFilterProxyModel>
@@ -252,6 +253,29 @@ void QmlLibraryTrackListModel::setSearch(const QString& searchText) {
     }
     pTrackModel->search(searchText);
     emit searchChanged();
+}
+
+QVariantMap QmlLibraryTrackListModel::loadState(const QString& key) const {
+    auto* const pTrackModel = dynamic_cast<TrackModel*>(sourceModel());
+    if (pTrackModel == nullptr) {
+        return {};
+    }
+    const QString serialized = pTrackModel->getModelSetting(key);
+    if (serialized.isEmpty()) {
+        return {};
+    }
+    const QJsonDocument doc = QJsonDocument::fromJson(serialized.toUtf8());
+    return doc.isObject() ? doc.object().toVariantMap() : QVariantMap{};
+}
+
+void QmlLibraryTrackListModel::saveState(const QString& key, const QVariantMap& state) {
+    auto* const pTrackModel = dynamic_cast<TrackModel*>(sourceModel());
+    if (pTrackModel == nullptr) {
+        return;
+    }
+    pTrackModel->setModelSetting(key,
+            QString::fromUtf8(QJsonDocument::fromVariant(state)
+                            .toJson(QJsonDocument::Compact)));
 }
 
 void QmlLibraryTrackListModel::sort(int column, Qt::SortOrder order) {

@@ -12,6 +12,7 @@ Mixxx.LibrarySourceTree {
         Mixxx.TrackListColumn {
             autoHideWidth: 750
             columnType: Mixxx.TrackListColumn.ColumnType.AlbumArt
+            label: qsTr("Cover Art")
             preferredWidth: 100
         },
         Mixxx.TrackListColumn {

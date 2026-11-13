@@ -3,6 +3,7 @@
 #include <QIdentityProxyModel>
 #include <QPointer>
 #include <QQmlEngine>
+#include <QVariant>
 
 #include "library/trackmodel.h"
 #include "qml/qmllibrarytracklistcolumn.h"
@@ -88,6 +89,8 @@ class QmlLibraryTrackListModel : public QIdentityProxyModel {
             Qt::Orientation orientation,
             int role = Qt::DisplayRole) const override;
     Q_INVOKABLE void sort(int column, Qt::SortOrder order) override;
+    Q_INVOKABLE QVariantMap loadState(const QString& key) const;
+    Q_INVOKABLE void saveState(const QString& key, const QVariantMap& state);
     QModelIndex index(
             int row, int column, const QModelIndex& parent) const override;
 

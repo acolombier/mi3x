@@ -52,8 +52,10 @@ from helpers import (
     _load_track,
     _perform_track_action,
     _recent_row_path,
+    _remember,
     _remember_catalog_track,
     _remembered_track,
+    _remembered_value,
     _right_click,
     _search_activated,
     _search_criteria_fields,
@@ -205,6 +207,47 @@ def step_library_columns_default(context):
     context.rpc.invokeMethod(TRACKLIST_PATH, "resetColumns", [])
     time.sleep(0.5)
 
+def _column_header_width(context, column):
+    path = _column_header_path(column)
+    _wait_for_visible(context, path)
+    width = float(_get_bb(context, path)["width"])
+    assert width > 0, f"Column '{column}' has no visible width"
+    return width
+
+def _assert_column_width(context, column, equal):
+    expected = _remembered_value(context, ("column width", column))
+    deadline = time.time() + 2
+    while True:
+        actual = _column_header_width(context, column)
+        if (abs(actual - expected) <= 1.0) == equal:
+            return
+        if time.time() >= deadline:
+            break
+        time.sleep(0.1)
+    expectation = "equal to" if equal else "different from"
+    assert False, (
+        f"Column '{column}' width is {actual}px, expected to be {expectation} "
+        f"{expected}px")
+
+@given('the width of the column "{column}" is remembered')
+def step_remember_column_width(context, column):
+    _remember(context, ("column width", column), _column_header_width(context, column))
+
+@given('the column "{column}" is {width:d}px wide')
+def step_set_column_width(context, column, width):
+    index = _column_index(context, column)
+    assert index >= 0, f"Column '{column}' cannot be found ({index})"
+    context.rpc.invokeMethod(TRACK_TABLE_PATH, "setColumnWidth", [index, width])
+    time.sleep(0.5)
+
+@then('the width of the column "{column}" should equal the remembered width')
+def step_column_width_equals_remembered(context, column):
+    _assert_column_width(context, column, True)
+
+@then('the width of the column "{column}" should differ from the remembered width')
+def step_column_width_differs_from_remembered(context, column):
+    _assert_column_width(context, column, False)
+
 @when('I click the column header "{column}"')
 def step_click_column_header(context, column):
     path = _column_header_path(column)
@@ -226,11 +269,20 @@ def step_open_column_picker(context):
     _right_click(context, _column_header_path("Title"))
     _wait_for_visible(context, COLUMN_PICKER_MENU_PATH)
 
+@when('I discard the column picker menu')
+def step_discard_column_picker(context):
+    deadline = time.time() + 5
+    while time.time() < deadline and _is_visible(context, COLUMN_PICKER_MENU_PATH):
+        context.rpc.enterKey("mainWindow", QT_KEY_ESCAPE, 0)
+        time.sleep(0.2)
+    assert not _is_visible(context, COLUMN_PICKER_MENU_PATH), "The column picker menu is still visible"
+
 @when('I toggle the column "{column}" in the column picker')
 def step_toggle_column(context, column):
     index = _column_index(context, column)
     if index < 0:
         raise KeyError(f'column {column} unknown')
+    index += 2 # Reset layout + Separator
     _get_current_action = lambda: int(_get_property(context, COLUMN_PICKER_MENU_PATH, "currentIndex"))
     # Needed if QPA == xcb
     # if _get_current_action() == -1:
@@ -247,12 +299,13 @@ def step_toggle_column(context, column):
     assert _is_visible(context, COLUMN_PICKER_MENU_PATH), "Context menu disappear"
     assert _get_current_action() != -1, "Unable to focus the context menu"
 
-    current = _get_current_action()
-    delta = int(index) - current
-    key = QT_KEY_DOWN if delta > 0 else QT_KEY_UP
-    for i in range(abs(delta)):
-        context.rpc.enterKey("mainWindow", key, 0)
-        context.rpc.wait(200)
+    for attempt in range(3):
+        delta = index - _get_current_action()
+        key = QT_KEY_DOWN if delta > 0 else QT_KEY_UP
+        for i in range(abs(delta)):
+            context.rpc.enterKey("mainWindow", key, 0)
+            context.rpc.wait(200)
+        if _get_current_action() == index: break
     context.rpc.wait(200)
     context.rpc.enterKey("mainWindow", QT_KEY_SPACE, 0)
     time.sleep(0.5)
@@ -417,15 +470,25 @@ def step_library(context, entity, name):
     context.rpc.enterKey(path, QT_KEY_ENTER, 0)
     time.sleep(1)
 
+@then('only the column "{columns}" are shown in this strict order')
+def step_only_columns_shown_ordered(context, columns):
+    step_only_columns_shown(context, columns, True)
+
 @then('only the column "{columns}" are shown')
-def step_only_columns_shown(context, columns):
+def step_only_columns_shown(context, columns, strict_ordering=False):
     expected = [c.strip() for c in re.split(r"[,\.]", columns)]
+    last_position = (0, "")
     for col in expected:
         if not col:
             continue
         assert _is_column_visible(context, col, 0), (
             f"Column '{col}' should be visible but is not"
         )
+        if not strict_ordering:
+            continue
+        current_position = context.rpc.getBoundingBox(_column_header_path(col))[0]
+        assert last_position[0] < current_position, f"Column '{col}' should be after '{last_position[1]}' but appears before"
+        last_position = (current_position, col)
     for col in KNOWN_COLUMNS:
         if col and col not in expected:
             assert not _is_column_visible(context, col, 0), (
@@ -790,6 +853,8 @@ def step_press_key_in_search(context, key):
 
 @when('I click the recent library search "{search}"')
 def step_click_recent_search(context, search):
+    # Let the animation settle
+    time.sleep(1)
     expected = _remembered_track(context).title if "title of this track" in search else search
     path = _recent_row_path(context, expected)
     _wait_for_clickable(context, path)

@@ -24,7 +24,8 @@ class QmlLibraryTrackListColumn : public QObject {
     Q_PROPERTY(double autoHideWidth MEMBER m_autoHideWidth NOTIFY autoHideWidthChanged)
     Q_PROPERTY(Display display MEMBER m_display NOTIFY displayChanged)
     Q_PROPERTY(Role role MEMBER m_role FINAL)
-    Q_PROPERTY(ColumnType columnType MEMBER m_columnType FINAL)
+    Q_PROPERTY(ColumnType columnType MEMBER m_columnType NOTIFY columnTypeChanged)
+    Q_PROPERTY(quint32 persistenceKey READ key CONSTANT)
     QML_NAMED_ELEMENT(TrackListColumn)
   public:
     enum class SQLColumns {
@@ -95,7 +96,7 @@ class QmlLibraryTrackListColumn : public QObject {
         Cover,
     };
     Q_ENUM(Role)
-    enum class ColumnType {
+    enum class ColumnType : quint32 {
         Default,
         Overview,
         AlbumArt,
@@ -125,6 +126,9 @@ class QmlLibraryTrackListColumn : public QObject {
     Display display() const {
         return m_display;
     }
+    /// Stable identifier used to persist the column layout. It combines the
+    /// column type and, for regular columns, the SQL column index.
+    quint32 key() const;
     int fillSpan() const {
         return m_fillSpan;
     }
@@ -155,6 +159,7 @@ class QmlLibraryTrackListColumn : public QObject {
     void labelChanged();
     void autoHideWidthChanged();
     void columnIdxChanged();
+    void columnTypeChanged();
 };
 } // namespace qml
 } // namespace mixxx

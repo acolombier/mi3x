@@ -373,7 +373,13 @@ Item {
                             objectName: "notificationAction_" + modelData.label
                             text: modelData.label
 
-                            onClicked: modelData.invoke()
+                            MouseArea {
+                                // Note: the AbstractButton::clicked does not seem to behave consistently with E2E
+                                anchors.fill: parent
+                                preventStealing: true
+
+                                onReleased: modelData.invoke()
+                            }
                         }
                         TextMetrics {
                             id: fontMetrics

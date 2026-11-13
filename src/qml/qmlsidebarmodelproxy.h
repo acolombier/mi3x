@@ -47,6 +47,7 @@ class QmlSidebarModelProxy : public ::SidebarModel {
     Q_INVOKABLE mixxx::qml::QmlLibraryAbstractSource* get(const QModelIndex& index) const;
     Q_INVOKABLE void activate(const QModelIndex& index);
   signals:
+    void tracklistAboutToChange(mixxx::qml::QmlLibraryTrackListModel* pModel);
     void tracklistChanged();
 
   protected slots:
