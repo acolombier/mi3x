@@ -24,7 +24,6 @@ Category {
         microphoneMonitorMode.currentIndex = micMonitorMode.value;
         soundApi.options = manager.getHostAPIList();
         soundApi.selected = manager.getAPI();
-        keylock.update();
         keylock.selected = keylock.options[manager.getKeylockEngine()];
 
         // Router
@@ -331,39 +330,19 @@ Category {
                                 RatioChoice {
                                     id: keylock
 
-                                    function update() {
-                                        let options = [];
-                                        let tooltips = [];
-                                        for (let engine of Mixxx.SoundManager.getKeylockEngines()) {
-                                            switch (engine) {
-                                            case 0:
-                                                options.push(qsTr("Soundtouch"));
-                                                tooltips.push(qsTr("Faster"));
-                                                break;
-                                            case 1:
-                                                options.push(qsTr("Rubberband"));
-                                                tooltips.push(qsTr("Better"));
-                                                break;
-                                            case 2:
-                                                options.push(qsTr("Rubberband R3"));
-                                                tooltips.push(qsTr("Near-hi-fi quality"));
-                                                break;
-                                            }
-                                        }
-                                        keylock.options = options;
-                                        keylock.tooltips = tooltips;
-                                    }
+                                    readonly property var availableEngines: Mixxx.SoundManager.getKeylockEngines()
 
                                     maxWidth: tabSection.width * 0.4
                                     normalizedWidth: false
-                                    options: []
-                                    tooltips: []
+                                    options: availableEngines.map(e => e.label)
+                                    tooltips: availableEngines.map(e => e.tooltip)
 
                                     onSelectedChanged: {
                                         root.hasChanges = true;
                                     }
 
                                     Mixxx.SettingParameter {
+                                        keywords: keylock.options
                                         label: "Keylock engine"
                                     }
                                 }
