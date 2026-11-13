@@ -55,10 +55,10 @@ QmlSettingParameterManager::~QmlSettingParameterManager() {
 
 void QmlSettingParameterManager::registerSettingParamater(
         QmlSettingParameter* pParameter, const QList<QmlSettingGroup*>& pathItems) {
-    auto generateRow = [pParameter](QList<QmlSettingGroup*> pathItems) {
+    auto generateRow = [pParameter](QList<QmlSettingGroup*> pathItems, QStandardItem* pItem) {
         QStringList component;
-        for (const auto* pItem : pathItems) {
-            component.append(pItem->label());
+        for (const auto* pItemGroup : pathItems) {
+            component.append(pItemGroup->label());
         }
         QString path = component.join(" > ");
 
@@ -66,31 +66,35 @@ void QmlSettingParameterManager::registerSettingParamater(
         component.append(pParameter->keywords());
         pathItems.append(pParameter);
 
-        auto* pItem = new QStandardItem(pParameter->label());
+        if (pItem == nullptr) {
+            pItem = new QStandardItem(pParameter->label());
+        } else {
+            pItem->setText(pParameter->label());
+        }
         pItem->setData(component.join(" "), Qt::UserRole);
         pItem->setData(path, Qt::WhatsThisRole);
         pItem->setData(QVariant::fromValue(pathItems), Qt::ToolTipRole);
-        return QList<QStandardItem*>{pItem,
-                new QStandardItem(pParameter->label() + path)};
+        return pItem;
     };
-    m_sourceModel.appendRow(generateRow(pathItems));
-    auto rowIndex = m_sourceModel.index(m_sourceModel.rowCount() - 1, 0);
-    connect(pParameter, &QObject::destroyed, this, [this, rowIndex](QObject*) {
-        m_sourceModel.removeRow(rowIndex.row());
+    auto* pRowItem = generateRow(pathItems, nullptr);
+    m_sourceModel.appendRow(QList<QStandardItem*>{pRowItem});
+    connect(pParameter, &QObject::destroyed, this, [this, pRowItem](QObject*) {
+        VERIFY_OR_DEBUG_ASSERT(pRowItem->index().isValid()) {
+            return;
+        };
+        m_sourceModel.removeRow(pRowItem->index().row());
     });
     connect(pParameter,
             &QmlSettingParameter::labelChanged,
             this,
-            [this, pathItems, generateRow, rowIndex]() {
-                m_sourceModel.removeRow(rowIndex.row());
-                m_sourceModel.appendRow(generateRow(pathItems));
+            [pathItems, generateRow, pRowItem]() {
+                generateRow(pathItems, pRowItem);
             });
     connect(pParameter,
             &QmlSettingParameter::keywordsChanged,
             this,
-            [this, pathItems, generateRow, rowIndex]() {
-                m_sourceModel.removeRow(rowIndex.row());
-                m_sourceModel.appendRow(generateRow(pathItems));
+            [pathItems, generateRow, pRowItem]() {
+                generateRow(pathItems, pRowItem);
             });
 }
 

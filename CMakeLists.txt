@@ -4246,6 +4246,9 @@ if(QML)
   if(ENGINEPRIME)
     target_compile_definitions(mixxx-qml-lib PUBLIC __ENGINEPRIME__)
   endif()
+  if(SIGNALSMITH)
+    target_compile_definitions(mixxx-qml-lib PUBLIC __SIGNALSMITH__)
+  endif()
 
   foreach(component ${QT_COMPONENTS})
     target_link_libraries(
