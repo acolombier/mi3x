@@ -64,13 +64,39 @@ CONFIG_SAVE_MAP = {
         "key": "InhibitScreensaver",
         "expected": {"no": "0", "while running": "1", "while playing": "2"},
     },
+    "cue mode": {
+        "group": "[Controls]",
+        "key": "CueDefault",
+        "expected": {
+            "Mixxx": "0",
+            "Mixxx (no blinking)" : "1",
+            "Pioneer": "2",
+            "Denon": "3",
+            "Numark": "4",
+            "CUP": "5"
+        }
+    },
+    "keylock mode": {
+        "group": "[Controls]",
+        "key": "keylockMode",
+        "expected": {
+            "original key": "0", "current key": "1"
+        }
+    },
+    "keyunlock mode": {
+        "group": "[Controls]",
+        "key": "keyunlockMode",
+        "expected": {
+            "reset key": "0", "keep key": "1"
+        }
+    },
     "slider range": {
-        "group": "[Control]",
+        "group": "[Controls]",
         "key": "RateRangePercent",
         "expected": lambda value: str(int(float(value.rstrip("%")))),
     },
     "slider orientation": {
-        "group": "[Control]",
+        "group": "[Controls]",
         "key": "RateDir",
         "expected": {"down": "", "up": "0"},
     },
@@ -242,6 +268,29 @@ CONFIG_SAVE_MAP = {
 
 # ControlObject side-effects of saveDeck().
 CONTROL_VALUE_MAP = {
+    "cue mode": {
+        "key": "cue_mode",
+        "expected": {
+            "Mixxx": 0,
+            "Mixxx (no blinking)" : 1,
+            "Pioneer": 2,
+            "Denon": 3,
+            "Numark": 4,
+            "CUP": 5
+        }
+    },
+    "keylock mode": {
+        "key": "keylockMode",
+        "expected": {
+            "original key": 0, "current key": 1
+        }
+    },
+    "keyunlock mode": {
+        "key": "keyunlockMode",
+        "expected": {
+            "reset key": 0, "keep key": 1
+        }
+    },
     "slider range": {"key": "rateRange", "expected": lambda value: float(value.rstrip("%"))/100},
     "slider orientation": {"key": "rate_dir", "expected": {"down": -1, "up": 1}},
 }
@@ -671,7 +720,7 @@ def step_setting_saved_as(context, setting, value):
     elif isinstance(expected, dict):
         expected = expected[value]
     assert actual == expected, (
-        f"Config for '{setting}' ([{spec['group']}],{spec['key']}) should be saved as '{value}' but is '{actual}'"
+        f"Config for '{setting}' ({spec['group']},{spec['key']}) should be saved as '{value}' ({expected}) but is '{actual}'"
     )
 
 

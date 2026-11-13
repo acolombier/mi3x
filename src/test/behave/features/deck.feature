@@ -291,6 +291,8 @@ Feature: Deck
     When I set the "cue mode" setting to "Pioneer"
     And I click the save button
     Then the "cue mode" setting should be "Pioneer"
+    And the "cue mode" should be saved as "Pioneer"
+    And the "cue mode" on deck 1 should be "Pioneer"
 
   Scenario: Intro start can be set to the main cue when analyzing
     When I toggle the "set intro start to main cue" setting to "off"
@@ -335,11 +337,15 @@ Feature: Deck
     When I toggle the "keylock mode" setting to "current key"
     And I click the save button
     Then the "keylock mode" setting should be "current key"
+    And the "keylock mode" should be saved as "current key"
+    And the "keylock mode" on deck 1 should be "current key"
 
   Scenario: Keyunlock mode can be changed
     When I toggle the "keyunlock mode" setting to "keep key"
     And I click the save button
     Then the "keyunlock mode" setting should be "keep key"
+    And the "keyunlock mode" should be saved as "keep key"
+    And the "keyunlock mode" on deck 1 should be "keep key"
 
   Scenario: Pitch bend behaviour can be changed
     When I toggle the "pitch bend behaviour" setting to "smooth ramping"
