@@ -193,13 +193,13 @@ Item {
                     checkable: true
                     text: "Effects"
                 }
-                Skin.Button {
-                    id: showAuxButton
+                // Skin.Button {
+                //     id: showAuxButton
 
-                    activeColor: Theme.white
-                    checkable: true
-                    text: "Aux"
-                }
+                //     activeColor: Theme.white
+                //     checkable: true
+                //     text: "Aux"
+                // }
                 Skin.Button {
                     id: showSamplersButton
 
@@ -741,25 +741,46 @@ Item {
                         top: deck2.bottom
                     }
                 }
+                Skin.SamplerRow {
+                    id: samplers
 
-                // Skin.SamplerRow {
-                //     id: samplers
-                //     visible: root.showSamplers
-                //     width: parent.width
+                    anchors.top: mixer.bottom
+                    visible: root.showSamplers && !root.maximizeLibrary
+                    width: parent.width
 
-                //     Skin.FadeBehavior on visible {
-                //         fadeTarget: samplers
-                //     }
-                // }
-                // Skin.EffectRow {
-                //     id: effects
-                //     visible: root.showEffects
-                //     width: parent.width
+                    Skin.FadeBehavior on visible {
+                        fadeTarget: samplers
+                    }
+                }
+                Skin.EffectRow {
+                    id: effects
 
-                //     Skin.FadeBehavior on visible {
-                //         fadeTarget: effects
-                //     }
-                // }
+                    anchors.top: samplers.bottom
+                    visible: root.showEffects && !root.maximizeLibrary
+                    width: parent.width
+
+                    states: [
+                        State {
+                            when: samplers.visible
+
+                            AnchorChanges {
+                                anchors.top: samplers.bottom
+                                target: effects
+                            }
+                        },
+                        State {
+                            when: !samplers.visible
+
+                            AnchorChanges {
+                                anchors.top: mixer.bottom
+                                target: effects
+                            }
+                        }
+                    ]
+                    Skin.FadeBehavior on visible {
+                        fadeTarget: effects
+                    }
+                }
                 Loader {
                     id: library
 
@@ -791,18 +812,42 @@ Item {
                             }
                         },
                         State {
+                            when: samplers.visible && !effects.visible
+
+                            AnchorChanges {
+                                anchors.top: samplers.bottom
+                                target: library
+                            }
+                        },
+                        State {
+                            when: effects.visible
+
+                            AnchorChanges {
+                                anchors.top: effects.bottom
+                                target: library
+                            }
+                        },
+                        State {
                             when: !root.maximizeLibrary && root.height - mixer.height < 400
 
                             PropertyChanges {
                                 target: library
                                 visible: false
                             }
+                        },
+                        State {
+                            when: !samplers.visible && !effects.visible
+
+                            AnchorChanges {
+                                anchors.top: mixer.bottom
+                                target: library
+                            }
                         }
                     ]
 
                     anchors {
                         bottom: parent.bottom
-                        top: mixer.bottom
+                        top: effects.bottom
                     }
                 }
             }

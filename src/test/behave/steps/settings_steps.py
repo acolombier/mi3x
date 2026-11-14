@@ -1,4 +1,6 @@
 import time
+import re
+import json
 from helpers import (
     COMMITTING_OVERLAY,
     QT_LEFT_BUTTON,
@@ -73,6 +75,47 @@ CONFIG_SAVE_MAP = {
         "expected": {"down": "", "up": "0"},
     },
     "track palette": {"group": "[Config]", "key": "TrackColorPalette"},
+    # Mixer & Effects category — see MixerEffect.qml and QmlConfigProxy.
+    "crossfader mode": {
+        "group": "[Mixer Profile]",
+        "key": "xFaderMode",
+        "expected": {"Additive": "0", "Constant Power": "1"},
+    },
+    "reverse crossfader": {
+        "group": "[Mixer Profile]",
+        "key": "xFaderReverse",
+        "expected": {"on": "1", "off": "0"},
+    },
+    "bypass EQ": {
+        "group": "[Mixer Profile]",
+        "key": "EnableEQs",
+        "expected": {"on": "0", "off": "1"},
+    },
+    "EQ effects only": {
+        "group": "[Mixer Profile]",
+        "key": "EQsOnly",
+        "expected": {"on": "1", "off": "0"},
+    },
+    "single EQ effect": {
+        "group": "[Mixer Profile]",
+        "key": "SingleEQEffect",
+        "expected": {"on": "1", "off": "0"},
+    },
+    "EQ auto reset": {
+        "group": "[Mixer Profile]",
+        "key": "EqAutoReset",
+        "expected": {"on": "1", "off": "0"},
+    },
+    "gain auto reset": {
+        "group": "[Mixer Profile]",
+        "key": "GainAutoReset",
+        "expected": {"on": "1", "off": "0"},
+    },
+    "adopt metaknob value": {
+        "group": "[Effects]",
+        "key": "AdoptMetaknobValue",
+        "expected": {"on": "1", "off": "0"},
+    },
     # Interface category — waveform tab. See Interface.qml saveWaveform() and
     # QmlConfigProxy. Mixxx removes a config key whose value equals its
     # declared default, so assertions only use non-default values (or map
@@ -237,7 +280,7 @@ def _get_config_value(context, group, key):
 
 
 def _category_path(label):
-    return f"{SETTINGS_POPUP_ITEM}/category_{label}"
+    return f'{SETTINGS_POPUP_ITEM}/category_{re.sub(r"[^a-zA-Z0-9]+", "", label)}'
 
 
 def _tab_path(name):
@@ -347,7 +390,7 @@ def step_set_setting(context, setting, value, method=None):
     spec = _setting_spec(setting)
     path = spec["path"]
     _scroll_setting_into_view(context, path)
-    assert wait_visible(context.rpc, path), f"Setting '{setting}' not visible"
+    assert wait_visible(context.rpc, path), f"Setting '{setting}' not visible (path={path})"
     kind = spec["kind"]
     if kind == "ratio":
         options = spec.get("options")
@@ -417,10 +460,10 @@ def step_set_setting(context, setting, value, method=None):
         if method == "a drag":
             _drag_slider_handle(context, spec, value)
         elif method == "the spinbox":
-            assert wait_visible(context.rpc, f"{path}/Value"), (
+            assert wait_visible(context.rpc, f"{path}/valueInput"), (
                 f"Setting '{setting}' value field not visible"
             )
-            _enter_text_value(context, f"{path}/Value", value)
+            _enter_text_value(context, f"{path}/valueInput", value)
         else:
             raise ValueError(f"Unsupported method '{method}' for slider")
     elif kind == "color":
@@ -586,6 +629,7 @@ def _assert_setting_value_matches(context, setting, spec, value):
             f"but is index '{actual}'"
         )
     elif kind == "slider":
+        spec.update(json.loads(context.rpc.invokeMethod(spec['path'], "serialize", [])))
         tolerance = min(1.0, 0.01 * (spec["max"] - spec["min"]))
         diff = abs(float(actual) - float(value))
         assert diff <= tolerance, (
@@ -893,18 +937,20 @@ def _value_to_ratio(value, minv, maxv, markers):
     """Port of Slider.qml valueToRatio (markers-aware inverse mapping)."""
     if not markers:
         return (value - minv) / (maxv - minv)
-    m = list(markers)
-    if m[-1] != maxv:
-        m.append(maxv)
-    value_count = len(m) - 1
-    step_idx = 0
-    for step in m:
-        if step >= value:
-            break
-        step_idx += 1
-    step_idx = min(step_idx - 1, value_count - 1)
-    delta = m[step_idx + 1] - m[step_idx]
-    return (step_idx + (value - m[step_idx]) / delta) / value_count
+    bounds = list(markers)
+    if maxv > bounds[-1]:
+        bounds.append(maxv)
+    interval_count = len(bounds) - 1
+    if interval_count <= 0:
+        return 0
+    clamped = max(bounds[0], min(bounds[-1], value))
+    interval = 0
+    while interval < interval_count - 1 and clamped > bounds[interval + 1]:
+        interval += 1
+    delta = bounds[interval + 1] - bounds[interval]
+    if delta == 0:
+        return interval / interval_count
+    return (interval + (clamped - bounds[interval]) / delta) / interval_count
 
 
 def _drag_slider_handle(context, spec, value):
@@ -915,14 +961,15 @@ def _drag_slider_handle(context, spec, value):
     within ~1-2px, so the caller asserts with tolerance.
     """
     path = spec["path"]
-    handler = f"{path}/Handler"
-    track = f"{path}/Track"
+    handler = f"{path}/handler"
+    track = f"{path}/control"
     assert wait_visible(context.rpc, handler), f"Slider handle not visible at {handler}"
     assert wait_visible(context.rpc, track), f"Slider track not visible at {track}"
+    spec.update(json.loads(context.rpc.invokeMethod(path, "serialize", [])))
     target_vp = _value_to_ratio(
         float(value), spec["min"], spec["max"], spec.get("markers", [])
     )
-    context.rpc.mouseBeginDrag(handler, 0.5, 0.5, track, target_vp, 0.5)
+    context.rpc.mouseBeginDrag(handler, 0.25, 0.5, track, target_vp, 0.5)
     context.rpc.mouseEndDrag(handler)
     time.sleep(0.5)
 

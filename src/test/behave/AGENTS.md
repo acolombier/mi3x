@@ -18,11 +18,12 @@ mixxx_test_runner.py   ← CTest entry point (CMake add_test target "mixxx-behav
   │   ├─ deck_steps.py    ← feature-specific steps (one file per feature)
   │   ├─ browse_steps.py  ← feature-specific steps
   │   ├─ sound_steps.py   ← feature-specific steps
+  │   ├─ mixer_steps.py   ← feature-specific steps
   │   └─ waveform_steps.py ← feature-specific steps
   ├─ features/
   │   ├─ deck.feature
   │   ├─ browse.feature
-  │   └─ … (8 topical feature files in total)
+  │   └─ … (9 topical feature files in total)
   └─ test_tracks.json   ← Static track metadata (url, title, artist, bpm, etc.)
 ```
 

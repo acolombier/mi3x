@@ -19,48 +19,66 @@ Item {
     property double wheelStep: 1
 
     function ratioToValue(ratio) {
-        if (!root.markers?.length) {
-            return root.min + (root.max - root.min) * ratio;
+        const bounds = valueBounds();
+        const intervalCount = bounds.length - 1;
+        if (intervalCount <= 0) {
+            return bounds[0];
         }
-        let valueCount = root.markers.length ? root.markers[root.markers.length - 1] === root.max ? root.markers.length - 1 : root.markers.length : 0;
-        let value = valueCount * ratio;
-        let lower = Math.min(Math.floor(value), root.markers.length - 2);
-        let upper = Math.min(Math.ceil(value), root.markers.length - 1);
-        let delta = root.markers[upper] - root.markers[lower];
-        return root.markers[lower] + (value - lower) * delta;
+        const clampedRatio = Math.max(0, Math.min(1, ratio));
+        const scaled = clampedRatio * intervalCount;
+        const lower = Math.min(Math.floor(scaled), intervalCount - 1);
+        return bounds[lower] + (scaled - lower) * (bounds[lower + 1] - bounds[lower]);
+    }
+    function serialize() {
+        return JSON.stringify({
+            max: root.max,
+            min: root.min,
+            markers: root.markers
+        });
     }
     function setValue(value) {
         root.value = value;
-        control.value = valueToRatio(root.value);
+        const ratio = valueToRatio(root.value);
+        if (Math.abs(control.value - ratio) > 1e-9) {
+            control.value = ratio;
+        }
     }
     function textFromValue(value, locale) {
         return Number(Math.round(value * decimalFactor) / decimalFactor).toLocaleString(locale, 'f', root.decimals);
+    }
+    function valueBounds() {
+        if (!root.markers?.length) {
+            return [root.min, root.max];
+        }
+        const bounds = [...root.markers];
+        if (root.max > bounds[bounds.length - 1]) {
+            bounds.push(root.max);
+        }
+        return bounds;
     }
     function valueFromText(text, locale) {
         return Math.round(Number.fromLocaleString(locale, text) * decimalFactor) / decimalFactor;
     }
     function valueToRatio(value) {
-        if (!root.markers?.length) {
-            return (value - root.min) / (root.max - root.min);
+        const bounds = valueBounds();
+        const intervalCount = bounds.length - 1;
+        if (intervalCount <= 0) {
+            return 0;
         }
-        let markers = [...root.markers];
-        if (markers.length && markers[markers.length - 1] !== root.max) {
-            markers.push(root.max);
+        const clampedValue = Math.max(bounds[0], Math.min(bounds[intervalCount], value));
+        let interval = 0;
+        while (interval < intervalCount - 1 && clampedValue > bounds[interval + 1]) {
+            ++interval;
         }
-        let valueCount = markers.length - 1;
-        let stepIdx = 0;
-        for (let step of markers) {
-            if (step >= value)
-                break;
-            stepIdx++;
+        const delta = bounds[interval + 1] - bounds[interval];
+        if (delta === 0) {
+            return interval / intervalCount;
         }
-        stepIdx = Math.min(stepIdx - 1, valueCount - 1);
-        let delta = markers[stepIdx + 1] - markers[stepIdx];
-        return (stepIdx + (value - markers[stepIdx]) / delta) / valueCount;
+        return (interval + (clampedValue - bounds[interval]) / delta) / intervalCount;
     }
 
-    height: 30
-    width: 100
+    height: control.orientation == Qt.Horizontal ? 30 : 100
+    width: control.orientation == Qt.Horizontal ? 100 : 30
 
     Component.onCompleted: {
         setValue(root.value);
@@ -80,52 +98,65 @@ Item {
     Slider {
         id: control
 
-        anchors.left: root.left
-        anchors.right: root.showTextInput ? textInputSection.left : root.right
-        anchors.rightMargin: root.showTextInput ? 10 : 0
-        anchors.verticalCenter: root.verticalCenter
+        anchors.bottom: orientation == Qt.Vertical ? (root.showTextInput ? textInputSection.top : root.bottom) : undefined
+        anchors.horizontalCenter: orientation == Qt.Horizontal ? undefined : root.horizontalCenter
+        anchors.left: orientation == Qt.Horizontal ? root.left : undefined
+        anchors.right: orientation == Qt.Horizontal ? (root.showTextInput ? textInputSection.left : root.right) : undefined
+        anchors.top: orientation == Qt.Horizontal ? undefined : root.top
+        anchors.verticalCenter: orientation == Qt.Horizontal ? root.verticalCenter : undefined
+        bottomInset: orientation == Qt.Vertical ? 0 : undefined
+        bottomPadding: orientation == Qt.Vertical ? root.margins : undefined
         from: 0
-        objectName: root.objectName ? "Track" : ""
+        leftInset: orientation == Qt.Horizontal ? 0 : undefined
+        leftPadding: orientation == Qt.Horizontal ? 0 : undefined
+        rightInset: orientation == Qt.Horizontal ? 0 : undefined
+        rightPadding: orientation == Qt.Horizontal ? root.margins : undefined
         to: 1
+        topInset: orientation == Qt.Vertical ? 0 : undefined
+        topPadding: orientation == Qt.Vertical ? 0 : undefined
 
-        background: Item {
+        background: Rectangle {
+            anchors.centerIn: control
+            color: 'green'
             height: control.availableHeight
-            implicitHeight: 4
-            implicitWidth: 200
-            width: control.availableWidth - 2 * root.margins
-            x: control.leftPadding + root.margins
+            width: control.availableWidth
 
             Rectangle {
+                anchors.horizontalCenter: control.orientation == Qt.Horizontal ? undefined : parent.horizontalCenter
+                anchors.verticalCenter: control.orientation == Qt.Horizontal ? parent.verticalCenter : undefined
                 color: "#181818"
-                height: 4
+                height: control.orientation == Qt.Horizontal ? 4 : parent.height
                 radius: 2
-                width: parent.width
+                width: control.orientation == Qt.Horizontal ? parent.width : 4
             }
             Repeater {
                 id: delegate
 
                 anchors.fill: parent
                 anchors.leftMargin: 7
-                model: !markers?.length ? 2 : markers[markers.length - 1] === root.max ? markers.length : markers.length + 1
+                anchors.topMargin: 7
+                model: valueBounds().length
 
                 Item {
                     required property int index
                     readonly property var modelData: !markers?.length ? "" : index < markers.length ? `${markers[index]}${textInputSection.suffix}` : null
 
-                    height: control.availableHeight
-                    x: parent.width * (index / (delegate.count - 1))
-                    y: -4
+                    anchors.horizontalCenter: control.orientation == Qt.Horizontal ? undefined : parent.horizontalCenter
+                    anchors.verticalCenter: control.orientation == Qt.Horizontal ? parent.verticalCenter : undefined
+                    x: control.orientation == Qt.Horizontal ? parent.width * (index / (delegate.count - 1)) : -4
+                    y: control.orientation == Qt.Vertical ? parent.height * ((delegate.count - index - 1) / (delegate.count - 1)) - height / 2 : -4
 
                     Rectangle {
                         id: mark
 
                         color: Qt.alpha(Theme.white, 0.25)
-                        height: 11
+                        height: control.orientation == Qt.Horizontal ? 11 : 1
                         visible: modelData != null
-                        width: 1
+                        width: control.orientation == Qt.Horizontal ? 1 : 11
 
                         anchors {
-                            top: parent.top
+                            horizontalCenter: control.orientation == Qt.Horizontal ? undefined : parent.horizontalCenter
+                            verticalCenter: control.orientation == Qt.Horizontal ? parent.verticalCenter : undefined
                         }
                     }
                     Text {
@@ -137,20 +168,25 @@ Item {
                         visible: modelData != null
 
                         anchors {
-                            horizontalCenter: mark.left
-                            top: mark.bottom
+                            horizontalCenter: control.orientation == Qt.Horizontal ? mark.left : undefined
+                            left: control.orientation == Qt.Horizontal ? undefined : mark.right
+                            leftMargin: 4
+                            top: control.orientation == Qt.Horizontal ? mark.bottom : undefined
                             topMargin: 4
+                            verticalCenter: control.orientation == Qt.Horizontal ? undefined : mark.verticalCenter
                         }
                     }
                 }
             }
         }
         handle: Item {
+            anchors.horizontalCenter: control.orientation == Qt.Horizontal ? undefined : control.horizontalCenter
+            anchors.verticalCenter: control.orientation == Qt.Horizontal ? control.verticalCenter : undefined
             height: 14
-            objectName: root.objectName ? "Handler" : ""
+            objectName: "handler"
             width: 14
-            x: control.leftPadding + control.visualPosition * (control.availableWidth - width)
-            y: -5
+            x: control.orientation == Qt.Horizontal ? control.leftPadding + control.visualPosition * (control.availableWidth) - width / 2 : 0
+            y: control.orientation == Qt.Horizontal ? 0 : control.topPadding + control.visualPosition * (control.availableHeight) - height / 2
 
             Rectangle {
                 id: handle
@@ -197,9 +233,12 @@ Item {
 
         property string suffix: ""
 
+        anchors.bottom: control.orientation == Qt.Horizontal ? undefined : root.bottom
+        anchors.horizontalCenter: control.orientation == Qt.Horizontal ? undefined : root.horizontalCenter
         anchors.leftMargin: 17
         anchors.margins: 4
-        anchors.right: root.right
+        anchors.right: control.orientation == Qt.Horizontal ? root.right : undefined
+        anchors.topMargin: 17
         height: 30
         visible: root.showTextInput
         width: fontMetrics.advanceWidth + 8
@@ -229,6 +268,8 @@ Item {
             anchors.margins: 4
 
             TextInput {
+                id: valueInput
+
                 anchors.left: parent.left
                 anchors.margins: 3
                 anchors.right: inputField.left
@@ -236,7 +277,6 @@ Item {
                 color: Qt.alpha(acceptableInput ? Theme.white : Theme.warningColor, root.enabled ? 1 : 0.5)
                 focus: true
                 horizontalAlignment: TextInput.AlignRight
-                objectName: root.objectName ? "Value" : ""
                 text: textFromValue(root.value, control.locale)
 
                 validator: DoubleValidator {

@@ -58,7 +58,7 @@ QVariant QmlVisibleEffectsModel::data(const QModelIndex& index, int role) const 
     case Qt::ToolTipRole:
         return pManifest->description();
     case QmlVisibleEffectsModel::EffectIdRole:
-        return pManifest->id();
+        return pManifest->uniqueId();
     default:
         return QVariant();
     }

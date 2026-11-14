@@ -23,7 +23,7 @@ Rectangle {
     }
     Text {
         anchors.centerIn: parent
-        color: root.active ? Theme.accentColor : Theme.white
+        color: root.border.color
         text: "!"
     }
 }

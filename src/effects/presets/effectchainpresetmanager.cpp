@@ -107,6 +107,178 @@ EffectChainPresetPointer EffectChainPresetManager::quickEffectPresetAtIndex(
     return m_quickEffectChainPresetsSorted.at(index);
 }
 
+QStringList EffectChainPresetManager::importPresetsFromFiles(
+        const QStringList& filePaths, QStringList* pErrors) {
+    QStringList importedPresets;
+    for (const QString& filePath : filePaths) {
+        auto pPreset = loadPresetFromFile(filePath);
+        if (!pPreset || pPreset->isEmpty() || pPreset->name().isEmpty()) {
+            if (pErrors) {
+                pErrors->append(
+                        tr("Could not import effect chain preset \"%1\"")
+                                .arg(filePath));
+            }
+            continue;
+        }
+
+        if (pPreset->name() == kNoEffectString) {
+            pPreset->setName(pPreset->name() +
+                    QStringLiteral(" (") + tr("imported") + QStringLiteral(")"));
+        }
+        while (m_effectChainPresets.contains(pPreset->name())) {
+            pPreset->setName(pPreset->name() +
+                    QStringLiteral(" (") + tr("duplicate") + QStringLiteral(")"));
+        }
+
+        if (!savePresetXml(pPreset)) {
+            if (pErrors) {
+                pErrors->append(
+                        tr("Could not save effect chain preset \"%1\"")
+                                .arg(pPreset->name()));
+            }
+            continue;
+        }
+        m_effectChainPresets.insert(pPreset->name(), pPreset);
+        m_effectChainPresetsSorted.append(pPreset);
+        m_quickEffectChainPresetsSorted.append(pPreset);
+        importedPresets.append(pPreset->name());
+    }
+
+    if (!importedPresets.isEmpty()) {
+        emit effectChainPresetListUpdated();
+        emit quickEffectChainPresetListUpdated();
+    }
+    return importedPresets;
+}
+
+bool EffectChainPresetManager::exportPresetToFile(
+        const QString& chainPresetName,
+        const QString& filePath,
+        QString* pError) {
+    const auto pPreset = m_effectChainPresets.value(chainPresetName);
+    if (!pPreset || pPreset->isEmpty()) {
+        if (pError) {
+            *pError = tr("Effect chain preset \"%1\" does not exist.").arg(chainPresetName);
+        }
+        return false;
+    }
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::Truncate | QIODevice::WriteOnly)) {
+        if (pError) {
+            *pError = tr("Could not save effect chain preset \"%1\" to file \"%2\".")
+                              .arg(chainPresetName, filePath);
+        }
+        return false;
+    }
+
+    QDomDocument doc(EffectXml::kChain);
+    doc.setContent(EffectXml::kFileHeader);
+    doc.appendChild(pPreset->toXml(&doc));
+    const bool success = file.write(doc.toByteArray()) >= 0;
+    file.close();
+    if (!success && pError) {
+        *pError = tr("Could not write effect chain preset \"%1\".").arg(chainPresetName);
+    }
+    return success;
+}
+
+bool EffectChainPresetManager::renamePresetTo(
+        const QString& oldName, const QString& newName, QString* pError) {
+    const auto pPreset = m_effectChainPresets.value(oldName);
+    if (!pPreset) {
+        if (pError) {
+            *pError = tr("Effect chain preset \"%1\" does not exist.").arg(oldName);
+        }
+        return false;
+    }
+    if (pPreset->isReadOnly()) {
+        if (pError) {
+            *pError = tr("Effect chain preset \"%1\" is read-only and can not be renamed.")
+                              .arg(oldName);
+        }
+        return false;
+    }
+    const QString trimmedNewName = newName.trimmed();
+    if (trimmedNewName.isEmpty() || trimmedNewName == kNoEffectString ||
+            m_effectChainPresets.contains(trimmedNewName)) {
+        if (pError) {
+            *pError = tr("Invalid or already used effect chain preset name \"%1\".")
+                              .arg(trimmedNewName);
+        }
+        return false;
+    }
+    if (trimmedNewName == oldName) {
+        return true;
+    }
+
+    m_effectChainPresets.remove(oldName);
+    pPreset->setName(trimmedNewName);
+    m_effectChainPresets.insert(trimmedNewName, pPreset);
+    if (!savePresetXml(pPreset)) {
+        m_effectChainPresets.remove(trimmedNewName);
+        pPreset->setName(oldName);
+        m_effectChainPresets.insert(oldName, pPreset);
+        if (pError) {
+            *pError = tr("Could not save effect chain preset \"%1\".").arg(trimmedNewName);
+        }
+        return false;
+    }
+
+    QFile oldFile(m_pConfig->getSettingsPath() + kEffectChainPresetDirectory +
+            kFolderDelimiter + mixxx::filename::sanitize(oldName) + kXmlFileExtension);
+    if (!oldFile.remove() && pError) {
+        *pError = tr("Could not remove old effect chain preset \"%1\".").arg(oldName);
+    }
+
+    emit effectChainPresetRenamed(oldName, trimmedNewName);
+    int index = m_effectChainPresetsSorted.indexOf(pPreset);
+    if (index != -1) {
+        m_effectChainPresetsSorted.replace(index, pPreset);
+        emit effectChainPresetListUpdated();
+    }
+    index = m_quickEffectChainPresetsSorted.indexOf(pPreset);
+    if (index != -1) {
+        m_quickEffectChainPresetsSorted.replace(index, pPreset);
+        emit quickEffectChainPresetListUpdated();
+    }
+    return true;
+}
+
+bool EffectChainPresetManager::deletePresetByName(
+        const QString& chainPresetName, QString* pError) {
+    const auto pPreset = m_effectChainPresets.value(chainPresetName);
+    if (!pPreset) {
+        if (pError) {
+            *pError = tr("Effect chain preset \"%1\" does not exist.").arg(chainPresetName);
+        }
+        return false;
+    }
+    if (pPreset->isReadOnly()) {
+        if (pError) {
+            *pError = tr("Effect chain preset \"%1\" is read-only and can not be deleted.")
+                              .arg(chainPresetName);
+        }
+        return false;
+    }
+
+    QFile file(m_pConfig->getSettingsPath() + kEffectChainPresetDirectory +
+            kFolderDelimiter + mixxx::filename::sanitize(chainPresetName) + kXmlFileExtension);
+    if (!file.remove()) {
+        if (pError) {
+            *pError = tr("Could not delete effect chain preset \"%1\".").arg(chainPresetName);
+        }
+        return false;
+    }
+
+    m_effectChainPresets.remove(chainPresetName);
+    m_effectChainPresetsSorted.removeAll(pPreset);
+    m_quickEffectChainPresetsSorted.removeAll(pPreset);
+    emit effectChainPresetListUpdated();
+    emit quickEffectChainPresetListUpdated();
+    return true;
+}
+
 bool EffectChainPresetManager::importPreset() {
     QStringList fileNames = QFileDialog::getOpenFileNames(nullptr,
             tr("Import effect chain preset"),

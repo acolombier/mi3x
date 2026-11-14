@@ -376,6 +376,36 @@ class QmlConfigProxy : public QmlConfigProxyBase {
                     set_librarySeratoEnabled NOTIFY
                             librarySeratoEnabledChanged);
 
+    // Mixer & Effects group
+    Q_PROPERTY(bool mixerEqsBypassed READ mixerEqsBypassed WRITE
+                    set_mixerEqsBypassed NOTIFY mixerEqsBypassedChanged);
+    Q_PROPERTY(bool mixerEqsOnly READ mixerEqsOnly WRITE set_mixerEqsOnly NOTIFY
+                    mixerEqsOnlyChanged);
+    Q_PROPERTY(bool mixerSingleEq READ mixerSingleEq WRITE set_mixerSingleEq NOTIFY
+                    mixerSingleEqChanged);
+    Q_PROPERTY(bool mixerEqAutoReset READ mixerEqAutoReset WRITE
+                    set_mixerEqAutoReset NOTIFY mixerEqAutoResetChanged);
+    Q_PROPERTY(bool mixerGainAutoReset READ mixerGainAutoReset WRITE
+                    set_mixerGainAutoReset NOTIFY mixerGainAutoResetChanged);
+    Q_PROPERTY(bool mixerStemAutoReset READ mixerStemAutoReset WRITE
+                    set_mixerStemAutoReset NOTIFY mixerStemAutoResetChanged);
+    Q_PROPERTY(bool mixerStemSupported READ mixerStemSupported CONSTANT)
+    Q_PROPERTY(double mixerHighEqFrequency READ mixerHighEqFrequency WRITE
+                    set_mixerHighEqFrequency NOTIFY mixerHighEqFrequencyChanged);
+    Q_PROPERTY(double mixerLowEqFrequency READ mixerLowEqFrequency WRITE
+                    set_mixerLowEqFrequency NOTIFY mixerLowEqFrequencyChanged);
+    Q_PROPERTY(int mixerXfaderMode READ mixerXfaderMode WRITE
+                    set_mixerXfaderMode NOTIFY mixerXfaderModeChanged);
+    Q_PROPERTY(double mixerXfaderCurve READ mixerXfaderCurve WRITE
+                    set_mixerXfaderCurve NOTIFY mixerXfaderCurveChanged);
+    Q_PROPERTY(bool mixerXfaderReverse READ mixerXfaderReverse WRITE
+                    set_mixerXfaderReverse NOTIFY mixerXfaderReverseChanged);
+    Q_PROPERTY(double mixerXfaderCalibration READ mixerXfaderCalibration NOTIFY
+                    mixerXfaderCurveChanged);
+    Q_PROPERTY(bool effectsAdoptMetaknobValue READ effectsAdoptMetaknobValue WRITE
+                    set_effectsAdoptMetaknobValue NOTIFY
+                            effectsAdoptMetaknobValueChanged);
+
     // Colors
     Q_PROPERTY(QVariantList hotcueColorPalette READ hotcueColorPalette NOTIFY
                     hotcueColorPaletteChanged);
@@ -560,6 +590,26 @@ class QmlConfigProxy : public QmlConfigProxyBase {
     PROPERTY_DECL_ACCESSOR(bool, libraryRekordboxEnabled);
     PROPERTY_DECL_ACCESSOR(bool, librarySeratoEnabled);
 
+    // Mixer & Effects group
+    PROPERTY_DECL_ACCESSOR(bool, mixerEqsBypassed);
+    PROPERTY_DECL_ACCESSOR(bool, mixerEqsOnly);
+    PROPERTY_DECL_ACCESSOR(bool, mixerSingleEq);
+    PROPERTY_DECL_ACCESSOR(bool, mixerEqAutoReset);
+    PROPERTY_DECL_ACCESSOR(bool, mixerGainAutoReset);
+    PROPERTY_DECL_ACCESSOR(bool, mixerStemAutoReset);
+    bool mixerStemSupported() const;
+    PROPERTY_DECL_ACCESSOR(double, mixerHighEqFrequency);
+    PROPERTY_DECL_ACCESSOR(double, mixerLowEqFrequency);
+    PROPERTY_DECL_ACCESSOR(int, mixerXfaderMode);
+    PROPERTY_DECL_ACCESSOR(double, mixerXfaderCurve);
+    PROPERTY_DECL_ACCESSOR(bool, mixerXfaderReverse);
+    double mixerXfaderCalibration() const;
+    Q_INVOKABLE double mixerXfaderCurveFromSliderPosition(int sliderPosition) const;
+    Q_INVOKABLE int mixerXfaderSliderPositionFromCurve(double curve) const;
+    Q_INVOKABLE void applyMixerXfaderSettings();
+    Q_INVOKABLE void applyMixerEqFrequencies();
+    PROPERTY_DECL_ACCESSOR(bool, effectsAdoptMetaknobValue);
+
     static inline void registerUserSettings(UserSettingsPointer pConfig) {
         s_pUserSettings = std::move(pConfig);
     }
@@ -673,6 +723,18 @@ class QmlConfigProxy : public QmlConfigProxyBase {
     void libraryTraktorEnabledChanged();
     void libraryRekordboxEnabledChanged();
     void librarySeratoEnabledChanged();
+    void mixerEqsBypassedChanged();
+    void mixerEqsOnlyChanged();
+    void mixerSingleEqChanged();
+    void mixerEqAutoResetChanged();
+    void mixerGainAutoResetChanged();
+    void mixerStemAutoResetChanged();
+    void mixerHighEqFrequencyChanged();
+    void mixerLowEqFrequencyChanged();
+    void mixerXfaderModeChanged();
+    void mixerXfaderCurveChanged();
+    void mixerXfaderReverseChanged();
+    void effectsAdoptMetaknobValueChanged();
 
   private:
     template<typename Type, typename Signal>

@@ -326,6 +326,30 @@ def _get_library_state(context, timeout=5):
             delay *= _WAIT_BACKOFF_FACTOR
 
 
+def _get_effects_state(context, timeout=5):
+    """Read the effect-graph state JSON via the command/property pair.
+
+    Same two-step pattern as _get_library_state: the getEffectsState command
+    stores a JSON snapshot in the window property lastEffectsState, which a
+    second RPC reads back. Retries on a cold start where the property can
+    briefly come back empty even though the handler already ran.
+    """
+    deadline = time.time() + timeout
+    rpc = context.rpc
+    delay = _WAIT_INITIAL_DELAY
+    while True:
+        rpc.command("getEffectsState", "")
+        raw = rpc.getStringProperty("mainWindow", "lastEffectsState")
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            if time.time() >= deadline:
+                raise AssertionError(
+                    f"The effects state did not become readable (got {raw!r})")
+            time.sleep(min(delay, max(0, deadline - time.time())))
+            delay *= _WAIT_BACKOFF_FACTOR
+
+
 def _wait_for_library_scan(context, scan_generation, timeout=20):
     """Wait for a library scan after ``scan_generation`` to finish.
 
@@ -548,6 +572,7 @@ SETTING_CATEGORY_SLUG = {
     1: "library",
     2: "controller",
     3: "interface",
+    4: "mixerEffect",
     8: "analyzer",
 }
 
@@ -1107,6 +1132,20 @@ SETTING_MAP = {
     "permanent coarse adjustment": {"path": "mainWindow/setting_permanentCoarseAdjustment", "kind": "spinbox", "precision": 2},
     "permanent fine adjustment": {"path": "mainWindow/setting_permanentFineAdjustment", "kind": "spinbox", "precision": 2},
     "ramping sensitivity": {"path": "mainWindow/setting_rampingSensitivity", "kind": "slider", "min": 100, "max": 2500, "markers": []},
+    # Mixer & Effects category — crossfader tab
+    "crossfader mode": {"path": "mainWindow/mixerEffectPage/xfaderModeInput", "kind": "ratio", "options": ["Additive", "Constant Power"]},
+    "reverse crossfader": {"path": "mainWindow/mixerEffectPage/xfaderReverseInput", "kind": "ratio", "options": ["off", "on"]},
+    # Mixer & Effects category — equalizers tab
+    "bypass EQ": {"path": "mainWindow/mixerEffectPage/eqBypassInput", "kind": "ratio", "options": ["off", "on"]},
+    "EQ effects only": {"path": "mainWindow/mixerEffectPage/eqsOnlyInput", "kind": "ratio", "options": ["off", "on"]},
+    "single EQ effect": {"path": "mainWindow/mixerEffectPage/singleEqInput", "kind": "ratio", "options": ["off", "on"]},
+    "EQ auto reset": {"path": "mainWindow/mixerEffectPage/eqAutoResetInput", "kind": "ratio", "options": ["off", "on"]},
+    "gain auto reset": {"path": "mainWindow/mixerEffectPage/gainAutoResetInput", "kind": "ratio", "options": ["off", "on"]},
+    "main EQ effect": {"path": "mainWindow/mixerEffectPage/mainEqCombo", "kind": "combo", "model": ["---", "Graphic Equalizer", "Parametric Equalizer"]},
+    "high EQ shelf": {"path": "mainWindow/mixerEffectPage/highEqInput", "kind": "slider"},
+    "low EQ shelf": {"path": "mainWindow/mixerEffectPage/lowEqInput", "kind": "slider"},
+    # Mixer & Effects category — effects tab
+    "adopt metaknob value": {"path": "mainWindow/mixerEffectPage/adoptMetaknobInput", "kind": "ratio", "options": ["off", "on"]},
     # Interface category — waveform tab
     "end of track warning": {"path": "mainWindow/setting_endOfTrackWarning", "kind": "slider", "min": 0, "max": 120, "markers": [0, 10, 30, 60, 120]},
     "beat grid opacity": {"path": "mainWindow/setting_beatGridAlpha", "kind": "slider", "min": 0, "max": 100, "markers": [0, 50, 100]},

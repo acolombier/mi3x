@@ -4,6 +4,7 @@
 #include <algorithm>
 
 #include "control/controlobject.h"
+#include "engine/enginexfader.h"
 #include "library/basetracktablemodel.h"
 #include "library/library.h"
 #include "library/library_prefs.h"
@@ -11,6 +12,7 @@
 #include "preferences/colorpalettesettings.h"
 #include "preferences/constants.h"
 #include "util/color/predefinedcolorpalettes.h"
+#include "util/rescaler.h"
 #include "waveform/waveformwidgetfactory.h"
 
 #define PROPERTY_IMPL_GETTER(GROUP, KEY, TYPE, NAME, DEFAULT) \
@@ -41,6 +43,34 @@ QVariantList paletteToQColorList(const ColorPalette& palette) {
     return colors;
 }
 
+bool readLegacyBool(
+        const UserSettingsPointer& pConfig,
+        const ConfigKey& key,
+        bool defaultValue) {
+    const QString value = pConfig->getValueString(key);
+    if (value.isNull()) {
+        return defaultValue;
+    }
+    return value != QStringLiteral("no") && value != QStringLiteral("0");
+}
+
+double readEqFrequency(const UserSettingsPointer& pConfig,
+        const ConfigKey& preciseKey,
+        const ConfigKey& coarseKey,
+        double defaultValue) {
+    double value = 0.0;
+    bool ok = false;
+    const double coarseValue = pConfig->getValueString(coarseKey).toDouble(&ok);
+    if (ok) {
+        value = coarseValue;
+    }
+    const double preciseValue = pConfig->getValueString(preciseKey).toDouble(&ok);
+    if (ok) {
+        value = preciseValue;
+    }
+    return value > 0.0 ? value : defaultValue;
+}
+
 const QString kPreferencesGroup = QStringLiteral("[Preferences]");
 const QString kConfigGroup = QStringLiteral("[Config]");
 const QString kControlGroup = QStringLiteral("[Control]");
@@ -48,6 +78,33 @@ const QString kWaveformGroup = QStringLiteral("[Waveform]");
 const QString kControlsGroup = QStringLiteral("[Controls]");
 const QString kLibraryGroup = QStringLiteral("[Library]");
 const QString kBpmGroup = QStringLiteral("[BPM]");
+const QString kMixerProfileGroup = QStringLiteral("[Mixer Profile]");
+const QString kEffectsGroup = QStringLiteral("[Effects]");
+const QString kMasterGroup = QStringLiteral("[Master]");
+
+const QString kEnableEqsKey = QStringLiteral("EnableEQs");
+const QString kEqsOnlyKey = QStringLiteral("EQsOnly");
+const QString kSingleEqKey = QStringLiteral("SingleEQEffect");
+const QString kEqAutoResetKey = QStringLiteral("EqAutoReset");
+const QString kGainAutoResetKey = QStringLiteral("GainAutoReset");
+const QString kStemAutoResetKey = QStringLiteral("stem_auto_reset");
+const QString kHighEqFrequencyKey = QStringLiteral("HiEQFrequency");
+const QString kHighEqFrequencyPreciseKey = QStringLiteral("HiEQFrequencyPrecise");
+const QString kLowEqFrequencyKey = QStringLiteral("LoEQFrequency");
+const QString kLowEqFrequencyPreciseKey = QStringLiteral("LoEQFrequencyPrecise");
+const QString kXfaderModeKey = QStringLiteral("xFaderMode");
+const QString kXfaderCurveKey = QStringLiteral("xFaderCurve");
+const QString kXfaderCalibrationKey = QStringLiteral("xFaderCalibration");
+const QString kXfaderReverseKey = QStringLiteral("xFaderReverse");
+const QString kAdoptMetaknobValueKey = QStringLiteral("AdoptMetaknobValue");
+const QString kCrossfaderKey = QStringLiteral("crossfader");
+
+constexpr double kEqFrequencyLowerLimit = 16.0;
+constexpr double kEqFrequencyUpperLimit = 20050.0;
+constexpr double kDefaultHighEqFrequency = 2500.0;
+constexpr double kDefaultLowEqFrequency = 250.0;
+constexpr int kXfaderSliderMinimum = 0;
+constexpr int kXfaderSliderMaximum = 100;
 
 const QString kMultiSamplingKey = QStringLiteral("multi_sampling");
 const QString k3DHardwareAccelerationKey = QStringLiteral("force_hardware_acceleration");
@@ -1036,6 +1093,240 @@ PROPERTY_IMPL(kReplayGainGroup,
         replayGainTargetLoudnessAdjust,
         0);
 PROPERTY_IMPL(kReplayGainGroup, kInitialDefaultBoostKey, int, replayGainDefaultBoost, -6);
+
+bool QmlConfigProxy::mixerEqsBypassed() const {
+    const QString value = get()->getValueString(
+            ConfigKey(kMixerProfileGroup, kEnableEqsKey));
+    return !(value.isEmpty() || value == QStringLiteral("yes") ||
+            value == QStringLiteral("1"));
+}
+
+void QmlConfigProxy::set_mixerEqsBypassed(bool value) {
+    if (value == mixerEqsBypassed()) {
+        return;
+    }
+    get()->setValue(ConfigKey(kMixerProfileGroup, kEnableEqsKey), value ? 0 : 1);
+    emit mixerEqsBypassedChanged();
+}
+
+bool QmlConfigProxy::mixerEqsOnly() const {
+    return readLegacyBool(get(),
+            ConfigKey(kMixerProfileGroup, kEqsOnlyKey),
+            true);
+}
+
+void QmlConfigProxy::set_mixerEqsOnly(bool value) {
+    if (value == mixerEqsOnly()) {
+        return;
+    }
+    get()->setValue(ConfigKey(kMixerProfileGroup, kEqsOnlyKey), value ? 1 : 0);
+    emit mixerEqsOnlyChanged();
+}
+
+bool QmlConfigProxy::mixerSingleEq() const {
+    return readLegacyBool(get(),
+            ConfigKey(kMixerProfileGroup, kSingleEqKey),
+            true);
+}
+
+void QmlConfigProxy::set_mixerSingleEq(bool value) {
+    if (value == mixerSingleEq()) {
+        return;
+    }
+    get()->setValue(ConfigKey(kMixerProfileGroup, kSingleEqKey), value ? 1 : 0);
+    emit mixerSingleEqChanged();
+}
+
+bool QmlConfigProxy::mixerEqAutoReset() const {
+    return get()->getValue<bool>(ConfigKey(kMixerProfileGroup, kEqAutoResetKey), false);
+}
+
+void QmlConfigProxy::set_mixerEqAutoReset(bool value) {
+    if (value == mixerEqAutoReset()) {
+        return;
+    }
+    get()->setValue(ConfigKey(kMixerProfileGroup, kEqAutoResetKey), value);
+    emit mixerEqAutoResetChanged();
+}
+
+bool QmlConfigProxy::mixerGainAutoReset() const {
+    return get()->getValue<bool>(ConfigKey(kMixerProfileGroup, kGainAutoResetKey), false);
+}
+
+void QmlConfigProxy::set_mixerGainAutoReset(bool value) {
+    if (value == mixerGainAutoReset()) {
+        return;
+    }
+    get()->setValue(ConfigKey(kMixerProfileGroup, kGainAutoResetKey), value);
+    emit mixerGainAutoResetChanged();
+}
+
+bool QmlConfigProxy::mixerStemAutoReset() const {
+#ifdef __STEM__
+    return get()->getValue<bool>(ConfigKey(kMixerProfileGroup, kStemAutoResetKey), true);
+#else
+    return true;
+#endif
+}
+
+void QmlConfigProxy::set_mixerStemAutoReset(bool value) {
+#ifdef __STEM__
+    if (value == mixerStemAutoReset()) {
+        return;
+    }
+    get()->setValue(ConfigKey(kMixerProfileGroup, kStemAutoResetKey), value);
+    emit mixerStemAutoResetChanged();
+#else
+    Q_UNUSED(value);
+#endif
+}
+
+bool QmlConfigProxy::mixerStemSupported() const {
+#ifdef __STEM__
+    return true;
+#else
+    return false;
+#endif
+}
+
+double QmlConfigProxy::mixerHighEqFrequency() const {
+    return readEqFrequency(get(),
+            ConfigKey(kMixerProfileGroup, kHighEqFrequencyPreciseKey),
+            ConfigKey(kMixerProfileGroup, kHighEqFrequencyKey),
+            kDefaultHighEqFrequency);
+}
+
+void QmlConfigProxy::set_mixerHighEqFrequency(double value) {
+    value = std::clamp(value, kEqFrequencyLowerLimit, kEqFrequencyUpperLimit);
+    if (value == mixerHighEqFrequency()) {
+        return;
+    }
+    get()->setValue(ConfigKey(kMixerProfileGroup, kHighEqFrequencyPreciseKey),
+            QString::number(value, 'f'));
+    emit mixerHighEqFrequencyChanged();
+}
+
+double QmlConfigProxy::mixerLowEqFrequency() const {
+    return readEqFrequency(get(),
+            ConfigKey(kMixerProfileGroup, kLowEqFrequencyPreciseKey),
+            ConfigKey(kMixerProfileGroup, kLowEqFrequencyKey),
+            kDefaultLowEqFrequency);
+}
+
+void QmlConfigProxy::set_mixerLowEqFrequency(double value) {
+    value = std::clamp(value, kEqFrequencyLowerLimit, kEqFrequencyUpperLimit);
+    if (value == mixerLowEqFrequency()) {
+        return;
+    }
+    get()->setValue(ConfigKey(kMixerProfileGroup, kLowEqFrequencyPreciseKey),
+            QString::number(value, 'f'));
+    emit mixerLowEqFrequencyChanged();
+}
+
+int QmlConfigProxy::mixerXfaderMode() const {
+    return get()->getValue<int>(ConfigKey(kMixerProfileGroup, kXfaderModeKey), 0);
+}
+
+void QmlConfigProxy::set_mixerXfaderMode(int value) {
+    value = std::clamp(value, 0, 1);
+    if (value == mixerXfaderMode()) {
+        return;
+    }
+    get()->setValue(ConfigKey(kMixerProfileGroup, kXfaderModeKey), value);
+    emit mixerXfaderModeChanged();
+}
+
+double QmlConfigProxy::mixerXfaderCurve() const {
+    return get()->getValue<double>(ConfigKey(kMixerProfileGroup, kXfaderCurveKey),
+            EngineXfader::kTransformDefault);
+}
+
+void QmlConfigProxy::set_mixerXfaderCurve(double value) {
+    value = std::clamp(value,
+            EngineXfader::kTransformMin,
+            EngineXfader::kTransformMax);
+    if (value == mixerXfaderCurve()) {
+        return;
+    }
+    get()->setValue(ConfigKey(kMixerProfileGroup, kXfaderCurveKey), value);
+    emit mixerXfaderCurveChanged();
+}
+
+bool QmlConfigProxy::mixerXfaderReverse() const {
+    return get()->getValue<bool>(ConfigKey(kMixerProfileGroup, kXfaderReverseKey), false);
+}
+
+void QmlConfigProxy::set_mixerXfaderReverse(bool value) {
+    if (value == mixerXfaderReverse()) {
+        return;
+    }
+    get()->setValue(ConfigKey(kMixerProfileGroup, kXfaderReverseKey), value);
+    emit mixerXfaderReverseChanged();
+}
+
+double QmlConfigProxy::mixerXfaderCalibration() const {
+    return EngineXfader::getPowerCalibration(mixerXfaderCurve());
+}
+
+double QmlConfigProxy::mixerXfaderCurveFromSliderPosition(int sliderPosition) const {
+    const double curve = RescalerUtils::linearToOneByX(
+                                 std::clamp(sliderPosition,
+                                         kXfaderSliderMinimum,
+                                         kXfaderSliderMaximum),
+                                 kXfaderSliderMinimum,
+                                 kXfaderSliderMaximum,
+                                 EngineXfader::kTransformMax) -
+            1 + EngineXfader::kTransformMin;
+    return std::round(curve * 10000) / 10000;
+}
+
+int QmlConfigProxy::mixerXfaderSliderPositionFromCurve(double curve) const {
+    const double sliderPosition = RescalerUtils::oneByXToLinear(
+            std::clamp(curve,
+                    EngineXfader::kTransformMin,
+                    EngineXfader::kTransformMax) -
+                    EngineXfader::kTransformMin + 1,
+            EngineXfader::kTransformMax - EngineXfader::kTransformMin + 1,
+            kXfaderSliderMinimum,
+            kXfaderSliderMaximum);
+    return static_cast<int>(std::round(sliderPosition));
+}
+
+PROPERTY_IMPL(kEffectsGroup, kAdoptMetaknobValueKey, bool, effectsAdoptMetaknobValue, true);
+
+void QmlConfigProxy::applyMixerXfaderSettings() {
+    const int mode = mixerXfaderMode();
+    const double curve = mixerXfaderCurve();
+    const bool reverse = mixerXfaderReverse();
+    const double calibration = EngineXfader::getPowerCalibration(curve);
+
+    ControlObject::set(ConfigKey(kMixerProfileGroup, kXfaderModeKey), mode);
+    ControlObject::set(ConfigKey(kMixerProfileGroup, kXfaderCurveKey), curve);
+    ControlObject::set(ConfigKey(kMixerProfileGroup, kXfaderCalibrationKey), calibration);
+
+    if (auto* pReverse = ControlObject::getControl(
+                ConfigKey(kMixerProfileGroup, kXfaderReverseKey))) {
+        const bool wasReverse = pReverse->toBool();
+        if (wasReverse != reverse) {
+            if (auto* pCrossfader = ControlObject::getControl(
+                        ConfigKey(kMasterGroup, kCrossfaderKey))) {
+                pCrossfader->set(0.0 - pCrossfader->get());
+            }
+        }
+        pReverse->set(reverse ? 1.0 : 0.0);
+    }
+}
+
+void QmlConfigProxy::applyMixerEqFrequencies() {
+    // The EQ shelf setters only store the *Precise config keys; the builtin
+    // EQ effects read the coarse [Mixer Profile] HiEQFrequency/LoEQFrequency
+    // ControlObjects. Apply the precise values to those controls so the
+    // engine actually uses the frequencies the settings page saved.
+    ControlObject::set(ConfigKey(kMixerProfileGroup, kHighEqFrequencyKey),
+            mixerHighEqFrequency());
+    ControlObject::set(ConfigKey(kMixerProfileGroup, kLowEqFrequencyKey),
+            mixerLowEqFrequency());
+}
 
 } // namespace qml
 } // namespace mixxx
