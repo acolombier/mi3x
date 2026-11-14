@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Dialogs
+import QtQuick.Effects
 import Mixxx 1.0 as Mixxx
 import Mixxx.Controls 1.0 as MixxxControls
 import "." as Setting
@@ -74,6 +75,10 @@ Category {
         colorPane.jumpPaletteColorIndex = colorPane.defaultPalette.length - 3;
         jumpPaletteInput.currentIndex = colorPane.jumpPaletteColorIndex;
         themeColorTab.dirty = false;
+        ApplicationWindow.window.content.grabToImage(function (result) {
+            currentLayoutImage.source = result.url;
+        });
+        resetButton.visible = Array(4).fill().map((_, i) => i).reduce((acc, i) => acc || !!Mixxx.Config.getDeckLayout(i), false);
     }
     function loadWaveform() {
         waveformTab.load({
@@ -187,7 +192,8 @@ Category {
         waveformTab.save();
     }
 
-    label: "Interface"
+    label: qsTr("Interface")
+    objectName: "interfacePage"
     selectedIndex: 0
     tabs: ["theme & color", "waveform", "decks"]
 
@@ -487,15 +493,77 @@ Category {
                                 anchors.verticalCenter: parent.verticalCenter
                                 color: '#343434'
                                 height: width / 16 * 9
-                                width: parent.width - 160
+                                layer.enabled: true
+                                radius: 2
+                                width: parent.width - 80
 
-                                Skin.Button {
-                                    activeColor: Theme.white
+                                layer.effect: MultiEffect {
+                                    shadowBlur: 0.8
+                                    shadowColor: '#c0000000'
+                                    shadowEnabled: true
+                                }
+
+                                Image {
+                                    id: currentLayoutImage
+
+                                    anchors.fill: parent
+                                    fillMode: Image.PreserveAspectCrop
+                                    mipmap: true
+                                    verticalAlignment: Image.AlignTop
+                                }
+                                Skin.InnerShadowMask {
+                                    anchors.fill: parent
+                                    radius: parent.radius
+                                    rimColor: Theme.darkGray
+                                    size: 6
+                                }
+                                Rectangle {
                                     anchors.bottom: parent.bottom
-                                    anchors.bottomMargin: 20
+                                    height: parent.height / 2
+                                    width: parent.width
+
+                                    gradient: Gradient {
+                                        orientation: Gradient.Vertical
+
+                                        GradientStop {
+                                            color: Theme.darkGray
+                                            position: 1
+                                        }
+                                        GradientStop {
+                                            color: 'transparent'
+                                            position: 0
+                                        }
+                                    }
+                                }
+                                RowLayout {
+                                    anchors.bottom: parent.bottom
+                                    anchors.bottomMargin: 10
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    text: "Customize"
-                                    width: 80
+
+                                    Skin.Button {
+                                        id: resetButton
+
+                                        Layout.preferredWidth: 80
+                                        activeColor: Theme.white
+                                        text: "Reset"
+
+                                        onPressed: {
+                                            root.Window.window.requestDeckLayoutReset();
+                                            resetButton.visible = false;
+                                        }
+                                    }
+                                    Skin.Button {
+                                        id: customizeButton
+
+                                        Layout.preferredWidth: 80
+                                        activeColor: Theme.white
+                                        text: "Customize"
+
+                                        onPressed: {
+                                            root.Window.window.requestDeckLayoutEdit();
+                                            root.Window.window.settings.visible = false;
+                                        }
+                                    }
                                 }
                             }
                         }
