@@ -67,7 +67,7 @@ Item {
         enabled: trackLoadedControl.value == 1
         implicitHeight: 22
         text: "Beatgrid"
-        visible: root.width > 165
+        visible: root.width > 145
 
         onPressed: {
             popup.open();

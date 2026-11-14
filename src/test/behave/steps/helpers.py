@@ -594,7 +594,7 @@ def _setting_spec(setting):
     return spec
 
 def _deck_waveform_path(deck):
-    return f"mainWindow/waveformDisplay_Channel{deck}"
+    return f"mainWindow/deck{deck}waveform"
 
 def _read_float_property(context, path, prop):
     value = _get_property(context, path, prop)
@@ -1041,6 +1041,7 @@ DECK_BUTTON_PATHS = {
     "beatjump_backward": "jumpBackButton",
     "beatgrid": "beatgridButton",
     "hotcue": "hotcueAndStem",
+    "loop": "loop",
     "loop_in": "loopIn",
     "loop_out": "loopOut",
     "quantize": "quantizeButton",
@@ -1052,6 +1053,7 @@ DECK_BUTTON_PATHS = {
     "loop_halve": "loopSizeHalfButton",
     "loop_double": "loopSizeDoubleButton",
     "tempo": "rateSlider",
+    "toolbar": "toolbar",
 }
 
 
@@ -1126,7 +1128,7 @@ SETTING_MAP = {
     "medium visual gain": {"path": "mainWindow/setting_visualGainMedium", "kind": "slider", "min": 50, "max": 500, "markers": [50, 100, 150, 300, 500]},
     "high visual gain": {"path": "mainWindow/setting_visualGainHigh", "kind": "slider", "min": 50, "max": 500, "markers": [50, 100, 150, 300, 500]},
     # Library category — scan summary
-    "show scan summary": {"path": "mainWindow/settingsPopupItem/library/notifyOnScan", "kind": "ratio", "options": ["on", "off"]},
+    "show scan summary": {"path": "mainWindow/settingsPopupItem/libraryPage/notifyOnScan", "kind": "ratio", "options": ["on", "off"]},
     # Library category — sources & integrations
     "Rhythmbox integration": {"path": "mainWindow/setting_integration0", "kind": "ratio", "options": ["on", "off"]},
     "Banshee integration": {"path": "mainWindow/setting_integration1", "kind": "ratio", "options": ["on", "off"]},

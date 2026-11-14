@@ -70,6 +70,17 @@ QmlWaveformDisplay::~QmlWaveformDisplay() {
     m_rendererStack.clear();
 }
 
+void QmlWaveformDisplay::componentComplete() {
+    if (!getGroup().isEmpty()) {
+        qDebug() << "QmlWaveformDisplay ready for group" << getGroup() << "with"
+                 << m_waveformRenderers.count() << "renderer(s)";
+    } else if (m_pTrack && m_pTrack->internal()) {
+        qDebug() << "QmlWaveformDisplay ready for track" << m_pTrack->internal().get() << "with"
+                 << m_waveformRenderers.count() << "renderer(s)";
+    }
+    QQuickItem::componentComplete();
+}
+
 double QmlWaveformDisplay::getPosition() const {
     return m_visualPlayPosition->getEnginePlayPos();
 }
@@ -215,6 +226,12 @@ QSGNode* QmlWaveformDisplay::updatePaintNode(QSGNode* node, UpdatePaintNodeData*
 
         m_rendererStack.clear();
         for (auto* pQmlRenderer : std::as_const(m_waveformRenderers)) {
+            if (!pQmlRenderer) {
+                // This is expected as some renderer may be swap asynchronously,
+                // for example when switching from one waveform type to another
+                qDebug() << "Ignoring an uninitialized reserved slot";
+                continue;
+            }
             if (!pQmlRenderer->isSupported()) {
                 qWarning() << "Ignoring the unsupported" << pQmlRenderer << "renderer";
                 continue;
@@ -368,12 +385,16 @@ void QmlWaveformDisplay::updateAudioVisualRatio() {
 }
 
 QQmlListProperty<QmlWaveformRendererFactory> QmlWaveformDisplay::renderers() {
-    return {this,
+    return {
+            this,
             nullptr,
             &QmlWaveformDisplay::renderers_append,
             &QmlWaveformDisplay::renderers_count,
             &QmlWaveformDisplay::renderers_at,
-            &QmlWaveformDisplay::renderers_clear};
+            &QmlWaveformDisplay::renderers_clear,
+            &QmlWaveformDisplay::renderers_replace,
+            &QmlWaveformDisplay::renderers_remove_last,
+    };
 }
 
 // Static
@@ -420,6 +441,28 @@ void QmlWaveformDisplay::renderers_clear(QQmlListProperty<QmlWaveformRendererFac
     }
     pWaveform->m_dirtyFlag.setFlag(DirtyFlag::Window, true);
     return pWaveform->m_waveformRenderers.clear();
+}
+
+void QmlWaveformDisplay::renderers_replace(
+        QQmlListProperty<mixxx::qml::QmlWaveformRendererFactory>* pList,
+        qsizetype idx,
+        mixxx::qml::QmlWaveformRendererFactory* value) {
+    QmlWaveformDisplay* pWaveform = static_cast<QmlWaveformDisplay*>(pList->object);
+    VERIFY_OR_DEBUG_ASSERT(pWaveform) {
+        return;
+    }
+    pWaveform->m_dirtyFlag.setFlag(DirtyFlag::Window, true);
+    return pWaveform->m_waveformRenderers.replace(idx, value);
+}
+
+void QmlWaveformDisplay::renderers_remove_last(
+        QQmlListProperty<mixxx::qml::QmlWaveformRendererFactory>* pList) {
+    QmlWaveformDisplay* pWaveform = static_cast<QmlWaveformDisplay*>(pList->object);
+    VERIFY_OR_DEBUG_ASSERT(pWaveform) {
+        return;
+    }
+    pWaveform->m_dirtyFlag.setFlag(DirtyFlag::Window, true);
+    return pWaveform->m_waveformRenderers.pop_back();
 }
 
 } // namespace qml

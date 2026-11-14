@@ -146,7 +146,7 @@ Item {
                 anchors.rightMargin: 9
                 anchors.topMargin: 6
                 columnSpacing: 9
-                columns: width < 250 ? 1 : root.currentTrack?.stemsModel.rowCount()
+                columns: width < 250 || !root.currentTrack ? 1 : root.currentTrack.stemsModel.rowCount()
 
                 Repeater {
                     model: root.currentTrack?.stemsModel
