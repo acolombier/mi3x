@@ -22,6 +22,7 @@ ApplicationWindow {
     // sees presses that nothing else accepted.
     readonly property alias touchHub: touchHubArea
 
+    signal requestDeckLayoutEdit
     signal requestTrackProperties(Mixxx.Track track)
 
     color: Theme.backgroundColor

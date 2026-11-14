@@ -496,6 +496,11 @@ Category {
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     text: "Customize"
                                     width: 80
+
+                                    onPressed: {
+                                        root.Window.window.requestDeckLayoutEdit();
+                                        root.Window.window.settings.visible = false;
+                                    }
                                 }
                             }
                         }

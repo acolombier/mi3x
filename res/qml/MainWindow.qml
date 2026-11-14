@@ -15,7 +15,7 @@ Item {
     readonly property bool _showLibrary: maximizeLibrary || height - mixer.height >= 400
     readonly property int designHeight: 1008
     readonly property int designWidth: 1792
-    property alias editDeck: editDeckButton.checked
+    property bool editDeck: false
     property var focusedDeck: null
     readonly property Item imeFocusItem: Window.activeFocusItem
     // Pull-to-top IME shift: while the soft keyboard is up, lift the
@@ -62,19 +62,20 @@ Item {
         y: toolbar.height + waveforms.height / 2
 
         onClosed: {
-            editDeckButton.checked = false;
+            root.editDeck = false;
+        }
+    }
+
+    Connections {
+        function onRequestDeckLayoutEdit() {
+            root.editDeck = !root.editDeck;
+            if (!root.editDeck)
+                editDeckPopup.close();
+            else
+                editDeckPopup.open();
         }
 
-        Connections {
-            function onCheckedChanged() {
-                if (!editDeckButton.checked)
-                    editDeckPopup.close();
-                else
-                    editDeckPopup.open();
-            }
-
-            target: editDeckButton
-        }
+        target: root.Window.window
     }
 
     // color: Theme.backgroundColor
@@ -172,7 +173,34 @@ Item {
                                 }
                             }
                         }
+                        Instantiator {
+                            active: Qt.application.arguments.indexOf("--developer") != -1
+
+                            onObjectAdded: (index, object) => {
+                                contextMenu.insertItem(1 + index, object);
+                            }
+                            onObjectRemoved: (index, object) => {
+                                contextMenu.removeItem(object);
+                            }
+
+                            MenuItem {
+                                text: qsTr("Developer tool")
+
+                                onTriggered: {
+                                    if (devToolsWindow.visible)
+                                        devToolsWindow.close();
+                                    else
+                                        devToolsWindow.show();
+                                }
+                            }
+                        }
                     }
+                }
+                DeveloperToolsWindow {
+                    id: devToolsWindow
+
+                    height: 480
+                    width: 640
                 }
                 Skin.Button {
                     id: show4DecksButton
@@ -227,35 +255,6 @@ Item {
                 }
                 Item {
                     Layout.fillWidth: true
-                }
-                Skin.Button {
-                    id: editDeckButton
-
-                    activeColor: Theme.white
-                    checkable: true
-                    text: "Edit"
-                }
-                Skin.Button {
-                    id: showDevToolsButton
-
-                    activeColor: Theme.white
-                    checkable: true
-                    checked: devToolsWindow.visible
-                    text: "Develop"
-
-                    onClicked: {
-                        if (devToolsWindow.visible)
-                            devToolsWindow.close();
-                        else
-                            devToolsWindow.show();
-                    }
-
-                    DeveloperToolsWindow {
-                        id: devToolsWindow
-
-                        height: 480
-                        width: 640
-                    }
                 }
                 Skin.Button {
                     id: notificationButton
