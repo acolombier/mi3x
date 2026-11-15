@@ -225,6 +225,7 @@ Rectangle {
                 clip: true
                 contentWidth: sizeRow.implicitWidth
                 contentX: {
+                    root.width; // Implicit binding
                     let focusedItem = loopSizeRepeater.itemAt(scroll.selectedIndex);
                     return focusedItem ? Math.min(contentWidth - width, Math.max(0, focusedItem.x + focusedItem.width / 2 - width / 2)) : 0;
                 }
@@ -297,6 +298,7 @@ Rectangle {
                                     sizedBeatloopActivate.trigger();
                                 }
                                 scroll.contentX = Qt.binding(() => {
+                                    root.width; // Implicit binding
                                     let focusedItem = loopSizeRepeater.itemAt(scroll.selectedIndex);
                                     return focusedItem ? Math.min(scroll.contentWidth - scroll.width, Math.max(0, focusedItem.x + focusedItem.width / 2 - scroll.width / 2)) : 0;
                                 });
