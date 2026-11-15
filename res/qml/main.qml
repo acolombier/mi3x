@@ -15,14 +15,13 @@ ApplicationWindow {
     // Used to show click interaction on the Window. Mainly relevant on automated testing
     property bool enableDiagnosticClick: false
     readonly property bool isMobile: Qt.platform.os === "android" || Qt.platform.os === "ios"
+    property var selectedSkin: Mixxx.Core.ready ? Mixxx.SkinManager.skins.find(skin => skin.name == Mixxx.Config.configSkin) ?? Mixxx.SkinManager.skins[0] : null
     readonly property alias settings: settingsPopup
 
     // Window-wide gesture router, reachable from anywhere via
     // Window.window.touchHub. It lives at the bottom of the scene so it only
     // sees presses that nothing else accepted.
     readonly property alias touchHub: touchHubArea
-
-    property var selectedSkin: Mixxx.Core.ready ? Mixxx.Core.skins.find((skin) => skin.name == Mixxx.Config.configSkin) ?? Mixxx.Core.skins[0] : null
 
     color: Theme.backgroundColor
     height: isMobile ? Screen.height : designHeight
@@ -33,21 +32,22 @@ ApplicationWindow {
     width: isMobile ? Screen.width : designWidth
 
     Component.onCompleted: {
+        Mixxx.SkinManager.initialize(Mixxx.Core);
         Mixxx.Core.clearOpenedPopup();
     }
-
     Component.onDestruction: {
         Mixxx.Config.mainWindowGeometry = JSON.stringify({
             width: root.width,
             height: root.height,
             x: root.x,
-            y: root.y,
-        })
+            y: root.y
+        });
+        Mixxx.SkinManager.teardown();
     }
 
     Connections {
         function onReadyChanged() {
-            root.selectedSkin = Qt.binding(() => Mixxx.Core.skins.find((skin) => skin.name == Mixxx.Config.configSkin) ?? Mixxx.Core.skins[0]);
+            root.selectedSkin = Qt.binding(() => Mixxx.SkinManager.skins.find(skin => skin.name == Mixxx.Config.configSkin) ?? Mixxx.SkinManager.skins[0]);
             root.visibility = Qt.binding(() => Mixxx.Config.configStartInFullscreenKey || isMobile ? Window.FullScreen : Window.Windowed);
         }
 
@@ -67,14 +67,16 @@ ApplicationWindow {
     }
     Component {
         id: fallback
+
         Item {
             Rectangle {
+                anchors.centerIn: parent
                 color: "red"
                 height: 30
                 width: 80
-                anchors.centerIn: parent
+
                 Text {
-                anchors.centerIn: parent
+                    anchors.centerIn: parent
                     text: "Oooops"
                 }
             }
@@ -91,18 +93,16 @@ ApplicationWindow {
         active: Mixxx.Core.ready
         anchors.fill: parent
         asynchronous: true
-
         focus: true
         sourceComponent: root.selectedSkin?.main ?? fallback
-        onSourceComponentChanged:{
+
+        onSourceComponentChanged: {
             content.asynchronous = true;
         }
-
-
         onStatusChanged: {
             if (status === Loader.Error) {
                 console.error("Failed to load the Mixxx main window");
-                content.sourceComponent = fallback
+                content.sourceComponent = fallback;
             } else if (status === Loader.Ready) {
                 // Keep the loader synchronous going forward so all UI operation such as layout
                 // invalidation won't induce weird visual artifacts or delays.

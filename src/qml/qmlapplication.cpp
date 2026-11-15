@@ -453,6 +453,9 @@ QmlApplication::~QmlApplication() {
     disconnect(&m_guiTickTimer);
     m_guiTickTimer.stop();
     m_pGuiTick.reset();
+#ifdef __RPC_SERVER__
+    m_pRpcServe.reset();
+#endif
     m_pCoreServices.reset();
 }
 

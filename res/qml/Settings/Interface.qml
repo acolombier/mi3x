@@ -48,11 +48,11 @@ Category {
     }
     function loadInterface() {
         // Interface tab
-        skinInput.model = []
-        for (let skin of Mixxx.Core.skins){
-            skinInput.model.push(skin.name)
+        skinInput.model = [];
+        for (let skin of Mixxx.SkinManager.skins) {
+            skinInput.model.push(skin.name);
         }
-        let currentSkin = skinInput.model.indexOf(Mixxx.Config.configSkin)
+        let currentSkin = skinInput.model.indexOf(Mixxx.Config.configSkin);
         skinInput.currentIndex = currentSkin >= 0 ? currentSkin : 0;
         // colorInput.value =
         // layoutInput.value =
@@ -172,7 +172,7 @@ Category {
     function saveInterface() {
         // Interface tab
         // skinInput.value =
-        Mixxx.Config.configSkin = skinInput.model[skinInput.currentIndex]
+        Mixxx.Config.configSkin = skinInput.model[skinInput.currentIndex];
         // colorInput.value =
         // layoutInput.value =
         Mixxx.Config.libraryTooltips = tooltipsInput.options.indexOf(tooltipsInput.selected);
@@ -2841,6 +2841,7 @@ Category {
         }
         Behaviors.TrackTime {
             id: time
+
             Layout.rightMargin: 17
             display: trackTimeDisplayInput.selected === "elapsed" ? Behaviors.TrackTime.Display.Elapsed : trackTimeDisplayInput.selected === "remaining" ? Behaviors.TrackTime.Display.Remaining : Behaviors.TrackTime.Display.Both
             elapsed: 83.45
@@ -2849,15 +2850,14 @@ Category {
         }
         Text {
             Layout.rightMargin: 17
-            text: time.text
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
+            color: Theme.buttonNormalColor
             elide: Text.ElideRight
+            font.bold: true
             font.family: Theme.fontFamily
             font.pixelSize: Theme.buttonFontPixelSize
-            font.bold: true
-            color: Theme.buttonNormalColor
-
+            horizontalAlignment: Text.AlignHCenter
+            text: time.text
+            verticalAlignment: Text.AlignVCenter
         }
     }
     component WaveformMaskComponent: Item {

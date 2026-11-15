@@ -4363,6 +4363,7 @@ if(QML)
       src/qml/qmlapplicationproxy.cpp
       src/qml/qmlautoreload.cpp
       src/qml/qmlcoreservices.cpp
+      src/qml/qmlskinmanager.cpp
       src/qml/qmlbatteryproxy.cpp
       src/qml/qmlbeatsmodel.cpp
       src/qml/qmlchainpresetmodel.cpp
