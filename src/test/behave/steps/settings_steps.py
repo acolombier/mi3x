@@ -967,12 +967,13 @@ def _drag_slider_handle(context, spec, value):
     assert wait_visible(context.rpc, handler), f"Slider handle not visible at {handler}"
     assert wait_visible(context.rpc, track), f"Slider track not visible at {track}"
     spec.update(json.loads(context.rpc.invokeMethod(path, "serialize", [])))
-    target_vp = _value_to_ratio(
-        float(value), spec["min"], spec["max"], spec.get("markers", [])
-    )
-    context.rpc.mouseBeginDrag(handler, 0.25, 0.5, track, target_vp, 0.5)
-    context.rpc.mouseEndDrag(handler)
-    time.sleep(0.5)
+    for attempt in range(2):
+        target_vp = _value_to_ratio(
+            float(value), spec["min"], spec["max"], spec.get("markers", [])
+        )
+        context.rpc.mouseBeginDrag(handler, 0.25, 0.5, track, target_vp, 0.5)
+        context.rpc.mouseEndDrag(handler)
+        time.sleep(0.5)
 
 
 def _enter_text_value(context, path, value):

@@ -16,6 +16,13 @@ ComboBox {
 
     signal activateFooter(int index)
 
+    // Used for E2E
+    function serialize() {
+        return JSON.stringify({
+            model: this.model
+        });
+    }
+
     implicitHeight: 24
     implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset, implicitContentWidth + leftPadding + rightPadding)
     leftPadding: 4
