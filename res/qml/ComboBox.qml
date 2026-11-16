@@ -271,7 +271,7 @@ ComboBox {
                         anchors.fill: parent
                         bottomMargin: 0
                         clip: true
-                        currentIndex: root.highlightedIndex
+                        currentIndex: root.currentIndex
                         leftMargin: 0
                         model: root.popup.visible ? root.delegateModel : null
                         objectName: root.objectName ? root.objectName + "_popupList" : ""
