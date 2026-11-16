@@ -1038,7 +1038,7 @@ Category {
                     };
                 }
 
-                implicitHeight: waveformTabColumn.y + waveformTabColumn.height
+                implicitHeight: waveformTabColumn.y + waveformTabColumn.implicitHeight
                 label: "Waveform"
                 objectName: "waveformSettingsTab"
                 visible: root.selectedIndex == 1

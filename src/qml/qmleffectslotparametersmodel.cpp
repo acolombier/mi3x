@@ -19,6 +19,10 @@ const QHash<int, QByteArray> kRoleNames = {
         {QmlEffectSlotParametersModel::ControlKeyRole, "controlKey"},
         {QmlEffectSlotParametersModel::LoadedRole, "loaded"},
         {QmlEffectSlotParametersModel::UnitStringRole, "unitString"},
+        {QmlEffectSlotParametersModel::MinimumRole, "minimum"},
+        {QmlEffectSlotParametersModel::MaximumRole, "maximum"},
+        {QmlEffectSlotParametersModel::DefaultValueRole, "defaultValue"},
+        {QmlEffectSlotParametersModel::ValueRole, "value"},
 };
 }
 
@@ -49,7 +53,7 @@ void QmlEffectSlotParametersModel::updateParameterState() {
     }
     emit dataChanged(index(0, 0),
             index(parameterCount - 1, 0),
-            {ControlKeyRole, LoadedRole});
+            {ControlKeyRole, LoadedRole, ValueRole});
 }
 
 EffectParameterPointer QmlEffectSlotParametersModel::loadedParameterForRow(
@@ -111,6 +115,17 @@ QVariant QmlEffectSlotParametersModel::data(const QModelIndex& index, int role) 
         return static_cast<bool>(loadedParameterForRow(index.row()));
     case QmlEffectSlotParametersModel::UnitStringRole:
         return pParameter->unitString();
+    case QmlEffectSlotParametersModel::MinimumRole:
+        return pParameter->getMinimum();
+    case QmlEffectSlotParametersModel::MaximumRole:
+        return pParameter->getMaximum();
+    case QmlEffectSlotParametersModel::DefaultValueRole:
+        return pParameter->getDefault();
+    case QmlEffectSlotParametersModel::ValueRole: {
+        const auto pLoadedParameter = loadedParameterForRow(index.row());
+        return pLoadedParameter ? pLoadedParameter->getValue()
+                                : pParameter->getDefault();
+    }
     default:
         return QVariant();
     }
