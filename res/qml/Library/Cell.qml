@@ -149,6 +149,9 @@ Rectangle {
             acceptedDevices: selected ? PointerDevice.AllDevices : PointerDevice.Mouse | PointerDevice.TouchPad
             dragThreshold: root.track.dragThreshold
 
+            // FIXME: this is a workaround on Qt bug. See core proxy for details
+            enabled: !Mixxx.Core.hasPopup
+
             onActiveChanged: {
                 if (active && !initialPosition) {
                     root.track.view?.selectionModel.selectRow(row);

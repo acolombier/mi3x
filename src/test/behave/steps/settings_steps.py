@@ -1067,15 +1067,16 @@ def _combo_select_keyboard(context, path, index):
     posted to the window and follow normal Qt focus routing into the open
     popup (same pattern as the column picker step).
     """
-    highlighted = int(_get_property(context, path, "highlightedIndex"))
-    if highlighted == -1:
+    current = int(_get_property(context, path, "currentIndex"))
+    if current == -1:
         context.rpc.enterKey("mainWindow", QT_KEY_DOWN, 0)
-        context.rpc.wait(200)
-        highlighted = int(_get_property(context, path, "highlightedIndex"))
-    key = QT_KEY_DOWN if index > highlighted else QT_KEY_UP
-    for _ in range(abs(index - highlighted)):
+        time.sleep(0.2)
+        current = int(_get_property(context, path, "currentIndex"))
+    assert current != -1, "Could not interact with the combobox popup list"
+    key = QT_KEY_DOWN if index > current else QT_KEY_UP
+    for _ in range(abs(index - current)):
         context.rpc.enterKey("mainWindow", key, 0)
-        context.rpc.wait(200)
+        time.sleep(0.2)
     time.sleep(0.3)
     context.rpc.enterKey("mainWindow", QT_KEY_ENTER, 0)
     time.sleep(0.3)
