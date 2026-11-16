@@ -145,7 +145,7 @@ Category {
         }
 
         ColumnLayout {
-            width: root.width - 10
+            width: scrollView.width
 
             AnalyzerSection {
                 id: bpmAnalyzer
@@ -568,6 +568,32 @@ Category {
                     }
                 }
             }
+        }
+    }
+    Rectangle {
+        id: overflowIndicator
+
+        anchors.bottom: scrollView.bottom
+        color: 'transparent'
+        height: 40
+        visible: scrollView.height < scrollView.contentHeight && scrollView.contentItem.contentY + scrollView.height < scrollView.contentHeight
+        width: parent.width
+
+        gradient: Gradient {
+            orientation: Gradient.Vertical
+
+            GradientStop {
+                color: Qt.alpha(Theme.darkGray, 0.4)
+                position: 1
+            }
+            GradientStop {
+                color: 'transparent'
+                position: 0
+            }
+        }
+        Skin.FadeBehavior on visible {
+            duration: 500
+            fadeTarget: overflowIndicator
         }
     }
     Item {

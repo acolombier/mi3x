@@ -41,35 +41,118 @@ Rectangle {
         }
     }
 
-    Image {
+    Rectangle {
         id: coverArt
 
+        property var align: Qt.AlignLeft
+
         anchors.bottom: parent.bottom
-        anchors.left: parent.left
         anchors.top: parent.top
-        asynchronous: true
-        source: root.currentTrack?.coverArtUrl || ''
-        visible: false
-        width: height
-    }
-    Rectangle {
-        id: coverArtCircle
-
-        anchors.fill: coverArt
         color: Theme.deckEmptyCoverArt
-        radius: 4
-        visible: !root.deckPlayer?.isLoaded && !root.minimized
-    }
-    OpacityMask {
-        id: coverArtMask
+        layer.enabled: true
+        visible: !root.minimized
+        width: height
 
-        anchors.fill: coverArt
-        maskSource: coverArtCircle
-        source: coverArt
-        visible: root.deckPlayer?.isLoaded && !root.minimized
+        layer.effect: OpacityMask {
+            maskSource: Rectangle {
+                height: coverArt.height
+                radius: 4
+                visible: false // Mask itself is not drawn
+                width: coverArt.width
+            }
+        }
+        states: [
+            State {
+                when: coverArt.align == Qt.AlignLeft
 
-        Skin.FadeBehavior on visible {
-            fadeTarget: coverArtMask
+                AnchorChanges {
+                    anchors.left: parent.left
+                    anchors.right: undefined
+                    target: coverArt
+                }
+                AnchorChanges {
+                    anchors.left: coverArt.right
+                    anchors.right: root.right
+                    target: metadataLayout
+                }
+            },
+            State {
+                when: coverArt.align == Qt.AlignRight
+
+                AnchorChanges {
+                    anchors.left: undefined
+                    anchors.right: parent.right
+                    target: coverArt
+                }
+                AnchorChanges {
+                    anchors.left: root.left
+                    anchors.right: coverArt.left
+                    target: metadataLayout
+                }
+            }
+        ]
+
+        Image {
+            anchors.fill: parent
+            asynchronous: true
+            opacity: root.editMode ? 0.5 : 1
+            source: root.currentTrack?.coverArtUrl || ''
+            visible: root.deckPlayer?.isLoaded && !root.minimized
+        }
+        Skin.Button {
+            id: swapArrowButton
+
+            activeColor: Theme.deckActiveColor
+            anchors.centerIn: parent
+            implicitHeight: 20
+            implicitWidth: 36
+            visible: root.editMode
+
+            contentItem: Item {
+                anchors.fill: parent
+
+                Shape {
+                    anchors.centerIn: parent
+                    antialiasing: true
+                    height: 12
+                    width: 24
+
+                    ShapePath {
+                        fillColor: '#626262'
+                        startX: 2
+                        startY: 7
+                        strokeColor: 'transparent'
+
+                        PathLine {
+                            x: 6
+                            y: 3
+                        }
+                        PathLine {
+                            x: 6
+                            y: 11
+                        }
+                    }
+                    ShapePath {
+                        fillColor: '#626262'
+                        startX: 18
+                        startY: 3
+                        strokeColor: 'transparent'
+
+                        PathLine {
+                            x: 22
+                            y: 7
+                        }
+                        PathLine {
+                            x: 18
+                            y: 11
+                        }
+                    }
+                }
+            }
+
+            onPressed: {
+                coverArt.align = coverArt.align == Qt.AlignRight ? Qt.AlignLeft : Qt.AlignRight;
+            }
         }
     }
     DelegateChooser {
@@ -106,7 +189,7 @@ Rectangle {
             roleValue: "BPM"
 
             Cell {
-                item.text: bpmCO.value > 0 ? bpmCO.value.toFixed(2) : "-"
+                item.text: bpmCO.value > 0 ? bpmCO.value.toFixed(Mixxx.Config.libraryBpmColumnPrecision) : "-"
                 visible: root.width > 450
 
                 Mixxx.ControlProxy {
@@ -322,9 +405,9 @@ Rectangle {
         }
     }
     ColumnLayout {
+        id: metadataLayout
+
         anchors.bottom: root.bottom
-        anchors.left: coverArt.right
-        anchors.right: root.right
         anchors.top: root.top
         spacing: 0
 

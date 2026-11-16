@@ -1037,5 +1037,13 @@ PROPERTY_IMPL(kReplayGainGroup,
         0);
 PROPERTY_IMPL(kReplayGainGroup, kInitialDefaultBoostKey, int, replayGainDefaultBoost, -6);
 
+QString QmlConfigProxy::getDeckLayout(uint deck) const {
+    return get()->getValue(ConfigKey(kPreferencesGroup, QString("deck_layout_%1").arg(deck)));
+}
+
+void QmlConfigProxy::setDeckLayout(uint deck, const QString& layout) {
+    get()->setValue(ConfigKey(kPreferencesGroup, QString("deck_layout_%1").arg(deck)), layout);
+}
+
 } // namespace qml
 } // namespace mixxx

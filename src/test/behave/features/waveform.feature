@@ -16,14 +16,12 @@ Feature: Waveform
 # embedded type-combobox preview scenarios below.
 #
 
-  Background:
-    Given a new library-ready profile
-    And I have the following sound devices
-      | name           | api  | outputChannels | inputChannels |
-      | Built-in Audio | Mock | 4              | 4             |
-    And Mixxx is open and ready to operate
-    And the settings popup is open
-    And the "Interface" category is selected
+  Rule: Update waveform settings
+    Background:
+      Given a new library-ready profile
+      And Mixxx is open and ready to operate
+      And the settings popup is open
+      And the "Interface" category is selected
 
   # Defaults in this tab are read live from the config (Mixxx.Config), so a
   # value that equals its default (e.g. a reset gain of "100%") is stored as
@@ -372,3 +370,26 @@ Feature: Waveform
   Scenario: Search finds waveform settings
     When I search for "visual gain"
     Then the search results should be visible
+
+  Rule: Default appearance
+    Background:
+      Given a new library-ready profile
+      And Mixxx is open and ready to operate
+
+  Scenario Outline: The waveform "<type>" can be enabled
+    Given the settings popup is open
+    And a track is loaded on deck 1
+    And the "Interface" category is selected
+    And the "waveform" tab is selected
+    When I set the "waveform type" setting to "<type>"
+    And I click the save button
+    And I click the settings close button
+    Then the waveform on deck 1 should show the "<type>" waveform
+
+    Examples:
+      | type     |
+      | Filtered |
+      | HSV      |
+      | RGB      |
+      | Simple   |
+      | Stacked  |

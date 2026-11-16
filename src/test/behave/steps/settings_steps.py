@@ -766,10 +766,11 @@ def step_setting_expanded(context, setting):
 
 
 LIBRARY_GRIDS = {
-    "Library sources": "mainWindow/librarySourcesGrid",
-    "Library integrations": "mainWindow/libraryIntegrationsGrid",
-    "Library metadata": "mainWindow/libraryMetadataGrid",
-    "Library history": "mainWindow/libraryHistoryGrid",
+    "Library sources": "mainWindow/settingsPopupItem/libraryPage/sourcesGrid",
+    "Library integrations": "mainWindow/settingsPopupItem/libraryPage/integrationsGrid",
+    "Library metadata": "mainWindow/settingsPopupItem/libraryPage/metadataGrid",
+    "Library search": "mainWindow/settingsPopupItem/libraryPage/searchGrid",
+    "Library history": "mainWindow/settingsPopupItem/libraryPage/historyGrid",
     # Analyzer page grids (objectNamespaced paths)
     "BPM analyzer": "mainWindow/settingsPopupItem/analyzerPage/bpm/grid",
     "key analyzer": "mainWindow/settingsPopupItem/analyzerPage/key/grid",
