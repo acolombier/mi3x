@@ -17,6 +17,7 @@ class QmlEffectSlotProxy : public QObject {
     Q_PROPERTY(bool loaded READ isLoaded NOTIFY effectIdChanged)
     Q_PROPERTY(QString effectName READ getEffectName NOTIFY effectIdChanged)
     Q_PROPERTY(QString effectDescription READ getEffectDescription NOTIFY effectIdChanged)
+    Q_PROPERTY(double metaDefault READ getMetaDefault NOTIFY effectIdChanged)
     Q_PROPERTY(QString effectId READ getEffectId WRITE setEffectId NOTIFY effectIdChanged)
     Q_PROPERTY(QString uniqueId READ getUniqueId NOTIFY effectIdChanged)
     Q_PROPERTY(bool enabled READ isEnabled WRITE setEnabled NOTIFY enabledChanged)
@@ -48,6 +49,7 @@ class QmlEffectSlotProxy : public QObject {
     QString getEffectName() const;
     QString getEffectDescription() const;
     QString getChainPresetName() const;
+    double getMetaDefault() const;
     QmlEffectSlotParametersModel* getParametersModel() const;
 
   public slots:
@@ -56,6 +58,20 @@ class QmlEffectSlotProxy : public QObject {
 
   public:
     Q_INVOKABLE void setParameterVisible(const QString& parameterId, bool visible);
+    Q_INVOKABLE void swapParameters(int parameterType,
+            int firstSlot,
+            int secondSlot,
+            int secondType = -1);
+    Q_INVOKABLE void queueParameterSwap(int parameterType,
+            int firstSlot,
+            int secondSlot,
+            int secondType = -1);
+    Q_INVOKABLE void queueParameterMove(int parameterType,
+            int slot,
+            int targetType,
+            int targetSlot,
+            bool after);
+    Q_INVOKABLE void completeParameterSwap(bool accepted);
     Q_INVOKABLE void saveDefaultSnapshot();
     Q_INVOKABLE double getParameterValue(const QString& parameterId) const;
     Q_INVOKABLE bool setParameterValue(const QString& parameterId, double value);
@@ -79,6 +95,12 @@ class QmlEffectSlotProxy : public QObject {
     const EffectChainPointer m_pChainSlot;
     const EffectSlotPointer m_pEffectSlot;
     QmlEffectSlotParametersModel* const m_pParametersModel;
+    bool m_pendingMove = false;
+    bool m_pendingAfter = false;
+    int m_pendingParameterType = -1;
+    int m_pendingFirstSlot = -1;
+    int m_pendingSecondSlot = -1;
+    int m_pendingSecondType = -1;
 };
 
 } // namespace qml

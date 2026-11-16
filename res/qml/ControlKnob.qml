@@ -5,23 +5,33 @@ import QtQuick 2.12
 Skin.Knob {
     id: root
 
+    property alias controlProxy: control
     property alias group: control.group
     property alias key: control.key
 
     value: control.parameter
-    onTurned: (value) => {
+
+    onTurned: value => {
         control.parameter = value;
     }
 
     Mixxx.ControlProxy {
         id: control
-    }
 
+    }
     TapHandler {
+        enabled: root.inputEnabled
+
         onDoubleTapped: control.reset()
     }
     TapHandler {
         acceptedButtons: Qt.RightButton
-        onTapped: control.reset()
+        enabled: root.inputEnabled
+
+        onPressedChanged: {
+            if (pressed) {
+                control.reset();
+            }
+        }
     }
 }
