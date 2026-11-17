@@ -6,11 +6,9 @@
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QString>
-
+#include "qml/qmlcoreservices.h"
 namespace mixxx {
 namespace qml {
-
-class QmlCoreServices;
 
 class QmlColorPalette : public QObject {
     Q_OBJECT

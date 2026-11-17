@@ -15,7 +15,10 @@ ApplicationWindow {
     // Used to show click interaction on the Window. Mainly relevant on automated testing
     property bool enableDiagnosticClick: false
     readonly property bool isMobile: Qt.platform.os === "android" || Qt.platform.os === "ios"
-    property var selectedSkin: Mixxx.Core.ready ? Mixxx.SkinManager.skins.find(skin => skin.name == Mixxx.Config.configSkin) ?? Mixxx.SkinManager.skins[0] : null
+    property var selectedSkin: {
+        if (Mixxx.Core.ready) return Mixxx.SkinManager.skins.find(skin => skin.name == Mixxx.Config.configSkin) ?? null;
+        return null
+    }
     readonly property alias settings: settingsPopup
 
     // Window-wide gesture router, reachable from anywhere via
@@ -47,7 +50,6 @@ ApplicationWindow {
 
     Connections {
         function onReadyChanged() {
-            root.selectedSkin = Qt.binding(() => Mixxx.SkinManager.skins.find(skin => skin.name == Mixxx.Config.configSkin) ?? Mixxx.SkinManager.skins[0]);
             root.visibility = Qt.binding(() => Mixxx.Config.configStartInFullscreenKey || isMobile ? Window.FullScreen : Window.Windowed);
         }
 
@@ -82,6 +84,13 @@ ApplicationWindow {
             }
         }
     }
+
+    onSelectedSkinChanged: {
+        content.asynchronous = true;
+        content.sourceComponent = root.selectedSkin?.main ?? fallback
+        splash.sourceComponent = root.selectedSkin?.loader ?? fallback
+
+    }
     Loader {
         id: content
 
@@ -94,11 +103,6 @@ ApplicationWindow {
         anchors.fill: parent
         asynchronous: true
         focus: true
-        sourceComponent: root.selectedSkin?.main ?? fallback
-
-        onSourceComponentChanged: {
-            content.asynchronous = true;
-        }
         onStatusChanged: {
             if (status === Loader.Error) {
                 console.error("Failed to load the Mixxx main window");
@@ -109,15 +113,13 @@ ApplicationWindow {
                 content.asynchronous = false;
             }
         }
-    }
-    Rectangle {
+    }    
+    Loader {
         id: splash
-
-        property bool ready: false
-
         anchors.fill: parent
-        color: Theme.backgroundColor
         visible: opacity > 0
+
+        readonly property var mainLoader: content
 
         Behavior on opacity {
             NumberAnimation {
@@ -127,7 +129,7 @@ ApplicationWindow {
         }
         states: [
             State {
-                when: splash.ready && content.status != Loader.Ready
+                when: content.status != Loader.Ready
 
                 PropertyChanges {
                     logo.opacity: 1
@@ -143,56 +145,6 @@ ApplicationWindow {
                 }
             }
         ]
-
-        Component.onCompleted: {
-            ready = true;
-        }
-
-        Image {
-            id: logo
-
-            anchors.horizontalCenter: parent.horizontalCenter
-            // height: 64
-            opacity: 0
-            source: "qrc:/images/mixxx-icon-logo-symbolic.svg"
-            y: root.height / 2
-
-            Behavior on opacity {
-                NumberAnimation {
-                    duration: 1500
-                    easing.type: Easing.InOutQuad
-                }
-            }
-            Behavior on y {
-                NumberAnimation {
-                    duration: 1500
-                    easing.type: Easing.InOutQuad
-                }
-            }
-        }
-        Text {
-            id: text
-
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.topMargin: 20
-            color: Theme.lightGray3
-            font.pixelSize: 12
-            opacity: 0
-            text: "DJ your way"
-            y: logo.y + logo.height * 2
-
-            Behavior on opacity {
-                SequentialAnimation {
-                    PauseAnimation {
-                        duration: 1000
-                    }
-                    NumberAnimation {
-                        duration: 500
-                        easing.type: Easing.InOutQuad
-                    }
-                }
-            }
-        }
     }
     // Testing automation resources
     Rectangle {

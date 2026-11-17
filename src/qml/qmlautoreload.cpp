@@ -21,7 +21,7 @@ QUrl QmlAutoReload::intercept(const QUrl& url, QQmlAbstractUrlInterceptor::DataT
     if (!url.isLocalFile()) {
         return url;
     }
-    qDebug() << "Watching" << url;
+    // qDebug() << "Watching" << url;
     QString filePath = url.toLocalFile();
     if (!QFileInfo(filePath).isFile()) {
         return url;

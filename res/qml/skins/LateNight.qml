@@ -19,9 +19,20 @@ Mixxx.Skin {
     minimumWidth: 680
     minimumHeight: 300
     loader: Component {
-        Rectangle {
-            Text {
-                text: "Loading..."
+        Skin.StartupScreen {
+            id: startupScreen
+
+            anchors.fill: parent
+            progress: {
+                print("Skin.StartupScreen", Mixxx.Core.ready, parent, parent.opacity, parent.mainLoader.progress)
+                // FIXME add a Q_GADGET for Mixxx.Core.initialization including progress and label
+                if (!Mixxx.Core.ready) {
+                    return Mixxx.Core.initializationProgress;
+                } else if (parent.opacity < 1) {
+                    return 100;
+                } else {
+                    return 65 + Math.round(parent.mainLoader.progress * 34);
+                }
             }
         }
     }
