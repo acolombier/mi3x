@@ -4,7 +4,7 @@ import QtQuick
 import QtQuick.Layouts
 import Mixxx 1.0 as Mixxx
 import "../LateNightTheme"
-import "../../../qml/Deck" as SharedDeck
+import "../../../qml/Behaviors" as Behaviors
 
 Item {
     id: root
@@ -44,11 +44,11 @@ Item {
         const remaining = durationProxy.value * (1 - playpositionProxy.value);
         const mode = Mixxx.Config.controlTimeFormat;
         switch (Mixxx.Config.controlPositionDisplay) {
-        case SharedDeck.TrackTime.Display.Remaining:
+        case Behaviors.TrackTime.Display.Remaining:
             return "-" + root.formatTrackTime(remaining, mode);
-        case SharedDeck.TrackTime.Display.Both:
+        case Behaviors.TrackTime.Display.Both:
             return root.formatTrackTime(elapsed, mode) + "  -" + root.formatTrackTime(remaining, mode);
-        case SharedDeck.TrackTime.Display.Elapsed:
+        case Behaviors.TrackTime.Display.Elapsed:
         default:
             return root.formatTrackTime(elapsed, mode);
         }
@@ -57,15 +57,15 @@ Item {
     function cyclePositionDisplay() {
         let nextDisplay;
         switch (Mixxx.Config.controlPositionDisplay) {
-        case SharedDeck.TrackTime.Display.Elapsed:
-            nextDisplay = SharedDeck.TrackTime.Display.Remaining;
+        case Behaviors.TrackTime.Display.Elapsed:
+            nextDisplay = Behaviors.TrackTime.Display.Remaining;
             break;
-        case SharedDeck.TrackTime.Display.Remaining:
-            nextDisplay = SharedDeck.TrackTime.Display.Both;
+        case Behaviors.TrackTime.Display.Remaining:
+            nextDisplay = Behaviors.TrackTime.Display.Both;
             break;
-        case SharedDeck.TrackTime.Display.Both:
+        case Behaviors.TrackTime.Display.Both:
         default:
-            nextDisplay = SharedDeck.TrackTime.Display.Elapsed;
+            nextDisplay = Behaviors.TrackTime.Display.Elapsed;
             break;
         }
         Mixxx.Config.controlPositionDisplay = nextDisplay;
