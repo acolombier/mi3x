@@ -804,8 +804,17 @@ void GlobalTrackCache::purgeTrackId(TrackId trackId) {
     const auto trackById(m_tracksById.find(trackId));
     if (m_tracksById.end() != trackById) {
         Track* track = trackById->second->getPlainPtr();
+        const QString canonicalLocation = track->getFileInfo().canonicalLocation();
         track->resetId();
         m_tracksById.erase(trackById);
+        if (!canonicalLocation.isEmpty()) {
+            const auto trackByCanonicalLocation =
+                    m_tracksByCanonicalLocation.find(canonicalLocation);
+            if (m_tracksByCanonicalLocation.end() != trackByCanonicalLocation &&
+                    trackByCanonicalLocation->second->getPlainPtr() == track) {
+                m_tracksByCanonicalLocation.erase(trackByCanonicalLocation);
+            }
+        }
     }
 }
 

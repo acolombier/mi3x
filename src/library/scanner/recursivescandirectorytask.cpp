@@ -65,11 +65,16 @@ void RecursiveScanDirectoryTask::run() {
             if (supportedExtensionsMatch.hasMatch()) {
                 hasher.addData(currentFile.toUtf8());
                 filesToImport.push_back(currentFileInfo);
+                const mixxx::FileInfo fileInfo(currentFileInfo);
                 // Record the canonical track location used by track_locations
                 // so the unchanged-hash path can clear fs_deleted only for
                 // files that are still physically present in this directory.
-                presentTrackLocations.append(
-                        mixxx::FileInfo(currentFileInfo).location());
+                presentTrackLocations.append(fileInfo.location());
+                if (currentFileInfo.isSymLink()) {
+                    m_scannerGlobal->addSymlinkTrackLocation(
+                            fileInfo.location(),
+                            fileInfo.canonicalLocation());
+                }
             } else {
                 const QRegularExpressionMatch supportedCoverExtensionsMatch =
                         supportedCoverExtensionsRegex.match(fileName);

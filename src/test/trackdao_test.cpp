@@ -1,6 +1,13 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <QFile>
+#include <QFileInfo>
+#include <QSqlQuery>
+#include <QTemporaryDir>
+
+#include "library/scanner/symlinkduplicateresolver.h"
+#include "library/trackset/crate/crate.h"
 #include "test/librarytest.h"
 #include "track/globaltrackcache.h"
 #include "track/track.h"
@@ -10,6 +17,356 @@ using ::testing::UnorderedElementsAre;
 class TrackDAOTest : public LibraryTest {
 };
 
+#ifndef __WINDOWS__
+
+class SymlinkDuplicateResolverTest : public LibraryTest {
+  protected:
+    TrackId addTrackWithData(
+            const QString& location,
+            int rating = 0,
+            const QString& lastPlayedAt = QString()) {
+        const TrackPointer pTrack = getOrAddTrackByLocation(location);
+        EXPECT_TRUE(pTrack);
+        if (!pTrack) {
+            return {};
+        }
+        const TrackId trackId = pTrack->getId();
+        EXPECT_TRUE(trackId.isValid());
+
+        QSqlQuery query(dbConnection());
+        query.prepare(QStringLiteral(
+                "UPDATE library SET rating=:rating, last_played_at=:lastPlayedAt "
+                "WHERE id=:id"));
+        query.bindValue(QStringLiteral(":rating"), rating);
+        query.bindValue(QStringLiteral(":lastPlayedAt"),
+                lastPlayedAt.isEmpty() ? QVariant() : QVariant(lastPlayedAt));
+        query.bindValue(QStringLiteral(":id"), trackId.toVariant());
+        EXPECT_TRUE(query.exec());
+        return trackId;
+    }
+
+    void addCue(TrackId trackId) {
+        QSqlQuery query(dbConnection());
+        query.prepare(QStringLiteral(
+                "INSERT INTO cues (track_id, type, position, length, hotcue, label) "
+                "VALUES (:trackId, 0, 0, 0, 0, 'cue')"));
+        query.bindValue(QStringLiteral(":trackId"), trackId.toVariant());
+        EXPECT_TRUE(query.exec());
+    }
+
+    void addPlaylistEntry(TrackId trackId) {
+        auto& playlistDao = internalCollection()->getPlaylistDAO();
+        const int playlistId = playlistDao.createPlaylist(QStringLiteral("Test"));
+        ASSERT_GE(playlistId, 0);
+        EXPECT_TRUE(playlistDao.appendTrackToPlaylist(trackId, playlistId));
+    }
+
+    void addCrateEntry(TrackId trackId) {
+        Crate crate;
+        crate.setName(QStringLiteral("Test Crate"));
+        CrateId crateId;
+        ASSERT_TRUE(internalCollection()->insertCrate(crate, &crateId));
+        ASSERT_TRUE(internalCollection()->addCrateTracks(
+                crateId, QList<TrackId>{trackId}));
+    }
+};
+
+namespace {
+
+int countRows(const QSqlDatabase& database, const QString& statement, TrackId trackId) {
+    QSqlQuery query(database);
+    query.prepare(statement);
+    query.bindValue(QStringLiteral(":trackId"), trackId.toVariant());
+    EXPECT_TRUE(query.exec());
+    EXPECT_TRUE(query.next());
+    return query.value(0).toInt();
+}
+
+QString getTrackLocation(const QSqlDatabase& database, TrackId trackId) {
+    QSqlQuery query(database);
+    query.prepare(QStringLiteral(
+            "SELECT track_locations.location FROM library "
+            "INNER JOIN track_locations ON library.location=track_locations.id "
+            "WHERE library.id=:id"));
+    query.bindValue(QStringLiteral(":id"), trackId.toVariant());
+    EXPECT_TRUE(query.exec());
+    if (!query.next()) {
+        return {};
+    }
+    return query.value(0).toString();
+}
+
+int getMixxxDeleted(const QSqlDatabase& database, TrackId trackId) {
+    QSqlQuery query(database);
+    query.prepare(QStringLiteral(
+            "SELECT mixxx_deleted FROM library WHERE id=:id"));
+    query.bindValue(QStringLiteral(":id"), trackId.toVariant());
+    EXPECT_TRUE(query.exec());
+    EXPECT_TRUE(query.next());
+    return query.value(0).toInt();
+}
+
+} // namespace
+
+TEST_F(SymlinkDuplicateResolverTest, symlinkDuplicateAliasWinsAndKeepsUserData) {
+    const QTemporaryDir tempDir;
+    ASSERT_TRUE(tempDir.isValid());
+
+    const QString targetPath = tempDir.filePath(QStringLiteral("track.mp3"));
+    const QString aliasPath = tempDir.filePath(QStringLiteral("alias.mp3"));
+    mixxxtest::copyFile(getTestFile(QStringLiteral("-jpg.mp3")), targetPath);
+    ASSERT_TRUE(QFile::link(targetPath, aliasPath));
+
+    const TrackId aliasId = addTrackWithData(
+            aliasPath, 5, QStringLiteral("2025-01-02 03:04:05"));
+    ASSERT_TRUE(aliasId.isValid());
+    const TrackId targetId = addTrackWithData(targetPath);
+    ASSERT_TRUE(targetId.isValid());
+    ASSERT_NE(aliasId, targetId);
+
+    addCue(aliasId);
+    addPlaylistEntry(aliasId);
+    addCrateEntry(aliasId);
+
+    const SymlinkDuplicateResolver resolver(dbConnection());
+    const auto result = resolver.resolve(
+            QHash<QString, QString>{{aliasPath,
+                    QFileInfo(targetPath).canonicalFilePath()}});
+
+    ASSERT_TRUE(result.success);
+    EXPECT_EQ(1, result.numRelocated);
+    EXPECT_EQ(1, result.relocatedTracks.size());
+    EXPECT_TRUE(result.hiddenTrackIds.isEmpty());
+
+    EXPECT_EQ(targetPath, getTrackLocation(dbConnection(), aliasId));
+    EXPECT_TRUE(getTrackLocation(dbConnection(), targetId).isEmpty());
+    EXPECT_EQ(0, getMixxxDeleted(dbConnection(), aliasId));
+
+    EXPECT_EQ(1,
+            countRows(dbConnection(),
+                    QStringLiteral("SELECT COUNT(*) FROM cues WHERE "
+                                   "track_id=:trackId"),
+                    aliasId));
+    EXPECT_EQ(1,
+            countRows(dbConnection(),
+                    QStringLiteral("SELECT COUNT(*) FROM PlaylistTracks WHERE "
+                                   "track_id=:trackId"),
+                    aliasId));
+    EXPECT_EQ(1,
+            countRows(dbConnection(),
+                    QStringLiteral("SELECT COUNT(*) FROM crate_tracks WHERE "
+                                   "track_id=:trackId"),
+                    aliasId));
+    EXPECT_EQ(5,
+            countRows(dbConnection(),
+                    QStringLiteral(
+                            "SELECT rating FROM library WHERE id=:trackId"),
+                    aliasId));
+
+    QSqlQuery tombstoneQuery(dbConnection());
+    tombstoneQuery.prepare(QStringLiteral(
+            "SELECT library.id, library.mixxx_deleted FROM library "
+            "INNER JOIN track_locations ON library.location=track_locations.id "
+            "WHERE track_locations.location=:location"));
+    tombstoneQuery.bindValue(QStringLiteral(":location"), aliasPath);
+    ASSERT_TRUE(tombstoneQuery.exec());
+    ASSERT_TRUE(tombstoneQuery.next());
+    EXPECT_EQ(1, tombstoneQuery.value(1).toInt());
+    EXPECT_NE(aliasId, TrackId(tombstoneQuery.value(0)));
+
+    const auto secondResult = resolver.resolve(
+            QHash<QString, QString>{{aliasPath,
+                    QFileInfo(targetPath).canonicalFilePath()}});
+    ASSERT_TRUE(secondResult.success);
+    EXPECT_EQ(0, secondResult.numRelocated);
+    EXPECT_TRUE(secondResult.hiddenTrackIds.isEmpty());
+    EXPECT_EQ(targetPath, getTrackLocation(dbConnection(), aliasId));
+}
+
+TEST_F(SymlinkDuplicateResolverTest, symlinkDuplicateTargetWinsWithoutImportingAliasData) {
+    const QTemporaryDir tempDir;
+    ASSERT_TRUE(tempDir.isValid());
+
+    const QString targetPath = tempDir.filePath(QStringLiteral("track.mp3"));
+    const QString aliasPath = tempDir.filePath(QStringLiteral("alias.mp3"));
+    mixxxtest::copyFile(getTestFile(QStringLiteral("-jpg.mp3")), targetPath);
+    ASSERT_TRUE(QFile::link(targetPath, aliasPath));
+
+    const TrackId aliasId = addTrackWithData(
+            aliasPath, 5, QStringLiteral("2025-03-02 03:04:05"));
+    ASSERT_TRUE(aliasId.isValid());
+    const TrackId targetId = addTrackWithData(
+            targetPath, 4, QStringLiteral("2025-02-02 03:04:05"));
+    ASSERT_TRUE(targetId.isValid());
+    ASSERT_NE(aliasId, targetId);
+
+    addCue(aliasId);
+    addPlaylistEntry(aliasId);
+    addCrateEntry(aliasId);
+    addCue(targetId);
+
+    const SymlinkDuplicateResolver resolver(dbConnection());
+    const auto result = resolver.resolve(
+            QHash<QString, QString>{{aliasPath,
+                    QFileInfo(targetPath).canonicalFilePath()}});
+
+    ASSERT_TRUE(result.success);
+    EXPECT_EQ(0, result.numRelocated);
+    EXPECT_TRUE(result.relocatedTracks.isEmpty());
+    EXPECT_THAT(result.hiddenTrackIds, UnorderedElementsAre(aliasId));
+
+    EXPECT_EQ(1, getMixxxDeleted(dbConnection(), aliasId));
+    EXPECT_EQ(0, getMixxxDeleted(dbConnection(), targetId));
+    EXPECT_EQ(targetPath, getTrackLocation(dbConnection(), targetId));
+    EXPECT_EQ(aliasPath, getTrackLocation(dbConnection(), aliasId));
+
+    EXPECT_EQ(4,
+            countRows(dbConnection(),
+                    QStringLiteral(
+                            "SELECT rating FROM library WHERE id=:trackId"),
+                    targetId));
+    EXPECT_EQ(1,
+            countRows(dbConnection(),
+                    QStringLiteral("SELECT COUNT(*) FROM cues WHERE "
+                                   "track_id=:trackId"),
+                    targetId));
+    EXPECT_EQ(1,
+            countRows(dbConnection(),
+                    QStringLiteral("SELECT COUNT(*) FROM cues WHERE "
+                                   "track_id=:trackId"),
+                    aliasId));
+    EXPECT_EQ(1,
+            countRows(dbConnection(),
+                    QStringLiteral("SELECT COUNT(*) FROM PlaylistTracks WHERE "
+                                   "track_id=:trackId"),
+                    aliasId));
+    EXPECT_EQ(1,
+            countRows(dbConnection(),
+                    QStringLiteral("SELECT COUNT(*) FROM crate_tracks WHERE "
+                                   "track_id=:trackId"),
+                    aliasId));
+}
+
+TEST_F(SymlinkDuplicateResolverTest, symlinkDuplicateWithoutUserDataKeepsTargetVisible) {
+    const QTemporaryDir tempDir;
+    ASSERT_TRUE(tempDir.isValid());
+
+    const QString targetPath = tempDir.filePath(QStringLiteral("track.mp3"));
+    const QString aliasPath = tempDir.filePath(QStringLiteral("alias.mp3"));
+    mixxxtest::copyFile(getTestFile(QStringLiteral("-jpg.mp3")), targetPath);
+    ASSERT_TRUE(QFile::link(targetPath, aliasPath));
+
+    const TrackId aliasId = addTrackWithData(aliasPath);
+    ASSERT_TRUE(aliasId.isValid());
+    const TrackId targetId = addTrackWithData(targetPath);
+    ASSERT_TRUE(targetId.isValid());
+    ASSERT_NE(aliasId, targetId);
+
+    QSqlQuery clearQuery(dbConnection());
+    clearQuery.prepare(QStringLiteral(
+            "UPDATE library SET rating=0, comment='', color=NULL, timesplayed=0, "
+            "played=0, bpm=0, bpm_lock=0, key='', key_id=0, "
+            "tuning_frequency_hz=0, beats=NULL, beats_version='', "
+            "beats_sub_version='', keys=NULL, keys_version='', "
+            "keys_sub_version='', coverart_source=0, last_played_at=NULL "
+            "WHERE id=:id"));
+    for (const TrackId trackId : {aliasId, targetId}) {
+        clearQuery.bindValue(QStringLiteral(":id"), trackId.toVariant());
+        ASSERT_TRUE(clearQuery.exec());
+    }
+
+    const SymlinkDuplicateResolver resolver(dbConnection());
+    const auto result = resolver.resolve(
+            QHash<QString, QString>{{aliasPath,
+                    QFileInfo(targetPath).canonicalFilePath()}});
+
+    ASSERT_TRUE(result.success);
+    EXPECT_EQ(0, result.numRelocated);
+    EXPECT_THAT(result.hiddenTrackIds, UnorderedElementsAre(aliasId));
+
+    EXPECT_EQ(1, getMixxxDeleted(dbConnection(), aliasId));
+    EXPECT_EQ(0, getMixxxDeleted(dbConnection(), targetId));
+    EXPECT_EQ(targetPath, getTrackLocation(dbConnection(), targetId));
+}
+
+TEST_F(SymlinkDuplicateResolverTest, symlinkDuplicateWithDifferentDurationIsSkipped) {
+    const QTemporaryDir tempDir;
+    ASSERT_TRUE(tempDir.isValid());
+
+    const QString targetPath = tempDir.filePath(QStringLiteral("track.mp3"));
+    const QString aliasPath = tempDir.filePath(QStringLiteral("alias.mp3"));
+    mixxxtest::copyFile(getTestFile(QStringLiteral("-jpg.mp3")), targetPath);
+    ASSERT_TRUE(QFile::link(targetPath, aliasPath));
+
+    const TrackId aliasId = addTrackWithData(aliasPath, 5);
+    ASSERT_TRUE(aliasId.isValid());
+    const TrackId targetId = addTrackWithData(targetPath);
+    ASSERT_TRUE(targetId.isValid());
+    ASSERT_NE(aliasId, targetId);
+
+    QSqlQuery query(dbConnection());
+    query.prepare(QStringLiteral(
+            "UPDATE library SET duration=:duration WHERE id=:id"));
+    query.bindValue(QStringLiteral(":duration"), 100.0);
+    query.bindValue(QStringLiteral(":id"), aliasId.toVariant());
+    ASSERT_TRUE(query.exec());
+    query.bindValue(QStringLiteral(":duration"), 200.0);
+    query.bindValue(QStringLiteral(":id"), targetId.toVariant());
+    ASSERT_TRUE(query.exec());
+
+    const SymlinkDuplicateResolver resolver(dbConnection());
+    const auto result = resolver.resolve(
+            QHash<QString, QString>{{aliasPath,
+                    QFileInfo(targetPath).canonicalFilePath()}});
+
+    ASSERT_TRUE(result.success);
+    EXPECT_EQ(0, result.numRelocated);
+    EXPECT_TRUE(result.hiddenTrackIds.isEmpty());
+    EXPECT_EQ(0, getMixxxDeleted(dbConnection(), aliasId));
+    EXPECT_EQ(0, getMixxxDeleted(dbConnection(), targetId));
+}
+
+TEST_F(SymlinkDuplicateResolverTest, symlinkDuplicateMultipleAliasesUsesMostRecentData) {
+    const QTemporaryDir tempDir;
+    ASSERT_TRUE(tempDir.isValid());
+
+    const QString targetPath = tempDir.filePath(QStringLiteral("track.mp3"));
+    const QString alias1Path = tempDir.filePath(QStringLiteral("alias1.mp3"));
+    const QString alias2Path = tempDir.filePath(QStringLiteral("alias2.mp3"));
+    mixxxtest::copyFile(getTestFile(QStringLiteral("-jpg.mp3")), targetPath);
+    ASSERT_TRUE(QFile::link(targetPath, alias1Path));
+    ASSERT_TRUE(QFile::link(targetPath, alias2Path));
+
+    const TrackId alias1Id = addTrackWithData(
+            alias1Path, 3, QStringLiteral("2025-01-02 03:04:05"));
+    ASSERT_TRUE(alias1Id.isValid());
+    const TrackId alias2Id = addTrackWithData(
+            alias2Path, 4, QStringLiteral("2025-02-02 03:04:05"));
+    ASSERT_TRUE(alias2Id.isValid());
+    const TrackId targetId = addTrackWithData(targetPath);
+    ASSERT_TRUE(targetId.isValid());
+    ASSERT_NE(alias1Id, alias2Id);
+    ASSERT_NE(alias1Id, targetId);
+    ASSERT_NE(alias2Id, targetId);
+
+    const SymlinkDuplicateResolver resolver(dbConnection());
+    const auto result = resolver.resolve(
+            QHash<QString, QString>{
+                    {alias1Path, QFileInfo(targetPath).canonicalFilePath()},
+                    {alias2Path, QFileInfo(targetPath).canonicalFilePath()}});
+
+    ASSERT_TRUE(result.success);
+    EXPECT_EQ(1, result.numRelocated);
+    EXPECT_THAT(result.hiddenTrackIds, UnorderedElementsAre(alias1Id));
+
+    EXPECT_EQ(targetPath, getTrackLocation(dbConnection(), alias2Id));
+    EXPECT_TRUE(getTrackLocation(dbConnection(), targetId).isEmpty());
+    EXPECT_EQ(alias1Path, getTrackLocation(dbConnection(), alias1Id));
+    EXPECT_EQ(1, getMixxxDeleted(dbConnection(), alias1Id));
+    EXPECT_EQ(0, getMixxxDeleted(dbConnection(), alias2Id));
+}
+
+#endif // __WINDOWS__
 
 TEST_F(TrackDAOTest, detectMovedTracks) {
     TrackDAO& trackDAO = internalCollection()->getTrackDAO();

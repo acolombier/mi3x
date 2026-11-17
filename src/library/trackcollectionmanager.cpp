@@ -123,6 +123,10 @@ TrackCollectionManager::TrackCollectionManager(
                 pTrackDAO,
                 &TrackDAO::slotDatabaseTracksChanged);
         connect(m_pScanner.get(),
+                &LibraryScanner::tracksRemoved,
+                pTrackDAO,
+                &TrackDAO::slotDatabaseTracksRemoved);
+        connect(m_pScanner.get(),
                 &LibraryScanner::tracksRelocated,
                 pTrackDAO,
                 &TrackDAO::slotDatabaseTracksRelocated);

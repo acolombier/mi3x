@@ -133,6 +133,8 @@ class TrackDAO : public QObject, public virtual DAO, public virtual GlobalTrackC
     // have been applied directly to the database.
     void slotDatabaseTracksChanged(
             const QSet<TrackId>& changedTrackIds);
+    void slotDatabaseTracksRemoved(
+            const QSet<TrackId>& removedTrackIds);
     void slotDatabaseTracksRelocated(
             const QList<RelocatedTrack>& relocatedTracks);
 

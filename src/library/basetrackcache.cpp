@@ -81,6 +81,9 @@ void BaseTrackCache::slotTracksRemoved(const QSet<TrackId>& trackIds) {
     if (sDebug) {
         qDebug() << this << "slotTracksRemoved" << trackIds.size();
     }
+    if (trackIds.contains(m_recentTrackId)) {
+        resetRecentTrack();
+    }
     for (const auto& trackId : std::as_const(trackIds)) {
         m_trackInfo.remove(trackId);
         m_dirtyTracks.remove(trackId);

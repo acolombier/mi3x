@@ -66,6 +66,24 @@ class ScannerGlobal {
         }
     }
 
+    void addSymlinkTrackLocation(
+            const QString& symlinkLocation,
+            const QString& canonicalTargetLocation) {
+        if (symlinkLocation.isEmpty() ||
+                canonicalTargetLocation.isEmpty() ||
+                symlinkLocation == canonicalTargetLocation) {
+            return;
+        }
+        const auto locker = QMutexLocker(&m_symlinkTrackLocationsMutex);
+        m_symlinkTrackLocations.insert(
+                symlinkLocation, canonicalTargetLocation);
+    }
+
+    QHash<QString, QString> symlinkTrackLocations() const {
+        const auto locker = QMutexLocker(&m_symlinkTrackLocationsMutex);
+        return m_symlinkTrackLocations;
+    }
+
     void addUnhashedDir(const mixxx::FileAccess& dirAccess) {
         const auto locker = QMutexLocker(&m_directoriesUnhashedMutex);
         m_directoriesUnhashed.append(dirAccess);
@@ -184,6 +202,9 @@ class ScannerGlobal {
     // second run to avoid swapping between duplicated tracks
     mutable QMutex m_directoriesUnhashedMutex;
     QList<mixxx::FileAccess> m_directoriesUnhashed;
+
+    mutable QMutex m_symlinkTrackLocationsMutex;
+    QHash<QString, QString> m_symlinkTrackLocations;
 
     // Typically there are 1 to 2 entries in the blacklist so a O(n) search in a
     // QList may have better constant factors than a O(1) QSet check. However,

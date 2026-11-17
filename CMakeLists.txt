@@ -1479,6 +1479,7 @@ add_library(
   src/library/scanner/libraryscannerdlg.cpp
   src/library/scanner/recursivescandirectorytask.cpp
   src/library/scanner/scannertask.cpp
+  src/library/scanner/symlinkduplicateresolver.cpp
   src/library/searchqueries.cpp
   src/library/searchquery.cpp
   src/library/searchqueryparser.cpp

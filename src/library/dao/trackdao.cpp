@@ -388,6 +388,12 @@ void TrackDAO::slotDatabaseTracksChanged(const QSet<TrackId>& changedTrackIds) {
     }
 }
 
+void TrackDAO::slotDatabaseTracksRemoved(const QSet<TrackId>& removedTrackIds) {
+    if (!removedTrackIds.isEmpty()) {
+        emit tracksRemoved(removedTrackIds);
+    }
+}
+
 void TrackDAO::slotDatabaseTracksRelocated(const QList<RelocatedTrack>& relocatedTracks) {
     QSet<TrackId> removedTrackIds;
     QSet<TrackId> changedTrackIds;

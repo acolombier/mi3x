@@ -8,6 +8,7 @@
 #include "library/scanner/recursivescandirectorytask.h"
 #include "library/scanner/scannertask.h"
 #include "library/scanner/scannerutil.h"
+#include "library/scanner/symlinkduplicateresolver.h"
 #include "moc_libraryscanner.cpp"
 #include "sources/soundsourceproxy.h"
 #include "track/track.h"
@@ -344,6 +345,8 @@ void LibraryScanner::cleanUpScan() {
     QSqlDatabase dbConnection = mixxx::DbConnectionPooled(m_pDbConnectionPool);
     ScopedTransaction transaction(dbConnection);
 
+    SymlinkDuplicateResolver::Result symlinkResult;
+
     // verifiedTracks() now contains both:
     // - tracks emitted by ImportFilesTask for changed-hash directories, and
     // - tracks observed by RecursiveScanDirectoryTask in unchanged-hash
@@ -380,6 +383,18 @@ void LibraryScanner::cleanUpScan() {
     kLogger.debug() << "Marking unverified directories as deleted";
     m_libraryHashDao.markUnverifiedDirectoriesAsDeleted();
 
+    kLogger.debug() << "Reconciling symlink duplicates";
+    {
+        const SymlinkDuplicateResolver resolver(dbConnection);
+        symlinkResult = resolver.resolve(
+                m_scannerGlobal->symlinkTrackLocations(),
+                m_scannerGlobal->shouldCancelPointer());
+        if (!symlinkResult.success) {
+            kLogger.warning() << "Failed to reconcile symlink duplicates";
+            return;
+        }
+    }
+
     // Check to see if the "deleted" tracks showed up in another location,
     // and if so, do some magic to update all our tables.
     kLogger.debug() << "Detecting moved files";
@@ -393,13 +408,16 @@ void LibraryScanner::cleanUpScan() {
                     << "Detecting moved files has been canceled or aborted";
             return;
         }
+        m_numRelocatedTracks += symlinkResult.numRelocated;
         if (!relocatedTracks.isEmpty()) {
-            m_numRelocatedTracks = relocatedTracks.size();
+            m_numRelocatedTracks += relocatedTracks.size();
+            emit tracksRelocated(relocatedTracks);
+        }
+        if (m_numRelocatedTracks > 0) {
             kLogger.info()
                     << "Found"
                     << m_numRelocatedTracks
-                    << "moved track(s)";
-            emit tracksRelocated(relocatedTracks);
+                    << "relocated track(s)";
         }
     }
 
@@ -409,7 +427,20 @@ void LibraryScanner::cleanUpScan() {
     // A.
     m_libraryHashDao.removeDeletedDirectoryHashes();
 
-    transaction.commit();
+    if (!transaction.commit()) {
+        kLogger.warning() << "Failed to commit library scan cleanup";
+        return;
+    }
+
+    if (!symlinkResult.hiddenTrackIds.isEmpty()) {
+        emit tracksRemoved(symlinkResult.hiddenTrackIds);
+    }
+    if (!symlinkResult.relocatedTracks.isEmpty()) {
+        emit tracksRelocated(symlinkResult.relocatedTracks);
+    }
+    if (!symlinkResult.removedTrackIds.isEmpty()) {
+        m_analysisDao.deleteAnalyses(symlinkResult.removedTrackIds);
+    }
 
     kLogger.debug() << "Detecting cover art for unscanned files";
     QSet<TrackId> coverArtTracksChanged;
