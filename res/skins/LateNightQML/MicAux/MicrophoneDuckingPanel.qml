@@ -1,7 +1,7 @@
 import "../Controls" as Controls
 import "../Deck" as DeckControls
 import "../LateNightTheme"
-import "../../../qml" as Shared
+import ".." as Shared
 import QtQuick
 
 Controls.Panel {

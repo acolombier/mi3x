@@ -1,4 +1,4 @@
-import "../../../qml" as Shared
+import ".." as Shared
 import "../LateNightTheme"
 
 Shared.Button {

@@ -15,6 +15,10 @@ ApplicationWindow {
     // Used to show click interaction on the Window. Mainly relevant on automated testing
     property bool enableDiagnosticClick: false
     readonly property bool isMobile: Qt.platform.os === "android" || Qt.platform.os === "ios"
+    property var selectedSkin: {
+        if (Mixxx.Core.ready) return Mixxx.SkinManager.skins.find(skin => skin.name == Mixxx.Config.configSkin) ?? null;
+        return null
+    }
     readonly property alias settings: settingsPopup
 
     // Window-wide gesture router, reachable from anywhere via
@@ -31,15 +35,31 @@ ApplicationWindow {
     width: isMobile ? Screen.width : designWidth
 
     Component.onCompleted: {
+        Mixxx.SkinManager.initialize(Mixxx.Core);
         Mixxx.Core.clearOpenedPopup();
+    }
+    Component.onDestruction: {
+        Mixxx.Config.mainWindowGeometry = JSON.stringify({
+            width: root.width,
+            height: root.height,
+            x: root.x,
+            y: root.y
+        });
+        Mixxx.SkinManager.teardown();
     }
 
     Connections {
         function onReadyChanged() {
-            root.visibility = Mixxx.Config.configStartInFullscreenKey || isMobile ? Window.FullScreen : Window.Windowed;
+            root.visibility = Qt.binding(() => Mixxx.Config.configStartInFullscreenKey || isMobile ? Window.FullScreen : Window.Windowed);
         }
 
         target: Mixxx.Core
+    }
+    DeveloperToolsWindow {
+        id: devToolsWindow
+
+        height: 480
+        width: 640
     }
     MixxxControls.TouchHub {
         id: touchHubArea
@@ -47,40 +67,59 @@ ApplicationWindow {
         anchors.fill: parent
         z: -1
     }
+    Component {
+        id: fallback
+
+        Item {
+            Rectangle {
+                anchors.centerIn: parent
+                color: "red"
+                height: 30
+                width: 80
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "Oooops"
+                }
+            }
+        }
+    }
+
+    onSelectedSkinChanged: {
+        content.asynchronous = true;
+        content.sourceComponent = root.selectedSkin?.main ?? fallback
+        splash.sourceComponent = root.selectedSkin?.loader ?? fallback
+
+    }
     Loader {
         id: content
+
+        // Implicit binding to skins
+        property ApplicationWindow applicationWindow: root
+        property var devTools: devToolsWindow
+        property var settingsPopup: root.settings
 
         active: Mixxx.Core.ready
         anchors.fill: parent
         asynchronous: true
         focus: true
-
-        sourceComponent: Component {
-            MainWindow {
-                focus: true
-                settingsPopup: root.settings
-            }
-        }
-
         onStatusChanged: {
             if (status === Loader.Error) {
                 console.error("Failed to load the Mixxx main window");
-                Qt.quit();
+                content.sourceComponent = fallback;
             } else if (status === Loader.Ready) {
                 // Keep the loader synchronous going forward so all UI operation such as layout
                 // invalidation won't induce weird visual artifacts or delays.
                 content.asynchronous = false;
             }
         }
-    }
-    Rectangle {
+    }    
+    Loader {
         id: splash
-
-        property bool ready: false
-
         anchors.fill: parent
-        color: Theme.backgroundColor
         visible: opacity > 0
+
+        readonly property var mainLoader: content
 
         Behavior on opacity {
             NumberAnimation {
@@ -90,7 +129,7 @@ ApplicationWindow {
         }
         states: [
             State {
-                when: splash.ready && content.status != Loader.Ready
+                when: content.status != Loader.Ready
 
                 PropertyChanges {
                     logo.opacity: 1
@@ -106,56 +145,6 @@ ApplicationWindow {
                 }
             }
         ]
-
-        Component.onCompleted: {
-            ready = true;
-        }
-
-        Image {
-            id: logo
-
-            anchors.horizontalCenter: parent.horizontalCenter
-            // height: 64
-            opacity: 0
-            source: "qrc:/images/mixxx-icon-logo-symbolic.svg"
-            y: root.height / 2
-
-            Behavior on opacity {
-                NumberAnimation {
-                    duration: 1500
-                    easing.type: Easing.InOutQuad
-                }
-            }
-            Behavior on y {
-                NumberAnimation {
-                    duration: 1500
-                    easing.type: Easing.InOutQuad
-                }
-            }
-        }
-        Text {
-            id: text
-
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.topMargin: 20
-            color: Theme.lightGray3
-            font.pixelSize: 12
-            opacity: 0
-            text: "DJ your way"
-            y: logo.y + logo.height * 2
-
-            Behavior on opacity {
-                SequentialAnimation {
-                    PauseAnimation {
-                        duration: 1000
-                    }
-                    NumberAnimation {
-                        duration: 500
-                        easing.type: Easing.InOutQuad
-                    }
-                }
-            }
-        }
     }
     // Testing automation resources
     Rectangle {

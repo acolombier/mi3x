@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Mixxx 1.0 as Mixxx
-import "../../../qml" as Skin
+import ".." as Skin
 import "../LateNightTheme"
 
 Item {

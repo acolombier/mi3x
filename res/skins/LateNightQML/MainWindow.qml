@@ -1,4 +1,4 @@
-import "../../qml" as Skin
+import "." as Skin
 import "LateNightTheme"
 import "Deck" as LateNightDeck
 import "Effects" as LateNightEffects
@@ -17,7 +17,7 @@ import QtQuick.Window
 Item {
     id: root
 
-    required property ApplicationWindow applicationWindow
+    // property ApplicationWindow applicationWindow
     property alias menuBar: nativeApplicationMenuLoader.item
 
     readonly property int activeDeckState: layoutState.effectiveDeckSize
@@ -181,28 +181,22 @@ Item {
     Skin.ApplicationMenuCommands {
         id: applicationMenuCommands
 
-        applicationWindow: root.applicationWindow
+        applicationWindow: applicationWindow
 
         onShowDeveloperToolsRequested: {
-            developerToolsWindow.show();
-            developerToolsWindow.raise();
-            developerToolsWindow.requestActivate();
+            devTools.show();
+            devTools.raise();
+            devTools.requestActivate();
         }
     }
     Skin.ApplicationMenuActions {
         id: applicationMenuActions
 
-        applicationWindow: root.applicationWindow
+        applicationWindow: applicationWindow
         commands: applicationMenuCommands
         numberOfDecks: root.show4decks ? root.numDecks : 2
 
         onFocusLibrarySearchRequested: root.focusLegacyLibrarySearch()
-    }
-    Skin.DeveloperToolsWindow {
-        id: developerToolsWindow
-
-        height: 480
-        width: 640
     }
     Skin.LibraryScanSummaryDialog {
     }

@@ -21,7 +21,7 @@ class RpcServe {
   public:
     RpcServe(
             QmlApplication* pQmlApplication,
-            std::shared_ptr<CoreServices> pCoreServices);
+            CoreServices* pCoreServices);
     ~RpcServe();
 
     /// (Re)name the root objects of the current QML engine after a fresh

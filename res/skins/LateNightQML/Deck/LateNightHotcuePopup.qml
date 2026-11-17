@@ -9,6 +9,12 @@ import "../LateNightTheme"
 Popup {
     id: root
 
+    enum JumpDirection {
+        Impossible,
+        Forward,
+        Impossible
+    }
+
     required property string group
     required property int hotcueNumber
 
@@ -53,7 +59,7 @@ Popup {
 
     function getSavedJumpDirection(revision) {
         if (revision < 0 || !popupTrack || root.hotcueNumber <= 0) {
-            return Mixxx.Library.JumpDirection.Impossible;
+            return LateNightHotcuePopup.JumpDirection.Impossible;
         }
         return Mixxx.Library.deckHotcueJumpDirection(popupTrack,
                 root.group,
@@ -366,12 +372,12 @@ Popup {
 
         LateNightCueMenuButton {
             readonly property bool forwardJump:
-                root.savedJumpDirection === Mixxx.Library.JumpDirection.Forward
+                root.savedJumpDirection === LateNightHotcuePopup.JumpDirection.Forward
 
             x: 176
             y: 183
             checked: Math.round(typeProxy.value) === 5
-            impossible: root.savedJumpDirection === Mixxx.Library.JumpDirection.Impossible
+            impossible: root.savedJumpDirection === LateNightHotcuePopup.JumpDirection.Impossible
             iconSource: LateNightTheme.lateNightButton(forwardJump ? "btn__beatjump_right.svg" : "btn__beatjump_left.svg")
             activeIconSuffix: LateNightTheme.isPaleMoon ? "active" : ""
             onClicked: root.setCueType("jump-auto")

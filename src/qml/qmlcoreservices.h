@@ -32,6 +32,10 @@ class QmlCoreServices : public QObject {
         s_pCoreServices = QPointer(pCoreServices);
     }
 
+    static CoreServices* get() {
+        return s_pCoreServices;
+    }
+
     QQmlListProperty<mixxx::Notification> notifications();
 
     bool ready() const {

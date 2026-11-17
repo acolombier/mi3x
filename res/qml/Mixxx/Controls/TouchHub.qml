@@ -71,6 +71,11 @@ MultiPointTouchArea {
     // as a single synthetic touch point here, which breaks mouse drags.
     mouseEnabled: false
 
+    Component.onDestruction: {
+        for (let client of hub.clients) {
+            client.hub = null;
+        }
+    }
     onCanceled: points => {
         for (let i = 0; i < points.length; ++i) {
             const point = points[i];
