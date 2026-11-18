@@ -237,6 +237,9 @@ Category {
                     visible: root.selectedIndex == 0
 
                     onActivated: {
+                        if (scrollView.height < scrollView.contentHeight) {
+                            scrollView.contentItem.contentY = routerGroup.mapToItem(scrollView, 0, 0).y;
+                        }
                         root.selectedIndex = 0;
                     }
 

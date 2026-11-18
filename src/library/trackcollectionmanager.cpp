@@ -2,7 +2,6 @@
 
 #include <utility>
 
-#include "library/dao/trackdao.h"
 #include "library/externaltrackcollection.h"
 #include "library/library_decl.h"
 #include "library/library_prefs.h"
@@ -592,12 +591,6 @@ TrackPointer TrackCollectionManager::getTrackByRef(
             trackRef);
 }
 
-CoverInfo TrackCollectionManager::getCoverInfoForTrackLocation(
-        const QString& trackLocation) const {
-    return internalCollection()->getTrackDAO().getCoverInfoByTrackLocation(
-            trackLocation);
-}
-
 QList<TrackId> TrackCollectionManager::resolveTrackIds(
         const QList<mixxx::FileInfo>& fileInfos,
         QObject* pSource) const {
@@ -612,13 +605,6 @@ QList<TrackId> TrackCollectionManager::resolveTrackIdsFromUrls(
     return internalCollection()->resolveTrackIdsFromUrls(
             urls,
             addMissing);
-}
-
-QList<TrackId> TrackCollectionManager::resolveTrackIdsFromUrls(
-        const QList<QUrl>& urls) {
-    return internalCollection()->resolveTrackIds(
-            urls,
-            TrackDAO::ResolveTrackIdFlag::ResolveOnly);
 }
 
 QList<TrackId> TrackCollectionManager::resolveTrackIdsFromLocations(

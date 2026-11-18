@@ -245,8 +245,7 @@ QmlApplication::QmlApplication(
     m_guiTickTimer.start(std::chrono::milliseconds(16));
 
     // No memory leak here, the QQmlEngine takes ownership of the provider
-    QQuickAsyncImageProvider* pImageProvider = new AsyncImageProvider(
-            m_pCoreServices->getTrackCollectionManager());
+    QQuickAsyncImageProvider* pImageProvider = new AsyncImageProvider();
     m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
 
     m_pCoreServices->getControllerManager()->setUpDevices();
@@ -260,8 +259,7 @@ QmlApplication::QmlApplication(
                     QCoreApplication::exit(-1);
                 }
                 // No memory leak here, the QQmlEngine takes ownership of the provider
-                QQuickAsyncImageProvider* pImageProvider = new AsyncImageProvider(
-                        m_pCoreServices->getTrackCollectionManager());
+                QQuickAsyncImageProvider* pImageProvider = new AsyncImageProvider();
                 m_pAppEngine->addImageProvider(AsyncImageProvider::kProviderName, pImageProvider);
             });
 

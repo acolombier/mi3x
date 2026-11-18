@@ -4350,7 +4350,8 @@ if(QML)
       res/qml/Mixxx/Controls/TouchClient.qml
       res/qml/Mixxx/Controls/TouchHub.qml
       res/qml/Mixxx/Controls/ValueHud.qml
-      res/qml/Mixxx/Controls/WaveformOverviewHotcueMarker.qml
+      res/qml/Mixxx/Controls/Hotcue.qml
+      res/qml/Mixxx/Controls/TrackTime.qml
       res/qml/Mixxx/Controls/WaveformOverviewMarker.qml
       res/qml/Mixxx/Controls/WaveformOverview.qml
       res/qml/Mixxx/Controls/WaveformDisplay.qml
@@ -4368,6 +4369,7 @@ if(QML)
       src/qml/qmlbatteryproxy.cpp
       src/qml/qmlbeatsmodel.cpp
       src/qml/qmlchainpresetmodel.cpp
+      src/qml/qmlcolorutils.cpp
       src/qml/qmlconfigproxy.cpp
       src/qml/qmlconfigproxybase.cpp
       src/qml/qmlcontrolproxy.cpp

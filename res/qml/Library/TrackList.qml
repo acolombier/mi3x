@@ -27,25 +27,191 @@ Rectangle {
         }
         return JSON.stringify(labels);
     }
+    property bool columnRestorePending: false
     // Disable the dynamic column width provider and force computation based on an arbitrary width. This can be useful to temporary limit layout recomputation, for example during a transitional state such as animation
     property int inhibitColumnWidth: 0
     required property var model
     property var movedColumn: new Object()
     property var sidebar: model.sidebar
     readonly property alias view: view
+    property bool viewStateApplyScheduled: false
+    property bool viewStateRestorePending: false
 
-    // Restore the library columns to their default order, visibility and sort
+    function applyColumnOrder(order) {
+        view.clearColumnReordering();
+        root.movedColumn = new Object();
+        let current = [];
+        for (let i = 0; i < order.length; i++)
+            current.push(i);
+        for (let target = 0; target < order.length; target++) {
+            const logical = order[target];
+            const from = current.indexOf(logical);
+            if (from < 0 || from === target)
+                continue;
+            view.moveColumn(from, target);
+            current.splice(from, 1);
+            current.splice(target, 0, logical);
+        }
+    }
+    function applyColumnState(state) {
+        if (!view.model)
+            return;
+        const columns = view.model.columns;
+        const savedColumns = state?.columns ?? [];
+        let persisted = [];
+        for (let i = 0; i < columns.length; i++) {
+            const saved = savedColumns[columns[i].persistenceKey];
+            if (!saved)
+                continue;
+            persisted.push({
+                "logical": i,
+                "visual": saved.index
+            });
+        }
+        persisted.sort((a, b) => a.visual - b.visual);
+        let order = persisted.map(entry => entry.logical);
+        for (let i = 0; i < columns.length; i++) {
+            if (!order.includes(i))
+                order.push(i);
+        }
+        root.applyColumnOrder(order);
+        // Explicit widths outlive model changes, so clear any width inherited
+        // from another library source before restoring this source's state.
+        view.clearColumnWidths();
+        view.cachedColumnWidth = Object();
+        for (let i = 0; i < view.model.columns.length; i++) {
+            const column = view.getColumn(i);
+            if (!column)
+                continue;
+            const columnState = savedColumns[column.persistenceKey];
+            if (!columnState)
+                continue;
+            if (columnState.width !== undefined) {
+                view.setColumnWidth(i, columnState.width);
+            }
+            column.display = columnState.display;
+        }
+        view.forceLayout();
+    }
+    function applyDeferredViewState() {
+        viewStateApplyScheduled = false;
+        if (!viewStateRestorePending || columnRestorePending || !view.model)
+            return;
+        const state = view.model.loadState(view.model.objectName);
+        if (root.applyViewState(state))
+            viewStateRestorePending = false;
+    }
+    function applySort() {
+        if (!view?.model || horizontalHeader.sortingColumn < 0)
+            return;
+        view.model.sort(horizontalHeader.sortingColumn, horizontalHeader.sortingOrder);
+    }
+    function applyViewState(state) {
+        if (!view.model || !view.selectionModel)
+            return false;
+        const selectionModel = view.selectionModel;
+        if (selectionModel.model !== view.model)
+            return false;
+        const rowCount = view.model.rowCount();
+        let savedSelections = [];
+        if (state?.selections !== undefined && state?.selections !== null)
+            savedSelections = Array.from(state.selections);
+        savedSelections = savedSelections.filter(row => row >= 0 && row < rowCount);
+        let currentRow = state?.currentRow ?? -1;
+        if (!(currentRow >= 0 && currentRow < rowCount))
+            currentRow = savedSelections.length > 0 ? savedSelections[0] : -1;
+        selectionModel.clear();
+        if (currentRow >= 0) {
+            selectionModel.select(view.model.index(currentRow, 0), ItemSelectionModel.Rows | ItemSelectionModel.Select | ItemSelectionModel.Clear | ItemSelectionModel.Current);
+        }
+        for (const row of savedSelections) {
+            if (row === currentRow)
+                continue;
+            selectionModel.select(view.model.index(row, 0), ItemSelectionModel.Rows | ItemSelectionModel.Select);
+        }
+        const savedTopRow = state?.topRow;
+        if (savedTopRow >= 0 && rowCount > 0) {
+            const topRow = Math.min(savedTopRow, rowCount - 1);
+            view.positionViewAtRow(topRow, TableView.AlignTop);
+        }
+        return true;
+    }
+    function columnState() {
+        let columns = {};
+        if (view.model) {
+            for (let i = 0; i < view.model.columns.length; i++) {
+                const column = view.getColumn(i);
+                if (!column)
+                    continue;
+                const explicitWidth = view.explicitColumnWidth(i);
+                columns[column.persistenceKey] = {
+                    "index": i,
+                    "display": column.display,
+                    "width": explicitWidth
+                };
+            }
+        }
+        let selections = [];
+        let currentRow = -1;
+        if (view.selectionModel) {
+            for (const index of view.selectionModel.selectedIndexes) {
+                if (!selections.includes(index.row))
+                    selections.push(index.row);
+            }
+            selections.sort((a, b) => a - b);
+            currentRow = view.selectionModel.currentIndex.row;
+            if (currentRow < 0 && selections.length > 0)
+                currentRow = selections[0];
+        }
+        return {
+            "columns": columns,
+            "selections": selections,
+            "currentRow": currentRow,
+            "topRow": view.topRow
+        };
+    }
+
+    // Restore the library columns to their default order, width and visibility
     // state. Used by the E2E test harness to reset state between scenarios
     // that share a running Mixxx instance, without a full QML reload.
     function resetColumns() {
-        root.movedColumn = new Object();
         view.clearColumnReordering();
-        horizontalHeader.sortingColumn = -1;
-        horizontalHeader.sortingOrder = Qt.DescendingOrder;
+        root.movedColumn = new Object();
         for (let i = 0; i < view.model.columns.length; i++) {
-            view.model.columns[i].display = Mixxx.TrackListColumn.Display.Auto;
+            const data = view.getColumn(i);
+            view.setColumnWidth(i, data.preferredWidth);
+            data.display = Mixxx.TrackListColumn.Display.Auto;
         }
-        view.clearColumnWidths();
+        view.forceLayout();
+    }
+    function restoreState() {
+        if ((!columnRestorePending && !viewStateRestorePending) || !view.model)
+            return;
+        const state = view.model.loadState(view.model.objectName);
+        const columnCount = view.model.columns.length;
+        if (columnRestorePending && view.columns > 0 && view.columns === columnCount) {
+            columnRestorePending = false;
+            root.applyColumnState(state);
+        }
+        if (viewStateRestorePending && !columnRestorePending) {
+            const rowCount = view.model.rowCount();
+            const savedTopRow = state?.topRow ?? 0;
+            const topRow = rowCount > 0 ? Math.min(Math.max(savedTopRow, 0), rowCount - 1) : 0;
+            const rowsReady = rowCount === 0 || (view.rows > topRow && view.isRowLoaded(view.topRow));
+            if (rowsReady && !viewStateApplyScheduled) {
+                viewStateApplyScheduled = true;
+                Qt.callLater(root.applyDeferredViewState);
+            }
+        }
+    }
+    function saveState() {
+        if (view.model)
+            view.model.saveState(view.model.objectName, root.columnState());
+    }
+    function scheduleColumnRestore() {
+        columnRestorePending = true;
+        viewStateRestorePending = true;
+        Qt.callLater(root.restoreState);
     }
 
     // Title, artist, BPM, key text and location of the track model row as a
@@ -73,44 +239,108 @@ Rectangle {
     color: Theme.darkGray
     objectName: "trackList"
 
+    Component.onCompleted: root.scheduleColumnRestore()
+    Component.onDestruction: root.saveState()
     onInhibitColumnWidthChanged: {
         if (!inhibitColumnWidth)
             view.forceLayout();
         view.cachedColumnWidth = Object();
     }
 
+    Connections {
+        function onTracklistAboutToChange(model) {
+            if (view.model === model)
+                root.saveState();
+        }
+
+        target: root.sidebar
+    }
+    Mixxx.ControlProxy {
+        id: librarySortColumnCO
+
+        group: "[Library]"
+        key: "sort_column"
+    }
+    Mixxx.ControlProxy {
+        id: librarySortOrderCO
+
+        group: "[Library]"
+        key: "sort_order"
+    }
     Menu {
         id: columnSelectionMenu
 
         contentItem.objectName: "columnPickerMenu"
 
+        MenuItem {
+            implicitHeight: 25
+            text: "Reset layout"
+
+            onTriggered: {
+                root.resetColumns();
+            }
+        }
+        MenuSeparator {
+        }
         Instantiator {
             property int readyCount: 0
 
             model: root.sidebar.tracklist?.columns
 
-            delegate: Action {
-                property var data: view.getColumn(index)
+            delegate: MenuItem {
+                required property var index
 
-                checkable: true
-                checked: (!view.columnShouldAutoHide(data) || data?.display == Mixxx.TrackListColumn.Display.Show) && data?.display != Mixxx.TrackListColumn.Display.Hide
-                text: data?.label ? qsTr(data?.label) : ""
+                implicitHeight: 25
 
-                onTriggered: {
-                    if (!view.columnShouldAutoHide(data) === checked) {
-                        data.display = Mixxx.TrackListColumn.Display.Auto;
-                    } else {
-                        data.display = checked ? Mixxx.TrackListColumn.Display.Show : Mixxx.TrackListColumn.Display.Hide;
+                contentItem: CheckBox {
+                    property var data: view.getColumn(index)
+
+                    checked: (!view.columnShouldAutoHide(data) || data?.display == Mixxx.TrackListColumn.Display.Show) && data?.display != Mixxx.TrackListColumn.Display.Hide
+                    implicitHeight: 20
+                    text: data?.label ? qsTr(data?.label) : ""
+
+                    Keys.onDownPressed: {
+                        columnSelectionMenu.currentIndex = Mixxx.MathUtils.positiveModulo(columnSelectionMenu.currentIndex + 1, columnSelectionMenu.count);
+                        columnSelectionMenu.forceActiveFocus();
                     }
-                    let currentExplicitWidth = view.explicitColumnWidth(index);
-                    if (data.display == Mixxx.TrackListColumn.Display.Hide) {
-                        if (currentExplicitWidth > 0) {
-                            data.preferredWidth = currentExplicitWidth;
+                    Keys.onSpacePressed: checked = !checked
+                    Keys.onUpPressed: {
+                        columnSelectionMenu.currentIndex = Mixxx.MathUtils.positiveModulo(columnSelectionMenu.currentIndex - 1, columnSelectionMenu.count);
+                        columnSelectionMenu.forceActiveFocus();
+                    }
+                    onCheckedChanged: {
+                        if (!columnSelectionMenu.opened)
+                            return;
+                        if (!view.columnShouldAutoHide(data) === checked) {
+                            data.display = Mixxx.TrackListColumn.Display.Auto;
+                        } else {
+                            data.display = checked ? Mixxx.TrackListColumn.Display.Show : Mixxx.TrackListColumn.Display.Hide;
                         }
-                        view.setColumnWidth(index, 0);
-                    } else if (data.display != Mixxx.TrackListColumn.Display.Hide) {
-                        view.setColumnWidth(index, data.preferredWidth);
+                        let currentExplicitWidth = view.explicitColumnWidth(index);
+                        if (data.display == Mixxx.TrackListColumn.Display.Hide) {
+                            if (currentExplicitWidth > 0) {
+                                data.preferredWidth = currentExplicitWidth;
+                            }
+                            view.setColumnWidth(index, 0);
+                        } else if (data.display != Mixxx.TrackListColumn.Display.Hide) {
+                            view.setColumnWidth(index, data.preferredWidth);
+                        }
+                        view.forceLayout();
                     }
+
+                    indicator {
+                        implicitHeight: 14
+                        implicitWidth: 14
+                    }
+                }
+
+                onActiveFocusChanged: {
+                    if (activeFocus) {
+                        contentItem.forceActiveFocus();
+                    }
+                }
+                onTriggered: {
+                    contentItem.checked = !contentItem.checked;
                 }
             }
 
@@ -127,11 +357,11 @@ Rectangle {
             onReadyCountChanged: {
                 if (readyCount !== root.sidebar.tracklist?.columns.length)
                     return;
-                for (let action = columnSelectionMenu.actionAt(0); action; action = columnSelectionMenu.actionAt(0)) {
-                    columnSelectionMenu.removeAction(action);
+                for (let action = columnSelectionMenu.itemAt(2); action; action = columnSelectionMenu.itemAt(2)) {
+                    columnSelectionMenu.removeItem(action);
                 }
                 for (let i = 0; i < readyCount; i++) {
-                    columnSelectionMenu.insertAction(i, objectAt(i));
+                    columnSelectionMenu.insertItem(2 + i, objectAt(i));
                 }
             }
         }
@@ -147,8 +377,15 @@ Rectangle {
     HorizontalHeaderView {
         id: horizontalHeader
 
-        property int sortingColumn: -1
-        property var sortingOrder: Qt.Descending
+        readonly property int sortingColumn: {
+            for (let i = 0; i < root.sidebar.tracklist?.columns.length; i++) {
+                let columns = view.getColumn(i);
+                if (columns.sortColumn == librarySortColumnCO.value)
+                    return i;
+            }
+            return -1;
+        }
+        readonly property var sortingOrder: librarySortOrderCO.value == 1 ? Qt.AscendingOrder : Qt.DescendingOrder
 
         anchors.left: parent.left
         anchors.margins: 5
@@ -164,6 +401,7 @@ Rectangle {
 
             required property string display
             required property int index
+            readonly property var spec: view.getColumn(index)
 
             implicitHeight: columnName.contentHeight + 5
             implicitWidth: columnName.contentWidth + 5
@@ -173,23 +411,23 @@ Rectangle {
                 acceptedButtons: Qt.LeftButton
 
                 onLongPressed: {
-                    columnSelectionMenu.popup(parent);
+                    columnSelectionMenu.popup(root);
                 }
                 onTapped: {
-                    if (horizontalHeader.sortingColumn == index) {
-                        horizontalHeader.sortingOrder = horizontalHeader.sortingOrder == Qt.DescendingOrder ? Qt.AscendingOrder : Qt.DescendingOrder;
+                    let column = view.getColumn(index);
+                    if (librarySortColumnCO.value == column.sortColumn) {
+                        librarySortOrderCO.value = !librarySortOrderCO.value;
                     } else {
-                        horizontalHeader.sortingColumn = index;
-                        horizontalHeader.sortingOrder = Qt.AscendingOrder;
+                        librarySortOrderCO.value = 1;
+                        librarySortColumnCO.value = column.sortColumn;
                     }
-                    view.model.sort(horizontalHeader.sortingColumn, horizontalHeader.sortingOrder);
                 }
             }
             TapHandler {
                 acceptedButtons: Qt.RightButton
 
                 onTapped: (eventPoint, button) => {
-                    columnSelectionMenu.popup(parent, eventPoint.position);
+                    columnSelectionMenu.popup(root, parent.mapToItem(root, eventPoint.position));
                 }
             }
             Text {
@@ -204,7 +442,7 @@ Rectangle {
                 font.pixelSize: 12
                 font.weight: Font.Medium
                 horizontalAlignment: Text.AlignLeft
-                text: display
+                text: column.spec?.columnType == Mixxx.TrackListColumn.ColumnType.AlbumArt ? "" : display
                 verticalAlignment: Text.AlignVCenter
             }
             Item {
@@ -264,6 +502,9 @@ Rectangle {
                 }
             }
         }
+
+        onSortingColumnChanged: root.applySort()
+        onSortingOrderChanged: root.applySort()
     }
     TableView {
         id: view
@@ -379,6 +620,7 @@ Rectangle {
                         asynchronous: true
                         clip: true
                         fillMode: Image.PreserveAspectCrop
+                        smooth: true
                         source: cover_art
                     }
                 }
@@ -396,7 +638,8 @@ Rectangle {
                     implicitHeight: 30
                     implicitWidth: 30
                     renderer: Mixxx.WaveformOverview.Renderer.Filtered
-                    trackUrl: file_url
+                    trackId: track_id
+                    // FIXME we need a way to cancel ongoing request when the item gets pooled
                 }
             }
             DelegateChoice {
@@ -411,6 +654,7 @@ Rectangle {
                     // that Spix, used for testing, may accidentally picked a pooled, now stale item.
                     TableView.onPooled: {
                         objectName = "";
+                        pooled();
                     }
                     TableView.onReused: {
                         objectName = Qt.binding(() => "trackRow_" + row);
@@ -463,6 +707,11 @@ Rectangle {
 
             model: view.model
             objectName: "selectionModel"
+
+            onModelChanged: {
+                if (root.viewStateRestorePending)
+                    root.restoreState();
+            }
         }
 
         Keys.onDownPressed: this.selectionModel.moveSelectionVertical(1)
@@ -480,13 +729,55 @@ Rectangle {
         Keys.onReturnPressed: this.loadSelectedTrackIntoNextAvailableDeck(false)
         Keys.onUpPressed: this.selectionModel.moveSelectionVertical(-1)
         onColumnMoved: (logicalIndex, oldVisualIndex, newVisualIndex) => {
-            if (root.movedColumn[newVisualIndex] !== undefined && logicalIndex === newVisualIndex) {
-                delete root.movedColumn[newVisualIndex];
+            let order = [];
+            const columnCount = view.model ? view.model.columns.length : 0;
+            for (let i = 0; i < columnCount; i++)
+                order.push(root.movedColumn[i] !== undefined ? root.movedColumn[i] : i);
+            let from = order.indexOf(logicalIndex);
+            if (from < 0)
+                from = oldVisualIndex;
+            if (from < 0 || from >= order.length)
                 return;
-            }
-            root.movedColumn[newVisualIndex] = logicalIndex;
+            order.splice(from, 1);
+            order.splice(newVisualIndex, 0, logicalIndex);
+            const movedColumn = new Object();
+            for (let i = 0; i < order.length; i++)
+                movedColumn[i] = order[i];
+            root.movedColumn = movedColumn;
         }
+        onColumnsChanged: root.restoreState()
+        onLayoutChanged: root.restoreState()
+        onModelChanged: {
+            root.scheduleColumnRestore();
+            root.applySort();
+        }
+        onRowsChanged: root.restoreState()
 
+        Mixxx.ControlProxy {
+            id: showTrackMenuControl
+
+            group: "[Library]"
+            key: "show_track_menu"
+
+            onValueChanged: {
+                // This signal is only responsible of opening the context menu on request. COntext menu will close itself on request.
+                if (value != 1.0)
+                    return;
+
+                const selected = view.selectionModel.selectedIndexes;
+                const currentRow = (selected.length == 0) ? 0 : selected[0].row;
+                for (let cIdx = 0; cIdx < view?.model?.columns?.length; cIdx++) {
+                    // Check if a context menu has already been opened via input interaction
+                    if (view.itemAtIndex(view.index(currentRow, cIdx))?.track?.contextMenu.opened)
+                        return;
+                }
+
+                // Upon CO request, we show the context menu near the 3 (or last) column
+                const trackItem = view.itemAtIndex(view.index(currentRow, Math.min(2, view?.model?.columns?.length - 1)))?.track;
+                if (trackItem)
+                    trackItem.contextMenu.open(trackItem);
+            }
+        }
         TapHandler {
             onTapped: {
                 view.forceActiveFocus();

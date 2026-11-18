@@ -142,6 +142,9 @@ void QmlSidebarModelProxy::update() {
 }
 
 void QmlSidebarModelProxy::slotShowTrackModel(std::shared_ptr<QmlLibraryTrackListModel> pModel) {
+    if (m_tracklist) {
+        emit tracklistAboutToChange(m_tracklist.get());
+    }
     m_tracklist = pModel;
     emit tracklistChanged();
 }

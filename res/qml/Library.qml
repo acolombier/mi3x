@@ -95,7 +95,9 @@ Item {
                 return false;
             }
             function onActiveFocusItemChanged() {
-                if (!root.Window.activeFocusItem)
+                // FIXME: Keeping debug log active for now to help investigating  any focus changes as there still seem to be transient issues on various aspects
+                print("onActiveFocusItemChanged", root.Window.activeFocusItem);
+                if (!root.Window.activeFocusItem || libraryControl.focusWidget == Skin.FocusedWidgetControl.WidgetKind.ContextMenu)
                     return;
 
                 if (containsFocusedItem(root.activeTracklist)) {

@@ -21,6 +21,9 @@ Item {
 
         color: '#BDBDBD'
         height: root.height
+        layer.enabled: true
+        layer.samples: 4
+        layer.smooth: true
         radius: width / 2
         width: root.width
 
