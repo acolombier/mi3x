@@ -16,6 +16,9 @@ ApplicationWindow {
     // Used to show click interaction on the Window. Mainly relevant on automated testing
     property bool enableDiagnosticClick: false
     readonly property bool isMobile: Qt.platform.os === "android" || Qt.platform.os === "ios"
+    readonly property int numDecks: 4
+    readonly property int numPreviewDecks: 1
+    readonly property int numSamplers: 16
     readonly property alias settings: settingsPopup
 
     // Window-wide gesture router, reachable from anywhere via
@@ -25,7 +28,7 @@ ApplicationWindow {
 
     signal requestDeckLayoutEdit
     signal requestDeckLayoutReset
-    signal requestTrackProperties(Mixxx.Track track)
+    signal requestTrackProperties(var track)
 
     color: Theme.backgroundColor
     height: isMobile ? Screen.height : designHeight
@@ -38,12 +41,90 @@ ApplicationWindow {
     Component.onCompleted: {
         Mixxx.Core.clearOpenedPopup();
     }
+    onClosing: close => {
+        let reason = null;
+        if (Array(deckPlayState.count).fill().some((_, i) => deckPlayState.objectAt(i).value == 1.0)) {
+            reason = qsTr("A deck is currently playing. Exit Mixxx?");
+        } else if (Array(samplerPlayState.count).fill().some((_, i) => samplerPlayState.objectAt(i).value == 1.0)) {
+            reason = qsTr("A sampler is currently playing. Exit Mixxx?");
+        } else if (settingsPopup.dialog.opened) {
+            reason = qsTr("The preferences window is still open.") + "<br>" + qsTr("Discard any changes and exit Mixxx?");
+        }
 
-    // TODO implement the track property popup
+        if (reason) {
+            let notification = Mixxx.Core.createNotification(qsTr("Confirm Exit"), Mixxx.Notification.Flags.Wrap | Mixxx.Notification.Flags.Sticky | Mixxx.Notification.Flags.Warn);
+            notification.details = reason;
+            notification.addButton("Cancel");
+            notification.addButton("Close anyway");
+            notification.clicked.connect(button => {
+                switch (button.label) {
+                case "Close anyway":
+                    Qt.quit();
+                    break;
+                case "Cancel":
+                    Mixxx.Core.closeNotification(notification);
+                    break;
+                }
+            });
+            Mixxx.Core.notify(notification);
+            close.accepted = false;
+        }
+    }
     onRequestTrackProperties: track => print("requesting to see properties for track", track)
 
+    Mixxx.ControlProxy {
+        id: numDecks
+
+        group: "[App]"
+        key: "num_decks"
+
+        onInitializedChanged: value = root.numDecks
+    }
+    Mixxx.ControlProxy {
+        id: numSamplers
+
+        group: "[App]"
+        key: "num_samplers"
+
+        onInitializedChanged: value = root.numSamplers
+    }
+    Mixxx.ControlProxy {
+        id: numPreviewDecks
+
+        group: "[App]"
+        key: "num_preview_decks"
+
+        onInitializedChanged: value = root.numPreviewDecks
+    }
+    Instantiator {
+        id: deckPlayState
+
+        model: numDecks.value
+
+        Mixxx.ControlProxy {
+            required property int index
+
+            group: `[Channel${index + 1}]`
+            key: "play"
+        }
+    }
+    Instantiator {
+        id: samplerPlayState
+
+        model: numSamplers.value
+
+        Mixxx.ControlProxy {
+            required property int index
+
+            group: `[Sampler${index + 1}]`
+            key: "play"
+        }
+    }
     Connections {
         function onReadyChanged() {
+            numDecks.reset();
+            numSamplers.reset();
+            numPreviewDecks.reset();
             root.visibility = Mixxx.Config.configStartInFullscreenKey || isMobile ? Window.FullScreen : Window.Windowed;
         }
 

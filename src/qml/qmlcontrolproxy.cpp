@@ -1,5 +1,6 @@
 #include "qml/qmlcontrolproxy.h"
 
+#include "control/controlobject.h"
 #include "moc_qmlcontrolproxy.cpp"
 #include "util/cmdlineargs.h"
 
@@ -110,6 +111,7 @@ double QmlControlProxy::getParameter() const {
 
 void QmlControlProxy::reset() {
     if (!isInitialized()) {
+        reinitializeFromKey();
         return;
     }
     m_pControlProxy->reset();
@@ -193,6 +195,5 @@ void QmlControlProxy::trigger() {
 void QmlControlProxy::toggle() {
     setValue(getValue() > 0 ? 0.0 : 1.0);
 }
-
 } // namespace qml
 } // namespace mixxx
