@@ -585,6 +585,7 @@ SETTING_CATEGORY_SLUG = {
     8: "analyzer",
 }
 
+POPUP_ITEM = "mainWindow/popupItem"
 SETTINGS_POPUP_ITEM = "mainWindow/settingsPopupItem"
 COMMITTING_OVERLAY = "mainWindow/soundHardware/committingOverlay"
 ENGINE_SECTION = "mainWindow/soundHardware/engineSection"

@@ -8,11 +8,9 @@ import QtQuick.Effects
 import "Theme"
 import "Settings" as Settings
 
-Popup {
-    id: popup
+DetachablePopup {
+    id: root
 
-    // Used to show click interaction on the Window. Mainly relevant on automated testing
-    property bool enableDiagnosticClick: false
     property var requestFocusSection: null
 
     // FIXME change to `final` when supported
@@ -21,67 +19,20 @@ Popup {
     signal saved(var group)
 
     function focusSection(section) {
-        popup.requestFocusSection = section;
+        root.requestFocusSection = section;
         if (loader.item) {
-            const group = loader.item.manager.findSettings(popup.requestFocusSection);
+            const group = loader.item.manager.findSettings(root.requestFocusSection);
             group?.activated();
-            popup.requestFocusSection = null;
+            root.requestFocusSection = null;
         }
     }
 
-    focus: true
-    horizontalPadding: 20
-    verticalPadding: 20
-
-    background: Rectangle {
-        anchors.fill: parent
-        color: Theme.darkGray2
-        opacity: parent.radius < 0 ? Math.max(0.1, 1 + parent.radius / 8) : 1
-        radius: 8
-
-        BusyIndicator {
-            anchors.centerIn: parent
-            visible: loader.item == null || loader.status != Loader.Ready
-        }
-    }
-    contentItem: Loader {
-        id: loader
-
-        active: popup.opened
-        anchors.fill: parent
-        anchors.margins: 10
-        asynchronous: true
-        // Used by notifications to interact with the setting popup
+    loader {
         objectName: "settingsLoader"
-        sourceComponent: content
-        visible: item !== null && status == Loader.Ready
 
-        onLoaded: {
-            if (!popup.requestFocusSection)
-                return;
-            const group = loader.item.manager.findSettings(popup.requestFocusSection);
-            group?.activated();
-            popup.requestFocusSection = null;
-        }
-
-        // Accelerate the load of the setting popup after a specific delay
-        Timer {
-            id: timeout
-
-            // This delay could be tailored to the platform. FOr example, we could image Mixxx.Core exposing a performance score to help computing this: an old RPI/Android phone could use 2 second async, to ensure no impact of the audio engine, while a modern desktop likely doesn't need more than 250ms.
-            interval: 500
-            repeat: false
-            running: popup.opened
-
-            onRunningChanged: {
-                loader.asynchronous = running;
-            }
-        }
-        Component {
-            id: content
-
+        sourceComponent: Component {
             Item {
-                id: root
+                id: content
 
                 property var activeCategory: null
                 property alias activeCategoryIndex: categoryList.currentIndex
@@ -89,9 +40,9 @@ Popup {
                 property alias sections: managerItem.data
 
                 function updateActiveCategory() {
-                    root.activeCategory?.deactivated();
-                    root.activeCategory = managerItem.data[categoryList.currentIndex] ?? null;
-                    root.activeCategory?.activated();
+                    content.activeCategory?.deactivated();
+                    content.activeCategory = managerItem.data[categoryList.currentIndex] ?? null;
+                    content.activeCategory?.activated();
                 }
 
                 anchors.fill: parent
@@ -111,8 +62,8 @@ Popup {
                     border.color: Theme.darkGray3
                     border.width: 6
                     color: Theme.darkGray
-                    visible: root.width > popup.smallScreenWidth || showCategories.checked
-                    width: Math.min(280, root.width * 0.25)
+                    visible: content.width > root.smallScreenWidth || showCategories.checked
+                    width: Math.min(280, content.width * 0.25)
                     z: 100
 
                     anchors {
@@ -154,7 +105,7 @@ Popup {
                                     parent.active = activeFocus;
                                 }
                                 onTextEdited: {
-                                    root.manager.search(text);
+                                    content.manager.search(text);
                                 }
                             }
                             TapHandler {
@@ -224,7 +175,7 @@ Popup {
                             Layout.fillWidth: true
                             clip: true
                             focus: true
-                            model: root.manager.model
+                            model: content.manager.model
                             visible: searchSetting.active
 
                             delegate: Rectangle {
@@ -271,15 +222,15 @@ Popup {
                     }
                 }
                 ColumnLayout {
-                    id: content
+                    id: contentLayout
 
                     states: [
                         State {
-                            when: root.width <= popup.smallScreenWidth
+                            when: content.width <= root.smallScreenWidth
 
                             AnchorChanges {
                                 anchors.left: parent.left
-                                target: content
+                                target: contentLayout
                             }
                         }
                     ]
@@ -300,7 +251,7 @@ Popup {
                             activeColor: Theme.white
                             checkable: true
                             text: "M"
-                            visible: root.width <= popup.smallScreenWidth
+                            visible: content.width <= root.smallScreenWidth
                         }
                         Text {
                             Layout.fillWidth: true
@@ -311,21 +262,12 @@ Popup {
                             horizontalAlignment: Text.AlignHCenter
                             text: "Settings"
                         }
-                        Skin.Button {
-                            activeColor: Theme.white
-                            objectName: "settingsCloseButton"
-                            text: "X"
-
-                            onPressed: {
-                                popup.close();
-                            }
-                        }
                     }
                     Rectangle {
                         id: tabBar
 
-                        readonly property int selectedIndex: root.activeCategory?.selectedIndex ?? 0
-                        readonly property var tabs: root.activeCategory?.tabs ?? []
+                        readonly property int selectedIndex: content.activeCategory?.selectedIndex ?? 0
+                        readonly property var tabs: content.activeCategory?.tabs ?? []
 
                         Layout.fillWidth: true
                         Layout.preferredHeight: 30
@@ -351,8 +293,8 @@ Popup {
                                     text: modelData
 
                                     onPressed: {
-                                        if (root.activeCategory?.selectedIndex || root.activeCategory?.selectedIndex === 0) {
-                                            root.activeCategory.selectedIndex = index;
+                                        if (content.activeCategory?.selectedIndex || content.activeCategory?.selectedIndex === 0) {
+                                            content.activeCategory.selectedIndex = index;
                                         }
                                         parent.forceActiveFocus();
                                         showCategories.checked = false;
@@ -373,7 +315,7 @@ Popup {
                                     categoryList.currentIndex = index;
                                 };
                             let savedBuilder = child => function () {
-                                    popup.saved(child);
+                                    root.saved(child);
                                 };
                             let visibleBuilder = index => function () {
                                     return categoryList.currentIndex == index;
@@ -393,7 +335,7 @@ Popup {
                             // This is needed to ensure the right category is displayed.
                             // It would seems there is a bug, where the component's layout appears out of date.
                             // Setting the value to its current one seems to be triggering a component update which help fixing the layout
-                            root.activeCategoryIndex = root.activeCategoryIndex;
+                            content.activeCategoryIndex = content.activeCategoryIndex;
                         }
 
                         Settings.SoundHardware {
@@ -418,61 +360,15 @@ Popup {
                         }
                     }
                 }
-
-                // Testing automation resources
-                Rectangle {
-                    id: click
-
-                    color: clickDetector.clicked ? 'red' : 'green'
-                    radius: width / 2
-                    visible: opacity != 0 && popup.enableDiagnosticClick
-
-                    NumberAnimation on height {
-                        from: 20
-                        running: clickDetector.clicked
-                        to: 0
-                    }
-                    NumberAnimation on opacity {
-                        from: 1
-                        running: clickDetector.clicked
-                        to: 0
-                    }
-                    NumberAnimation on width {
-                        from: 20
-                        running: clickDetector.clicked
-                        to: 0
-                    }
-                }
-                MouseArea {
-                    id: clickDetector
-
-                    property bool clicked: false
-
-                    anchors.fill: parent
-                    enabled: popup.enableDiagnosticClick
-
-                    onPressed: mouse => {
-                        clicked = false;
-                        click.width = 20;
-                        click.height = 20;
-                        click.opacity = 1;
-                        click.x = Qt.binding(() => mouse.x - click.width / 2);
-                        click.y = Qt.binding(() => mouse.y - click.height / 2);
-                        clicked = true;
-                        mouse.accepted = false;
-                    }
-                }
             }
         }
-    }
 
-    onAboutToHide: {
-        loader.asynchronous = true;
-    }
-    onClosed: {
-        Mixxx.Core.removeOpenedPopup(this);
-    }
-    onOpened: {
-        Mixxx.Core.addOpenedPopup(this);
+        onLoaded: {
+            if (!root.requestFocusSection)
+                return;
+            const group = loader.item.manager.findSettings(root.requestFocusSection);
+            group?.activated();
+            root.requestFocusSection = null;
+        }
     }
 }
