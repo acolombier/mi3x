@@ -988,6 +988,21 @@ LOOP_BUTTONS = {
 - `LOOP_BUTTONS` maps `(direction, component)` tuples to button paths for the
   generic `I {direction} the "{component}" size on deck {deck:d}` step.
 
+## Scenario scoping
+
+Keep each scenario focused on **one behavior**, asserted end to end in itself.
+
+- Do not build interaction matrices: e.g. do not test "every way of selecting
+  rows" crossed with "every feature that consumes the selection". One scenario
+  per behavior, plus the minimal prerequisite state it needs.
+- Example: row selection is covered by its own scenarios (click, ctrl-click,
+  shift-click). A feature that consumes the selection (e.g. the track
+  properties editor) is then covered once for a single row and once for a
+  multi-row selection, using only the simplest selection method needed —
+  not re-verified against each selection variant.
+- Do not chain unrelated assertions into a passing scenario just because the
+  setup already exists; add a dedicated scenario instead.
+
 ## Step DSL (`steps/`)
 
 The step definitions are split per feature (`deck_steps.py`, `browse_steps.py`,
