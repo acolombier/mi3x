@@ -358,11 +358,58 @@ Item {
     // One side of the split track list: tapping it makes it the active
     // sidebar, the inactive side dims.
     component ActiveTrackList: LibraryComponent.TrackList {
+        id: list
+
+        property var currentIndex: null
+
         opacity: root.activeSidebar == sidebar ? 1 : 0.6
 
         TapHandler {
             onTapped: {
                 root.activeSidebar = parent.sidebar;
+            }
+        }
+        Connections {
+            function onCurrentChanged(index, _) {
+                list.currentIndex = index;
+            }
+
+            enabled: root.activeSidebar == sidebar
+            target: sidebarTree.featureSelection
+        }
+        DropArea {
+            function droppedUrls(drop) {
+                if (drop.hasUrls && drop.urls.length > 0) {
+                    return drop.urls;
+                }
+
+                const formats = drop.formats || [];
+                for (const format of ["text/uri-list", "text/plain"]) {
+                    if (!formats.includes(format)) {
+                        continue;
+                    }
+                    const data = drop.getDataAsString(format).split("\n").map(v => Qt.url(v)).filter(v => !!v);
+                    if (data)
+                        return data;
+                }
+                return [];
+            }
+
+            anchors.fill: parent
+
+            onDropped: event => {
+                if (event?.source?.parent == parent || !list.currentIndex) {
+                    event.accepted = false;
+                    return;
+                }
+                event.accepted = list.sidebar.dropAccept(list.currentIndex, droppedUrls(event), event.source);
+            }
+            onEntered: event => {
+                if (event?.source?.parent == parent || !list.currentIndex) {
+                    event.accepted = false;
+                    return;
+                }
+                event.accepted = list.sidebar.dragMoveAccept(list.currentIndex, droppedUrls(event));
             }
         }
     }

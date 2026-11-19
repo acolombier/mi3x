@@ -164,8 +164,8 @@ Item {
         acceptedDevices: PointerDevice.AllDevices
         dragThreshold: view.dragThreshold
 
-        // // FIXME: this is a workaround on Qt bug. See core proxy for details
-        // enabled: !Mixxx.Core.hasPopup
+        // FIXME: this is a workaround on Qt bug. See core proxy for details
+        enabled: !Mixxx.Core.hasPopup
 
         onActiveChanged: {
             if (active && !initialPosition) {

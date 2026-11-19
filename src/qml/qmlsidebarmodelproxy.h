@@ -46,6 +46,10 @@ class QmlSidebarModelProxy : public ::SidebarModel {
     QHash<int, QByteArray> roleNames() const override;
     Q_INVOKABLE mixxx::qml::QmlLibraryAbstractSource* get(const QModelIndex& index) const;
     Q_INVOKABLE void activate(const QModelIndex& index);
+    Q_INVOKABLE bool dragMoveAccept(const QModelIndex& index, const QList<QUrl>& urls);
+    Q_INVOKABLE bool dropAccept(const QModelIndex& index,
+            const QList<QUrl>& urls,
+            QObject* pSource);
   signals:
     void tracklistAboutToChange(mixxx::qml::QmlLibraryTrackListModel* pModel);
     void tracklistChanged();
