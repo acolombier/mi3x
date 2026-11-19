@@ -36,6 +36,7 @@ import time
 QT_LEFT_BUTTON = 1
 QT_RIGHT_BUTTON = 2
 QT_CONTROL_MODIFIER = 2
+QT_SHIFT_MODIFIER = 1
 
 QT_KEY_A = 0x41
 QT_KEY_BACKSPACE = 0x01000003
@@ -204,6 +205,14 @@ def _right_click(context, path):
     assert rpc.existsAndVisible(path), (
         f"{path} cannot be clicked as it does not exists")
     rpc.mouseClickWithButton(path, QT_RIGHT_BUTTON, 0)
+
+
+def _ctrl_click(context, path):
+    context.rpc.mouseClickWithButton(path, QT_LEFT_BUTTON, QT_CONTROL_MODIFIER)
+
+
+def _shift_click(context, path):
+    context.rpc.mouseClickWithButton(path, QT_LEFT_BUTTON, QT_SHIFT_MODIFIER)
 
 
 def _long_press(context, path, button=QT_LEFT_BUTTON, hold_ms=1000):
@@ -1218,9 +1227,11 @@ SETTING_MAP = {
 
 TRACK_ACTIONS = {
     "click": _click,
+    "ctrl-click": _ctrl_click,
     "double-click": _double_click,
-    "right-click": _right_click,
     "long-press": _long_press,
+    "right-click": _right_click,
+    "shift-click": _shift_click,
 }
 
 _ROW_HEIGHT = 30

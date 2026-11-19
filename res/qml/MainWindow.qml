@@ -34,7 +34,6 @@ Item {
         root.imeFocusItem?.imeLayoutSideEffect;
         return Math.max(0, root.imeFocusItem.mapToItem(root, 0, 0).y - root.imeKeyboardMargin);
     }
-    readonly property bool isMobile: Qt.platform.os === "android" || Qt.platform.os === "ios"
     property alias maximizeLibrary: maximizeLibraryButton.checked
     readonly property int numDecks: 4
     readonly property int numPreviewDecks: 1

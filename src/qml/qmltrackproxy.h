@@ -41,6 +41,7 @@ class QmlTrackProxy : public QObject {
     Q_PROPERTY(int sampleRate READ getSampleRate NOTIFY sampleRateChanged)
     Q_PROPERTY(QUrl coverArtUrl READ getCoverArtUrl NOTIFY coverArtUrlChanged)
     Q_PROPERTY(QUrl trackLocationUrl READ getTrackLocationUrl NOTIFY trackLocationUrlChanged)
+    Q_PROPERTY(TrackId id READ getTrackId NOTIFY trackIdChanged)
 
     Q_PROPERTY(mixxx::qml::QmlBeatsModel* beatsModel READ getBeatsModel CONSTANT);
     Q_PROPERTY(mixxx::qml::QmlCuesModel* hotcuesModel READ getCuesModel CONSTANT);
@@ -71,6 +72,7 @@ class QmlTrackProxy : public QObject {
     QColor getColor() const;
     double getDuration() const;
     int getSampleRate() const;
+    TrackId getTrackId() const;
     QUrl getCoverArtUrl() const;
     QUrl getTrackLocationUrl() const;
 
@@ -138,6 +140,7 @@ class QmlTrackProxy : public QObject {
 #ifdef __STEM__
     void stemsChanged();
 #endif
+    void trackIdChanged();
 
   private:
     TrackPointer m_pTrack;
@@ -147,6 +150,9 @@ class QmlTrackProxy : public QObject {
     parented_ptr<QmlStemsModel> m_pStemsModel;
 #endif
 };
+
+typedef QList<const mixxx::qml::QmlTrackProxy*> ConstTrackProxyList;
+typedef QList<mixxx::qml::QmlTrackProxy*> TrackProxyList;
 
 } // namespace qml
 } // namespace mixxx

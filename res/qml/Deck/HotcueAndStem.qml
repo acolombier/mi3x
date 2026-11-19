@@ -3,7 +3,7 @@ import Mixxx 1.0 as Mixxx
 import QtQuick 2.12
 import QtQuick.Layouts
 import QtQuick.Shapes
-import QtQuick.Controls 2.12
+import QtQuick.Controls
 import "../Theme"
 
 Item {
@@ -99,7 +99,7 @@ Item {
             GridLayout {
                 id: hotcueGrid
 
-                property bool showEditButton: Qt.platform.os === "android" || Qt.platform.os === "ios"
+                property bool showEditButton: ApplicationWindow.window.isMobile
 
                 anchors.bottomMargin: 8
                 anchors.fill: parent

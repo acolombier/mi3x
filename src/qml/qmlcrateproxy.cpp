@@ -21,17 +21,31 @@ QmlCrateProxy::QmlCrateProxy(QObject* parent,
           m_internal(crate) {
 }
 
-Q_INVOKABLE void QmlCrateProxy::addTrack(QmlTrackProxy* track) {
-    VERIFY_OR_DEBUG_ASSERT(track && track->internal()) {
+Q_INVOKABLE void QmlCrateProxy::addTracks(const QList<QmlTrackProxy*>& tracks) {
+    if (tracks.isEmpty())
         return;
+
+    QList<TrackId> trackIds;
+    for (const auto& track : tracks) {
+        VERIFY_OR_DEBUG_ASSERT(track && track->internal()) {
+            continue;
+        }
+        trackIds.push_back(track->internal()->getId());
     }
-    m_trackCollection->addCrateTracks(m_internal.getId(), {track->internal()->getId()});
+    m_trackCollection->addCrateTracks(m_internal.getId(), trackIds);
 }
-Q_INVOKABLE void QmlCrateProxy::removeTrack(QmlTrackProxy* track) {
-    VERIFY_OR_DEBUG_ASSERT(track && track->internal()) {
+Q_INVOKABLE void QmlCrateProxy::removeTracks(const QList<QmlTrackProxy*>& tracks) {
+    if (tracks.isEmpty())
         return;
+
+    QList<TrackId> trackIds;
+    for (const auto& track : tracks) {
+        VERIFY_OR_DEBUG_ASSERT(track && track->internal()) {
+            continue;
+        }
+        trackIds.push_back(track->internal()->getId());
     }
-    m_trackCollection->removeCrateTracks(m_internal.getId(), {track->internal()->getId()});
+    m_trackCollection->removeCrateTracks(m_internal.getId(), trackIds);
 }
 
 QString QmlCrateProxy::name() const {

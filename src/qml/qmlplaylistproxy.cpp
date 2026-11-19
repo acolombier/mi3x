@@ -18,11 +18,18 @@ QmlPlaylistProxy::QmlPlaylistProxy(QObject* parent, PlaylistDAO& dao, int pid, c
           m_dao(dao) {
 }
 
-Q_INVOKABLE void QmlPlaylistProxy::addTrack(QmlTrackProxy* track) {
-    VERIFY_OR_DEBUG_ASSERT(track && track->internal()) {
+Q_INVOKABLE void QmlPlaylistProxy::addTracks(const QList<QmlTrackProxy*>& tracks) {
+    if (tracks.isEmpty())
         return;
+
+    QList<TrackId> trackIds;
+    for (const auto& track : tracks) {
+        VERIFY_OR_DEBUG_ASSERT(track && track->internal()) {
+            continue;
+        }
+        trackIds.push_back(track->internal()->getId());
     }
-    m_dao.appendTrackToPlaylist(track->internal()->getId(), m_id);
+    m_dao.appendTracksToPlaylist(trackIds, m_id);
 }
 
 QmlLibraryTrackListModel* QmlPlaylistProxy::model() const {

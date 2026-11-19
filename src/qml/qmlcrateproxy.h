@@ -28,8 +28,8 @@ class QmlCrateProxy : public QObject {
             TrackCollection* trackCollection,
             const CrateSummary& crate);
 
-    Q_INVOKABLE void addTrack(mixxx::qml::QmlTrackProxy* track);
-    Q_INVOKABLE void removeTrack(mixxx::qml::QmlTrackProxy* track);
+    Q_INVOKABLE void addTracks(const mixxx::qml::TrackProxyList& tracks);
+    Q_INVOKABLE void removeTracks(const mixxx::qml::TrackProxyList& tracks);
 
     QString name() const;
     void setName(const QString& value);

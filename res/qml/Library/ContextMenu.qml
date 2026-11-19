@@ -9,18 +9,12 @@ Item {
 
     property var _lazyTrack: null
     required property var capabilities
-    property alias contextMenu: contextMenu
     required property var crates
-    readonly property var dragThreshold: 20
     readonly property var library: Mixxx.Library
+    property alias menu: contextMenu
     required property var playlists
     required property var view
 
-    function fetchTrack() {
-        if (!root._lazyTrack)
-            root._lazyTrack = view.model?.getTrackByRow(row) ?? null;
-        return root._lazyTrack;
-    }
     function getActiveMenu() {
         let traverse = menu => {
             for (let i = 0; i < menu.count; i++) {
@@ -34,6 +28,9 @@ Item {
     function hasCapabilities(caps) {
         return (root.capabilities & caps) == caps;
     }
+    function popup(...arg) {
+        contextMenu.popup(...arg);
+    }
     function select(row) {
         let activeMenu = root.getActiveMenu();
         let newIndex = Mixxx.MathUtils.positiveModulo(activeMenu.currentIndex + row, activeMenu.count);
@@ -43,48 +40,6 @@ Item {
         activeMenu.currentIndex = newIndex;
     }
 
-    TapHandler {
-        id: tapHandler
-
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
-        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-        dragThreshold: root.dragThreshold
-        // FIXME: this is a workaround on Qt bug. See core proxy for details
-        enabled: !Mixxx.Core.hasPopup
-
-        onDoubleTapped: (eventPoint, button) => {
-            if (button === Qt.RightButton)
-                return;
-            view.selectionModel.selectRow(row);
-            view.loadSelectedTrackIntoNextAvailableDeck(false);
-        }
-        onTapped: (eventPoint, button) => {
-            view.selectionModel.selectRow(row);
-            if (button === Qt.RightButton) {
-                contextMenu.popup(parent, eventPoint.position);
-            }
-        }
-    }
-    TapHandler {
-        id: touchScreenTapHandler
-
-        acceptedDevices: PointerDevice.TouchScreen | PointerDevice.Stylus
-        dragThreshold: root.dragThreshold
-        // FIXME: this is a workaround on Qt bug. See core proxy for details
-        enabled: !Mixxx.Core.hasPopup
-
-        onDoubleTapped: (eventPoint, button) => {
-            view.selectionModel.selectRow(row);
-            view.loadSelectedTrackIntoNextAvailableDeck(false);
-        }
-        onLongPressed: {
-            view.selectionModel.selectRow(row);
-            contextMenu.popup(parent, 0, 0);
-        }
-        onTapped: (eventPoint, button) => {
-            view.selectionModel.selectRow(row);
-        }
-    }
     Mixxx.ControlProxy {
         group: "[Library]"
         key: "GoToItem"
@@ -141,6 +96,10 @@ Item {
             if (!value && contextMenu.opened) {
                 contextMenu.close();
             }
+
+            if (value == 1 && !contextMenu.opened && root.view.selectionModel.selectedIndexes.length > 0) {
+                contextMenu.open();
+            }
         }
     }
     CustomMenu {
@@ -165,20 +124,29 @@ Item {
                     itemAction: action,
                     itemEnabled: typeof enabled === "undefined" || !!enabled
                 }));
-            let addMenu = (text, menu, parent) => {
-                const item = record({
+            let addMenu = (text, menu, parent) => (parent ? parent.push : itemModel.append)(record({
                     type: "menu",
                     menuTitle: qsTr(text),
                     menuItems: menu
-                });
-                (parent ? parent.push : itemModel.append)(item);
-                return item;
-            };
+                }));
             let addSeparator = parent => (parent ? parent.push : itemModel.append)(record({
                     type: "separator"
                 }));
+            let findMenu = (menu, title) => {
+                for (let i = 0; i < menu.count; i++) {
+                    if (menu.get(i).menuTitle == title)
+                        return menu.get(i);
+                    if (menu.get(i).menuItems) {
+                        let nested = findMenu(menu.get(i).menuItems, title);
+                        if (nested)
+                            return nested;
+                    }
+                }
+                return null;
+            };
 
-            let track = root.fetchTrack();
+            // FIXME do we want to use all selected track to build search query? Should it be an intersection or union?
+            let track = root.view.selectionModel.selectedFirstTrack();
             let searchMenu = [];
             let searchQuery = new Set();
             let addSearchEntry = (field, details, search) => {
@@ -260,7 +228,7 @@ Item {
                             menuItems: Array(numDecksControl.value).fill().map((_, i) => record({
                                     type: "item",
                                     itemText: qsTr(`Deck ${i + 1}`),
-                                    itemAction: () => Mixxx.PlayerManager.getPlayer(`[Channel${i + 1}]`).loadTrack(root.fetchTrack())
+                                    itemAction: () => Mixxx.PlayerManager.getPlayer(`[Channel${i + 1}]`).loadTrack(root.view.selectionModel.selectedFirstTrack())
                                 }))
                         })]);
                 if (loadToSampler)
@@ -270,14 +238,14 @@ Item {
                             menuItems: Array(numSamplersControl.value <= 16 ? numSamplersControl.value : 16 + Math.ceil((numSamplersControl.value - 16) / 16)).fill().map((_, i) => i < 16 ? record({
                                     type: "item",
                                     itemText: qsTr(`Sampler ${i + 1}`),
-                                    itemAction: () => Mixxx.PlayerManager.getPlayer(`[Sampler${i + 1}]`).loadTrack(root.fetchTrack())
+                                    itemAction: () => Mixxx.PlayerManager.getPlayer(`[Sampler${i + 1}]`).loadTrack(root.view.selectionModel.selectedFirstTrack())
                                 }) : record({
                                     type: "menu",
                                     menuTitle: qsTr(`Sampler ${1 + (i - 16 + 1) * 16}-${Math.min(16 + (i - 16 + 1) * 16, numSamplersControl.value)}`),
                                     menuItems: Array(Math.min(16, numSamplersControl.value - (i - 16 + 1) * 16)).fill().map((_, j) => record({
                                             type: "item",
                                             itemText: qsTr(`Sampler ${1 + (i - 16 + 1) * 16 + j}`),
-                                            itemAction: () => Mixxx.PlayerManager.getPlayer(`[Sampler${1 + (i - 16 + 1) * 16 + j}]`).loadTrack(root.fetchTrack())
+                                            itemAction: () => Mixxx.PlayerManager.getPlayer(`[Sampler${1 + (i - 16 + 1) * 16 + j}]`).loadTrack(root.view.selectionModel.selectedFirstTrack())
                                         }))
                                 }))
                         })]);
@@ -285,7 +253,7 @@ Item {
                     loadMenu.push(...[record({
                             type: "item",
                             itemText: qsTr("Preview Deck"),
-                            itemAction: () => Mixxx.PlayerManager.getPlayer(`[PreviewDeck1]`).loadTrack(root.fetchTrack())
+                            itemAction: () => Mixxx.PlayerManager.getPlayer(`[PreviewDeck1]`).loadTrack(root.view.selectionModel.selectedFirstTrack())
                         })]);
                 addMenu("Load to", loadMenu);
                 addSeparator();
@@ -296,7 +264,7 @@ Item {
                             type: "item",
                             itemText: playlist.name,
                             itemEnabled: !playlist.locked,
-                            itemAction: () => playlist.addTrack(root.fetchTrack())
+                            itemAction: () => playlist.addTracks(root.view.selectionModel.selectedTracks())
                         })), record({
                         type: "separator"
                     }), record({
@@ -306,25 +274,25 @@ Item {
                         createCreated: (item, name) => {
                             let lists = playlists.list();
                             let playlist = lists.find(playlist => playlist.name == name);
+                            let menu = findMenu(itemModel, "Add to playlists");
                             // FIXME do we want to just auto close for playlist?
-                            playlistMenuRecord.menuItems.insert(lists.indexOf(playlist), record({
+                            menu.menuItems.insert(lists.indexOf(playlist), record({
                                 type: "item",
                                 itemText: name,
                                 itemEnabled: true,
-                                itemAction: () => playlist.addTrack(root.fetchTrack())
+                                itemAction: () => playlist.addTracks(root.view.selectionModel.selectedTracks())
                             }));
                         }
                     })];
-                playlistMenuRecord = addMenu("Add to playlists", playlistMenu);
-                let crateMenuRecord;
-                let crateMenu = [...root.crates.list([root.fetchTrack()]).map(crate => record({
+                addMenu("Add to playlists", playlistMenu);
+                let crateMenu = [...root.crates.list(root.view.selectionModel.selectedTracks()).map(crate => record({
                             type: "checkbox",
                             itemText: crate.name,
                             itemEnabled: !crate.locked,
                             itemChecked: !!crate.trackCount(),
                             itemAction: checked => {
-                                let cb = (checked ? crate.addTrack : crate.removeTrack);
-                                cb(root.fetchTrack());
+                                let cb = (checked ? crate.addTracks : crate.removeTracks);
+                                cb(root.view.selectionModel.selectedTracks());
                             }
                         })), record({
                         type: "separator"
@@ -335,17 +303,18 @@ Item {
                         createCreated: (item, name) => {
                             let lists = crates.list([]);
                             let crate = lists.find(crate => crate.name == name);
-                            crate.addTrack(root.fetchTrack());
-                            crateMenuRecord.menuItems.insert(lists.indexOf(crate), record({
+                            let menu = findMenu(itemModel, "Crates");
+                            crate.addTracks(root.view.selectionModel.selectedTracks());
+                            menu.menuItems.insert(lists.indexOf(crate), record({
                                 type: "checkbox",
                                 itemText: name,
                                 itemEnabled: true,
                                 itemChecked: true,
-                                itemAction: checked => (checked ? crate.addTrack : crate.removeTrack)(root.fetchTrack())
+                                itemAction: checked => (checked ? crate.addTracks : crate.removeTracks)(root.view.selectionModel.selectedTracks())
                             }));
                         }
                     })];
-                crateMenuRecord = addMenu("Crates", crateMenu);
+                addMenu("Crates", crateMenu);
                 addSeparator();
             }
             if (hasCapabilities(Mixxx.LibraryTrackListModel.Capability.RemovePlaylist)) {
@@ -365,8 +334,9 @@ Item {
             }
 
             let bpmScaleActionBuilder = scale => () => {
-                    let track = root.fetchTrack();
-                    track.bpm *= scale;
+                    for (const track of root.view.selectionModel.selectedTracks()) {
+                        track.bpm *= scale;
+                    }
                 };
             let bpmMenu = [record({
                     type: "item",
@@ -493,19 +463,19 @@ Item {
                 addMenu("Analyze", [record({
                         type: "item",
                         itemText: qsTr("Analyze"),
-                        itemAction: () => library.analyze(root.fetchTrack())
+                        itemAction: () => library.analyze(root.view.selectionModel.selectedTracks())
                     }), record({
                         type: "item",
                         itemText: qsTr("Reanalyze"),
-                        itemAction: () => library.analyze(root.fetchTrack(), true)
+                        itemAction: () => library.analyze(root.view.selectionModel.selectedTracks(), true)
                     }), record({
                         type: "item",
                         itemText: qsTr("Reanalyze (constant BPM)"),
-                        itemAction: () => library.analyze(root.fetchTrack(), true, true)
+                        itemAction: () => library.analyze(root.view.selectionModel.selectedTracks(), true, true)
                     }), record({
                         type: "item",
                         itemText: qsTr("Reanalyze (variable BPM)"),
-                        itemAction: () => library.analyze(root.fetchTrack(), true, false)
+                        itemAction: () => library.analyze(root.view.selectionModel.selectedTracks(), true, false)
                     }),]);
             }
             addSeparator();
@@ -525,7 +495,7 @@ Item {
             if (hasCapabilities(Mixxx.LibraryTrackListModel.Capability.Properties)) {
                 addSeparator();
                 addItem("Properties", () => {
-                    root.Window.window.requestTrackProperties(root.fetchTrack());
+                    ApplicationWindow.window.requestTrackProperties(root.view.selectionModel.selectedTracks());
                 });
             }
         }
