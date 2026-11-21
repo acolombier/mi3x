@@ -45,7 +45,7 @@ QmlSettingParameterManager::QmlSettingParameterManager(QQuickItem* parent)
         : QQuickItem(parent),
           m_model(this) {
     m_model.setSourceModel(&m_sourceModel);
-    m_model.setFilterKeyColumn(1);
+    m_model.setFilterRole(Qt::UserRole);
     m_model.setFilterCaseSensitivity(Qt::CaseInsensitive);
 }
 QmlSettingParameterManager::~QmlSettingParameterManager() {
@@ -54,22 +54,48 @@ QmlSettingParameterManager::~QmlSettingParameterManager() {
 }
 
 void QmlSettingParameterManager::registerSettingParamater(
-        QmlSettingParameter* pParameter, QList<QmlSettingGroup*> pathItems) {
-    QStringList path;
-    for (const auto* pItem : pathItems) {
-        path.append(pItem->label());
-    }
-    pathItems.append(pParameter);
+        QmlSettingParameter* pParameter, const QList<QmlSettingGroup*>& pathItems) {
+    auto generateRow = [pParameter](QList<QmlSettingGroup*> pathItems, QStandardItem* pItem) {
+        QStringList component;
+        for (const auto* pItemGroup : pathItems) {
+            component.append(pItemGroup->label());
+        }
+        QString path = component.join(" > ");
 
-    auto* pItem = new QStandardItem(pParameter->label());
-    pItem->setData(path.join(" > "), Qt::WhatsThisRole);
-    pItem->setData(QVariant::fromValue(pathItems), Qt::ToolTipRole);
-    m_sourceModel.appendRow(QList<QStandardItem*>{pItem,
-            new QStandardItem(pParameter->label() + path.join(" > "))});
-    auto rowIndex = m_sourceModel.index(m_sourceModel.rowCount() - 1, 0);
-    connect(pParameter, &QObject::destroyed, this, [this, rowIndex](QObject*) {
-        m_sourceModel.removeRow(rowIndex.row());
+        component.append(pParameter->label());
+        component.append(pParameter->keywords());
+        pathItems.append(pParameter);
+
+        if (pItem == nullptr) {
+            pItem = new QStandardItem(pParameter->label());
+        } else {
+            pItem->setText(pParameter->label());
+        }
+        pItem->setData(component.join(" "), Qt::UserRole);
+        pItem->setData(path, Qt::WhatsThisRole);
+        pItem->setData(QVariant::fromValue(pathItems), Qt::ToolTipRole);
+        return pItem;
+    };
+    auto* pRowItem = generateRow(pathItems, nullptr);
+    m_sourceModel.appendRow(QList<QStandardItem*>{pRowItem});
+    connect(pParameter, &QObject::destroyed, this, [this, pRowItem](QObject*) {
+        VERIFY_OR_DEBUG_ASSERT(pRowItem->index().isValid()) {
+            return;
+        };
+        m_sourceModel.removeRow(pRowItem->index().row());
     });
+    connect(pParameter,
+            &QmlSettingParameter::labelChanged,
+            this,
+            [pathItems, generateRow, pRowItem]() {
+                generateRow(pathItems, pRowItem);
+            });
+    connect(pParameter,
+            &QmlSettingParameter::keywordsChanged,
+            this,
+            [pathItems, generateRow, pRowItem]() {
+                generateRow(pathItems, pRowItem);
+            });
 }
 
 void QmlSettingParameterManager::search(const QString& criteria) {

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Dialogs
+import QtQuick.Effects
 import Mixxx 1.0 as Mixxx
 import Mixxx.Controls 1.0 as MixxxControls
 import "." as Setting
@@ -74,6 +75,10 @@ Category {
         colorPane.jumpPaletteColorIndex = colorPane.defaultPalette.length - 3;
         jumpPaletteInput.currentIndex = colorPane.jumpPaletteColorIndex;
         themeColorTab.dirty = false;
+        ApplicationWindow.window.content.grabToImage(function (result) {
+            currentLayoutImage.source = result.url;
+        });
+        resetButton.visible = Array(4).fill().map((_, i) => i).reduce((acc, i) => acc || !!Mixxx.Config.getDeckLayout(i), false);
     }
     function loadWaveform() {
         waveformTab.load({
@@ -125,6 +130,9 @@ Category {
     }
     function saveDeck() {
         Mixxx.Config.controlCueDefault = cueModeInput.currentIndex;
+        for (let i = 0; i < cueMode.count; i++) {
+            cueMode.objectAt(i).value = Mixxx.Config.controlCueDefault;
+        }
         Mixxx.Config.controlSetIntroStartAtMainCue = setIntroStartToMainCueInput.isOn;
         Mixxx.Config.controlPositionDisplay = trackTimeDisplayInput.options.indexOf(trackTimeDisplayInput.selected);
         Mixxx.Config.controlTimeFormat = timeMode.currentIndex;
@@ -142,25 +150,19 @@ Category {
         }
         Mixxx.Config.controlRateDir = sliderOrientationInput.selected === "down";
         Mixxx.Config.controlKeylockMode = keylockModeInput.options.indexOf(keylockModeInput.selected);
+        for (let i = 0; i < keylockMode.count; i++) {
+            keylockMode.objectAt(i).value = Mixxx.Config.controlKeylockMode;
+        }
         Mixxx.Config.controlKeyunlockMode = keyunlockModeInput.options.indexOf(keyunlockModeInput.selected);
+        for (let i = 0; i < keyunlockMode.count; i++) {
+            keyunlockMode.objectAt(i).value = Mixxx.Config.controlKeyunlockMode;
+        }
         Mixxx.Config.controlPitchBendBehaviour = pitchBendBehaviourInput.options.indexOf(pitchBendBehaviourInput.selected);
         Mixxx.Config.controlRateTempCoarse = adjustmentButtonsTemporaryCoarseInput.value / 100;
         Mixxx.Config.controlRateTempFine = adjustmentButtonsTemporaryFineInput.value / 100;
         Mixxx.Config.controlRatePermCoarse = adjustmentButtonsPermanentCoarseInput.value / 100;
         Mixxx.Config.controlRatePermFine = adjustmentButtonsPermanentFineInput.value / 100;
         Mixxx.Config.controlRateRampSensitivity = rampingSensitivityInput.value;
-        // TODO: following setting are currently not exposed
-        // Mixxx.Config.waveformOverviewType
-        // Mixxx.Config.waveformOverviewStereo
-        // Mixxx.Config.waveformOverviewMinuteMarkers
-        // Mixxx.Config.waveformEnabled
-        // Mixxx.Config.waveformFrameRate
-        // Mixxx.Config.waveformStemOpacity
-        // Mixxx.Config.waveformStemOutlineOpacity
-        // Mixxx.Config.waveformStemReorderOnChange
-        // Mixxx.Config.waveformStemSplitTracks
-        // Mixxx.Config.waveformCachingEnabled
-        // Mixxx.Config.waveformGenerationWithAnalysisEnabled
         loadDeck();
     }
     function saveInterface() {
@@ -190,7 +192,8 @@ Category {
         waveformTab.save();
     }
 
-    label: "Interface"
+    label: qsTr("Interface")
+    objectName: "interfacePage"
     selectedIndex: 0
     tabs: ["theme & color", "waveform", "decks"]
 
@@ -229,6 +232,42 @@ Category {
 
             group: `[Channel${index + 1}]`
             key: "rate_dir"
+        }
+    }
+    Instantiator {
+        id: keylockMode
+
+        model: numDecks.value
+
+        Mixxx.ControlProxy {
+            required property int index
+
+            group: `[Channel${index + 1}]`
+            key: "keylockMode"
+        }
+    }
+    Instantiator {
+        id: keyunlockMode
+
+        model: numDecks.value
+
+        Mixxx.ControlProxy {
+            required property int index
+
+            group: `[Channel${index + 1}]`
+            key: "keyunlockMode"
+        }
+    }
+    Instantiator {
+        id: cueMode
+
+        model: numDecks.value
+
+        Mixxx.ControlProxy {
+            required property int index
+
+            group: `[Channel${index + 1}]`
+            key: "cue_mode"
         }
     }
     ScrollView {
@@ -454,15 +493,77 @@ Category {
                                 anchors.verticalCenter: parent.verticalCenter
                                 color: '#343434'
                                 height: width / 16 * 9
-                                width: parent.width - 160
+                                layer.enabled: true
+                                radius: 2
+                                width: parent.width - 80
 
-                                Skin.Button {
-                                    activeColor: Theme.white
+                                layer.effect: MultiEffect {
+                                    shadowBlur: 0.8
+                                    shadowColor: '#c0000000'
+                                    shadowEnabled: true
+                                }
+
+                                Image {
+                                    id: currentLayoutImage
+
+                                    anchors.fill: parent
+                                    fillMode: Image.PreserveAspectCrop
+                                    mipmap: true
+                                    verticalAlignment: Image.AlignTop
+                                }
+                                Skin.InnerShadowMask {
+                                    anchors.fill: parent
+                                    radius: parent.radius
+                                    rimColor: Theme.darkGray
+                                    size: 6
+                                }
+                                Rectangle {
                                     anchors.bottom: parent.bottom
-                                    anchors.bottomMargin: 20
+                                    height: parent.height / 2
+                                    width: parent.width
+
+                                    gradient: Gradient {
+                                        orientation: Gradient.Vertical
+
+                                        GradientStop {
+                                            color: Theme.darkGray
+                                            position: 1
+                                        }
+                                        GradientStop {
+                                            color: 'transparent'
+                                            position: 0
+                                        }
+                                    }
+                                }
+                                RowLayout {
+                                    anchors.bottom: parent.bottom
+                                    anchors.bottomMargin: 10
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    text: "Customize"
-                                    width: 80
+
+                                    Skin.Button {
+                                        id: resetButton
+
+                                        Layout.preferredWidth: 80
+                                        activeColor: Theme.white
+                                        text: "Reset"
+
+                                        onPressed: {
+                                            root.Window.window.requestDeckLayoutReset();
+                                            resetButton.visible = false;
+                                        }
+                                    }
+                                    Skin.Button {
+                                        id: customizeButton
+
+                                        Layout.preferredWidth: 80
+                                        activeColor: Theme.white
+                                        text: "Customize"
+
+                                        onPressed: {
+                                            root.Window.window.requestDeckLayoutEdit();
+                                            root.Window.window.settings.visible = false;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -996,6 +1097,18 @@ Category {
                     waveformTab.dirty = false;
                 }
                 function save() {
+                    // TODO: following setting are currently not exposed
+                    // Mixxx.Config.waveformOverviewType
+                    // Mixxx.Config.waveformOverviewStereo
+                    // Mixxx.Config.waveformOverviewMinuteMarkers
+                    // Mixxx.Config.waveformEnabled
+                    // Mixxx.Config.waveformFrameRate
+                    // Mixxx.Config.waveformStemOpacity
+                    // Mixxx.Config.waveformStemOutlineOpacity
+                    // Mixxx.Config.waveformStemReorderOnChange
+                    // Mixxx.Config.waveformStemSplitTracks
+                    // Mixxx.Config.waveformCachingEnabled
+                    // Mixxx.Config.waveformGenerationWithAnalysisEnabled
                     Mixxx.Config.waveformEndOfTrackWarningTime = endOfTrackWarningInput.value;
                     Mixxx.Config.waveformZoomSynchronization = synchronizeAllZoomLevelInput.isOn;
                     Mixxx.Config.waveformOverviewNormalized = normaliseWaveformOverviewLevelInput.isOn;
@@ -2059,7 +2172,8 @@ Category {
                                 id: cueModeInput
 
                                 implicitWidth: 200
-                                model: ["Mixxx", "Mixxx (no blinking)", "Pioneer", "Denon", "Numark", "CUP",]
+                                // Order MUST natch the enum order as defined in src/engine/controls/cuecontrol.h
+                                model: ["Mixxx", "Pioneer", "Denon", "Numark", "Mixxx (no blinking)", "CUP",]
                                 objectName: "setting_cueMode"
 
                                 onCurrentIndexChanged: decksTab.dirty = true

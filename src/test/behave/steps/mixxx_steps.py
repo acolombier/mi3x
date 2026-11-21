@@ -176,7 +176,7 @@ class RobustRpcProxy:
 BUTTON_PATHS = {
     "LIBRARY": "mainWindow/maximizeLibraryButton",
     "4DECKS": "mainWindow/show4DecksButton",
-    "EDIT": "mainWindow/editDeckButton",
+    "Customize": "mainWindow/settingsPopupItem/interfacePage/themeColorTab/customizeButton",
     "PREFERENCES": "mainWindow/showPreferencesButton",
 }
 
@@ -456,8 +456,9 @@ def step_check_button(context, button):
 
 @when('I click the "{button}" button')
 def step_click_button(context, button):
+    time.sleep(0.5)
     _click(context, _button_path(button))
-    time.sleep(1)
+    time.sleep(0.5)
 
 
 @given("a track is loaded on deck {deck:d}")

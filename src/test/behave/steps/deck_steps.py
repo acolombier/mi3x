@@ -173,7 +173,7 @@ def step_move_group_after(context, deck, target):
     target_bb = context.rpc.getBoundingBox(target_path)
     delta = target_bb[0] - component_bb[0] + target_bb[2]/2, target_bb[1] - component_bb[1]
 
-    context.rpc.mouseDrag(component_path, 0, 0, *delta, 1000)
+    context.rpc.mouseDrag(component_path, 0.5, 0.5, *delta, 1000)
     time.sleep(2)
 
 @when('I select the group containing "{component}" in deck {deck:d} with a {action}')
@@ -303,16 +303,10 @@ def step_rate_ratio_near(context, deck, target):
         f"Rate ratio on deck {deck} ({group}) is {actual}, expected ~{target}"
     )
 
-@then("edit mode should {assertion} enabled")
-def step_edit_mode_assertion(context, assertion):
-    checked = _get_property(context, "mainWindow/editDeckButton", "checked")
-    expected = assertion == "be"
-    assert (checked == "true") == expected, (
-        f"Edit mode {'not enabled' if expected else 'still enabled'} (checked={checked})"
-    )
-
 @then('the edit overlay should {action} visible')
 def step_edit_overlay_visible(context, action):
+    # Let animation stabilise
+    time.sleep(1)
     if action == "be":
         assert wait_visible(context.rpc, EDIT_DECK_LAYOUT_POPUP), "Edit overlay is not visible"
     else:
@@ -495,18 +489,9 @@ def _open_hotcue_popup(context, deck, hotcue):
     context._popup_hotcue = hotcue
     path = _deck_hotcue_path(deck, hotcue)
     popup_path = _hotcue_popup(context, "hotcuePopupContent")
-    # AGENTS.md click-retry exception: the popup opens via tap on the
-    # hotcue button's TapHandler, and spix synthetic taps can be dropped
-    # under load; each retry is verified against the popup being visible.
-    # The popup is modal while open, so further right-clicks on the button
-    # cannot toggle it again.
-    deadline = time.time() + 15.0
-    while not _is_visible(context, popup_path):
-        if time.time() >= deadline:
-            break
+    if not _is_visible(context, popup_path):
         context.rpc.mouseClickWithButton(path, QT_RIGHT_BUTTON, 0)
-        time.sleep(0.3)
-    assert _is_visible(context, popup_path), (
+    assert wait_visible(context.rpc, popup_path, timeout=3), (
         f"the hotcue popup for hotcue {hotcue} on deck {deck} did not open")
 
 

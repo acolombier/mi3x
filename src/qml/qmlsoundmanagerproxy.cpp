@@ -1,9 +1,9 @@
 #include "qmlsoundmanagerproxy.h"
 
-#include <qqmlengine.h>
-
+#include <QQmlEngine>
 #include <memory>
 
+#include "engine/enginebuffer.h"
 #include "moc_qmlsoundmanagerproxy.cpp"
 #include "qml_owned_ptr.h"
 #include "soundio/soundmanager.h"
@@ -141,11 +141,11 @@ QmlSoundDeviceProxyList QmlSoundManagerProxy::availableOutputDevices(const QStri
     return devicesQml;
 }
 
-QList<EngineBuffer::KeylockEngine> QmlSoundManagerProxy::getKeylockEngines() const {
-    QList<EngineBuffer::KeylockEngine> list;
+QList<mixxx::qml::KeylockEngine> QmlSoundManagerProxy::getKeylockEngines() const {
+    QList<mixxx::qml::KeylockEngine> list;
     for (const auto engine : EngineBuffer::kKeylockEngines) {
         if (EngineBuffer::isKeylockEngineAvailable(engine)) {
-            list.append(engine);
+            list.append(mixxx::qml::KeylockEngine(engine));
         }
     }
     return list;
@@ -259,6 +259,63 @@ std::shared_ptr<SoundManager> QmlSoundManagerProxy::internal() const {
 void QmlSoundManagerProxy::commit() {
     m_commitInProgress.storeRelease(1);
     m_pSoundManager->closeActiveConfig(true);
+}
+
+QString KeylockEngine::label() const {
+    switch (value) {
+    case EngineBuffer::KeylockEngine::SoundTouch:
+        return QObject::tr("Soundtouch");
+#ifdef __RUBBERBAND__
+    case EngineBuffer::KeylockEngine::RubberBandFaster:
+        return QObject::tr("Rubberband");
+    case EngineBuffer::KeylockEngine::RubberBandFiner:
+        if (EngineBufferScaleRubberBand::isEngineFinerAvailable()) {
+            return QObject::tr("Rubberband R3 MW");
+        }
+        [[fallthrough]];
+    case EngineBuffer::KeylockEngine::RubberBandR3ShortWindow:
+        if (EngineBufferScaleRubberBand::isEngineFinerAvailable()) {
+            return QObject::tr("Rubberband R3 SW");
+        }
+        [[fallthrough]];
+#endif
+#ifdef __SIGNALSMITH__
+    case EngineBuffer::KeylockEngine::SignalSmithCheaper:
+        return QObject::tr("Signalsmith - Cheaper");
+    case EngineBuffer::KeylockEngine::SignalSmithDefault:
+        return QObject::tr("Signalsmith");
+#endif
+    default:
+        return QObject::tr("Unknown");
+    }
+}
+QString KeylockEngine::tootips() const {
+    switch (value) {
+    case EngineBuffer::KeylockEngine::SoundTouch:
+        return QObject::tr("Faster but low quality");
+#ifdef __RUBBERBAND__
+    case EngineBuffer::KeylockEngine::RubberBandFaster:
+        return QObject::tr("Better but suboptimal quality");
+    case EngineBuffer::KeylockEngine::RubberBandFiner:
+        if (EngineBufferScaleRubberBand::isEngineFinerAvailable()) {
+            return QObject::tr("Near-hi-fi quality but slow");
+        }
+        [[fallthrough]];
+    case EngineBuffer::KeylockEngine::RubberBandR3ShortWindow:
+        if (EngineBufferScaleRubberBand::isEngineFinerAvailable()) {
+            return QObject::tr("Near-hi-fi quality, slightly faster");
+        }
+        [[fallthrough]];
+#endif
+#ifdef __SIGNALSMITH__
+    case EngineBuffer::KeylockEngine::SignalSmithCheaper:
+        return QObject::tr("Near-hi-fi quality, with great performance");
+    case EngineBuffer::KeylockEngine::SignalSmithDefault:
+        return QObject::tr("Almost hi-fi quality, but fast");
+#endif
+    default:
+        return QObject::tr("Unknown stretcher");
+    }
 }
 
 } // namespace qml

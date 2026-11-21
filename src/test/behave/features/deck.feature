@@ -114,55 +114,6 @@ Feature: Deck
     Then the rate of deck 1 should be near 0.05
     And the rate ratio of deck 1 should be near 1.004
 
-  @sub/layout
-  Scenario: Deck layout editor can be toggled
-    When I click the "EDIT" button
-    Then edit mode should be enabled
-    When I click the "Cancel" button on the edit overlay
-    Then edit mode should not be enabled
-
-  @sub/layout
-  Scenario: Deck layout editor overlays are visible on deck components
-    When I click the "EDIT" button
-    Then the edit overlay should be visible
-    When I click the "Cancel" button on the edit overlay
-    Then the edit overlay should not be visible
-
-  @sub/layout
-  Scenario: Deck layout editor single component can be repositioned
-    When I click the "EDIT" button
-    And I move the "play" component in deck 1 under the "cue" component
-    And I click the "Save" button on the edit overlay
-    Then the "play" component should appear under the "cue" component in deck 1
-
-  @sub/layout
-  Scenario: Deck layout editor component group can be moved
-    When I click the "EDIT" button
-    And I select the group containing "play" in deck 1 with a ctrl+click
-    # Select the parent's parent
-    And I select the group containing "play" in deck 1 with a long press
-    # Select the parent's parent's parent
-    And I select the group containing "play" in deck 1 with a ctrl+click
-    And I move the selected group in deck 1 after the "rateSlider" component
-    And I click the "Save" button on the edit overlay
-    Then the "play" component should appear after the "rateSlider" component in deck 1
-
-  @sub/layout
-  Scenario: Deck layout editor component layout can be reset
-    When I click the "EDIT" button
-    And I select the group containing "play" in deck 1 with a ctrl+click
-    # Select the parent's parent
-    And I select the group containing "play" in deck 1 with a long press
-    # Select the parent's parent's parent
-    And I select the group containing "play" in deck 1 with a ctrl+click
-    And I move the selected group in deck 1 after the "rateSlider" component
-    And I click the "Save" button on the edit overlay
-    Then the edit overlay should not be visible
-    And the "play" component should appear after the "rateSlider" component in deck 1
-    When I click the "EDIT" button
-    And I click the "Reset" button on the edit overlay
-    Then the "rateSlider" component should appear after the "play" component in deck 1
-
   @category/responsiveness
   Scenario: The spinny is collapsed when the deck gets too narrow
     When I resize the window's width to 1792px
@@ -214,6 +165,73 @@ Feature: Deck
     Then the "4DECKS" button in the main toolbar should not be visible
     When I resize the window's height to 600px
     Then the "4DECKS" button in the main toolbar should be visible
+
+  Rule: Custom deck layout
+    Background:
+      Given a new empty profile
+      And Mixxx is open and ready to operate
+      And the settings popup is open
+      And the "Interface" category is selected
+
+  @sub/layout
+  Scenario: Deck layout editor can be toggled
+    When I click the "Customize" button
+    Then the settings popup should not be visible
+    And the edit overlay should be visible
+    When I click the "Cancel" button on the edit overlay
+    Then the edit overlay should not be visible
+
+  @sub/layout
+  Scenario: Deck layout editor overlays are visible on deck components
+    When I click the "Customize" button
+    Then the settings popup should not be visible
+    And the edit overlay should be visible
+    When I click the "Cancel" button on the edit overlay
+    Then the edit overlay should not be visible
+
+  @sub/layout
+  Scenario: Deck layout editor single component can be repositioned
+    When I click the "Customize" button
+    Then the settings popup should not be visible
+    When I move the "play" component in deck 1 under the "cue" component
+    And I click the "Save" button on the edit overlay
+    Then the "play" component should appear under the "cue" component in deck 1
+
+  @sub/layout
+  Scenario: Deck layout editor component group can be moved
+    When I click the "Customize" button
+    Then the settings popup should not be visible
+    And the edit overlay should be visible
+    When I select the group containing "play" in deck 1 with a ctrl+click
+    # Select the parent's parent
+    And I select the group containing "play" in deck 1 with a long press
+    # Select the parent's parent's parent
+    And I select the group containing "play" in deck 1 with a ctrl+click
+    And I move the selected group in deck 1 after the "rateSlider" component
+    And I click the "Save" button on the edit overlay
+    Then the "play" component should appear after the "rateSlider" component in deck 1
+
+  @sub/layout
+  Scenario: Deck layout editor component layout can be reset
+    When I click the "Customize" button
+    Then the settings popup should not be visible
+    And the edit overlay should be visible
+    When I select the group containing "play" in deck 2 with a ctrl+click
+    # Select the parent's parent
+    And I select the group containing "play" in deck 2 with a long press
+    # Select the parent's parent's parent
+    And I select the group containing "play" in deck 2 with a ctrl+click
+    And I move the selected group in deck 2 after the "rateSlider" component
+    And I click the "Save" button on the edit overlay
+    Then the edit overlay should not be visible
+    And the "play" component should appear after the "rateSlider" component in deck 2
+    When I click the "PREFERENCES" button
+    And I select the "Interface" category
+    And I click the "Customize" button
+    Then the settings popup should not be visible
+    And the edit overlay should be visible
+    When I click the "Reset" button on the edit overlay
+    Then the "rateSlider" component should appear after the "play" component in deck 2
 
   # --- Settings: palettes (former features/settings/interface.feature) ---------
   #
@@ -287,10 +305,21 @@ Feature: Deck
       And the "Interface" category is selected
       And the "decks" tab is selected
 
-  Scenario: Cue mode can be changed
-    When I set the "cue mode" setting to "Pioneer"
+  Scenario Outline: Cue mode can be changed
+    When I set the "cue mode" setting to "<mode>"
     And I click the save button
-    Then the "cue mode" setting should be "Pioneer"
+    Then the "cue mode" setting should be "<mode>"
+    And the "cue mode" should be saved as "<mode>"
+    And the "cue mode" on deck 1 should be "<mode>"
+
+    Examples:
+      | mode                |
+      | Pioneer             |
+      | Denon               |
+      | Numark              |
+      | Mixxx (no blinking) |
+      | CUP                 |
+      | Mixxx               |
 
   Scenario: Intro start can be set to the main cue when analyzing
     When I toggle the "set intro start to main cue" setting to "off"
@@ -335,11 +364,15 @@ Feature: Deck
     When I toggle the "keylock mode" setting to "current key"
     And I click the save button
     Then the "keylock mode" setting should be "current key"
+    And the "keylock mode" should be saved as "current key"
+    And the "keylock mode" on deck 1 should be "current key"
 
   Scenario: Keyunlock mode can be changed
     When I toggle the "keyunlock mode" setting to "keep key"
     And I click the save button
     Then the "keyunlock mode" setting should be "keep key"
+    And the "keyunlock mode" should be saved as "keep key"
+    And the "keyunlock mode" on deck 1 should be "keep key"
 
   Scenario: Pitch bend behaviour can be changed
     When I toggle the "pitch bend behaviour" setting to "smooth ramping"

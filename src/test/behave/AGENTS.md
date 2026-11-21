@@ -938,7 +938,6 @@ the same string anywhere in the item's ancestor and descendant files.
 BUTTON_PATHS = {
     "LIBRARY": "mainWindow/maximizeLibraryButton",
     "4DECKS": "mainWindow/show4DecksButton",
-    "EDIT": "mainWindow/editDeckButton",
 }
 LIBRARY_CONTENT = "mainWindow/libraryContent"
 TRACKLIST_PATH = "mainWindow/libraryContent/trackList"
@@ -1138,7 +1137,6 @@ responsiveness.
 | `deck {deck:d} should be the sync leader` | Asserts `sync_leader` CO |
 | `the rate of deck {deck:d} should be near {target}` | Reads `rate` CO, asserts `abs(actual - target) < 0.01` |
 | `the rate ratio of deck {deck:d} should be near {target}` | Reads `rate_ratio` CO |
-| `edit mode should {assertion} enabled` | Reads `editDeckButton.checked` property |
 | `the edit overlay should {action} visible on the "{component}" component in deck {deck:d}` | `_is_visible` on `componentItem/overlayItem` path |
 | `the "{component}" component should appear after the "{target}" component in deck {deck:d}` | Compares `x` positions of component bounding boxes |
 | `the "{group_name}" group should appear after the "{target}" component in deck {deck:d}` | Not yet implemented (`NotImplementedError`) |

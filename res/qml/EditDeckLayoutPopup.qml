@@ -56,16 +56,13 @@ Popup {
                 activeColor: "#999999"
                 backgroundColor: "#3F3F3F"
                 text: "Reset"
+                visible: {
+                    root.opened; // Implicit binding to update when opening
+                    return Array(4).fill().map((_, i) => Mixxx.Config.getDeckLayout(i)).reduce((acc, config) => acc || !!config, false);
+                }
 
                 onPressed: {
-                    for (let idx in root.deckMapping) {
-                        let deck = root.deckMapping[idx];
-                        if (!deck?.visible)
-                            continue;
-
-                        deck.resetLayout();
-                        Mixxx.Config.setDeckLayout(idx, "");
-                    }
+                    ApplicationWindow.window.requestDeckLayoutReset();
                     root.close();
                 }
             }

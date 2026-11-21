@@ -117,6 +117,19 @@ class QmlSoundDeviceOutputConnection : public QmlSoundDeviceConnection {
     }
 };
 
+struct KeylockEngine {
+    Q_GADGET
+    Q_PROPERTY(QString label READ label CONSTANT)
+    Q_PROPERTY(QString tooltips READ tootips CONSTANT)
+    Q_PROPERTY(EngineBuffer::KeylockEngine value MEMBER value CONSTANT)
+    QML_ANONYMOUS
+
+  public:
+    EngineBuffer::KeylockEngine value;
+    QString label() const;
+    QString tootips() const;
+};
+
 class QmlSoundManagerProxy : public QObject {
     Q_OBJECT
     QML_NAMED_ELEMENT(SoundManager)
@@ -131,7 +144,7 @@ class QmlSoundManagerProxy : public QObject {
     Q_INVOKABLE mixxx::qml::QmlSoundDeviceProxyList availableOutputDevices(
             const QString& filterAPI);
 
-    Q_INVOKABLE QList<EngineBuffer::KeylockEngine> getKeylockEngines() const;
+    Q_INVOKABLE QList<mixxx::qml::KeylockEngine> getKeylockEngines() const;
     Q_INVOKABLE EngineBuffer::KeylockEngine getKeylockEngine() const;
     Q_INVOKABLE void setKeylockEngine(EngineBuffer::KeylockEngine);
     Q_INVOKABLE QString getAPI() const;
@@ -180,3 +193,5 @@ class QmlSoundManagerProxy : public QObject {
 
 } // namespace qml
 } // namespace mixxx
+
+Q_DECLARE_TYPEINFO(mixxx::qml::KeylockEngine, Q_RELOCATABLE_TYPE);

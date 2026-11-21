@@ -391,8 +391,8 @@ void QmlControllerDeviceProxy::setMapping(QmlControllerMappingProxy* pMapping) {
         return;
     }
     m_pMapping = pMapping;
-    emit mappingChanged();
     setEdited();
+    emit mappingChanged();
 }
 QString QmlControllerDeviceProxy::vendor() const {
     auto vendorId = m_pInternal->getVendorId();

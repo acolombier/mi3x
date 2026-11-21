@@ -9,6 +9,7 @@ import "Theme"
 ApplicationWindow {
     id: root
 
+    readonly property alias content: content
     readonly property int designHeight: 1008
     readonly property int designWidth: 1792
 
@@ -22,6 +23,8 @@ ApplicationWindow {
     // sees presses that nothing else accepted.
     readonly property alias touchHub: touchHubArea
 
+    signal requestDeckLayoutEdit
+    signal requestDeckLayoutReset
     signal requestTrackProperties(Mixxx.Track track)
 
     color: Theme.backgroundColor
