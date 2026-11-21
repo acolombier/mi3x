@@ -4,12 +4,14 @@
 #include <QQmlEngine>
 #include <cmath>
 
+#include "analyzer/analyzertrack.h"
 #include "control/controlobject.h"
 #include "library/library.h"
 #include "library/librarytablemodel.h"
 #include "library/searchqueries.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
+#include "library/trackprocessing.h"
 #include "moc_qmllibraryproxy.cpp"
 #include "notificationmanager.h"
 #include "preferences/colorpalettesettings.h"
@@ -19,8 +21,20 @@
 #include "qmltrackproxy.h"
 #include "track/cue.h"
 #include "track/track.h"
+#include "track/trackiterator.h"
 #include "util/assert.h"
 
+namespace {
+
+class ResetBeatsTrackPointerOperation : public mixxx::TrackPointerOperation {
+  private:
+    void doApply(
+            const TrackPointer& pTrack) const override {
+        pTrack->trySetBeats(mixxx::BeatsPointer());
+    }
+};
+
+} // anonymous namespace
 namespace mixxx {
 namespace qml {
 
@@ -199,11 +213,54 @@ QmlLibraryTrackListModel* QmlLibraryProxy::model() const {
             QList<QmlLibraryTrackListColumn*>{}, s_pLibrary->trackTableModel())
             .get();
 }
-void QmlLibraryProxy::analyze(const QmlTrackProxy* track) const {
-    VERIFY_OR_DEBUG_ASSERT(track && track->internal()) {
+void QmlLibraryProxy::analyze(
+        const QmlTrackProxy* track, bool reanalyse, bool useFixedTempo) const {
+    auto tracks = {track};
+    analyze(tracks, reanalyse, useFixedTempo);
+}
+void QmlLibraryProxy::analyze(
+        const mixxx::qml::ConstTrackProxyList& pTracks, bool reanalyse, bool useFixedTempo) const {
+    if (pTracks.isEmpty())
+        return;
+    TrackIdList trackIds;
+    TrackPointerList trackPointers;
+    for (const auto& track : pTracks) {
+        VERIFY_OR_DEBUG_ASSERT(track != nullptr && track->internal() != nullptr) {
+            continue;
+        }
+        trackIds.append(track->internal()->getId());
+        trackPointers.append(track->internal());
+    }
+    if (trackIds.empty()) {
+        qWarning() << "No tracks selected for analysis";
         return;
     }
-    emit s_pLibrary->analyzeTracks({track->internal()->getId()});
+
+    // FIXME eventually, we will be taking a list of track in a params. We
+    // should use a mixxx::TrackPointerOperation when we get more than one
+    // operation
+    if (reanalyse) {
+        auto pTrackPointerIter = std::make_unique<mixxx::TrackPointerListIterator>(
+                trackPointers);
+
+        auto operation = ResetBeatsTrackPointerOperation();
+        mixxx::ModalTrackBatchOperationProcessor modalOperation(
+                &operation, mixxx::ModalTrackBatchOperationProcessor::Mode::Apply);
+        modalOperation.processTracks(
+                tr("Resetting beats of %n track(s)", "", trackIds.length()),
+                m_pLibrary->trackCollectionManager(),
+                pTrackPointerIter.get());
+    }
+
+    AnalyzerTrack::Options options;
+    options.useFixedTempo = useFixedTempo;
+
+    QList<AnalyzerScheduledTrack> tracks;
+    for (auto trackId : trackIds) {
+        AnalyzerScheduledTrack track(trackId, options);
+        tracks.append(track);
+    }
+    emit s_pLibrary->analyzeTracks(tracks);
 }
 
 QString QmlLibraryProxy::deckHotcueLabel(

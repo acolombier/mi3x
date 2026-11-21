@@ -414,79 +414,85 @@ Rectangle {
                 font.pixelSize: 14
                 text: "Inputs"
             }
-            ListView {
-                id: inputList
-
+            Item {
                 Layout.fillHeight: true
                 Layout.fillWidth: true
-                Layout.margins: 15
-                model: Object.keys(root.inputs)
-                reuseItems: false
-                spacing: 15
 
-                ScrollBar.vertical: ScrollBar {
-                    anchors.right: inputList.left
-                    anchors.rightMargin: 6
-                    policy: ScrollBar.AlwaysOn
-                }
-                delegate: AudioEntity {
-                    id: inputEntity
+                ListView {
+                    id: inputList
 
-                    required property int index
-                    required property var modelData
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: Math.min(parent.height, contentHeight)
+                    model: Object.keys(root.inputs)
+                    reuseItems: false
+                    spacing: 15
 
-                    advanced: root.mode == AudioRouter.Mode.Advanced
-                    gateways: {
-                        let channels = [];
-                        let maxChannelPerInput = 4 / root.inputs[modelData].channelCount;
-                        for (let item of Object.values(root.inputs[modelData].gateways)) {
-                            let channel = 0;
-                            for (; channel < item.channels && channel <= maxChannelPerInput; channel += 2) {
-                                channels.push({
-                                    name: item.name,
-                                    address: item.address,
-                                    channels: [channel, channel + 1],
-                                    type: "source",
-                                    advanced: true
-                                });
-                            }
-                            if (channel < item.channels) {
-                                let start = channels[channels.length - 1].channels[0];
-                                let channelPicker = [...Array(item.channels - start)];
-                                channels[channels.length - 1].channels = channelPicker.map((_, i) => start + i);
-                            }
-                        }
-                        return channels;
+                    ScrollBar.vertical: ScrollBar {
+                        anchors.right: inputList.left
+                        anchors.rightMargin: 6
+                        policy: ScrollBar.AlwaysOn
                     }
-                    group: "external"
-                    name: modelData
-                    objectName: `entity_${index}`
-                    width: ListView.view.width
+                    delegate: AudioEntity {
+                        id: inputEntity
 
-                    onConnect: point => root.entityOnConnect(point)
-                    onDisconnect: point => root.entityOnDisconnect(point)
-                    onGatewayReady: (address, node) => {
-                        root.registerInputEdge(modelData, address, node);
-                    }
+                        required property int index
+                        required property var modelData
 
-                    Connections {
-                        function onContentYChanged() {
-                            inputEntity.scrolled();
+                        advanced: root.mode == AudioRouter.Mode.Advanced
+                        gateways: {
+                            let channels = [];
+                            let maxChannelPerInput = 4 / root.inputs[modelData].channelCount;
+                            for (let item of Object.values(root.inputs[modelData].gateways)) {
+                                let channel = 0;
+                                for (; channel < item.channels && channel <= maxChannelPerInput; channel += 2) {
+                                    channels.push({
+                                        name: item.name,
+                                        address: item.address,
+                                        channels: [channel, channel + 1],
+                                        type: "source",
+                                        advanced: true
+                                    });
+                                }
+                                if (channel < item.channels) {
+                                    let start = channels[channels.length - 1].channels[0];
+                                    let channelPicker = [...Array(item.channels - start)];
+                                    channels[channels.length - 1].channels = channelPicker.map((_, i) => start + i);
+                                }
+                            }
+                            return channels;
                         }
-                        function onHeightChanged() {
-                            inputEntity.scrolled();
-                        }
-                        function onWidthChanged() {
-                            inputEntity.scrolled();
-                        }
-                        function onXChanged() {
-                            inputEntity.scrolled();
-                        }
-                        function onYChanged() {
-                            inputEntity.scrolled();
+                        group: "external"
+                        name: modelData
+                        objectName: `entity_${index}`
+                        width: ListView.view.width
+
+                        onConnect: point => root.entityOnConnect(point)
+                        onDisconnect: point => root.entityOnDisconnect(point)
+                        onGatewayReady: (address, node) => {
+                            root.registerInputEdge(modelData, address, node);
                         }
 
-                        target: inputList
+                        Connections {
+                            function onContentYChanged() {
+                                inputEntity.scrolled();
+                            }
+                            function onHeightChanged() {
+                                inputEntity.scrolled();
+                            }
+                            function onWidthChanged() {
+                                inputEntity.scrolled();
+                            }
+                            function onXChanged() {
+                                inputEntity.scrolled();
+                            }
+                            function onYChanged() {
+                                inputEntity.scrolled();
+                            }
+
+                            target: inputList
+                        }
                     }
                 }
             }
@@ -569,88 +575,92 @@ Rectangle {
 
             Text {
                 Layout.alignment: Qt.AlignHCenter
-                Layout.margins: 15
+                // Layout.margins: 15
                 color: '#626262'
                 font.pixelSize: 14
                 text: "Outputs"
             }
-            ListView {
-                id: outputList
-
-                Layout.fillHeight: true
-                Layout.fillWidth: true
-                Layout.margins: 15
-                cacheBuffer: Math.max(0, contentHeight) // Disable lazy loading to make sure all item are loaded and can be bounded to connection
-                model: Object.keys(root.outputs)
-                reuseItems: false
-                spacing: 15
-
-                ScrollBar.vertical: ScrollBar {
-                    anchors.left: outputList.right
-                    anchors.leftMargin: 6
-                    policy: ScrollBar.AlwaysOn
-                }
-                delegate: AudioEntity {
-                    id: outputEntity
-
-                    required property int index
-                    required property var modelData
-
-                    gateways: {
-                        let channels = [];
-                        let maxChannelPerOutput = 4 / root.outputs[modelData].channelCount;
-                        for (let item of Object.values(root.outputs[modelData].gateways)) {
-                            let channel = 0;
-                            for (; channel < item.channels && channel <= maxChannelPerOutput; channel += 2) {
-                                channels.push({
-                                    name: item.name,
-                                    address: item.address,
-                                    channels: [channel, channel + 1],
-                                    type: "sink"
-                                });
-                            }
-                            if (channel < item.channels) {
-                                let start = channels[channels.length - 1].channels[0];
-                                let channelPicker = [...Array(item.channels - start)];
-                                channels[channels.length - 1].channels = channelPicker.map((_, i) => start + i);
-                            }
-                        }
-                        return channels;
-                    }
-                    group: "external"
-                    name: modelData
-                    objectName: `output${index}`
-                    width: ListView.view.width
-
-                    onConnect: point => root.entityOnConnect(point)
-                    onDisconnect: point => root.entityOnDisconnect(point)
-                    onGatewayReady: (address, node) => {
-                        root.registerOutputEdge(modelData, address, node);
-                    }
-
-                    Connections {
-                        function onContentYChanged() {
-                            outputEntity.scrolled();
-                        }
-                        function onHeightChanged() {
-                            outputEntity.scrolled();
-                        }
-                        function onWidthChanged() {
-                            outputEntity.scrolled();
-                        }
-                        function onXChanged() {
-                            outputEntity.scrolled();
-                        }
-                        function onYChanged() {
-                            outputEntity.scrolled();
-                        }
-
-                        target: outputList
-                    }
-                }
-            }
             Item {
                 Layout.fillHeight: true
+                Layout.fillWidth: true
+
+                ListView {
+                    id: outputList
+
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    cacheBuffer: Math.max(0, contentHeight) // Disable lazy loading to make sure all item are loaded and can be bounded to connection
+                    clip: true
+                    height: Math.min(parent.height, contentHeight)
+                    model: Object.keys(root.outputs)
+                    reuseItems: false
+                    spacing: 15
+
+                    ScrollBar.vertical: ScrollBar {
+                        anchors.left: outputList.right
+                        anchors.leftMargin: 6
+                        policy: ScrollBar.AlwaysOn
+                    }
+                    delegate: AudioEntity {
+                        id: outputEntity
+
+                        required property int index
+                        required property var modelData
+
+                        gateways: {
+                            let channels = [];
+                            let maxChannelPerOutput = 4 / root.outputs[modelData].channelCount;
+                            for (let item of Object.values(root.outputs[modelData].gateways)) {
+                                let channel = 0;
+                                for (; channel < item.channels && channel <= maxChannelPerOutput; channel += 2) {
+                                    channels.push({
+                                        name: item.name,
+                                        address: item.address,
+                                        channels: [channel, channel + 1],
+                                        type: "sink"
+                                    });
+                                }
+                                if (channel < item.channels) {
+                                    let start = channels[channels.length - 1].channels[0];
+                                    let channelPicker = [...Array(item.channels - start)];
+                                    channels[channels.length - 1].channels = channelPicker.map((_, i) => start + i);
+                                }
+                            }
+                            return channels;
+                        }
+                        group: "external"
+                        name: modelData
+                        objectName: `output${index}`
+                        width: ListView.view.width
+
+                        onConnect: point => root.entityOnConnect(point)
+                        onDisconnect: point => root.entityOnDisconnect(point)
+                        onGatewayReady: (address, node) => {
+                            root.registerOutputEdge(modelData, address, node);
+                        }
+
+                        Connections {
+                            function onContentYChanged() {
+                                outputEntity.scrolled();
+                            }
+                            function onHeightChanged() {
+                                outputEntity.scrolled();
+                            }
+                            function onWidthChanged() {
+                                outputEntity.scrolled();
+                            }
+                            function onXChanged() {
+                                outputEntity.scrolled();
+                            }
+                            function onYChanged() {
+                                outputEntity.scrolled();
+                            }
+
+                            target: outputList
+                        }
+                    }
+                }
             }
         }
     }

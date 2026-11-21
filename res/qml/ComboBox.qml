@@ -16,6 +16,13 @@ ComboBox {
 
     signal activateFooter(int index)
 
+    // Used for E2E
+    function serialize() {
+        return JSON.stringify({
+            model: this.model
+        });
+    }
+
     implicitHeight: 24
     implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset, implicitContentWidth + leftPadding + rightPadding)
     leftPadding: 4
@@ -75,7 +82,8 @@ ComboBox {
         }
     }
     indicator: Item {
-        height: 24
+        height: root.height
+        visible: width > 0
         width: height
         x: root.mirrored ? root.padding : root.width - width - root.padding
         y: root.topPadding
@@ -187,7 +195,7 @@ ComboBox {
             return contentItem.mapToItem(root.Window.contentItem, 0, 0, 0, 0).y < root.mapToItem(root.Window.contentItem, 0, 0, 0, 0).y;
         }
 
-        height: root.contentItem.height * (Math.min(root.popupMaxItem, Math.max(root.count, 1)) + 1)
+        height: (root.contentItem.height + 5) * Math.min(root.popupMaxItem, Math.max(root.count, 1))
         padding: 0
         width: root.width
         x: root.width - width
@@ -271,7 +279,7 @@ ComboBox {
                         anchors.fill: parent
                         bottomMargin: 0
                         clip: true
-                        currentIndex: root.highlightedIndex
+                        currentIndex: root.currentIndex
                         leftMargin: 0
                         model: root.popup.visible ? root.delegateModel : null
                         objectName: root.objectName ? root.objectName + "_popupList" : ""

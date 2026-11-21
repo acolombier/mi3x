@@ -114,6 +114,33 @@ Rectangle {
                     indicatorAnimation.start()
                 onExpandedChanged: indicator.rotation = expanded ? 90 : 0
 
+                DropArea {
+                    function droppedUrls(drop) {
+                        if (drop.hasUrls && drop.urls.length > 0) {
+                            return drop.urls;
+                        }
+
+                        const formats = drop.formats || [];
+                        for (const format of ["text/uri-list", "text/plain"]) {
+                            if (!formats.includes(format)) {
+                                continue;
+                            }
+                            const data = drop.getDataAsString(format).split("\n").map(v => Qt.url(v)).filter(v => !!v);
+                            if (data)
+                                return data;
+                        }
+                        return [];
+                    }
+
+                    anchors.fill: parent
+
+                    onDropped: event => {
+                        event.accepted = treeView.model.dropAccept(index, droppedUrls(event), event.source);
+                    }
+                    onEntered: event => {
+                        event.accepted = treeView.model.dragMoveAccept(index, droppedUrls(event));
+                    }
+                }
                 Rectangle {
                     id: background
 
@@ -331,6 +358,14 @@ Rectangle {
                                         input.onAccepted: popup.submit()
                                         input.onTextEdited: {
                                             popup.lastError = null;
+                                        }
+
+                                        // Android IME focus
+                                        input {
+                                            readonly property var imeLayoutSideEffect: 20
+
+                                            EnterKey.type: Qt.EnterKeyDone
+                                            inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText | Qt.ImhNoFullscreen | Qt.ImhUrlCharactersOnly
                                         }
                                     }
                                     RowLayout {

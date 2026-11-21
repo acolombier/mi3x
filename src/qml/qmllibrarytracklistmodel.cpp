@@ -1,5 +1,6 @@
 #include "qml/qmllibrarytracklistmodel.h"
 
+#include <QJsonObject>
 #include <QObject>
 #include <QQmlEngine>
 #include <QSortFilterProxyModel>
@@ -26,6 +27,7 @@ const QHash<int, QByteArray> kRoleNames = {
         {Qt::DecorationRole, "decoration"},
         {QmlLibraryTrackListModel::FileURL, "file_url"},
         {QmlLibraryTrackListModel::CoverArt, "cover_art"},
+        {QmlLibraryTrackListModel::TrackIdRole, "track_id"},
         {QmlLibraryTrackListModel::ColumnTypeRole, "columnType"},
 };
 
@@ -48,6 +50,11 @@ QmlLibraryTrackListModel::QmlLibraryTrackListModel(
     setObjectName(pModel->objectName());
     m_columns.reserve(librarySource.size());
     for (const auto* pColumn : std::as_const(librarySource)) {
+        if (!pColumn) {
+            // pColumn may be null in case a QmlLibraryTrackListColumn failed to
+            // instantiate due to validation (columns)
+            continue;
+        }
         m_columns.emplace_back(make_parented<QmlLibraryTrackListColumn>(this,
                 pColumn->label(),
                 pColumn->fillSpan(),
@@ -89,7 +96,7 @@ QVariant QmlLibraryTrackListModel::data(const QModelIndex& proxyIndex, int role)
         return {};
     }
     auto columnIdx = proxyIndex.column();
-    VERIFY_OR_DEBUG_ASSERT(columnIdx >= 0 || columnIdx < m_columns.size()) {
+    VERIFY_OR_DEBUG_ASSERT(columnIdx >= 0 && columnIdx < m_columns.size()) {
         return {};
     }
 
@@ -110,38 +117,28 @@ QVariant QmlLibraryTrackListModel::data(const QModelIndex& proxyIndex, int role)
                         .toDouble());
     }
     case CoverArt: {
-        QString location;
-        if (pTrackTableModel != nullptr) {
-            location = QIdentityProxyModel::data(
-                    proxyIndex.siblingAtColumn(pTrackTableModel->fieldIndex(
-                            ColumnCache::COLUMN_TRACKLOCATIONSTABLE_LOCATION)),
-                    Qt::DisplayRole)
-                               .toString();
-        } else if (pTrackModel != nullptr) {
-            auto pTrack = pTrackModel->getTrack(
-                    QIdentityProxyModel::mapToSource(proxyIndex));
-            location = pTrack->getCoverInfo().coverLocation;
-        }
-        if (location.isEmpty()) {
+        VERIFY_OR_DEBUG_ASSERT(pTrackModel) {
             return {};
         }
-        Library* pLibrary = QmlLibraryProxy::get();
-        VERIFY_OR_DEBUG_ASSERT(pLibrary) {
-            return AsyncImageProvider::trackLocationToCoverArtUrl(location);
-        }
-        auto coverInfo = pLibrary->trackCollectionManager()->getCoverInfoForTrackLocation(
-                location);
+        const CoverInfo coverInfo = pTrackModel->getCoverInfo(
+                QIdentityProxyModel::mapToSource(proxyIndex));
         if (!coverInfo.hasImage()) {
             return {};
         }
-
-        return AsyncImageProvider::trackLocationToCoverArtUrl(location);
+        return AsyncImageProvider::coverInfoToCoverArtUrl(coverInfo);
     }
     case FileURL: {
         if (pTrackModel == nullptr) {
             return {};
         }
         return pTrackModel->getTrackUrl(QIdentityProxyModel::mapToSource(proxyIndex));
+    }
+    case TrackIdRole: {
+        if (pTrackModel == nullptr) {
+            return {};
+        }
+        return QVariant::fromValue(pTrackModel->getTrackId(
+                QIdentityProxyModel::mapToSource(proxyIndex)));
     }
     case ColumnTypeRole:
         return QVariant::fromValue(pColumn->columnType());
@@ -170,7 +167,7 @@ int QmlLibraryTrackListModel::columnCount(const QModelIndex& parent) const {
 
 QVariant QmlLibraryTrackListModel::headerData(
         int section, Qt::Orientation orientation, int role) const {
-    VERIFY_OR_DEBUG_ASSERT(section >= 0 || section < m_columns.size()) {
+    VERIFY_OR_DEBUG_ASSERT(section >= 0 && section < m_columns.size()) {
         return {};
     }
     // TODO role
@@ -255,10 +252,34 @@ void QmlLibraryTrackListModel::setSearch(const QString& searchText) {
         return;
     }
     pTrackModel->search(searchText);
+    emit searchChanged();
+}
+
+QVariantMap QmlLibraryTrackListModel::loadState(const QString& key) const {
+    auto* const pTrackModel = dynamic_cast<TrackModel*>(sourceModel());
+    if (pTrackModel == nullptr) {
+        return {};
+    }
+    const QString serialized = pTrackModel->getModelSetting(key);
+    if (serialized.isEmpty()) {
+        return {};
+    }
+    const QJsonDocument doc = QJsonDocument::fromJson(serialized.toUtf8());
+    return doc.isObject() ? doc.object().toVariantMap() : QVariantMap{};
+}
+
+void QmlLibraryTrackListModel::saveState(const QString& key, const QVariantMap& state) {
+    auto* const pTrackModel = dynamic_cast<TrackModel*>(sourceModel());
+    if (pTrackModel == nullptr) {
+        return;
+    }
+    pTrackModel->setModelSetting(key,
+            QString::fromUtf8(QJsonDocument::fromVariant(state)
+                            .toJson(QJsonDocument::Compact)));
 }
 
 void QmlLibraryTrackListModel::sort(int column, Qt::SortOrder order) {
-    VERIFY_OR_DEBUG_ASSERT(column >= 0 || column < m_columns.size()) {
+    VERIFY_OR_DEBUG_ASSERT(column >= 0 && column < m_columns.size()) {
         return;
     }
     const auto& pColumn = m_columns[column];
@@ -278,5 +299,15 @@ void QmlLibraryTrackListModel::sort(int column, Qt::SortOrder order) {
     emit layoutChanged(QList<QPersistentModelIndex>(), QAbstractItemModel::VerticalSortHint);
 }
 
+QModelIndex QmlLibraryTrackListModel::index(
+        int row, int column, const QModelIndex& parent) const {
+    if (const auto* const pSourceModel = sourceModel()) {
+        const int sourceColumnCount = pSourceModel->columnCount(mapToSource(parent));
+        if (column >= sourceColumnCount) {
+            column = sourceColumnCount - 1;
+        }
+    }
+    return QIdentityProxyModel::index(row, column, parent);
+}
 } // namespace qml
 } // namespace mixxx

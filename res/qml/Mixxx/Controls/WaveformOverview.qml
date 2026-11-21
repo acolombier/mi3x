@@ -6,6 +6,7 @@ Mixxx.WaveformOverview {
     id: root
 
     required property string group
+    property alias mouse: mouse
     readonly property var player: Mixxx.PlayerManager.getPlayer(root.group)
 
     track: player?.currentTrack
@@ -26,41 +27,14 @@ Mixxx.WaveformOverview {
         group: root.group
         key: "playposition"
     }
-    Item {
-        id: markers
-
-        anchors.fill: parent
-        visible: trackLoadedControl.value
-
-        Repeater {
-            model: 8
-
-            MixxxControls.WaveformOverviewHotcueMarker {
-                required property int index
-
-                anchors.fill: parent
-                group: root.group // qmllint disable unqualified
-                hotcueNumber: this.index + 1
-            }
-        }
-        MixxxControls.WaveformOverviewMarker {
-            id: playPositionMarker
-
-            anchors.fill: parent
-            group: root.group
-            key: "playposition"
-        }
-    }
     MouseArea {
+        id: mouse
+
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
         hoverEnabled: true
 
-        onPositionChanged: mouse => {
-            if (this.containsPress)
-                playPositionControl.value = mouse.x / this.width;
-        }
-        onPressed: mouse => {
+        onReleased: mouse => {
             playPositionControl.value = mouse.x / this.width;
         }
     }

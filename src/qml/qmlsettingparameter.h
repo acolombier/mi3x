@@ -58,7 +58,7 @@ class QmlSettingParameterManager : public QQuickItem {
     explicit QmlSettingParameterManager(QQuickItem* parent = nullptr);
     ~QmlSettingParameterManager();
 
-    void registerSettingParamater(QmlSettingParameter* parameter, QList<QmlSettingGroup*>);
+    void registerSettingParamater(QmlSettingParameter* parameter, const QList<QmlSettingGroup*>&);
     Q_INVOKABLE void search(const QString& criteria);
 
     QSortFilterProxyModel* model() {

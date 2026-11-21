@@ -36,6 +36,7 @@ import time
 QT_LEFT_BUTTON = 1
 QT_RIGHT_BUTTON = 2
 QT_CONTROL_MODIFIER = 2
+QT_SHIFT_MODIFIER = 1
 
 QT_KEY_A = 0x41
 QT_KEY_BACKSPACE = 0x01000003
@@ -204,6 +205,14 @@ def _right_click(context, path):
     assert rpc.existsAndVisible(path), (
         f"{path} cannot be clicked as it does not exists")
     rpc.mouseClickWithButton(path, QT_RIGHT_BUTTON, 0)
+
+
+def _ctrl_click(context, path):
+    context.rpc.mouseClickWithButton(path, QT_LEFT_BUTTON, QT_CONTROL_MODIFIER)
+
+
+def _shift_click(context, path):
+    context.rpc.mouseClickWithButton(path, QT_LEFT_BUTTON, QT_SHIFT_MODIFIER)
 
 
 def _long_press(context, path, button=QT_LEFT_BUTTON, hold_ms=1000):
@@ -576,6 +585,7 @@ SETTING_CATEGORY_SLUG = {
     8: "analyzer",
 }
 
+POPUP_ITEM = "mainWindow/popupItem"
 SETTINGS_POPUP_ITEM = "mainWindow/settingsPopupItem"
 COMMITTING_OVERLAY = "mainWindow/soundHardware/committingOverlay"
 ENGINE_SECTION = "mainWindow/soundHardware/engineSection"
@@ -612,10 +622,16 @@ def _entity_path(name):
 def _edge_path(entity, address, channel=0):
     return f"mainWindow/entity_{entity}/edge_{address}{channel}"
 
-def _setting_spec(setting):
+def _setting_spec(context, setting):
     spec = SETTING_MAP.get(setting)
     if not spec:
         raise ValueError(f"Unknown setting: {setting}")
+    data = context.rpc.invokeMethod(spec['path'], "serialize", [])
+    if data:
+        discovered = json.loads(data)
+        # Defined spec takes priorities
+        discovered.update(spec)
+        return discovered
     return spec
 
 def _deck_waveform_path(deck):
@@ -1097,9 +1113,9 @@ SETTING_MAP = {
     "Sound API": {"path": "mainWindow/soundHardware/soundApi", "kind": "ratio"},
     "Sample Rate": {"path": "mainWindow/soundHardware/sampleRate", "kind": "ratio"},
     # Interface category — theme & color tab
-    "skin": {"path": "mainWindow/setting_skin", "kind": "combo", "model": ["Unnamed"]},
-    "color": {"path": "mainWindow/setting_color", "kind": "combo", "model": ["Dark", "Light"]},
-    "layout": {"path": "mainWindow/setting_layout", "kind": "combo", "model": ["Performance", "Broadcast"]},
+    "skin": {"path": "mainWindow/setting_skin", "kind": "combo"},
+    "color": {"path": "mainWindow/setting_color", "kind": "combo"},
+    "layout": {"path": "mainWindow/setting_layout", "kind": "combo"},
     "tool tips": {"path": "mainWindow/setting_toolTips", "kind": "ratio", "options": ["off", "library", "all"]},
     "disable screen saver": {"path": "mainWindow/setting_disableScreenSaver", "kind": "ratio", "options": ["no", "while running", "while playing"]},
     "start in full-screen mode": {"path": "mainWindow/setting_startFullscreen", "kind": "ratio", "options": ["on", "off"]},
@@ -1108,22 +1124,22 @@ SETTING_MAP = {
     "search history keyboard shortcuts": {"path": "mainWindow/setting_searchHistoryKeyboardShortcuts", "kind": "ratio", "options": ["on", "off"]},
     "bpm display precision": {"path": "mainWindow/setting_bpmDisplayPrecision", "kind": "spinbox", "precision": 0},
     "library row height": {"path": "mainWindow/setting_libraryRowHeight", "kind": "slider", "min": 14, "max": 100, "markers": [14, 20, 50, 80]},
-    "track palette": {"path": "mainWindow/setting_trackPalette", "kind": "combo", "model": PALETTE_NAMES},
-    "hotcue palette": {"path": "mainWindow/setting_hotcuePalette", "kind": "combo", "model": PALETTE_NAMES},
-    "key color palette": {"path": "mainWindow/setting_keyColorPalette", "kind": "combo", "model": PALETTE_NAMES},
+    "track palette": {"path": "mainWindow/setting_trackPalette", "kind": "combo"},
+    "hotcue palette": {"path": "mainWindow/setting_hotcuePalette", "kind": "combo"},
+    "key color palette": {"path": "mainWindow/setting_keyColorPalette", "kind": "combo"},
     "key color": {"path": "mainWindow/setting_keyColor", "kind": "ratio", "options": ["on", "off"]},
     "hotcue default color": {"path": "mainWindow/setting_hotcueDefaultColor", "kind": "color"},
     "loop default color": {"path": "mainWindow/setting_loopDefaultColor", "kind": "color"},
     # Interface category — decks tab
-    "cue mode": {"path": "mainWindow/setting_cueMode", "kind": "combo", "model": ["Mixxx", "Mixxx (no blinking)", "Pioneer", "Denon", "Numark", "CUP"]},
+    "cue mode": {"path": "mainWindow/setting_cueMode", "kind": "combo"},
     "time format": {"path": "mainWindow/setting_timeFormat", "kind": "combo", "model": ["Traditional", "Traditional (Coarse)", "Seconds", "Seconds (Long)", "Kiloseconds", "Hectoseconds"]},
     "set intro start to main cue": {"path": "mainWindow/setting_introStartToMainCue", "kind": "ratio", "options": ["on", "off"]},
     "track time display": {"path": "mainWindow/setting_trackTimeDisplay", "kind": "ratio", "options": ["elapsed", "remaining", "both"]},
     "double-press load to clone": {"path": "mainWindow/setting_doublePressLoadToClone", "kind": "ratio", "options": ["on", "off"]},
-    "track load point": {"path": "mainWindow/setting_trackLoadPoint", "kind": "combo", "model": ["Main cue", "Beginning of track", "First sound", "Intro start", "First hotcue"]},
+    "track load point": {"path": "mainWindow/setting_trackLoadPoint", "kind": "combo"},
     "loading a track when playing": {"path": "mainWindow/setting_loadingTrackWhenPlaying", "kind": "ratio", "options": ["reject", "allow", "when stopped"]},
     "reset on track load": {"path": "mainWindow/setting_resetOnTrackLoad", "kind": "ratio", "options": ["none", "key", "both", "tempo"]},
-    "slider range": {"path": "mainWindow/setting_sliderRange", "kind": "combo", "model": ["4%", "6% (semitone)", "8% (Technics SL-1210)", "10%", "16%", "24%", "50%", "90%"]},
+    "slider range": {"path": "mainWindow/setting_sliderRange", "kind": "combo"},
     "sync mode": {"path": "mainWindow/setting_syncMode", "kind": "ratio", "options": ["follow soft leader", "use steady"]},
     "slider orientation": {"path": "mainWindow/setting_sliderOrientation", "kind": "ratio", "options": ["down", "up"]},
     "keylock mode": {"path": "mainWindow/setting_keylockMode", "kind": "ratio", "options": ["original key", "current key"]},
@@ -1161,7 +1177,7 @@ SETTING_MAP = {
     "beats until next marker": {"path": "mainWindow/setting_untilMarkShowBeats", "kind": "ratio", "options": ["on", "off"]},
     "time until next marker": {"path": "mainWindow/setting_untilMarkShowTime", "kind": "ratio", "options": ["on", "off"]},
     "marker hint placement": {"path": "mainWindow/setting_untilMarkAlign", "kind": "ratio", "options": ["top", "center", "bottom"]},
-    "marker hint font size": {"path": "mainWindow/setting_untilMarkTextPointSize", "kind": "combo", "model": ["10 pt", "12 pt", "15 pt", "18 pt", "24 pt", "32 pt", "48 pt"]},
+    "marker hint font size": {"path": "mainWindow/setting_untilMarkTextPointSize", "kind": "combo"},
     "global visual gain": {"path": "mainWindow/setting_visualGainAll", "kind": "slider", "min": 50, "max": 500, "markers": [50, 100, 150, 300, 500]},
     "low visual gain": {"path": "mainWindow/setting_visualGainLow", "kind": "slider", "min": 50, "max": 500, "markers": [50, 100, 150, 300, 500]},
     "medium visual gain": {"path": "mainWindow/setting_visualGainMedium", "kind": "slider", "min": 50, "max": 500, "markers": [50, 100, 150, 300, 500]},
@@ -1212,9 +1228,11 @@ SETTING_MAP = {
 
 TRACK_ACTIONS = {
     "click": _click,
+    "ctrl-click": _ctrl_click,
     "double-click": _double_click,
-    "right-click": _right_click,
     "long-press": _long_press,
+    "right-click": _right_click,
+    "shift-click": _shift_click,
 }
 
 _ROW_HEIGHT = 30

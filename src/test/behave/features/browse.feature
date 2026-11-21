@@ -23,9 +23,9 @@ Feature: Browse
   @sub/library
   Scenario: Library columns adapt to available width
     When I resize the window's width to 1500px
-    Then only the column ",Preview,Title,Artist,Album,Year,BPM,Key,File Type,Bitrate" are shown
+    Then only the column "Cover Art,Preview,Title,Artist,Album,Year,BPM,Key,File Type,Bitrate" are shown
     When I resize the window's width to 1200px
-    Then only the column ",Preview,Title,Artist,Album,Year,BPM,Key,File Type" are shown
+    Then only the column "Cover Art,Preview,Title,Artist,Album,Year,BPM,Key,File Type" are shown
     When I resize the window's width to 800px
     Then only the column "Title,Artist,BPM,Key" are shown
 
@@ -51,6 +51,41 @@ Feature: Browse
     Then the column "Artist" should not be visible
 
   @sub/library
+  Scenario: Library state is persisted between features
+    Given the source "All..." is selected in the library sidebar
+    And a playlist named "LayoutTest" already exists
+    When I open the column picker menu
+    When I toggle the column "Preview" in the column picker
+    And I toggle the column "Cover Art" in the column picker
+    And I toggle the column "Album" in the column picker
+    And I toggle the column "Bitrate" in the column picker
+    And I toggle the column "Date Added" in the column picker
+    And I discard the column picker menu
+    And I drag the column "Artist" before the column "Title"
+    Then only the column "Artist,Title,Year,BPM,Key,File Type,Date Added" are shown in this strict order
+    When I select the playlist named "LayoutTest" in the library sidebar
+    And I select the source "All..." in the library sidebar
+    Then only the column "Artist,Title,Year,BPM,Key,File Type,Date Added" are shown in this strict order
+
+  @sub/library
+  Scenario: Restored library dynamic columns keep adapting to the available width
+    Given the window's width is 1500px
+    And a playlist named "LayoutTest" already exists
+    And the source "All..." is selected in the library sidebar
+    And the width of the column "Title" is remembered
+    When I open the column picker menu
+    When I toggle the column "Preview" in the column picker
+    And I toggle the column "Cover Art" in the column picker
+    And I discard the column picker menu
+    Then the width of the column "Title" should differ from the remembered width
+    Given the width of the column "Title" is remembered
+    When I select the playlist named "LayoutTest" in the library sidebar
+    And I select the source "All..." in the library sidebar
+    Then the width of the column "Title" should equal the remembered width
+    When I resize the window's width to 1100px
+    Then the width of the column "Title" should differ from the remembered width
+
+  @sub/library
   Scenario: Library columns can be used to sort results
     When I click the column header "Title"
     Then the results should be sorted by "Title" in "ascending" order
@@ -59,6 +94,31 @@ Feature: Browse
   Scenario: Track can be selected
     When I click the track at row 1
     Then the track at row 1 should be selected
+
+  @sub/library
+  Scenario: Track can be selected additionally with ctrl click
+    When I click the track at row 1
+    And I ctrl-click the track at row 2
+    Then the track at row 1 should be selected
+    And the track at row 2 should be selected
+    And the track at row 3 should not be selected
+
+  @sub/library
+  Scenario: A track range can be selected with shift click
+    When I click the track at row 1
+    And I shift-click the track at row 3
+    Then the track at row 1 should be selected
+    And the track at row 2 should be selected
+    And the track at row 3 should be selected
+
+  @sub/library
+  Scenario: A track range can be unselected with ctrl click
+    When I click the track at row 1
+    And I shift-click the track at row 3
+    And I ctrl-click the track at row 2
+    Then the track at row 1 should be selected
+    And the track at row 2 should not be selected
+    And the track at row 3 should be selected
 
   @sub/library
   Scenario: Track below the fold can be scrolled into view
@@ -72,10 +132,11 @@ Feature: Browse
     When I right-click the track at row 1
     Then the track context menu should be visible
 
-  @sub/library
-  Scenario: Track context menu can be shown on long press
-    When I long-press the track at row 1
-    Then the track context menu should be visible
+  # Android/iOs only!
+  # @sub/library
+  # Scenario: Track context menu can be shown on long press
+  #   When I long-press the track at row 1
+  #   Then the track context menu should be visible
 
   # Flaky test on Xcb
   @xpass
@@ -141,6 +202,7 @@ Feature: Browse
     Background:
       Given a new library-ready profile
       And Mixxx is open and ready to operate
+      And the window size is default
       And no search is currently active
 
   @sub/search

@@ -17,10 +17,15 @@ containing `/oc` or `/opencode`; in both cases run the full procedure below.
   for details in a reply on one of your threads (e.g. `/oc explain`), answer
   briefly in that thread. Give the concrete reasoning/diff they asked for, then
   stop. Never volunteer extra depth elsewhere.
-- Cap yourself: at most ~8 **new findings** per run, strongest first. Drop
-  the weakest ones rather than diluting the signal. The cap never silences a
-  still-live finding's reply in 3d — replies re-verify an existing thread
-  rather than add new lines.
+- **Findings are approval-blocking only.** There is no cap on the number of
+  new findings per run, but every finding must be one that, if unresolved,
+  blocks `event: APPROVE` — a verifiable defect failing one of the
+  Mixxx-specific checks below (correctness, object lifetimes, engine-thread
+  rules, threading, ...). Anything that would not block approval — style,
+  preference, hardening, "nice to have" — is not a finding and must not be
+  posted. Post every approval-blocking finding you actually verified,
+  strongest first. Replies to still-live findings in 3d are never counted —
+  they re-verify an existing thread rather than add new lines.
 
 ## Hard rules
 
@@ -108,6 +113,10 @@ and what would make you more or less confident.>
 
 ## What to look for (Mixxx-specific, priority order)
 
+Only defects under these categories are findings — each must be concrete
+enough that the APPROVE gate cannot pass while it is unresolved. If an
+issue is real but would not block approval, it is not a finding.
+
 1. **Correctness**: logic errors, wrong units (dB vs amplitude, seconds vs
    milliseconds vs frames), off-by-one, integer/float conversions, unsigned vs
    signed, NaN handling, inverted conditions.
@@ -128,6 +137,9 @@ and what would make you more or less confident.>
    mapping schema validity.
 
 ## What NOT to report
+
+Nothing here may be posted as a finding: by definition a finding is
+approval-blocking, and none of the following is.
 
 - **Redundant defensive programming**: if a value is already validated,
   constrained, or clamped by the caller or an upstream path visible in the
@@ -230,14 +242,15 @@ if that filter ever drifts.
           `addPullRequestReviewThread` with `pullRequestReviewId` (the
           draft's node id), `path`, `line`, `side`, `startLine`/`startSide`
           for ranges, and a fresh ≤2-sentence body (never copied text),
-          strongest first, up to the cap;
+          strongest first (approval-blocking findings only — see Tone);
         - each **still-live previously flagged finding** as
           `addPullRequestReviewThreadReply` with `pullRequestReviewId`,
           `pullRequestReviewThreadId` (the canonical thread's node id from
           the GraphQL fetch in the resolve bullet above) and a one-sentence
           body, e.g. *"Still an issue at `<short sha>`."* plus a
           re-verification note only when the surrounding code changed;
-          never copy the old body. This is outside the new-findings cap —
+          never copy the old body. This is a thread re-verification, not a
+          new finding —
           replies re-verify existing threads.
 
         Never place an existing claim inside any `comments[]` array or open

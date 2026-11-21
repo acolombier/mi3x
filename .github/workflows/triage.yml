@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Check if commenter is maintainer
         id: check-commenter
@@ -89,8 +89,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.MIXXX_OC_REVIEW_PAT }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          MODEL: ${{ vars.OPENCODE_MODEL || 'opencode/big-pickle' }}
         run: opencode run --auto
-          -m "opencode/glm-5.3-flash-free"
+          -m "$MODEL"
           --agent "build"
           "You are performing an automated review of this pull request.
           Read the file .ai/skills/pull_request.md in the repository root and

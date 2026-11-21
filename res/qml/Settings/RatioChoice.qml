@@ -249,7 +249,7 @@ Item {
             onExited: {
                 popup.close();
             }
-            onPressed: {
+            onPressed: mouse => {
                 mouse.accepted = false;
             }
         }
@@ -271,15 +271,23 @@ Item {
         property string tooltip: ""
 
         closePolicy: Popup.NoAutoClose
-        height: tooltip.implicitHeight + 15
+        height: tooltip.implicitHeight + 25
         padding: 0
-        width: Math.max(tooltip.implicitWidth * 1.5, 50)
+        width: Math.max(tooltip.implicitWidth + 40, 50)
         x: 0
         y: root.height
 
         background: Item {
         }
         contentItem: Item {
+            layer.enabled: true
+
+            layer.effect: MultiEffect {
+                shadowBlur: 0.8
+                shadowColor: '#c0000000'
+                shadowEnabled: true
+            }
+
             Item {
                 id: contentPopup
 
@@ -331,15 +339,6 @@ Item {
                         text: popup.tooltip
                     }
                 }
-            }
-            MultiEffect {
-                anchors.fill: parent
-                autoPaddingEnabled: true
-                blurMultiplier: 0.24
-                shadowBlur: 0.24
-                shadowColor: "#B0000000"
-                shadowEnabled: true
-                source: contentPopup
             }
         }
     }

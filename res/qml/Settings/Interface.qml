@@ -2,10 +2,10 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Dialogs
+import QtQuick.Effects
 import Mixxx 1.0 as Mixxx
+import Mixxx.Controls 1.0 as MixxxControls
 import "." as Setting
-import "../Deck" as DeckComponents
-import "." as SettingComponents
 import ".." as Skin
 import "../Theme"
 
@@ -75,6 +75,10 @@ Category {
         colorPane.jumpPaletteColorIndex = colorPane.defaultPalette.length - 3;
         jumpPaletteInput.currentIndex = colorPane.jumpPaletteColorIndex;
         themeColorTab.dirty = false;
+        ApplicationWindow.window.content.grabToImage(function (result) {
+            currentLayoutImage.source = result.url;
+        });
+        resetButton.visible = Array(4).fill().map((_, i) => i).reduce((acc, i) => acc || !!Mixxx.Config.getDeckLayout(i), false);
     }
     function loadWaveform() {
         waveformTab.load({
@@ -126,6 +130,9 @@ Category {
     }
     function saveDeck() {
         Mixxx.Config.controlCueDefault = cueModeInput.currentIndex;
+        for (let i = 0; i < cueMode.count; i++) {
+            cueMode.objectAt(i).value = Mixxx.Config.controlCueDefault;
+        }
         Mixxx.Config.controlSetIntroStartAtMainCue = setIntroStartToMainCueInput.isOn;
         Mixxx.Config.controlPositionDisplay = trackTimeDisplayInput.options.indexOf(trackTimeDisplayInput.selected);
         Mixxx.Config.controlTimeFormat = timeMode.currentIndex;
@@ -143,25 +150,19 @@ Category {
         }
         Mixxx.Config.controlRateDir = sliderOrientationInput.selected === "down";
         Mixxx.Config.controlKeylockMode = keylockModeInput.options.indexOf(keylockModeInput.selected);
+        for (let i = 0; i < keylockMode.count; i++) {
+            keylockMode.objectAt(i).value = Mixxx.Config.controlKeylockMode;
+        }
         Mixxx.Config.controlKeyunlockMode = keyunlockModeInput.options.indexOf(keyunlockModeInput.selected);
+        for (let i = 0; i < keyunlockMode.count; i++) {
+            keyunlockMode.objectAt(i).value = Mixxx.Config.controlKeyunlockMode;
+        }
         Mixxx.Config.controlPitchBendBehaviour = pitchBendBehaviourInput.options.indexOf(pitchBendBehaviourInput.selected);
         Mixxx.Config.controlRateTempCoarse = adjustmentButtonsTemporaryCoarseInput.value / 100;
         Mixxx.Config.controlRateTempFine = adjustmentButtonsTemporaryFineInput.value / 100;
         Mixxx.Config.controlRatePermCoarse = adjustmentButtonsPermanentCoarseInput.value / 100;
         Mixxx.Config.controlRatePermFine = adjustmentButtonsPermanentFineInput.value / 100;
         Mixxx.Config.controlRateRampSensitivity = rampingSensitivityInput.value;
-        // TODO: following setting are currently not exposed
-        // Mixxx.Config.waveformOverviewType
-        // Mixxx.Config.waveformOverviewStereo
-        // Mixxx.Config.waveformOverviewMinuteMarkers
-        // Mixxx.Config.waveformEnabled
-        // Mixxx.Config.waveformFrameRate
-        // Mixxx.Config.waveformStemOpacity
-        // Mixxx.Config.waveformStemOutlineOpacity
-        // Mixxx.Config.waveformStemReorderOnChange
-        // Mixxx.Config.waveformStemSplitTracks
-        // Mixxx.Config.waveformCachingEnabled
-        // Mixxx.Config.waveformGenerationWithAnalysisEnabled
         loadDeck();
     }
     function saveInterface() {
@@ -191,7 +192,8 @@ Category {
         waveformTab.save();
     }
 
-    label: "Interface"
+    label: qsTr("Interface")
+    objectName: "interfacePage"
     selectedIndex: 0
     tabs: ["theme & color", "waveform", "decks"]
 
@@ -230,6 +232,42 @@ Category {
 
             group: `[Channel${index + 1}]`
             key: "rate_dir"
+        }
+    }
+    Instantiator {
+        id: keylockMode
+
+        model: numDecks.value
+
+        Mixxx.ControlProxy {
+            required property int index
+
+            group: `[Channel${index + 1}]`
+            key: "keylockMode"
+        }
+    }
+    Instantiator {
+        id: keyunlockMode
+
+        model: numDecks.value
+
+        Mixxx.ControlProxy {
+            required property int index
+
+            group: `[Channel${index + 1}]`
+            key: "keyunlockMode"
+        }
+    }
+    Instantiator {
+        id: cueMode
+
+        model: numDecks.value
+
+        Mixxx.ControlProxy {
+            required property int index
+
+            group: `[Channel${index + 1}]`
+            key: "cue_mode"
         }
     }
     ScrollView {
@@ -455,15 +493,77 @@ Category {
                                 anchors.verticalCenter: parent.verticalCenter
                                 color: '#343434'
                                 height: width / 16 * 9
-                                width: parent.width - 160
+                                layer.enabled: true
+                                radius: 2
+                                width: parent.width - 80
 
-                                Skin.Button {
-                                    activeColor: Theme.white
+                                layer.effect: MultiEffect {
+                                    shadowBlur: 0.8
+                                    shadowColor: '#c0000000'
+                                    shadowEnabled: true
+                                }
+
+                                Image {
+                                    id: currentLayoutImage
+
+                                    anchors.fill: parent
+                                    fillMode: Image.PreserveAspectCrop
+                                    mipmap: true
+                                    verticalAlignment: Image.AlignTop
+                                }
+                                Skin.InnerShadowMask {
+                                    anchors.fill: parent
+                                    radius: parent.radius
+                                    rimColor: Theme.darkGray
+                                    size: 6
+                                }
+                                Rectangle {
                                     anchors.bottom: parent.bottom
-                                    anchors.bottomMargin: 20
+                                    height: parent.height / 2
+                                    width: parent.width
+
+                                    gradient: Gradient {
+                                        orientation: Gradient.Vertical
+
+                                        GradientStop {
+                                            color: Theme.darkGray
+                                            position: 1
+                                        }
+                                        GradientStop {
+                                            color: 'transparent'
+                                            position: 0
+                                        }
+                                    }
+                                }
+                                RowLayout {
+                                    anchors.bottom: parent.bottom
+                                    anchors.bottomMargin: 10
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    text: "Customize"
-                                    width: 80
+
+                                    Skin.Button {
+                                        id: resetButton
+
+                                        Layout.preferredWidth: 80
+                                        activeColor: Theme.white
+                                        text: "Reset"
+
+                                        onPressed: {
+                                            root.Window.window.requestDeckLayoutReset();
+                                            resetButton.visible = false;
+                                        }
+                                    }
+                                    Skin.Button {
+                                        id: customizeButton
+
+                                        Layout.preferredWidth: 80
+                                        activeColor: Theme.white
+                                        text: "Customize"
+
+                                        onPressed: {
+                                            root.Window.window.requestDeckLayoutEdit();
+                                            root.Window.window.settings.visible = false;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -594,7 +694,7 @@ Category {
                                                 verticalAlignment: Text.AlignVCenter
                                             }
                                         }
-                                        SettingComponents.SpinBox {
+                                        Setting.SpinBox {
                                             id: bpmPrecisionInput
 
                                             Layout.fillWidth: true
@@ -650,7 +750,7 @@ Category {
                                                 verticalAlignment: Text.AlignVCenter
                                             }
                                         }
-                                        SettingComponents.Slider {
+                                        Setting.Slider {
                                             id: libraryRowHeightInput
 
                                             markers: [14, 20, 50, 80]
@@ -997,6 +1097,18 @@ Category {
                     waveformTab.dirty = false;
                 }
                 function save() {
+                    // TODO: following setting are currently not exposed
+                    // Mixxx.Config.waveformOverviewType
+                    // Mixxx.Config.waveformOverviewStereo
+                    // Mixxx.Config.waveformOverviewMinuteMarkers
+                    // Mixxx.Config.waveformEnabled
+                    // Mixxx.Config.waveformFrameRate
+                    // Mixxx.Config.waveformStemOpacity
+                    // Mixxx.Config.waveformStemOutlineOpacity
+                    // Mixxx.Config.waveformStemReorderOnChange
+                    // Mixxx.Config.waveformStemSplitTracks
+                    // Mixxx.Config.waveformCachingEnabled
+                    // Mixxx.Config.waveformGenerationWithAnalysisEnabled
                     Mixxx.Config.waveformEndOfTrackWarningTime = endOfTrackWarningInput.value;
                     Mixxx.Config.waveformZoomSynchronization = synchronizeAllZoomLevelInput.isOn;
                     Mixxx.Config.waveformOverviewNormalized = normaliseWaveformOverviewLevelInput.isOn;
@@ -1078,7 +1190,7 @@ Category {
                                         text: parent.label
                                     }
                                 }
-                                SettingComponents.Slider {
+                                Setting.Slider {
                                     id: endOfTrackWarningInput
 
                                     Layout.fillWidth: parent.columns === 1
@@ -1102,7 +1214,7 @@ Category {
                                         text: parent.label
                                     }
                                 }
-                                SettingComponents.Slider {
+                                Setting.Slider {
                                     id: beatGridAlphaInput
 
                                     Layout.fillWidth: parent.columns === 1
@@ -1125,7 +1237,7 @@ Category {
                                         text: parent.label
                                     }
                                 }
-                                SettingComponents.Slider {
+                                Setting.Slider {
                                     id: defaultZoomInput
 
                                     Layout.fillWidth: parent.columns === 1
@@ -1585,7 +1697,7 @@ Category {
                                     }
                                 }
                             }
-                            SettingComponents.Slider {
+                            Setting.Slider {
                                 id: playMarkerPositionInput
 
                                 Layout.fillWidth: true
@@ -1823,7 +1935,7 @@ Category {
                                     text: "Global"
                                     verticalAlignment: Text.AlignVCenter
                                 }
-                                SettingComponents.Slider {
+                                Setting.Slider {
                                     id: visualGainAllInput
 
                                     markers: [50, 100, 150, 300, 500]
@@ -1879,7 +1991,7 @@ Category {
                                                 verticalAlignment: Text.AlignVCenter
                                             }
                                         }
-                                        SettingComponents.Slider {
+                                        Setting.Slider {
                                             id: visualGainLowInput
 
                                             Layout.column: waveformTab.width < 1000 ? 1 : 0
@@ -1911,7 +2023,7 @@ Category {
                                                 verticalAlignment: Text.AlignVCenter
                                             }
                                         }
-                                        SettingComponents.Slider {
+                                        Setting.Slider {
                                             id: visualGainMediumInput
 
                                             Layout.column: 1
@@ -1943,7 +2055,7 @@ Category {
                                                 verticalAlignment: Text.AlignVCenter
                                             }
                                         }
-                                        SettingComponents.Slider {
+                                        Setting.Slider {
                                             id: visualGainHighInput
 
                                             Layout.column: waveformTab.width < 1000 ? 1 : 2
@@ -2060,7 +2172,8 @@ Category {
                                 id: cueModeInput
 
                                 implicitWidth: 200
-                                model: ["Mixxx", "Mixxx (no blinking)", "Pioneer", "Denon", "Numark", "CUP",]
+                                // Order MUST natch the enum order as defined in src/engine/controls/cuecontrol.h
+                                model: ["Mixxx", "Pioneer", "Denon", "Numark", "Mixxx (no blinking)", "CUP",]
                                 objectName: "setting_cueMode"
 
                                 onCurrentIndexChanged: decksTab.dirty = true
@@ -2088,7 +2201,7 @@ Category {
                                 id: timeMode
 
                                 Layout.preferredWidth: (deckPane.width - 56) * 0.3
-                                model: [DeckComponents.TrackTime.Mode.Traditional, DeckComponents.TrackTime.Mode.TraditionalCoarse, DeckComponents.TrackTime.Mode.Seconds, DeckComponents.TrackTime.Mode.SecondsLong, DeckComponents.TrackTime.Mode.KiloSeconds, DeckComponents.TrackTime.Mode.HectoSeconds,]
+                                model: [MixxxControls.TrackTime.Mode.Traditional, MixxxControls.TrackTime.Mode.TraditionalCoarse, MixxxControls.TrackTime.Mode.Seconds, MixxxControls.TrackTime.Mode.SecondsLong, MixxxControls.TrackTime.Mode.KiloSeconds, MixxxControls.TrackTime.Mode.HectoSeconds,]
                                 objectName: "setting_timeFormat"
 
                                 contentItem: Content {
@@ -2569,7 +2682,7 @@ Category {
                                                 font.weight: Font.Medium
                                                 text: "Temporary"
                                             }
-                                            SettingComponents.SpinBox {
+                                            Setting.SpinBox {
                                                 id: adjustmentButtonsTemporaryFineInput
 
                                                 Layout.alignment: Qt.AlignHCenter
@@ -2585,7 +2698,7 @@ Category {
 
                                                 onValueChanged: decksTab.dirty = true
                                             }
-                                            SettingComponents.SpinBox {
+                                            Setting.SpinBox {
                                                 id: adjustmentButtonsTemporaryCoarseInput
 
                                                 Layout.alignment: Qt.AlignHCenter
@@ -2608,7 +2721,7 @@ Category {
                                                 font.weight: Font.Medium
                                                 text: "Permanent"
                                             }
-                                            SettingComponents.SpinBox {
+                                            Setting.SpinBox {
                                                 id: adjustmentButtonsPermanentFineInput
 
                                                 Layout.alignment: Qt.AlignHCenter
@@ -2624,7 +2737,7 @@ Category {
 
                                                 onValueChanged: decksTab.dirty = true
                                             }
-                                            SettingComponents.SpinBox {
+                                            Setting.SpinBox {
                                                 id: adjustmentButtonsPermanentCoarseInput
 
                                                 Layout.alignment: Qt.AlignHCenter
@@ -2659,7 +2772,7 @@ Category {
                                                 verticalAlignment: Text.AlignVCenter
                                             }
                                         }
-                                        SettingComponents.Slider {
+                                        Setting.Slider {
                                             id: rampingSensitivityInput
 
                                             max: 2500
@@ -2815,30 +2928,44 @@ Category {
             elide: Text.ElideRight
             text: {
                 switch (parent.mode) {
-                case DeckComponents.TrackTime.Mode.TraditionalCoarse:
+                case MixxxControls.TrackTime.Mode.TraditionalCoarse:
                     return "Traditional (Coarse)";
-                case DeckComponents.TrackTime.Mode.Seconds:
+                case MixxxControls.TrackTime.Mode.Seconds:
                     return "Seconds";
-                case DeckComponents.TrackTime.Mode.SecondsLong:
+                case MixxxControls.TrackTime.Mode.SecondsLong:
                     return "Seconds (Long)";
-                case DeckComponents.TrackTime.Mode.KiloSeconds:
+                case MixxxControls.TrackTime.Mode.KiloSeconds:
                     return "Kiloseconds";
-                case DeckComponents.TrackTime.Mode.HectoSeconds:
+                case MixxxControls.TrackTime.Mode.HectoSeconds:
                     return "Hectoseconds";
                 default:
                     console.warn(`Unsupported track time mode: ${root.mode}. Defaulting to traditional`);
-                case DeckComponents.TrackTime.Mode.Traditional:
+                case MixxxControls.TrackTime.Mode.Traditional:
                     return "Traditional";
                 }
             }
             verticalAlignment: Text.AlignVCenter
         }
-        DeckComponents.TrackTime {
+        MixxxControls.TrackTime {
             Layout.rightMargin: 17
-            display: trackTimeDisplayInput.selected === "elapsed" ? DeckComponents.TrackTime.Display.Elapsed : trackTimeDisplayInput.selected === "remaining" ? DeckComponents.TrackTime.Display.Remaining : DeckComponents.TrackTime.Display.Both
+            display: trackTimeDisplayInput.selected === "elapsed" ? MixxxControls.TrackTime.Display.Elapsed : trackTimeDisplayInput.selected === "remaining" ? MixxxControls.TrackTime.Display.Remaining : MixxxControls.TrackTime.Display.Both
             elapsed: 83.45
+            implicitHeight: text.implicitHeight
+            implicitWidth: text.implicitWidth
             mode: parent.mode
             remaining: 147.23
+
+            Text {
+                id: text
+
+                color: Theme.buttonNormalColor
+                elide: Text.ElideRight
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.buttonFontPixelSize
+                horizontalAlignment: Text.AlignHCenter
+                text: parent.value
+                verticalAlignment: Text.AlignVCenter
+            }
         }
     }
     component WaveformMaskComponent: Item {

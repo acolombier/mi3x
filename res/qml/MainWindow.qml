@@ -15,7 +15,7 @@ Item {
     readonly property bool _showLibrary: maximizeLibrary || height - mixer.height >= 400
     readonly property int designHeight: 1008
     readonly property int designWidth: 1792
-    property alias editDeck: editDeckButton.checked
+    property bool editDeck: false
     property var focusedDeck: null
     readonly property Item imeFocusItem: Window.activeFocusItem
     // Pull-to-top IME shift: while the soft keyboard is up, lift the
@@ -34,11 +34,7 @@ Item {
         root.imeFocusItem?.imeLayoutSideEffect;
         return Math.max(0, root.imeFocusItem.mapToItem(root, 0, 0).y - root.imeKeyboardMargin);
     }
-    readonly property bool isMobile: Qt.platform.os === "android" || Qt.platform.os === "ios"
     property alias maximizeLibrary: maximizeLibraryButton.checked
-    readonly property int numDecks: 4
-    readonly property int numPreviewDecks: 1
-    readonly property int numSamplers: 16
     required property var settingsPopup
     readonly property bool show4decks: show4DecksButton.checked && show4DecksButton.visible
     property alias showEffects: showEffectsButton.checked
@@ -62,19 +58,29 @@ Item {
         y: toolbar.height + waveforms.height / 2
 
         onClosed: {
-            editDeckButton.checked = false;
+            root.editDeck = false;
         }
+    }
+    Connections {
+        function onRequestDeckLayoutEdit() {
+            root.editDeck = !root.editDeck;
+            if (!root.editDeck)
+                editDeckPopup.close();
+            else
+                editDeckPopup.open();
+        }
+        function onRequestDeckLayoutReset() {
+            for (let idx in editDeckPopup.deckMapping) {
+                Mixxx.Config.setDeckLayout(idx, "");
+                let deck = editDeckPopup.deckMapping[idx];
+                if (!deck?.visible)
+                    continue;
 
-        Connections {
-            function onCheckedChanged() {
-                if (!editDeckButton.checked)
-                    editDeckPopup.close();
-                else
-                    editDeckPopup.open();
+                deck.resetLayout();
             }
-
-            target: editDeckButton
         }
+
+        target: root.Window.window
     }
 
     // color: Theme.backgroundColor
@@ -83,30 +89,6 @@ Item {
     // width: isMobile ? Screen.width : designWidth
     // visibility: Mixxx.Config.configStartInFullscreenKey || isMobile ? Window.FullScreen : Window.Windowed
 
-    Mixxx.ControlProxy {
-        group: "[App]"
-        key: "num_decks"
-
-        onInitializedChanged: {
-            value = root.numDecks;
-        }
-    }
-    Mixxx.ControlProxy {
-        group: "[App]"
-        key: "num_samplers"
-
-        onInitializedChanged: {
-            value = root.numSamplers;
-        }
-    }
-    Mixxx.ControlProxy {
-        group: "[App]"
-        key: "num_preview_decks"
-
-        onInitializedChanged: {
-            value = root.numPreviewDecks;
-        }
-    }
     Column {
         id: content
 
@@ -172,7 +154,34 @@ Item {
                                 }
                             }
                         }
+                        Instantiator {
+                            active: Qt.application.arguments.indexOf("--developer") != -1
+
+                            onObjectAdded: (index, object) => {
+                                contextMenu.insertItem(1 + index, object);
+                            }
+                            onObjectRemoved: (index, object) => {
+                                contextMenu.removeItem(object);
+                            }
+
+                            MenuItem {
+                                text: qsTr("Developer tool")
+
+                                onTriggered: {
+                                    if (devToolsWindow.visible)
+                                        devToolsWindow.close();
+                                    else
+                                        devToolsWindow.show();
+                                }
+                            }
+                        }
                     }
+                }
+                DeveloperToolsWindow {
+                    id: devToolsWindow
+
+                    height: 480
+                    width: 640
                 }
                 Skin.Button {
                     id: show4DecksButton
@@ -229,39 +238,10 @@ Item {
                     Layout.fillWidth: true
                 }
                 Skin.Button {
-                    id: editDeckButton
-
-                    activeColor: Theme.white
-                    checkable: true
-                    text: "Edit"
-                }
-                Skin.Button {
-                    id: showDevToolsButton
-
-                    activeColor: Theme.white
-                    checkable: true
-                    checked: devToolsWindow.visible
-                    text: "Develop"
-
-                    onClicked: {
-                        if (devToolsWindow.visible)
-                            devToolsWindow.close();
-                        else
-                            devToolsWindow.show();
-                    }
-
-                    DeveloperToolsWindow {
-                        id: devToolsWindow
-
-                        height: 480
-                        width: 640
-                    }
-                }
-                Skin.Button {
                     id: notificationButton
 
                     activeColor: Theme.white
-                    checked: notificationPopup.opened && !notificationPopup.focusedNotification
+                    checked: notificationDrawer.visible && !notificationDrawer.focusedNotification
                     enabled: !!Mixxx.Core.notifications.length
                     icon.height: 16
                     icon.source: "images/notification_bell.svg"
@@ -269,12 +249,14 @@ Item {
                     implicitWidth: implicitHeight
 
                     onClicked: {
-                        if (!notificationPopup.opened) {
-                            notificationPopup.open();
-                        } else if (notificationPopup.focusedNotification == null) {
-                            notificationPopup.close();
+                        if (!notificationDrawer.visible) {
+                            notificationDrawer.focusedNotification = null;
+                            notificationDrawer.visible = true;
+                            return;
+                        } else if (notificationDrawer.focusedNotification == null) {
+                            notificationDrawer.visible = false;
                         }
-                        notificationPopup.focusedNotification = null;
+                        notificationDrawer.focusedNotification = null;
                     }
 
                     Rectangle {
@@ -290,42 +272,19 @@ Item {
                     }
                     Connections {
                         function onNotificationAdded(notification) {
-                            if (!notificationPopup.opened) {
-                                notificationPopup.focusedNotification = notification;
-                                notificationPopup.open();
+                            if (!notificationDrawer.visible) {
+                                notificationDrawer.focusedNotification = notification;
+                                notificationDrawer.visible = true;
                             }
                         }
                         function onNotificationClosed(notification) {
-                            if (notificationPopup.focusedNotification == notification) {
-                                notificationPopup.focusedNotification = null;
-                                notificationPopup.close();
+                            if (notificationDrawer.focusedNotification == notification) {
+                                notificationDrawer.focusedNotification = null;
+                                notificationDrawer.visible = false;
                             }
                         }
 
                         target: Mixxx.Core
-                    }
-                    Skin.NotificationDrawer {
-                        id: notificationPopup
-
-                        focus: true
-                        x: {
-                            opened; // Bind to opening
-                            let pos = notificationButton.mapToItem(root, 0, 0);
-                            return root.width - pos.x - width - 18;
-                        }
-                        y: notificationButton.height
-
-                        background {
-                            visible: notificationButton.checked
-                        }
-                        arrow {
-                            Component.onCompleted: {
-                                arrow.pinTo.x = Qt.binding(() => {
-                                    opened; // Bind to opening
-                                    return notificationButton.mapToItem(notificationPopup.contentItem, (notificationButton.width - arrow.width) / 2, notificationButton.height).x;
-                                });
-                            }
-                        }
                     }
                 }
                 Skin.Button {
@@ -955,6 +914,30 @@ Item {
                         top: effects.bottom
                     }
                 }
+            }
+        }
+    }
+    Skin.NotificationDrawer {
+        id: notificationDrawer
+
+        focus: true
+        x: {
+            return root.width - width - 18;
+        }
+        y: {
+            let pos = notificationButton.mapToItem(root, 0, 0);
+            return pos.y + notificationButton.height;
+        }
+
+        background {
+            visible: notificationButton.checked
+        }
+        arrow {
+            Component.onCompleted: {
+                arrow.pinTo.x = Qt.binding(() => {
+                    visible; // Bind to opening
+                    return notificationButton.mapToItem(notificationDrawer, (notificationButton.width - arrow.width) / 2, notificationButton.height).x;
+                });
             }
         }
     }

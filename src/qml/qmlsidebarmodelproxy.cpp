@@ -44,6 +44,20 @@ QmlLibraryAbstractSource* QmlSidebarModelProxy::get(const QModelIndex& index) co
     }
 }
 
+bool QmlSidebarModelProxy::dragMoveAccept(const QModelIndex& index, const QList<QUrl>& urls) {
+    VERIFY_OR_DEBUG_ASSERT(index.isValid()) {
+        return false;
+    }
+    return ::SidebarModel::dragMoveAccept(index, urls);
+}
+bool QmlSidebarModelProxy::dropAccept(
+        const QModelIndex& index, const QList<QUrl>& urls, QObject* pSource) {
+    VERIFY_OR_DEBUG_ASSERT(index.isValid()) {
+        return false;
+    }
+    return ::SidebarModel::dropAccept(index, urls, pSource);
+}
+
 void QmlSidebarModelProxy::activate(const QModelIndex& index) {
     VERIFY_OR_DEBUG_ASSERT(index.isValid()) {
         return;
@@ -142,6 +156,9 @@ void QmlSidebarModelProxy::update() {
 }
 
 void QmlSidebarModelProxy::slotShowTrackModel(std::shared_ptr<QmlLibraryTrackListModel> pModel) {
+    if (m_tracklist) {
+        emit tracklistAboutToChange(m_tracklist.get());
+    }
     m_tracklist = pModel;
     emit tracklistChanged();
 }

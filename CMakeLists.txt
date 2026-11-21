@@ -2358,12 +2358,12 @@ if(NOT Qt6_FOUND)
   fatal_error_missing_env()
 endif()
 
-# We need Qt 6.4 for ComponentBehavior: Bound
+# We need Qt 6.10 for ComponentBehavior: Bound
 cmake_dependent_option(
   QML
   "Build with QML"
   ON
-  "Qt6_VERSION VERSION_GREATER_EQUAL 6.4"
+  "Qt6_VERSION VERSION_GREATER_EQUAL 6.10"
   OFF
 )
 if(QML)
@@ -4246,6 +4246,9 @@ if(QML)
   if(ENGINEPRIME)
     target_compile_definitions(mixxx-qml-lib PUBLIC __ENGINEPRIME__)
   endif()
+  if(SIGNALSMITH)
+    target_compile_definitions(mixxx-qml-lib PUBLIC __SIGNALSMITH__)
+  endif()
 
   foreach(component ${QT_COMPONENTS})
     target_link_libraries(
@@ -4350,7 +4353,8 @@ if(QML)
       res/qml/Mixxx/Controls/TouchClient.qml
       res/qml/Mixxx/Controls/TouchHub.qml
       res/qml/Mixxx/Controls/ValueHud.qml
-      res/qml/Mixxx/Controls/WaveformOverviewHotcueMarker.qml
+      res/qml/Mixxx/Controls/Hotcue.qml
+      res/qml/Mixxx/Controls/TrackTime.qml
       res/qml/Mixxx/Controls/WaveformOverviewMarker.qml
       res/qml/Mixxx/Controls/WaveformOverview.qml
       res/qml/Mixxx/Controls/WaveformDisplay.qml
@@ -4368,6 +4372,7 @@ if(QML)
       src/qml/qmlbatteryproxy.cpp
       src/qml/qmlbeatsmodel.cpp
       src/qml/qmlchainpresetmodel.cpp
+      src/qml/qmlcolorutils.cpp
       src/qml/qmlconfigproxy.cpp
       src/qml/qmlconfigproxybase.cpp
       src/qml/qmlcontrolproxy.cpp
@@ -4752,8 +4757,8 @@ else()
           applocal
       )
 
-      if(QT_VERSION VERSION_LESS 6.4)
-        # From Qt 6.4 integrated in QuickControls2
+      if(QT_VERSION VERSION_LESS 6.10)
+        # From Qt 6.10 integrated in QuickControls2
         install(
           IMPORTED_RUNTIME_ARTIFACTS
             Qt${QT_VERSION_MAJOR}::QuickTemplates2
@@ -5822,6 +5827,9 @@ if(BULK)
     )
   endif()
   target_compile_definitions(mixxx-lib PUBLIC __BULK__)
+  if(QML)
+    target_compile_definitions(mixxx-qml-lib PUBLIC __BULK__)
+  endif()
   target_link_libraries(mixxx-lib PRIVATE LibUSB::LibUSB)
   if(QML)
     target_compile_definitions(mixxx-qml-lib PUBLIC __BULK__)

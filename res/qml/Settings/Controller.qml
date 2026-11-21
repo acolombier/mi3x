@@ -27,8 +27,8 @@ Category {
     function save() {
         for (let controller of root.editedControllers) {
             controller.save(Mixxx.Config);
+            controller.edited = false;
         }
-        root.selectedController = null;
         root.load();
     }
 
@@ -53,55 +53,140 @@ Category {
             x: 10
 
             GridLayout {
+                id: controllerGrid
+
                 Layout.fillWidth: true
                 columnSpacing: 24
-                columns: parseInt(root.width / 1050) + 1
+                columns: root.width < 850 ? 1 : 2
 
                 Repeater {
                     id: controllers
 
                     model: {
-                        if (root.selectedController) {
-                            if (root.selectedController?.mapping?.hasSettings)
-                                return [root.selectedController];
-                            else if (manager.knownDevices.indexOf(root.selectedController) == -1)
-                                return [...manager.knownDevices, root.selectedController];
+                        if (root.selectedController && manager.knownDevices.indexOf(root.selectedController) == -1) {
+                            return [...manager.knownDevices, root.selectedController];
                         }
                         return manager.knownDevices;
                     }
 
-                    delegate: ControllerCard {
-                        id: controller
+                    delegate: Item {
+                        id: item
 
-                        focused: knownDevice && root.selectedController == modelData
-                        knownDevice: manager.knownDevices.indexOf(modelData) > -1
-                        opacity: root.selectedController && !knownDevice && root.selectedController != modelData ? 0.2 : 1
+                        required property var modelData
 
-                        onSelect: {
-                            root.selectedController = modelData;
-                        }
-                        onSettingsChanged: {
-                            if (!controller.settings && controller.focused) {
-                                root.selectedController = null;
+                        Layout.alignment: Qt.AlignTop
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: Math.min((controllerGrid.width / controllerGrid.columns) - 340, 180)
+
+                        ControllerCard {
+                            id: controller
+
+                            anchors.fill: !controller.focused ? parent : undefined
+                            focused: knownDevice && root.selectedController == item.modelData
+                            knownDevice: manager.knownDevices.indexOf(item.modelData) > -1
+                            modelData: item.modelData
+                            opacity: root.selectedController && root.selectedController != item.modelData ? 0.2 : 1
+
+                            Behavior on opacity {
+                                PropertyAnimation {
+                                    duration: 2000
+                                }
                             }
-                        }
+                            states: [
+                                State {
+                                    name: "focused"
+                                    when: controller.focused
 
-                        Connections {
-                            function onEditedChanged() {
-                                if (controller.modelData.edited) {
-                                    root.editedControllers.add(controller.modelData);
-                                    root.dirty = true;
+                                    ParentChange {
+                                        parent: focusArea
+                                        target: controller
+                                    }
+                                },
+                                State {
+                                    ParentChange {
+                                        parent: item
+                                        target: controller
+                                    }
+                                }
+                            ]
+                            transitions: Transition {
+                                to: "focused"
+
+                                onRunningChanged: {
+                                    if (running)
+                                        return;
+                                    controller.width = Qt.binding(() => focusArea.width - 20);
+                                    controller.height = Qt.binding(() => focusArea.height - 20);
+                                }
+
+                                PropertyAction {
+                                    property: "width"
+                                    target: controller
+                                    value: root.width / 2
+                                }
+                                PropertyAction {
+                                    property: "height"
+                                    target: controller
+                                    value: 180
+                                }
+                                NumberAnimation {
+                                    duration: 200
+                                    property: "x"
+                                    target: controller
+                                    to: 10
+                                }
+                                NumberAnimation {
+                                    duration: 200
+                                    property: "y"
+                                    target: controller
+                                    to: 10
+                                }
+                                NumberAnimation {
+                                    duration: 200
+                                    property: "width"
+                                    target: controller
+                                    to: focusArea.width - 20
+                                }
+                                NumberAnimation {
+                                    duration: 200
+                                    property: "height"
+                                    target: controller
+                                    to: focusArea.height - 20
                                 }
                             }
 
-                            target: controller.modelData
+                            onParentChanged: {
+                                if (parent != item)
+                                    return;
+                                // Break the binding set during the transition
+                                controller.width = controller.width;
+                                controller.height = controller.height;
+                            }
+                            onSelect: {
+                                root.selectedController = modelData;
+                            }
+                            onSettingsChanged: {
+                                if (!controller.settings && controller.focused) {
+                                    root.selectedController = null;
+                                }
+                            }
+
+                            Connections {
+                                function onEditedChanged() {
+                                    if (controller.modelData.edited) {
+                                        root.editedControllers.add(controller.modelData);
+                                        root.dirty = true;
+                                    }
+                                }
+
+                                target: controller.modelData
+                            }
                         }
                     }
                 }
                 Item {
                     Layout.fillHeight: true
                     Layout.fillWidth: true
-                    visible: root.selectedController == null || !root.selectedController.mapping?.hasSettings
                 }
             }
             ListView {
@@ -111,7 +196,8 @@ Category {
                 currentIndex: -1
                 implicitHeight: contentHeight
                 model: manager.unknownDevices
-                visible: root.selectedController == null || !root.selectedController.mapping?.hasSettings
+
+                // visible: root.selectedController == null || !root.selectedController.mapping?.hasSettings
 
                 delegate: Rectangle {
                     required property int index
@@ -195,6 +281,18 @@ Category {
                         text: 'Other detected devices'
                     }
                 }
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: Theme.darkGray2
+                    opacity: 0.6
+                    visible: root.selectedController && manager.knownDevices.indexOf(root.selectedController) == -1
+
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                    }
+                }
             }
         }
     }
@@ -222,6 +320,35 @@ Category {
         Skin.FadeBehavior on visible {
             duration: 500
             fadeTarget: overflowIndicator
+        }
+    }
+    MouseArea {
+        id: focusArea
+
+        anchors.fill: scrollView
+        enabled: root.selectedController != null && manager.knownDevices.indexOf(root.selectedController) !== -1
+        hoverEnabled: true
+        preventStealing: true
+
+        onPressed: {
+            root.selectedController = null;
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            color: '#181818'
+            opacity: parent.enabled ? 0.7 : 0
+
+            Behavior on opacity {
+                PropertyAnimation {
+                    duration: 2000
+                }
+            }
+
+            Skin.InnerShadowMask {
+                rimColor: Theme.darkGray2
+                size: 18
+            }
         }
     }
     RowLayout {

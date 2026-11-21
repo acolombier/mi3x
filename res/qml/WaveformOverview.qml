@@ -14,30 +14,27 @@ Item {
             when: passthroughControl.value == 0
 
             PropertyChanges {
-                target: waveformContainer
                 opacity: 1
+                target: waveformContainer
                 visible: true
             }
-
             PropertyChanges {
-                target: passthroughContainer
                 opacity: 0
+                target: passthroughContainer
                 visible: false
             }
-
         },
         State {
             when: passthroughControl.value != 0
 
             PropertyChanges {
-                target: waveformContainer
                 opacity: 0
+                target: waveformContainer
                 visible: false
             }
-
             PropertyChanges {
-                target: passthroughContainer
                 opacity: 1
+                target: passthroughContainer
                 visible: true
             }
         }
@@ -48,57 +45,50 @@ Item {
 
             SequentialAnimation {
                 PropertyAction {
-                    target: waveformContainer
                     property: "visible"
+                    target: waveformContainer
                 }
-
                 ParallelAnimation {
                     NumberAnimation {
+                        duration: 150
+                        property: "opacity"
                         target: waveformContainer
-                        property: "opacity"
-                        duration: 150
                     }
-
                     NumberAnimation {
-                        target: passthroughContainer
-                        property: "opacity"
                         duration: 150
+                        property: "opacity"
+                        target: passthroughContainer
                     }
                 }
-
                 PropertyAction {
-                    target: passthroughContainer
                     property: "visible"
+                    target: passthroughContainer
                 }
             }
-
         },
         Transition {
             enabled: waveformContainer.visible
 
             SequentialAnimation {
                 PropertyAction {
-                    target: passthroughContainer
                     property: "visible"
+                    target: passthroughContainer
                 }
-
                 ParallelAnimation {
                     NumberAnimation {
+                        duration: 150
+                        property: "opacity"
                         target: waveformContainer
-                        property: "opacity"
-                        duration: 150
                     }
-
                     NumberAnimation {
-                        target: passthroughContainer
-                        property: "opacity"
                         duration: 150
+                        property: "opacity"
+                        target: passthroughContainer
                     }
                 }
-
                 PropertyAction {
-                    target: waveformContainer
                     property: "visible"
+                    target: waveformContainer
                 }
             }
         }
@@ -110,7 +100,6 @@ Item {
         group: root.group
         key: "passthrough"
     }
-
     Rectangle {
         id: waveformContainer
 
@@ -118,16 +107,62 @@ Item {
         color: Theme.deckBackgroundColor
 
         MixxxControls.WaveformOverview {
+            id: overview
+
             anchors.fill: parent
             channels: Mixxx.WaveformOverview.Channels.LeftChannel
-            renderer: Mixxx.WaveformOverview.Renderer.Filtered
             colorHigh: Theme.white
-            colorMid: Theme.blue
             colorLow: Theme.green
+            colorMid: Theme.blue
             group: root.group
+            renderer: Mixxx.WaveformOverview.Renderer.Filtered
+
+            mouse {
+                onPositionChanged: mouse => {
+                    playPositionMarker.pendingNewPosition = Qt.binding(() => overview.mouse.containsPress ? mouse.x / overview.width : -1);
+                }
+            }
+            Item {
+                id: markers
+
+                anchors.fill: parent
+                visible: trackLoadedControl.value
+
+                Rectangle {
+                    id: progress
+
+                    color: Qt.alpha('black', 0.6)
+                    height: root.height
+                    width: playPositionMarker.position
+                    x: 0
+                }
+                Skin.WaveformOverviewLoopMarker {
+                    id: loopMarker
+
+                    anchors.fill: parent
+                    group: root.group
+                }
+                Repeater {
+                    model: 8
+
+                    Skin.WaveformOverviewHotcueMarker {
+                        required property int index
+
+                        anchors.fill: parent
+                        group: root.group // qmllint disable unqualified
+                        hotcueNumber: this.index + 1
+                    }
+                }
+                Skin.WaveformOverviewPlayMarker {
+                    id: playPositionMarker
+
+                    anchors.fill: parent
+                    group: root.group
+                    showHint: overview.mouse.containsPress
+                }
+            }
         }
     }
-
     Rectangle {
         id: passthroughContainer
 

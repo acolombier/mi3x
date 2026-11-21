@@ -29,6 +29,7 @@ Item {
         const lower = Math.min(Math.floor(scaled), intervalCount - 1);
         return bounds[lower] + (scaled - lower) * (bounds[lower + 1] - bounds[lower]);
     }
+    // Used for E2E
     function serialize() {
         return JSON.stringify({
             max: root.max,

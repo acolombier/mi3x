@@ -855,7 +855,7 @@ Available via XML-RPC on `http://localhost:9000/`:
 | --- | --- | --- |
 | `mouseClick` | `(path)` | Left click at item center |
 | `mouseClick` | `(path, proportion, offset?)` | Click at relative position |
-| `mouseClickWithButton` | `(path, button, modifiers)` | button: 1=Left, 2=Right; modifiers: 0=None, 2=Ctrl |
+| `mouseClickWithButton` | `(path, button, modifiers)` | button: 1=Left, 2=Right; modifiers: 0=None, 1=Shift, 2=Ctrl, 4=Alt, 8=Meta |
 | `mouseClickWithProportion` | `(path, x, y)` | Click at relative (x, y) position |
 | `mouseClickAndHold` | `(path, button, modifiers, holdTime)` | Hold button for `holdTime` ms |
 | `mouseBeginDrag` | `(startPath, startX, startY, endPath, endY, endY)` | Begin drag from one item to another |
@@ -863,7 +863,7 @@ Available via XML-RPC on `http://localhost:9000/`:
 | `mouseEndDrag` | `(path)` | End drag at item center |
 | `mouseDropUrls` | `(path, urls)` | Drag-drop URLs onto item |
 | `command` | `(command, payload)` | Custom C++ handler (see `main.cpp`) |
-| `enterKey` | `(path, key, modifiers)` | Send a keyboard key press |
+| `enterKey` | `(path, key, modifiers)` | Send a keyboard key press (same modifier values as `mouseClickWithButton`) |
 | `inputText` | `(path, text)` | Type text into item |
 | `getStringProperty` | `(path, propertyName)` | Read QML property as string |
 | `setStringProperty` | `(path, propertyName, value)` | Write QML property |
@@ -938,7 +938,6 @@ the same string anywhere in the item's ancestor and descendant files.
 BUTTON_PATHS = {
     "LIBRARY": "mainWindow/maximizeLibraryButton",
     "4DECKS": "mainWindow/show4DecksButton",
-    "EDIT": "mainWindow/editDeckButton",
 }
 LIBRARY_CONTENT = "mainWindow/libraryContent"
 TRACKLIST_PATH = "mainWindow/libraryContent/trackList"
@@ -988,6 +987,21 @@ LOOP_BUTTONS = {
   `I {action} the track at row {row:d}` step.
 - `LOOP_BUTTONS` maps `(direction, component)` tuples to button paths for the
   generic `I {direction} the "{component}" size on deck {deck:d}` step.
+
+## Scenario scoping
+
+Keep each scenario focused on **one behavior**, asserted end to end in itself.
+
+- Do not build interaction matrices: e.g. do not test "every way of selecting
+  rows" crossed with "every feature that consumes the selection". One scenario
+  per behavior, plus the minimal prerequisite state it needs.
+- Example: row selection is covered by its own scenarios (click, ctrl-click,
+  shift-click). A feature that consumes the selection (e.g. the track
+  properties editor) is then covered once for a single row and once for a
+  multi-row selection, using only the simplest selection method needed —
+  not re-verified against each selection variant.
+- Do not chain unrelated assertions into a passing scenario just because the
+  setup already exists; add a dedicated scenario instead.
 
 ## Step DSL (`steps/`)
 
@@ -1040,7 +1054,8 @@ responsiveness.
 
 ### Constants
 
-- `QT_LEFT_BUTTON = 1`, `QT_RIGHT_BUTTON = 2`, `QT_CONTROL_MODIFIER = 2`
+- `QT_LEFT_BUTTON = 1`, `QT_RIGHT_BUTTON = 2`, `QT_CONTROL_MODIFIER = 2`, `QT_SHIFT_MODIFIER = 1`
+  (spix `KeyModifiers`: 0=None, 1=Shift, 2=Ctrl, 4=Alt, 8=Meta)
 - `QT_KEY_ENTER`, `QT_KEY_SPACE`, `QT_KEY_DOWN`, `QT_KEY_UP`, `QT_KEY_TAB` — Qt key codes
 - `KNOWN_COLUMNS` — list of all possible library column display labels
 
@@ -1081,7 +1096,7 @@ responsiveness.
 | `the window's width is {width:d}px` | Sets `mainWindow.width` (impersonal Given form of `I resize the window's width to {width:d}px`) |
 | `the window's height is {height:d}px` | Sets `mainWindow.height` (impersonal Given form of `I resize the window's height to {height:d}px`) |
 | `the window size is default` | Sets `mainWindow.width=1792`, `mainWindow.height=1008`. Declares the default size a scenario relies on when reusing a session (no QML reload between scenarios) |
-| `the library columns are in their default state` | `invokeMethod(trackList, "resetColumns")` — restores default column order, visibility and sort (see `Library/TrackList.qml`) |
+| `the library columns are in their default state` | `invokeMethod(trackList, "resetColumns")` — restores default column order, width and visibility (see `Library/TrackList.qml`) |
 | `a track available in the library with a unique title` | Remembers a random track whose title is unique in the tracks catalog (persisted from the manifest by the runner) as "this track" (`context.remembered_tracks["this"]`, `RememberedTrack` dataclass); the pick is logged (pass or fail) and recorded in the results JSON |
 | `a track available in the library` | Remembers a random catalog track as "this track" — no uniqueness constraint; uniqueness-demanding assertions may fail if the picked title repeats |
 | `I wait for {second:d} second` | `time.sleep(second)` (also available as @when and @then) |
@@ -1138,7 +1153,6 @@ responsiveness.
 | `deck {deck:d} should be the sync leader` | Asserts `sync_leader` CO |
 | `the rate of deck {deck:d} should be near {target}` | Reads `rate` CO, asserts `abs(actual - target) < 0.01` |
 | `the rate ratio of deck {deck:d} should be near {target}` | Reads `rate_ratio` CO |
-| `edit mode should {assertion} enabled` | Reads `editDeckButton.checked` property |
 | `the edit overlay should {action} visible on the "{component}" component in deck {deck:d}` | `_is_visible` on `componentItem/overlayItem` path |
 | `the "{component}" component should appear after the "{target}" component in deck {deck:d}` | Compares `x` positions of component bounding boxes |
 | `the "{group_name}" group should appear after the "{target}" component in deck {deck:d}` | Not yet implemented (`NotImplementedError`) |

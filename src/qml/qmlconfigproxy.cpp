@@ -73,7 +73,6 @@ double readEqFrequency(const UserSettingsPointer& pConfig,
 
 const QString kPreferencesGroup = QStringLiteral("[Preferences]");
 const QString kConfigGroup = QStringLiteral("[Config]");
-const QString kControlGroup = QStringLiteral("[Control]");
 const QString kWaveformGroup = QStringLiteral("[Waveform]");
 const QString kControlsGroup = QStringLiteral("[Controls]");
 const QString kLibraryGroup = QStringLiteral("[Library]");
@@ -932,16 +931,20 @@ PROPERTY_IMPL(kLibraryGroup, kTraktorEnabled, bool, libraryTraktorEnabled, false
 PROPERTY_IMPL(kLibraryGroup, kRekordboxEnabled, bool, libraryRekordboxEnabled, false);
 PROPERTY_IMPL(kLibraryGroup, kSeratoEnabled, bool, librarySeratoEnabled, false);
 
-PROPERTY_IMPL(kControlGroup, kHotcueDefaultColorIndexKey, int, controlHotcueDefaultColorIndex, -1);
-PROPERTY_IMPL(kControlGroup, kLoopDefaultColorIndexKey, double, controlLoopDefaultColorIndex, -1);
-PROPERTY_IMPL(kControlGroup, kCueDefaultKey, CueMode, controlCueDefault, CueMode::Mixxx);
-PROPERTY_IMPL(kControlGroup, kSetIntroStartAtMainCueKey, bool, controlSetIntroStartAtMainCue, true);
-PROPERTY_IMPL(kControlGroup,
+PROPERTY_IMPL(kControlsGroup, kHotcueDefaultColorIndexKey, int, controlHotcueDefaultColorIndex, -1);
+PROPERTY_IMPL(kControlsGroup, kLoopDefaultColorIndexKey, double, controlLoopDefaultColorIndex, -1);
+PROPERTY_IMPL(kControlsGroup, kCueDefaultKey, CueMode, controlCueDefault, CueMode::Mixxx);
+PROPERTY_IMPL(kControlsGroup,
+        kSetIntroStartAtMainCueKey,
+        bool,
+        controlSetIntroStartAtMainCue,
+        true);
+PROPERTY_IMPL(kControlsGroup,
         kCloneDeckOnLoadDoubleTapKey,
         bool,
         controlCloneDeckOnLoadDoubleTap,
         true);
-PROPERTY_IMPL(kControlGroup,
+PROPERTY_IMPL(kControlsGroup,
         kLoadWhenDeckPlayingKey,
         LoadWhenDeckPlaying,
         controlLoadWhenDeckPlaying,
@@ -956,34 +959,34 @@ PROPERTY_IMPL(kControlsGroup,
         TrackTime::DisplayMode,
         controlPositionDisplay,
         TrackTime::DisplayMode::ELAPSED_AND_REMAINING);
-PROPERTY_IMPL(kControlGroup,
+PROPERTY_IMPL(kControlsGroup,
         kCueRecallKey,
         SeekOnLoadMode,
         controlCueRecall,
         SeekOnLoadMode::IntroStart);
-PROPERTY_IMPL(kControlGroup,
+PROPERTY_IMPL(kControlsGroup,
         kSpeedAutoResetKey,
         BaseTrackPlayer::TrackLoadReset,
         controlSpeedAutoReset,
         BaseTrackPlayer::TrackLoadReset::RESET_PITCH);
-PROPERTY_IMPL(kControlGroup,
+PROPERTY_IMPL(kControlsGroup,
         kKeylockModeKey,
         KeylockMode,
         controlKeylockMode,
         KeylockMode::LockOriginalKey);
-PROPERTY_IMPL(kControlGroup,
+PROPERTY_IMPL(kControlsGroup,
         kKeyunlockModeKey,
         KeyunlockMode,
         controlKeyunlockMode,
         KeyunlockMode::ResetLockedKey);
-PROPERTY_IMPL(kControlGroup, kRateRampSensitivityKey, double, controlRateRampSensitivity, 250);
-PROPERTY_IMPL(kControlGroup, kRateTempCoarseKey, double, controlRateTempCoarse, 4.00);
-PROPERTY_IMPL(kControlGroup, kRateTempFineKey, double, controlRateTempFine, 2.00);
-PROPERTY_IMPL(kControlGroup, kRatePermCoarseKey, double, controlRatePermCoarse, 0.50);
-PROPERTY_IMPL(kControlGroup, kRatePermFineKey, double, controlRatePermFine, 0.05);
-PROPERTY_IMPL(kControlGroup, kRateRangeKey, int, controlRateRange, 8);
-PROPERTY_IMPL(kControlGroup, kRateDirKey, bool, controlRateDir, true);
-PROPERTY_IMPL(kControlGroup,
+PROPERTY_IMPL(kControlsGroup, kRateRampSensitivityKey, double, controlRateRampSensitivity, 250);
+PROPERTY_IMPL(kControlsGroup, kRateTempCoarseKey, double, controlRateTempCoarse, 4.00);
+PROPERTY_IMPL(kControlsGroup, kRateTempFineKey, double, controlRateTempFine, 2.00);
+PROPERTY_IMPL(kControlsGroup, kRatePermCoarseKey, double, controlRatePermCoarse, 0.50);
+PROPERTY_IMPL(kControlsGroup, kRatePermFineKey, double, controlRatePermFine, 0.05);
+PROPERTY_IMPL(kControlsGroup, kRateRangeKey, int, controlRateRange, 8);
+PROPERTY_IMPL(kControlsGroup, kRateDirKey, bool, controlRateDir, true);
+PROPERTY_IMPL(kControlsGroup,
         kRateRampKey,
         RateControl::RampMode,
         controlPitchBendBehaviour,

@@ -1,22 +1,44 @@
 #include "qml/qmlwaveformoverview.h"
 
+#include <QMultiHash>
 #include <QPixmapCache>
 
 #include "library/library.h"
-#include "library/trackcollectionmanager.h"
 #include "moc_qmlwaveformoverview.cpp"
 #include "qmllibraryproxy.h"
-#include "qmlplayerproxy.h"
 #include "qmltrackproxy.h"
-#include "track/globaltrackcache.h"
 #include "track/track.h"
 #include "track/trackid.h"
 #include "util/assert.h"
+#include "util/thread_affinity.h"
 
 namespace {
 constexpr double kDesiredChannelHeight = 255;
 
 constexpr const char* kPixmapCachePrefix = "QmlWaveformOverview";
+
+QString pixmapCacheKey(TrackId trackId,
+        QSize size,
+        int renderer,
+        int channels,
+        QRgb colorHigh,
+        QRgb colorMid,
+        QRgb colorLow) {
+    return QStringLiteral("%1_%2_%3_%4_%5_%6_%7_%8_%9")
+            .arg(QString::fromLatin1(kPixmapCachePrefix),
+                    trackId.toString(),
+                    QString::number(size.width()),
+                    QString::number(size.height()),
+                    QString::number(renderer),
+                    QString::number(channels),
+                    QString::number(colorHigh, 16),
+                    QString::number(colorMid, 16),
+                    QString::number(colorLow, 16));
+}
+
+// The pixmap cache and this registry may only be accessed from the GUI thread.
+// paint() runs on the scene-graph render thread and must not touch them.
+QMultiHash<TrackId, QString> s_cacheKeysByTrackId;
 } // namespace
 
 namespace mixxx {
@@ -30,15 +52,26 @@ QmlWaveformOverview::QmlWaveformOverview(QQuickItem* parent)
           m_colorHigh(0xFF0000),
           m_colorMid(0x00FF00),
           m_colorLow(0x0000FF),
-          m_trackId() {
+          m_trackId(),
+          m_status(Status::Null) {
     connect(OverviewCache::instance(),
             &OverviewCache::overviewChanged,
             this,
             &QmlWaveformOverview::slotOverviewChanged);
     connect(OverviewCache::instance(),
-            &OverviewCache::analyzerProgress,
+            &OverviewCache::waveformSummaryReady,
             this,
-            &QmlWaveformOverview::slotWaveformUpdated);
+            &QmlWaveformOverview::slotWaveformSummaryReady);
+
+    connect(QmlLibraryProxy::get(),
+            &Library::onTrackAnalyzerProgress,
+            this,
+            [this](TrackId trackId, AnalyzerProgress progress) {
+                if (m_trackId != trackId) {
+                    return;
+                }
+                slotOverviewChanged(m_trackId);
+            });
     connect(this,
             &QmlWaveformOverview::rendererChanged,
             this,
@@ -68,7 +101,6 @@ void QmlWaveformOverview::setTrack(QmlTrackProxy* pTrack) {
 
     invalidatePixmapCacheForCurrent();
     m_waveformSummary.reset();
-    m_trackUrl = QUrl();
     m_trackId = TrackId();
 
     if (m_pTrack != nullptr && m_pTrack->internal() != nullptr) {
@@ -85,32 +117,46 @@ void QmlWaveformOverview::setTrack(QmlTrackProxy* pTrack) {
                 this,
                 &QmlWaveformOverview::slotWaveformUpdated);
     }
+    if (!m_waveformSummary) {
+        // Note that we do not initiate fetching the waveform overview
+        // explicitly and instead, delay it till painting gets requested. This
+        // allows not fetching waveform overview for item that aren't yet
+        // rendered on screen
+        setStatus(Status::Null);
+    } else {
+        setStatus(Status::Ready);
+    }
     slotWaveformUpdated();
 }
 
-void QmlWaveformOverview::setTrackUrl(const QUrl& trackUrl) {
-    if (m_trackUrl == trackUrl) {
+TrackId QmlWaveformOverview::trackId() const {
+    return m_trackId;
+}
+
+void QmlWaveformOverview::setTrackId(TrackId newTrackId) {
+    if (newTrackId == m_trackId) {
         return;
     }
 
+    invalidatePixmapCacheForCurrent();
     m_waveformSummary.reset();
-    if (m_pTrack != nullptr && m_pTrack->internal() != nullptr) {
-        m_pTrack->internal()->disconnect(this);
-    }
-    m_pTrack = nullptr;
+    m_trackId = newTrackId;
+    emit trackIdChanged();
+    // This will implicitly trigger a new fetch next time the item gets painted
+    setStatus(Status::Null);
+    update();
+}
 
-    Library* pLibrary = QmlLibraryProxy::get();
-    VERIFY_OR_DEBUG_ASSERT(pLibrary) {
+QmlWaveformOverview::Status QmlWaveformOverview::status() const {
+    return m_status;
+}
+
+void QmlWaveformOverview::setStatus(Status status) {
+    if (m_status == status) {
         return;
     }
-
-    auto trackIds = pLibrary->trackCollectionManager()->resolveTrackIdsFromUrls({trackUrl});
-    VERIFY_OR_DEBUG_ASSERT(trackIds.size() == 1) {
-        return;
-    }
-    m_trackId = trackIds.first();
-    m_waveformSummary = OverviewCache::instance()->fetchWaveformSummary(m_trackId);
-    slotWaveformUpdated();
+    m_status = status;
+    emit statusChanged();
 }
 
 QmlWaveformOverview::Channels QmlWaveformOverview::getChannels() const {
@@ -124,6 +170,7 @@ void QmlWaveformOverview::setChannels(QmlWaveformOverview::Channels channels) {
 
     m_channels = channels;
     emit channelsChanged(channels);
+    slotWaveformUpdated();
 }
 
 void QmlWaveformOverview::slotWaveformUpdated() {
@@ -135,16 +182,59 @@ void QmlWaveformOverview::slotOverviewChanged(TrackId trackId) {
     if (!m_trackId.isValid() || m_trackId != trackId) {
         return;
     }
+    invalidatePixmapCache(m_trackId);
     if (m_pTrack && m_pTrack->internal()) {
         m_waveformSummary = m_pTrack->internal()->getWaveformSummary();
+        setStatus(m_waveformSummary ? Status::Ready : Status::Null);
     } else {
-        m_waveformSummary = OverviewCache::instance()->fetchWaveformSummary(m_trackId);
+        setStatus(Status::Null);
     }
-    slotWaveformUpdated();
+    update();
 }
 
-void QmlWaveformOverview::paint(QPainter* pPainter) {
-    if (!m_waveformSummary || !m_trackId.isValid()) {
+void QmlWaveformOverview::slotWaveformSummaryReady(
+        const QObject* pRequester,
+        TrackId trackId,
+        ConstWaveformPointer pWaveform) {
+    if (m_trackId != trackId || pRequester != this) {
+        return;
+    }
+    if (pWaveform.isNull()) {
+        // The OverviewCache signals a null waveform both when the DB lookup
+        // returned nothing and immediately for tracks in its negative cache.
+        m_waveformSummary.reset();
+        setStatus(Status::Error);
+        update();
+        return;
+    }
+    m_waveformSummary = pWaveform;
+    slotWaveformUpdated();
+    // Prepare the pixmap right away so that Status::Ready implies a paintable
+    // pixmap. Otherwise grabToImage() consumers (e.g. DragChip) that trigger on
+    // statusChanged race against the async pixmap preparation scheduled from
+    // paint() and capture an empty waveform.
+    slotPreparePixmap();
+    setStatus(Status::Ready);
+}
+
+void QmlWaveformOverview::slotRequestWaveformSummary() {
+    if (!m_trackId.isValid() || m_waveformSummary ||
+            m_status == Status::Error || m_status == Status::Loading) {
+        m_summaryRequestScheduled.storeRelease(0);
+        return;
+    }
+    // If we have a null or ready status and a valid trackId, we should
+    // be able to resolve a waveformSummary
+    setStatus(Status::Loading);
+    m_summaryRequestScheduled.storeRelease(0);
+    OverviewCache::instance()->requestWaveformSummary(m_trackId, this);
+}
+
+void QmlWaveformOverview::slotPreparePixmap() {
+    DEBUG_ASSERT_MAIN_THREAD_AFFINITY();
+    m_pixmapPrepareScheduled.storeRelease(0);
+
+    if (!m_trackId.isValid() || !m_waveformSummary) {
         return;
     }
 
@@ -167,24 +257,55 @@ void QmlWaveformOverview::paint(QPainter* pPainter) {
     }
 
     const int nextCompletion = actualCompletion + completionIncrement;
+    const QString cacheKey = currentPixmapCacheKey();
 
-    const QString cacheKey = pixmapCacheKey(m_trackId);
     QPixmap pixmap;
-    if (QPixmapCache::find(cacheKey, &pixmap)) {
-        pPainter->drawPixmap(0, 0, pixmap);
-    } else {
+    if (!QPixmapCache::find(cacheKey, &pixmap)) {
         pixmap = renderWaveformToPixmap(m_waveformSummary, nextCompletion);
-        VERIFY_OR_DEBUG_ASSERT(!pixmap.isNull()) {
-        }
-        else {
+        if (!pixmap.isNull()) {
             QPixmapCache::insert(cacheKey, pixmap);
+            s_cacheKeysByTrackId.insert(m_trackId, cacheKey);
         }
     }
 
-    VERIFY_OR_DEBUG_ASSERT(!pixmap.isNull()) {
+    m_pixmap = pixmap;
+    m_pixmapCacheKey = cacheKey;
+    update();
+    if (!m_pixmap.isNull() && m_status != Status::Ready) {
+        setStatus(Status::Ready);
+    }
+}
+
+void QmlWaveformOverview::paint(QPainter* pPainter) {
+    if (!m_trackId.isValid()) {
         return;
     }
-    pPainter->drawPixmap(0, 0, pixmap);
+    if (!m_waveformSummary) {
+        if (m_status != Status::Error && m_status != Status::Loading &&
+                m_summaryRequestScheduled.testAndSetOrdered(0, 1)) {
+            // paint() runs on the scene-graph render thread, so requests must
+            // be scheduled on the item's thread to avoid creating objects and
+            // emitting signals there.
+            QMetaObject::invokeMethod(this,
+                    &QmlWaveformOverview::slotRequestWaveformSummary,
+                    Qt::QueuedConnection);
+        }
+        return;
+    }
+
+    // paint() runs on the scene-graph render thread. Only draw a pixmap that
+    // was prepared on the GUI thread; never touch QPixmapCache or the cache
+    // key registry here.
+    if (m_pixmap.isNull() || m_pixmapCacheKey != currentPixmapCacheKey()) {
+        if (m_pixmapPrepareScheduled.testAndSetOrdered(0, 1)) {
+            QMetaObject::invokeMethod(this,
+                    &QmlWaveformOverview::slotPreparePixmap,
+                    Qt::QueuedConnection);
+        }
+        return;
+    }
+
+    pPainter->drawPixmap(0, 0, m_pixmap);
 }
 
 QPixmap QmlWaveformOverview::renderWaveformToPixmap(
@@ -242,18 +363,36 @@ QPixmap QmlWaveformOverview::renderWaveformToPixmap(
     return pixmap;
 }
 
-// static
-QString QmlWaveformOverview::pixmapCacheKey(TrackId trackId) {
-    return QStringLiteral("%1_%2")
-            .arg(QString::fromLatin1(kPixmapCachePrefix),
-                    trackId.toString());
+QString QmlWaveformOverview::currentPixmapCacheKey() const {
+    return pixmapCacheKey(m_trackId,
+            QSize(qRound(width()), qRound(height())),
+            static_cast<int>(m_renderer),
+            static_cast<int>(m_channels.toInt()),
+            m_colorHigh.rgba(),
+            m_colorMid.rgba(),
+            m_colorLow.rgba());
 }
 
 void QmlWaveformOverview::invalidatePixmapCacheForCurrent() {
-    if (!m_trackId.isValid()) {
-        return;
+    DEBUG_ASSERT_MAIN_THREAD_AFFINITY();
+    if (!m_pixmapCacheKey.isEmpty() && m_trackId.isValid()) {
+        s_cacheKeysByTrackId.remove(m_trackId, m_pixmapCacheKey);
+        QPixmapCache::remove(m_pixmapCacheKey);
     }
-    QPixmapCache::remove(pixmapCacheKey(m_trackId));
+    m_pixmap = QPixmap();
+    m_pixmapCacheKey.clear();
+}
+
+void QmlWaveformOverview::invalidatePixmapCache(TrackId trackId) {
+    DEBUG_ASSERT_MAIN_THREAD_AFFINITY();
+    while (s_cacheKeysByTrackId.contains(trackId)) {
+        const QString cacheKey = s_cacheKeysByTrackId.take(trackId);
+        QPixmapCache::remove(cacheKey);
+    }
+    if (m_trackId == trackId) {
+        m_pixmap = QPixmap();
+        m_pixmapCacheKey.clear();
+    }
 }
 
 void QmlWaveformOverview::drawRgb(QPainter* pPainter,

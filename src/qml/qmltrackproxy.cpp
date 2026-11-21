@@ -215,6 +215,13 @@ double QmlTrackProxy::getDuration() const {
     return m_pTrack->getDuration();
 }
 
+TrackId QmlTrackProxy::getTrackId() const {
+    if (m_pTrack == nullptr) {
+        return {};
+    }
+    return m_pTrack->getId();
+}
+
 int QmlTrackProxy::getSampleRate() const {
     if (m_pTrack == nullptr) {
         return 0;
@@ -249,7 +256,7 @@ QUrl QmlTrackProxy::getCoverArtUrl() const {
     }
 
     const CoverInfo coverInfo = m_pTrack->getCoverInfoWithLocation();
-    return AsyncImageProvider::trackLocationToCoverArtUrl(coverInfo.trackLocation);
+    return AsyncImageProvider::coverInfoToCoverArtUrl(coverInfo);
 }
 
 QUrl QmlTrackProxy::getTrackLocationUrl() const {

@@ -86,17 +86,13 @@ Rectangle {
             topMargin: 22
         }
         LoopPointButton {
-            buttonColor: root.buttonColor
             buttonName: "loopIn"
-            group: root.group
             isEndAnchor: false
             key: "loop_in"
             label: "In"
         }
         LoopPointButton {
-            buttonColor: root.buttonColor
             buttonName: "loopOut"
-            group: root.group
             isEndAnchor: true
             key: "loop_out"
             label: "Out"
@@ -451,14 +447,17 @@ Rectangle {
             }
         }
     }
+    TapHandler {
+        acceptedDevices: PointerDevice.TouchScreen | PointerDevice.Stylus
+
+        onLongPressed: toggleAnchor()
+    }
 
     component LoopPointButton: Item {
         id: loopPointButton
 
         readonly property bool anchored: anchorControl.value == (isEndAnchor ? 1 : 0)
-        required property color buttonColor
         required property string buttonName
-        required property string group
         required property bool isEndAnchor
         required property string key
         required property string label
@@ -470,18 +469,18 @@ Rectangle {
         Skin.ControlButton {
             id: controlButton
 
-            activeColor: loopPointButton.buttonColor
+            activeColor: root.buttonColor
             anchors.fill: parent
-            group: loopPointButton.group
+            group: root.group
             key: loopPointButton.key
-            normalColor: loopPointButton.buttonColor
+            normalColor: root.buttonColor
             objectName: loopPointButton.buttonName
             text: loopPointButton.label
         }
         Rectangle {
             id: anchorUnderline
 
-            color: loopPointButton.buttonColor
+            color: root.buttonColor
             height: 2
             opacity: loopPointButton.anchored ? 1 : 0
             width: parent.width - 8

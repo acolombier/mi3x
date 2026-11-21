@@ -1,9 +1,11 @@
 #pragma once
 
+#include <QHash>
+#include <QList>
+#include <QSet>
 #include <QSqlDatabase>
 
 #include "analyzer/analyzerprogress.h"
-#include "library/dao/analysisdao.h"
 #include "preferences/usersettings.h"
 #include "track/trackid.h"
 #include "util/db/dbconnectionpool.h"
@@ -30,22 +32,25 @@ class OverviewCache : public QObject, public Singleton<OverviewCache> {
             const QObject* pRequester,
             QSize desiredSize);
 
-    ConstWaveformPointer fetchWaveformSummary(TrackId trackId);
+    void requestWaveformSummary(
+            TrackId trackId,
+            const QObject* pRequester);
 
     struct FutureResult {
-        FutureResult()
-                : requester(nullptr) {
-        }
-
         TrackId trackId;
         mixxx::OverviewType type;
         QImage image;
         QSize resizedToSize;
-        const QObject* requester;
+    };
+
+    struct WaveformSummaryResult {
+        TrackId trackId;
+        ConstWaveformPointer waveform;
     };
 
   public slots:
     void overviewPrepared();
+    void waveformSummaryPrepared();
     void onTrackAnalysisProgress(TrackId trackId, AnalyzerProgress analyzerProgress);
 
   signals:
@@ -53,6 +58,11 @@ class OverviewCache : public QObject, public Singleton<OverviewCache> {
             const QObject* pRequester,
             TrackId trackId,
             bool pixmapValid);
+
+    void waveformSummaryReady(
+            const QObject* pRequester,
+            TrackId trackId,
+            ConstWaveformPointer waveform);
 
     void overviewChanged(TrackId);
 
@@ -70,16 +80,20 @@ class OverviewCache : public QObject, public Singleton<OverviewCache> {
             mixxx::OverviewType type,
             const WaveformSignalColors& signalColors,
             TrackId trackId,
-            const QObject* pRequester,
             QSize desiredSize);
+
+    static WaveformSummaryResult prepareWaveformSummary(
+            UserSettingsPointer pConfig,
+            mixxx::DbConnectionPoolPtr pDbConnectionPool,
+            TrackId trackId);
 
   private:
     UserSettingsPointer m_pConfig;
     mixxx::DbConnectionPoolPtr m_pDbConnectionPool;
 
-    AnalysisDao m_analysisDao;
-
-    QSet<TrackId> m_currentlyLoading;
+    QHash<TrackId, QList<const QObject*>> m_overviewRequesters;
+    QHash<TrackId, QList<const QObject*>> m_summaryRequesters;
     QSet<TrackId> m_tracksWithoutOverview;
+    QSet<TrackId> m_tracksWithoutWaveformSummary;
     QMultiHash<TrackId, QString> m_cacheKeysByTrackId;
 };
