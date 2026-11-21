@@ -11,6 +11,7 @@
 #include "library/searchqueries.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
+#include "library/trackprocessing.h"
 #include "moc_qmllibraryproxy.cpp"
 #include "notificationmanager.h"
 #include "preferences/colorpalettesettings.h"
@@ -20,8 +21,20 @@
 #include "qmltrackproxy.h"
 #include "track/cue.h"
 #include "track/track.h"
+#include "track/trackiterator.h"
 #include "util/assert.h"
 
+namespace {
+
+class ResetBeatsTrackPointerOperation : public mixxx::TrackPointerOperation {
+  private:
+    void doApply(
+            const TrackPointer& pTrack) const override {
+        pTrack->trySetBeats(mixxx::BeatsPointer());
+    }
+};
+
+} // anonymous namespace
 namespace mixxx {
 namespace qml {
 
@@ -202,10 +215,22 @@ QmlLibraryTrackListModel* QmlLibraryProxy::model() const {
 }
 void QmlLibraryProxy::analyze(
         const QmlTrackProxy* track, bool reanalyse, bool useFixedTempo) const {
-    VERIFY_OR_DEBUG_ASSERT(track && track->internal()) {
+    auto tracks = {track};
+    analyze(tracks, reanalyse, useFixedTempo);
+}
+void QmlLibraryProxy::analyze(
+        const mixxx::qml::ConstTrackProxyList& pTracks, bool reanalyse, bool useFixedTempo) const {
+    if (pTracks.isEmpty())
         return;
+    TrackIdList trackIds;
+    TrackPointerList trackPointers;
+    for (const auto& track : pTracks) {
+        VERIFY_OR_DEBUG_ASSERT(track != nullptr && track->internal() != nullptr) {
+            continue;
+        }
+        trackIds.append(track->internal()->getId());
+        trackPointers.append(track->internal());
     }
-    const TrackIdList trackIds = {track->internal()->getId()};
     if (trackIds.empty()) {
         qWarning() << "No tracks selected for analysis";
         return;
@@ -215,7 +240,16 @@ void QmlLibraryProxy::analyze(
     // should use a mixxx::TrackPointerOperation when we get more than one
     // operation
     if (reanalyse) {
-        track->internal()->trySetBeats(mixxx::BeatsPointer());
+        auto pTrackPointerIter = std::make_unique<mixxx::TrackPointerListIterator>(
+                trackPointers);
+
+        auto operation = ResetBeatsTrackPointerOperation();
+        mixxx::ModalTrackBatchOperationProcessor modalOperation(
+                &operation, mixxx::ModalTrackBatchOperationProcessor::Mode::Apply);
+        modalOperation.processTracks(
+                tr("Resetting beats of %n track(s)", "", trackIds.length()),
+                m_pLibrary->trackCollectionManager(),
+                pTrackPointerIter.get());
     }
 
     AnalyzerTrack::Options options;

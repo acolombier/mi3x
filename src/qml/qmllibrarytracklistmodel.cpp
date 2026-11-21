@@ -137,8 +137,8 @@ QVariant QmlLibraryTrackListModel::data(const QModelIndex& proxyIndex, int role)
         if (pTrackModel == nullptr) {
             return {};
         }
-        return pTrackModel->getTrackId(QIdentityProxyModel::mapToSource(proxyIndex))
-                .toVariant();
+        return QVariant::fromValue(pTrackModel->getTrackId(
+                QIdentityProxyModel::mapToSource(proxyIndex)));
     }
     case ColumnTypeRole:
         return QVariant::fromValue(pColumn->columnType());

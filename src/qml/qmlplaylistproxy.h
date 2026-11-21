@@ -10,7 +10,6 @@ class Library;
 
 namespace mixxx {
 namespace qml {
-
 class QmlPlaylistProxy : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString name MEMBER m_name NOTIFY nameChanged)
@@ -22,7 +21,7 @@ class QmlPlaylistProxy : public QObject {
   public:
     explicit QmlPlaylistProxy(QObject* parent, PlaylistDAO& dao, int pid, const QString& name);
 
-    Q_INVOKABLE void addTrack(mixxx::qml::QmlTrackProxy* track);
+    Q_INVOKABLE void addTracks(const mixxx::qml::TrackProxyList& tracks);
 
     bool isLocked() const {
         return m_dao.isPlaylistLocked(m_id);

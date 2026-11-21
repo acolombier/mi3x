@@ -1,5 +1,7 @@
 #pragma once
 #include <qobjectdefs.h>
+#include <qqmlintegration.h>
+#include <qtmetamacros.h>
 
 #include <QDateTime>
 #include <QDialogButtonBox>
@@ -14,6 +16,7 @@ namespace mixxx {
 struct NotificationButton {
     Q_GADGET
     Q_PROPERTY(QString label MEMBER label)
+    QML_NAMED_ELEMENT(notificationButton)
   public:
     QString label;
     QPointer<QObject> receiver;
@@ -125,11 +128,20 @@ class Notification : public QObject {
         m_buttons.append(button);
     }
 
+    Q_INVOKABLE void addButton(const QString& buttonLabel) {
+        NotificationButton button;
+        button.label = buttonLabel;
+        button.receiver = this;
+        button.func = nullptr;
+        m_buttons.append(button);
+    }
+
   signals:
     void closed();
     void textChanged();
     void detailsChanged();
     void flagsChanged();
+    void clicked(const mixxx::NotificationButton&);
 
   private:
     Flags m_flags;

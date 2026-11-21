@@ -9,6 +9,7 @@ from helpers import (
     QT_KEY_DOWN,
     QT_KEY_ENTER,
     QT_KEY_UP,
+    POPUP_ITEM,
     SETTINGS_POPUP_ITEM,
     SETTING_CATEGORY_SLUG,
     TREE_NAMESPACED_PAGES,
@@ -410,7 +411,7 @@ def step_register_mock_devices(context):
 
 @when("I click the settings close button")
 def step_click_close_button(context):
-    _click(context, f"{SETTINGS_POPUP_ITEM}/settingsCloseButton")
+    _click(context, f"{POPUP_ITEM}/closeButton")
     time.sleep(0.3)
 
 

@@ -855,7 +855,7 @@ Available via XML-RPC on `http://localhost:9000/`:
 | --- | --- | --- |
 | `mouseClick` | `(path)` | Left click at item center |
 | `mouseClick` | `(path, proportion, offset?)` | Click at relative position |
-| `mouseClickWithButton` | `(path, button, modifiers)` | button: 1=Left, 2=Right; modifiers: 0=None, 2=Ctrl |
+| `mouseClickWithButton` | `(path, button, modifiers)` | button: 1=Left, 2=Right; modifiers: 0=None, 1=Shift, 2=Ctrl, 4=Alt, 8=Meta |
 | `mouseClickWithProportion` | `(path, x, y)` | Click at relative (x, y) position |
 | `mouseClickAndHold` | `(path, button, modifiers, holdTime)` | Hold button for `holdTime` ms |
 | `mouseBeginDrag` | `(startPath, startX, startY, endPath, endY, endY)` | Begin drag from one item to another |
@@ -863,7 +863,7 @@ Available via XML-RPC on `http://localhost:9000/`:
 | `mouseEndDrag` | `(path)` | End drag at item center |
 | `mouseDropUrls` | `(path, urls)` | Drag-drop URLs onto item |
 | `command` | `(command, payload)` | Custom C++ handler (see `main.cpp`) |
-| `enterKey` | `(path, key, modifiers)` | Send a keyboard key press |
+| `enterKey` | `(path, key, modifiers)` | Send a keyboard key press (same modifier values as `mouseClickWithButton`) |
 | `inputText` | `(path, text)` | Type text into item |
 | `getStringProperty` | `(path, propertyName)` | Read QML property as string |
 | `setStringProperty` | `(path, propertyName, value)` | Write QML property |
@@ -988,6 +988,21 @@ LOOP_BUTTONS = {
 - `LOOP_BUTTONS` maps `(direction, component)` tuples to button paths for the
   generic `I {direction} the "{component}" size on deck {deck:d}` step.
 
+## Scenario scoping
+
+Keep each scenario focused on **one behavior**, asserted end to end in itself.
+
+- Do not build interaction matrices: e.g. do not test "every way of selecting
+  rows" crossed with "every feature that consumes the selection". One scenario
+  per behavior, plus the minimal prerequisite state it needs.
+- Example: row selection is covered by its own scenarios (click, ctrl-click,
+  shift-click). A feature that consumes the selection (e.g. the track
+  properties editor) is then covered once for a single row and once for a
+  multi-row selection, using only the simplest selection method needed —
+  not re-verified against each selection variant.
+- Do not chain unrelated assertions into a passing scenario just because the
+  setup already exists; add a dedicated scenario instead.
+
 ## Step DSL (`steps/`)
 
 The step definitions are split per feature (`deck_steps.py`, `browse_steps.py`,
@@ -1039,7 +1054,8 @@ responsiveness.
 
 ### Constants
 
-- `QT_LEFT_BUTTON = 1`, `QT_RIGHT_BUTTON = 2`, `QT_CONTROL_MODIFIER = 2`
+- `QT_LEFT_BUTTON = 1`, `QT_RIGHT_BUTTON = 2`, `QT_CONTROL_MODIFIER = 2`, `QT_SHIFT_MODIFIER = 1`
+  (spix `KeyModifiers`: 0=None, 1=Shift, 2=Ctrl, 4=Alt, 8=Meta)
 - `QT_KEY_ENTER`, `QT_KEY_SPACE`, `QT_KEY_DOWN`, `QT_KEY_UP`, `QT_KEY_TAB` — Qt key codes
 - `KNOWN_COLUMNS` — list of all possible library column display labels
 

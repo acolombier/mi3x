@@ -184,6 +184,9 @@ class QmlLibraryProxy : public QObject {
     Q_INVOKABLE void analyze(const mixxx::qml::QmlTrackProxy* track,
             bool reanalyse = false,
             bool useFixedTempo = true) const;
+    Q_INVOKABLE void analyze(const mixxx::qml::ConstTrackProxyList& pTracks,
+            bool reanalyse = false,
+            bool useFixedTempo = true) const;
     Q_INVOKABLE QString deckHotcueLabel(
             mixxx::qml::QmlTrackProxy* track,
             int hotcueNumber) const;

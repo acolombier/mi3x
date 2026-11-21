@@ -34,11 +34,7 @@ Item {
         root.imeFocusItem?.imeLayoutSideEffect;
         return Math.max(0, root.imeFocusItem.mapToItem(root, 0, 0).y - root.imeKeyboardMargin);
     }
-    readonly property bool isMobile: Qt.platform.os === "android" || Qt.platform.os === "ios"
     property alias maximizeLibrary: maximizeLibraryButton.checked
-    readonly property int numDecks: 4
-    readonly property int numPreviewDecks: 1
-    readonly property int numSamplers: 16
     required property var settingsPopup
     readonly property bool show4decks: show4DecksButton.checked && show4DecksButton.visible
     property alias showEffects: showEffectsButton.checked
@@ -93,30 +89,6 @@ Item {
     // width: isMobile ? Screen.width : designWidth
     // visibility: Mixxx.Config.configStartInFullscreenKey || isMobile ? Window.FullScreen : Window.Windowed
 
-    Mixxx.ControlProxy {
-        group: "[App]"
-        key: "num_decks"
-
-        onInitializedChanged: {
-            value = root.numDecks;
-        }
-    }
-    Mixxx.ControlProxy {
-        group: "[App]"
-        key: "num_samplers"
-
-        onInitializedChanged: {
-            value = root.numSamplers;
-        }
-    }
-    Mixxx.ControlProxy {
-        group: "[App]"
-        key: "num_preview_decks"
-
-        onInitializedChanged: {
-            value = root.numPreviewDecks;
-        }
-    }
     Column {
         id: content
 

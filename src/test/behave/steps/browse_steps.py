@@ -14,6 +14,8 @@ from helpers import (
     LIBRARY_TREEVIEW_CREATE_POPUP,
     LIBRARY_TREEVIEW_PATH,
     MUSIC_DIRECTORY_LIST,
+    QT_CONTROL_MODIFIER,
+    QT_KEY_A,
     QT_KEY_DOWN,
     QT_KEY_ENTER,
     QT_KEY_ESCAPE,
@@ -532,6 +534,14 @@ def step_track_selected(context, row, panel="left"):
     path = _track_row_path(row, panel)
     selected = _get_property(context, path, "selected")
     assert selected == "true", f"Track at row {row} is not selected (selected={selected})"
+
+@then("the track at row {row:d} should not be selected")
+@then("the track at row {row:d} should not be selected on the {panel} track list")
+def step_track_not_selected(context, row, panel="left"):
+    path = _track_row_path(row, panel)
+    selected = _get_property(context, path, "selected")
+    assert selected != "true", f"Track at row {row} is unexpectedly selected"
+
 
 @then("the track at row {row:d} should be visible on screen")
 def step_track_on_screen(context, row):

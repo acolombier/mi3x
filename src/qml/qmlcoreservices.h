@@ -40,6 +40,13 @@ class QmlCoreServices : public QObject {
 
     void setReady();
 
+    Q_INVOKABLE mixxx::Notification* createNotification(const QString& title,
+            mixxx::Notification::Flags flags =
+                    mixxx::Notification::Flag::Default,
+            const QString& key = {});
+    Q_INVOKABLE void notify(mixxx::Notification* pNotification);
+    Q_INVOKABLE void closeNotification(mixxx::Notification* pNotification);
+
     // Workaround for https://qt-project.atlassian.net/browse/QTBUG-87815
     // This is necessary to make touchscreen/Android usable
     bool hasPopup() const {

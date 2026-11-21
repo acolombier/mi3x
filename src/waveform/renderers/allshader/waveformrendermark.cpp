@@ -683,18 +683,19 @@ void allshader::WaveformRenderMark::drawTriangle(QPainter* painter,
 }
 
 void allshader::WaveformRenderMark::updateMarkImage(WaveformMarkPointer pMark) {
-    if (!pMark->m_pGraphics) {
+    auto texture = pMark->generateImage(
+            m_waveformRenderer->getDevicePixelRatio());
+    if (!pMark->m_pGraphics && !texture.isNull()) {
         pMark->m_pGraphics =
                 std::make_unique<WaveformMarkNodeGraphics>(pMark.get(),
                         false,
                         m_waveformRenderer->getContext(),
-                        pMark->generateImage(
-                                m_waveformRenderer->getDevicePixelRatio()));
-    } else {
+                        texture);
+    } else if (!texture.isNull()) {
         auto* pGraphics = static_cast<WaveformMarkNodeGraphics*>(pMark->m_pGraphics.get());
-        pGraphics->updateTexture(m_waveformRenderer->getContext(),
-                pMark->generateImage(
-                        m_waveformRenderer->getDevicePixelRatio()));
+        pGraphics->updateTexture(m_waveformRenderer->getContext(), texture);
+    } else {
+        pMark->m_pGraphics.reset();
     }
 }
 void allshader::WaveformRenderMark::updateEndMarkImage(WaveformMarkPointer pMark) {

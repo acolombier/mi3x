@@ -96,6 +96,31 @@ Feature: Browse
     Then the track at row 1 should be selected
 
   @sub/library
+  Scenario: Track can be selected additionally with ctrl click
+    When I click the track at row 1
+    And I ctrl-click the track at row 2
+    Then the track at row 1 should be selected
+    And the track at row 2 should be selected
+    And the track at row 3 should not be selected
+
+  @sub/library
+  Scenario: A track range can be selected with shift click
+    When I click the track at row 1
+    And I shift-click the track at row 3
+    Then the track at row 1 should be selected
+    And the track at row 2 should be selected
+    And the track at row 3 should be selected
+
+  @sub/library
+  Scenario: A track range can be unselected with ctrl click
+    When I click the track at row 1
+    And I shift-click the track at row 3
+    And I ctrl-click the track at row 2
+    Then the track at row 1 should be selected
+    And the track at row 2 should not be selected
+    And the track at row 3 should be selected
+
+  @sub/library
   Scenario: Track below the fold can be scrolled into view
     Given the library is maximized
     And the window's height is 500px

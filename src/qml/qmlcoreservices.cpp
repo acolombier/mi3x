@@ -4,6 +4,7 @@
 #include <qobject.h>
 #include <qqmlengine.h>
 
+#include <memory>
 #include <utility>
 
 #include "broadcast/broadcastmanager.h"
@@ -13,6 +14,7 @@
 #include "moc_qmlcoreservices.cpp"
 #include "notification.h"
 #include "notificationmanager.h"
+#include "qml_owned_ptr.h"
 #include "track/track.h"
 #include "util/assert.h"
 
@@ -46,6 +48,32 @@ void QmlCoreServices::setReady() {
     }
     m_ready = true;
     emit readyChanged();
+}
+
+mixxx::Notification* QmlCoreServices::createNotification(const QString& title,
+        mixxx::Notification::Flags flags,
+        const QString& key) {
+    return make_qml_owned<mixxx::Notification>(title, flags, key);
+}
+
+void QmlCoreServices::notify(mixxx::Notification* pNotification) {
+    VERIFY_OR_DEBUG_ASSERT(pNotification) {
+        return;
+    }
+    QQmlEngine::setObjectOwnership(pNotification, QQmlEngine::CppOwnership);
+    NotificationManager::instance()->notify(NotificationPointer(pNotification));
+}
+
+void QmlCoreServices::closeNotification(mixxx::Notification* pNotification) {
+    VERIFY_OR_DEBUG_ASSERT(pNotification) {
+        return;
+    }
+    const auto& notifications = NotificationManager::instance()->activeNotifications();
+    for (const auto& notification : notifications) {
+        if (notification.get() == pNotification) {
+            NotificationManager::instance()->closeNotification(notification);
+        }
+    }
 }
 
 // static

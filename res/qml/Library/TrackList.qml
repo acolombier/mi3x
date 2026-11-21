@@ -506,10 +506,21 @@ Rectangle {
         onSortingColumnChanged: root.applySort()
         onSortingOrderChanged: root.applySort()
     }
+    LibraryComponent.DragChip {
+        anchors.fill: view
+        view: root.view
+    }
     TableView {
         id: view
 
         property var cachedColumnWidth: Object()
+        property var contextMenu: LibraryComponent.ContextMenu {
+            capabilities: root.sidebar.tracklist ? root.sidebar.tracklist.getCapabilities() : Mixxx.LibraryTrackListModel.Capability.None
+            crates: root.model.crate
+            playlists: root.model.playlist
+            view: root.view
+        }
+        readonly property var dragThreshold: 20
 
         function columnShouldAutoHide(column, viewWidth) {
             return column?.display == Mixxx.TrackListColumn.Display.Auto && column?.autoHideWidth > 0 && column?.autoHideWidth > (viewWidth ?? root.width);
@@ -574,8 +585,8 @@ Rectangle {
             Mixxx.PlayerManager.loadLocationUrlIntoNextAvailableDeck(urls[0], play);
         }
 
-        // End E2E test function
-
+        // Only allow library scrolling with a drag on touchscreen
+        acceptedButtons: Qt.NoButton
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.margins: 5
@@ -646,15 +657,12 @@ Rectangle {
                 Cell {
                     color: selected ? Theme.accentColor : (row % 2 == 0 ? Theme.sunkenBackgroundColor : Theme.backgroundColor)
                     objectName: "trackRow_" + row
-                    track.capabilities: root.sidebar.tracklist ? root.sidebar.tracklist.getCapabilities() : Mixxx.LibraryTrackListModel.Capability.None
-                    track.crates: root.model.crate
-                    track.playlists: root.model.playlist
+                    view: TableView.view
 
                     // Pooled items remains parented and set with their previous property, meaning
                     // that Spix, used for testing, may accidentally picked a pooled, now stale item.
                     TableView.onPooled: {
                         objectName = "";
-                        pooled();
                     }
                     TableView.onReused: {
                         objectName = Qt.binding(() => "trackRow_" + row);
@@ -687,22 +695,53 @@ Rectangle {
                 const nb_row_per_page = parseInt(view.height / view.rowHeightProvider());
                 this.moveSelectionVertical(nb_row_per_page * value);
             }
-            function selectRow(row) {
+            function selectRow(row, modifiers) {
                 const rowCount = this.model.rowCount();
                 if (rowCount == 0) {
                     this.clear();
                     return;
                 }
                 const newRow = Mixxx.MathUtils.positiveModulo(row, rowCount);
-                this.select(this.model.index(newRow, 0), ItemSelectionModel.Rows | ItemSelectionModel.Select | ItemSelectionModel.Clear | ItemSelectionModel.Current);
+                const currentRows = Array.from(new Set(selectedIndexes.map(i => i.row)));
+                const newIndex = this.model.index(newRow, 0);
+
+                let flags = ItemSelectionModel.Rows;
+                if (!modifiers) {
+                    flags |= ItemSelectionModel.Select | ItemSelectionModel.Clear | ItemSelectionModel.Current;
+                } else if (modifiers & Qt.ControlModifier) {
+                    flags |= this.isSelected(newIndex) ? ItemSelectionModel.Deselect : ItemSelectionModel.Select;
+                }
+                if (!(modifiers & Qt.ShiftModifier) || currentRows.length == 0) {
+                    this.select(newIndex, flags);
+                } else {
+                    if (Math.max(...currentRows) < newRow) {
+                        for (let i = Math.max(...currentRows) + 1; i <= newRow; i++) {
+                            const newIndex = this.model.index(i, 0);
+                            this.select(newIndex, ItemSelectionModel.Rows | ItemSelectionModel.Select);
+                        }
+                    } else {
+                        for (let i = Math.max(...currentRows); i >= newRow; i--) {
+                            const newIndex = this.model.index(i, 0);
+                            this.select(newIndex, ItemSelectionModel.Rows | ItemSelectionModel.Select);
+                        }
+                    }
+                }
                 if (!view.isRowLoaded(newRow)) {
                     view.positionViewAtRow(newRow, TableView.Visible | TableView.AlignVCenter);
                 }
+            }
+            function selectedFirstTrack() {
+                if (!selectedIndexes)
+                    return null;
+                return this.model.getTrackByRow(selectedIndexes[0].row);
             }
             function selectedTrackUrls() {
                 return this.selectedIndexes.map(index => {
                     return this.model.getUrl(index.row);
                 });
+            }
+            function selectedTracks() {
+                return Array.from(new Set(selectedIndexes.map(i => i.row))).map(row => this.model.getTrackByRow(row));
             }
 
             model: view.model
@@ -753,31 +792,6 @@ Rectangle {
         }
         onRowsChanged: root.restoreState()
 
-        Mixxx.ControlProxy {
-            id: showTrackMenuControl
-
-            group: "[Library]"
-            key: "show_track_menu"
-
-            onValueChanged: {
-                // This signal is only responsible of opening the context menu on request. COntext menu will close itself on request.
-                if (value != 1.0)
-                    return;
-
-                const selected = view.selectionModel.selectedIndexes;
-                const currentRow = (selected.length == 0) ? 0 : selected[0].row;
-                for (let cIdx = 0; cIdx < view?.model?.columns?.length; cIdx++) {
-                    // Check if a context menu has already been opened via input interaction
-                    if (view.itemAtIndex(view.index(currentRow, cIdx))?.track?.contextMenu.opened)
-                        return;
-                }
-
-                // Upon CO request, we show the context menu near the 3 (or last) column
-                const trackItem = view.itemAtIndex(view.index(currentRow, Math.min(2, view?.model?.columns?.length - 1)))?.track;
-                if (trackItem)
-                    trackItem.contextMenu.open(trackItem);
-            }
-        }
         TapHandler {
             onTapped: {
                 view.forceActiveFocus();

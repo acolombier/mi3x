@@ -24,7 +24,7 @@ class QmlWaveformOverview : public QQuickPaintedItem {
                     NOTIFY trackChanged)
     Q_PROPERTY(mixxx::qml::QmlWaveformOverview::Channels channels READ
                     getChannels WRITE setChannels NOTIFY channelsChanged)
-    Q_PROPERTY(int trackId READ trackId WRITE setTrackId NOTIFY trackIdChanged)
+    Q_PROPERTY(TrackId trackId READ trackId WRITE setTrackId NOTIFY trackIdChanged)
     Q_PROPERTY(mixxx::qml::QmlWaveformOverview::Status status READ status NOTIFY
                     statusChanged)
     Q_PROPERTY(mixxx::qml::QmlWaveformOverview::Renderer renderer MEMBER
@@ -66,8 +66,8 @@ class QmlWaveformOverview : public QQuickPaintedItem {
 
     void setTrack(QmlTrackProxy* track);
     QmlTrackProxy* getTrack() const;
-    int trackId() const;
-    void setTrackId(int trackId);
+    TrackId trackId() const;
+    void setTrackId(TrackId trackId);
     Status status() const;
 
     void setChannels(Channels channels);

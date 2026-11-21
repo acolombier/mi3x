@@ -129,12 +129,11 @@ void QmlWaveformOverview::setTrack(QmlTrackProxy* pTrack) {
     slotWaveformUpdated();
 }
 
-int QmlWaveformOverview::trackId() const {
-    return m_trackId.toVariant().toInt();
+TrackId QmlWaveformOverview::trackId() const {
+    return m_trackId;
 }
 
-void QmlWaveformOverview::setTrackId(int trackId) {
-    const TrackId newTrackId = (trackId >= 0) ? TrackId(QVariant(trackId)) : TrackId();
+void QmlWaveformOverview::setTrackId(TrackId newTrackId) {
     if (newTrackId == m_trackId) {
         return;
     }
@@ -210,6 +209,11 @@ void QmlWaveformOverview::slotWaveformSummaryReady(
     }
     m_waveformSummary = pWaveform;
     slotWaveformUpdated();
+    // Prepare the pixmap right away so that Status::Ready implies a paintable
+    // pixmap. Otherwise grabToImage() consumers (e.g. DragChip) that trigger on
+    // statusChanged race against the async pixmap preparation scheduled from
+    // paint() and capture an empty waveform.
+    slotPreparePixmap();
     setStatus(Status::Ready);
 }
 
@@ -267,6 +271,9 @@ void QmlWaveformOverview::slotPreparePixmap() {
     m_pixmap = pixmap;
     m_pixmapCacheKey = cacheKey;
     update();
+    if (!m_pixmap.isNull() && m_status != Status::Ready) {
+        setStatus(Status::Ready);
+    }
 }
 
 void QmlWaveformOverview::paint(QPainter* pPainter) {

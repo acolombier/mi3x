@@ -45,6 +45,10 @@ Feature: Engine
     And the "effects" tab should be visible
 
   Scenario: The crossfader tab is selected by default
+    Given a fresh new empty profile
+    And Mixxx is open and ready to operate
+    And the settings popup is open
+    And the "Mixer & Effects" category is selected
     Then the "crossfader" tab should be selected
 
   Scenario: Switching to the equalizers tab
